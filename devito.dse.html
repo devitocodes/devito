@@ -111,7 +111,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.dse.manipulation">devito.dse.manipulation module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.dse.queries">devito.dse.queries module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.dse.search">devito.dse.search module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.dse.symbolics">devito.dse.symbolics module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.dse.transformer">devito.dse.transformer module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.dse">Module contents</a></li>
 </ul>
 </li>
@@ -127,6 +127,7 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.flow">devito.flow module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.grid">devito.grid module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.logger">devito.logger module</a></li>
@@ -262,7 +263,7 @@ a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
 <dl class="function">
 <dt id="devito.dse.clusterizer.clusterize">
 <code class="descclassname">devito.dse.clusterizer.</code><code class="descname">clusterize</code><span class="sig-paren">(</span><em>exprs</em>, <em>stencils</em>, <em>atomics=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/clusterizer.html#clusterize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.clusterizer.clusterize" title="Permalink to this definition">¶</a></dt>
-<dd><p>Derive <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objetcs from an iterator of expressions; a stencil for
+<dd><p>Derive <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects from an iterable of expressions; a stencil for
 each expression must be provided. A list of atomic dimensions (see description
 in Cluster.__doc__) may be provided.</p>
 </dd></dl>
@@ -437,28 +438,10 @@ evaluation.</p>
 </div>
 <div class="section" id="module-devito.dse.graph">
 <span id="devito-dse-graph-module"></span><h2>devito.dse.graph module<a class="headerlink" href="#module-devito.dse.graph" title="Permalink to this headline">¶</a></h2>
-<p>In a DSE graph, a node is a temporary and an edge between two nodes n0 and n1
-indicates that n1 reads n0. For example, given the excerpt:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">temp0</span> <span class="o">=</span> <span class="n">a</span><span class="o">*</span><span class="n">b</span>
-<span class="n">temp1</span> <span class="o">=</span> <span class="n">temp0</span><span class="o">*</span><span class="n">c</span>
-<span class="n">temp2</span> <span class="o">=</span> <span class="n">temp0</span><span class="o">*</span><span class="n">d</span>
-<span class="n">temp3</span> <span class="o">=</span> <span class="n">temp1</span> <span class="o">+</span> <span class="n">temp2</span>
-<span class="o">...</span>
-</pre></div>
-</div>
-<p>A section of the <code class="docutils literal"><span class="pre">temporaries</span> <span class="pre">graph</span></code> looks as follows:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">temp0</span> <span class="o">---&gt;</span> <span class="n">temp1</span>
-  <span class="o">|</span>          <span class="o">|</span>
-  <span class="o">|</span>          <span class="o">|</span>
-  <span class="n">v</span>          <span class="n">v</span>
-<span class="n">temp2</span> <span class="o">---&gt;</span> <span class="n">temp3</span>
-</pre></div>
-</div>
-<p>Temporaries graph are used for symbolic as well as loop-level transformations.</p>
 <dl class="function">
 <dt id="devito.dse.graph.temporaries_graph">
 <code class="descclassname">devito.dse.graph.</code><code class="descname">temporaries_graph</code><span class="sig-paren">(</span><em>temporaries</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/graph.html#temporaries_graph"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.graph.temporaries_graph" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a dependency graph given a list of <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code>.</p>
+<dd><p>Create a <code class="xref py py-class docutils literal"><span class="pre">TemporariesGraph</span></code> given a list of <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code>.</p>
 </dd></dl>
 
 </div>
@@ -737,11 +720,11 @@ a[b[i]] –&gt; True</p>
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.dse.symbolics">
-<span id="devito-dse-symbolics-module"></span><h2>devito.dse.symbolics module<a class="headerlink" href="#module-devito.dse.symbolics" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.dse.transformer">
+<span id="devito-dse-transformer-module"></span><h2>devito.dse.transformer module<a class="headerlink" href="#module-devito.dse.transformer" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
-<dt id="devito.dse.symbolics.rewrite">
-<code class="descclassname">devito.dse.symbolics.</code><code class="descname">rewrite</code><span class="sig-paren">(</span><em>clusters</em>, <em>mode='advanced'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/symbolics.html#rewrite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.symbolics.rewrite" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.dse.transformer.rewrite">
+<code class="descclassname">devito.dse.transformer.</code><code class="descname">rewrite</code><span class="sig-paren">(</span><em>clusters</em>, <em>mode='advanced'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/transformer.html#rewrite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.transformer.rewrite" title="Permalink to this definition">¶</a></dt>
 <dd><p>Transform N <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects of SymPy expressions into M
 <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects of SymPy expressions with reduced
 operation count, with M &gt;= N.</p>
@@ -760,14 +743,16 @@ operation count, with M &gt;= N.</p>
 <p>The <code class="docutils literal"><span class="pre">mode</span></code> parameter recognises the following values:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="s1">&#39;noop&#39;</span><span class="p">:</span> <span class="n">Do</span> <span class="n">nothing</span><span class="o">.</span>
 <span class="o">*</span> <span class="s1">&#39;basic&#39;</span><span class="p">:</span> <span class="n">Apply</span> <span class="n">common</span> <span class="n">sub</span><span class="o">-</span><span class="n">expressions</span> <span class="n">elimination</span><span class="o">.</span>
-<span class="o">*</span> <span class="s1">&#39;advanced&#39;</span><span class="p">:</span> <span class="n">Compose</span> <span class="nb">all</span> <span class="n">transformations</span> <span class="n">that</span> <span class="n">will</span> <span class="n">reduce</span> <span class="n">the</span>
-              <span class="n">operation</span> <span class="n">count</span> <span class="n">w</span><span class="o">/</span><span class="n">o</span> <span class="n">increasing</span> <span class="n">the</span> <span class="n">memory</span> <span class="n">pressure</span><span class="p">,</span>
+<span class="o">*</span> <span class="s1">&#39;advanced&#39;</span><span class="p">:</span> <span class="n">Apply</span> <span class="nb">all</span> <span class="n">transformations</span> <span class="n">that</span> <span class="n">will</span> <span class="n">reduce</span> <span class="n">the</span>
+              <span class="n">operation</span> <span class="n">count</span> <span class="n">w</span><span class="o">/</span> <span class="n">minimum</span> <span class="n">increase</span> <span class="n">to</span> <span class="n">the</span> <span class="n">memory</span> <span class="n">pressure</span><span class="p">,</span>
               <span class="n">namely</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="n">factorization</span><span class="p">,</span> <span class="n">CSRE</span> <span class="k">for</span> <span class="n">time</span><span class="o">-</span><span class="n">invariants</span> <span class="n">only</span><span class="o">.</span>
 <span class="o">*</span> <span class="s1">&#39;speculative&#39;</span><span class="p">:</span> <span class="n">Like</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="n">but</span> <span class="n">apply</span> <span class="n">CSRE</span> <span class="n">also</span> <span class="n">to</span> <span class="n">time</span><span class="o">-</span><span class="n">varying</span>
-                 <span class="n">sub</span><span class="o">-</span><span class="n">expressions</span><span class="p">,</span> <span class="n">which</span> <span class="n">might</span> <span class="n">increase</span> <span class="n">the</span> <span class="n">memory</span> <span class="n">pressure</span><span class="o">.</span>
+                 <span class="n">sub</span><span class="o">-</span><span class="n">expressions</span><span class="p">,</span> <span class="n">which</span> <span class="n">might</span> <span class="n">further</span> <span class="n">increase</span> <span class="n">the</span> <span class="n">memory</span>
+                 <span class="n">pressure</span><span class="o">.</span>
 <span class="o">*</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span> <span class="n">Like</span> <span class="s1">&#39;speculative&#39;</span><span class="p">,</span> <span class="n">but</span> <span class="n">apply</span> <span class="n">CSRE</span> <span class="n">to</span> <span class="nb">any</span> <span class="n">non</span><span class="o">-</span><span class="n">trivial</span>
                 <span class="n">sub</span><span class="o">-</span><span class="n">expression</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">e</span><span class="o">.</span><span class="p">,</span> <span class="n">anything</span> <span class="n">that</span> <span class="ow">is</span> <span class="n">at</span> <span class="n">least</span> <span class="ow">in</span> <span class="n">a</span>
-                <span class="nb">sum</span><span class="o">-</span><span class="n">of</span><span class="o">-</span><span class="n">products</span> <span class="n">form</span><span class="p">)</span><span class="o">.</span>
+                <span class="nb">sum</span><span class="o">-</span><span class="n">of</span><span class="o">-</span><span class="n">products</span> <span class="n">form</span><span class="p">)</span><span class="o">.</span> <span class="n">This</span> <span class="n">may</span> <span class="n">substantially</span> <span class="n">increase</span>
+                <span class="n">the</span> <span class="n">memory</span> <span class="n">pressure</span><span class="o">.</span>
 </pre></div>
 </div>
 </dd></dl>

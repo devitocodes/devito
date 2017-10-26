@@ -169,14 +169,14 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span>
 
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentProvider</span><span class="p">,</span> <span class="n">Argument</span>
+<span class="kn">import</span> <span class="nn">devito.types</span> <span class="k">as</span> <span class="nn">types</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Callable&#39;</span><span class="p">,</span> <span class="s1">&#39;Call&#39;</span><span class="p">,</span>
            <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span> <span class="s1">&#39;LocalExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;TimedList&#39;</span><span class="p">]</span>
@@ -195,9 +195,9 @@
     <span class="n">is_Element</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    :attr:`_traversable`. A list of traversable objects (ie, traversed by</span>
-<span class="sd">    :class:`Visitor` objects). A traversable object is intended as an argument</span>
-<span class="sd">    of a Node constructor and is represented as a string.</span>
+<span class="sd">    :attr:`_traversable`. The traversable fields of the Node; that is, fields</span>
+<span class="sd">    walked over by a :class:`Visitor`. All arguments in __init__ whose name</span>
+<span class="sd">    appears in this list are treated as traversable fields.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">_traversable</span> <span class="o">=</span> <span class="p">[]</span>
 
@@ -259,6 +259,8 @@
 
 <div class="viewcode-block" id="Block"><a class="viewcode-back" href="../../devito.html#devito.nodes.Block">[docs]</a><span class="k">class</span> <span class="nc">Block</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
+    <span class="sd">&quot;&quot;&quot;A sequence of nodes, wrapped in a block {...}.&quot;&quot;&quot;</span>
+
     <span class="n">is_Block</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="n">_traversable</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;body&#39;</span><span class="p">]</span>
@@ -279,7 +281,7 @@
 
 <div class="viewcode-block" id="List"><a class="viewcode-back" href="../../devito.html#devito.nodes.List">[docs]</a><span class="k">class</span> <span class="nc">List</span><span class="p">(</span><span class="n">Block</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;Class representing a sequence of one or more statements.&quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;A sequence of nodes.&quot;&quot;&quot;</span>
 
     <span class="n">is_List</span> <span class="o">=</span> <span class="kc">True</span></div>
 
@@ -302,7 +304,7 @@
 
 <div class="viewcode-block" id="Call"><a class="viewcode-back" href="../../devito.html#devito.nodes.Call">[docs]</a><span class="k">class</span> <span class="nc">Call</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;A node representing a function call.&quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;A function call.&quot;&quot;&quot;</span>
 
     <span class="n">is_Call</span> <span class="o">=</span> <span class="kc">True</span>
 
@@ -316,22 +318,25 @@
 
 <div class="viewcode-block" id="Expression"><a class="viewcode-back" href="../../devito.html#devito.nodes.Expression">[docs]</a><span class="k">class</span> <span class="nc">Expression</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;Class encpasulating a single SymPy equation.&quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;A node encapsulating a single SymPy equation.&quot;&quot;&quot;</span>
 
     <span class="n">is_Expression</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
 
         <span class="c1"># Traverse /expression/ to determine meta information</span>
         <span class="c1"># Note: at this point, expressions have already been indexified</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
-                          <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">))]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">indices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
-        <span class="c1"># Filter collected dimensions and functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reads</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+                      <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">Indexed</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">Symbol</span><span class="p">))]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reads</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
+        <span class="c1"># Filter collected dimensions and functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">indices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -351,10 +356,10 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the symbol written by this Expression.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">as_symbol</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">output_function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the function written by this Expression.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -388,7 +393,7 @@
 
 
 <div class="viewcode-block" id="Iteration"><a class="viewcode-back" href="../../devito.html#devito.nodes.Iteration">[docs]</a><span class="k">class</span> <span class="nc">Iteration</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Iteration object that encapsualtes a single loop over nodes.</span>
+    <span class="sd">&quot;&quot;&quot;Implement a for-loop over nodes.</span>
 
 <span class="sd">    :param nodes: Single or list of :class:`Node` objects defining the loop body.</span>
 <span class="sd">    :param dimension: :class:`Dimension` object over which to iterate.</span>
@@ -396,9 +401,8 @@
 <span class="sd">                   tuple of the form (start, finish, stepping).</span>
 <span class="sd">    :param index: Symbol to be used as iteration variable.</span>
 <span class="sd">    :param offsets: Optional map list of offsets to honour in the loop.</span>
-<span class="sd">    :param properties: A bag of strings indicating properties of this Iteration.</span>
-<span class="sd">                       For example, the string &#39;parallel&#39; may be used to identify</span>
-<span class="sd">                       a parallelizable Iteration.</span>
+<span class="sd">    :param properties: A bag of :class:`IterationProperty` objects, decorating</span>
+<span class="sd">                       the Iteration (sequential, parallel, vectorizable, ...).</span>
 <span class="sd">    :param pragmas: A bag of pragmas attached to this Iteration.</span>
 <span class="sd">    :param uindices: a bag of UnboundedIndex objects, representing free iteration</span>
 <span class="sd">                     variables (i.e., the Iteration end point is independent of</span>
@@ -408,17 +412,6 @@
     <span class="n">is_Iteration</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="n">_traversable</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;nodes&#39;</span><span class="p">]</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    List of known properties, usable to decorate an Iteration: ::</span>
-
-<span class="sd">        * sequential: An inherently sequential iteration space.</span>
-<span class="sd">        * parallel: An iteration space whose iterations can safely be</span>
-<span class="sd">                    executed in parallel.</span>
-<span class="sd">        * vector-dim: A (SIMD) vectorizable iteration space.</span>
-<span class="sd">        * elemental: Hoistable to an elemental function.</span>
-<span class="sd">        * remainder: A remainder iteration (e.g., by-product of some transformations)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">properties</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pragmas</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">uindices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -448,8 +441,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">off</span><span class="p">))</span>
 
         <span class="c1"># Track this Iteration&#39;s properties, pragmas and unbounded indices</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
-        <span class="k">assert</span> <span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">known_properties</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span><span class="p">)</span>
+        <span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">properties</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">filter_sorted</span><span class="p">(</span><span class="n">properties</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">pragmas</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">uindices</span><span class="p">)</span>
         <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">UnboundedIndex</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">)</span>
@@ -491,6 +485,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Elementizable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">ELEMENTAL</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Wrappable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">WRAPPABLE</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Remainder</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -595,7 +593,7 @@
 
 <div class="viewcode-block" id="Callable"><a class="viewcode-back" href="../../devito.html#devito.nodes.Callable">[docs]</a><span class="k">class</span> <span class="nc">Callable</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;A node representing a C function.</span>
+    <span class="sd">&quot;&quot;&quot;A node representing a function.</span>
 
 <span class="sd">    :param name: The name of the function.</span>
 <span class="sd">    :param body: A :class:`Node` or an iterable of :class:`Node` objects representing</span>
@@ -685,8 +683,8 @@
 <div class="viewcode-block" id="LocalExpression"><a class="viewcode-back" href="../../devito.html#devito.nodes.LocalExpression">[docs]</a><span class="k">class</span> <span class="nc">LocalExpression</span><span class="p">(</span><span class="n">Expression</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Class encpasulating a single expression with known data type</span>
-<span class="sd">    (represented as a NumPy data type).</span>
+<span class="sd">    A node encapsulating a single SymPy equation with known data type,</span>
+<span class="sd">    represented as a NumPy data type.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
@@ -698,13 +696,17 @@
 
 <span class="k">class</span> <span class="nc">IterationProperty</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
+    <span class="n">_KNOWN</span> <span class="o">=</span> <span class="p">[]</span>
+
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    An IterationProperty is an object that can be used to decorate an Iteration.</span>
+<span class="sd">    A :class:`Iteration` decorator.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_KNOWN</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">IterationProperty</span><span class="p">):</span>
@@ -713,6 +715,9 @@
 
     <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span>
@@ -725,24 +730,33 @@
 
 
 <span class="n">SEQUENTIAL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;sequential&#39;</span><span class="p">)</span>
-<span class="n">PARALLEL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;parallel&#39;</span><span class="p">)</span>
-<span class="n">VECTOR</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;vector-dim&#39;</span><span class="p">)</span>
-<span class="n">ELEMENTAL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;elemental&#39;</span><span class="p">)</span>
-<span class="n">REMAINDER</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;remainder&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Iteration is inherently serial, i.e., its iterations cannot run in parallel.&quot;&quot;&quot;</span>
 
-<span class="n">known_properties</span> <span class="o">=</span> <span class="p">[</span><span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">VECTOR</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">]</span>
+<span class="n">PARALLEL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;parallel&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Iteration can be executed in parallel w/o need for synchronization.&quot;&quot;&quot;</span>
+
+<span class="n">VECTOR</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;vector-dim&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Iteration can be SIMD-vectorized.&quot;&quot;&quot;</span>
+
+<span class="n">ELEMENTAL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;elemental&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Iteration can be pulled out to an elemental function.&quot;&quot;&quot;</span>
+
+<span class="n">REMAINDER</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;remainder&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Iteration implements a remainder/peeler loop.&quot;&quot;&quot;</span>
+
+<span class="n">WRAPPABLE</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;wrappable&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Iteration implements modulo buffered iteration and its expressions are so that</span>
+<span class="sd">one or more buffer slots can be dropped without affecting correctness. For example,</span>
+<span class="sd">u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --&gt; u[t-1, ...] = f(u[t, ...], u[t-1, ...]).&quot;&quot;&quot;</span>
 
 
 <span class="k">def</span> <span class="nf">tagger</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
-    <span class="n">handle</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;tag&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">handle</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">known_properties</span><span class="p">:</span>
-        <span class="n">known_properties</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">handle</span>
+    <span class="k">return</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;tag&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">ntags</span><span class="p">():</span>
-    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">known_properties</span><span class="p">)</span> <span class="o">-</span> <span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span>
-<span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">known_properties</span><span class="p">)</span>  <span class="c1"># noqa</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span><span class="p">)</span> <span class="o">-</span> <span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span>
+<span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span><span class="p">)</span>  <span class="c1"># noqa</span>
 
 
 <span class="k">class</span> <span class="nc">UnboundedIndex</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>

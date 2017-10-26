@@ -112,6 +112,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.dimension">devito.dimension module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.flow">devito.flow module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.function">devito.function module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.grid">devito.grid module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.logger">devito.logger module</a></li>
@@ -246,7 +247,7 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse.manipulation">devito.dse.manipulation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse.queries">devito.dse.queries module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse.search">devito.dse.search module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse.symbolics">devito.dse.symbolics module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse.transformer">devito.dse.transformer module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse">Module contents</a></li>
 </ul>
 </li>
@@ -623,7 +624,7 @@ and therefore do not support time derivatives. Use
 <dt id="devito.base.Operator">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">devito.operator.Operator</span></code></a></p>
-<p>A node representing a C function.</p>
+<p>A node representing a function.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1455,6 +1456,73 @@ the width of the resulting stencil expression.</li>
 </dd></dl>
 
 </div>
+<div class="section" id="module-devito.flow">
+<span id="devito-flow-module"></span><h2>devito.flow module<a class="headerlink" href="#module-devito.flow" title="Permalink to this headline">¶</a></h2>
+<p>A collection of algorithms to analyze and decorate <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> in an
+Iteration/Expression tree. Decoration comes in the form of <code class="xref py py-class docutils literal"><span class="pre">IterationProperty</span></code>
+objects, attached to nodes in the Iteration/Expression tree.</p>
+<p>The current implementation is based on simplistic analysis of Iteration/Expression
+trees. A better implementation would use a control flow graph, perhaps derived
+the Iteration/Expression tree itself. An ever better implementation would use
+a library such as ISL (the Integer Set Library).</p>
+<dl class="function">
+<dt id="devito.flow.analyze_iterations">
+<code class="descclassname">devito.flow.</code><code class="descname">analyze_iterations</code><span class="sig-paren">(</span><em>nodes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/flow.html#analyze_iterations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.flow.analyze_iterations" title="Permalink to this definition">¶</a></dt>
+<dd><p>Attach <code class="xref py py-class docutils literal"><span class="pre">IterationProperty</span></code> to <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> objects within
+<code class="docutils literal"><span class="pre">nodes</span></code>. The recognized IterationProperty decorators are listed in
+<code class="docutils literal"><span class="pre">nodes.IterationProperty._KNOWN</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.flow.compute_dependency_graph">
+<code class="descclassname">devito.flow.</code><code class="descname">compute_dependency_graph</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/flow.html#compute_dependency_graph"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.flow.compute_dependency_graph" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given an ordered list of <code class="xref py py-class docutils literal"><span class="pre">Expression</span></code>, build a mapper from lvalues
+to reads occurring in the rvalues.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.flow.detect_fully_parallel">
+<code class="descclassname">devito.flow.</code><code class="descname">detect_fully_parallel</code><span class="sig-paren">(</span><em>tree</em>, <em>deps_graph</em>, <em>mapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/flow.html#detect_fully_parallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.flow.detect_fully_parallel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update <code class="docutils literal"><span class="pre">mapper</span></code>, a dictionary from :class:<a href="#id7"><span class="problematic" id="id8">`</span></a>Iteration`s to
+:class:<a href="#id9"><span class="problematic" id="id10">`</span></a>IterationProperty`s, by annotating nested, fully-parallel Iterations.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.flow.detect_innermost_unitstride">
+<code class="descclassname">devito.flow.</code><code class="descname">detect_innermost_unitstride</code><span class="sig-paren">(</span><em>tree</em>, <em>deps_graph</em>, <em>mapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/flow.html#detect_innermost_unitstride"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.flow.detect_innermost_unitstride" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update <code class="docutils literal"><span class="pre">mapper</span></code>, a dictionary from :class:<a href="#id11"><span class="problematic" id="id12">`</span></a>Iteration`s to
+:class:<a href="#id13"><span class="problematic" id="id14">`</span></a>IterationProperty`s, by annotating the innermost Iteration as
+vectorizable if all array accesses along its dimension turn out to
+be unit-strided.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.flow.detect_outermost_parallel">
+<code class="descclassname">devito.flow.</code><code class="descname">detect_outermost_parallel</code><span class="sig-paren">(</span><em>tree</em>, <em>deps_graph</em>, <em>mapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/flow.html#detect_outermost_parallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.flow.detect_outermost_parallel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update <code class="docutils literal"><span class="pre">mapper</span></code>, a dictionary from :class:<a href="#id15"><span class="problematic" id="id16">`</span></a>Iteration`s to
+:class:<a href="#id17"><span class="problematic" id="id18">`</span></a>IterationProperty`s, by annotating the outermost Iteration if this
+turns out to be parallel.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.flow.detect_outermost_sequential_inner_parallel">
+<code class="descclassname">devito.flow.</code><code class="descname">detect_outermost_sequential_inner_parallel</code><span class="sig-paren">(</span><em>tree</em>, <em>deps_graph</em>, <em>mapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/flow.html#detect_outermost_sequential_inner_parallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.flow.detect_outermost_sequential_inner_parallel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update <code class="docutils literal"><span class="pre">mapper</span></code>, a dictionary from :class:<a href="#id19"><span class="problematic" id="id20">`</span></a>Iteration`s to
+:class:<a href="#id21"><span class="problematic" id="id22">`</span></a>IterationProperty`s, by annotating the outermost Iteration if this
+turns out to be sequential and, if that’s the case, by annotating the inner
+Iterations as parallel.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.flow.detect_wrappable_iterations">
+<code class="descclassname">devito.flow.</code><code class="descname">detect_wrappable_iterations</code><span class="sig-paren">(</span><em>tree</em>, <em>deps_graph</em>, <em>mapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/flow.html#detect_wrappable_iterations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.flow.detect_wrappable_iterations" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update <code class="docutils literal"><span class="pre">mapper</span></code>, a dictionary from :class:<a href="#id23"><span class="problematic" id="id24">`</span></a>Iteration`s to
+:class:<a href="#id25"><span class="problematic" id="id26">`</span></a>IterationProperty`s, by annotating an Iteration as wrappable
+if the first and last slots accessed through modulo buffered iteration
+can be mapped to a single slot, thus reducing the working set.</p>
+</dd></dl>
+
+</div>
 <div class="section" id="module-devito.function">
 <span id="devito-function-module"></span><h2>devito.function module<a class="headerlink" href="#module-devito.function" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
@@ -1819,7 +1887,7 @@ the sparse point data.</li>
 <em class="property">class </em><code class="descclassname">devito.grid.</code><code class="descname">Grid</code><span class="sig-paren">(</span><em>shape</em>, <em>extent=None</em>, <em>origin=None</em>, <em>dimensions=None</em>, <em>time_dimension=None</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/grid.html#Grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.Grid" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>A cartesian grid that encapsulates a physical domain over which
-to discretize :class:<a href="#id7"><span class="problematic" id="id8">`</span></a>Function`s.</p>
+to discretize :class:<a href="#id27"><span class="problematic" id="id28">`</span></a>Function`s.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -2098,9 +2166,9 @@ needed only for the call to free.</p>
 <dl class="attribute">
 <dt id="devito.nodes.Node.is_Element">
 <code class="descname">is_Element</code><em class="property"> = False</em><a class="headerlink" href="#devito.nodes.Node.is_Element" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="xref py py-attr docutils literal"><span class="pre">_traversable</span></code>. A list of traversable objects (ie, traversed by
-<code class="xref py py-class docutils literal"><span class="pre">Visitor</span></code> objects). A traversable object is intended as an argument
-of a Node constructor and is represented as a string.</p>
+<dd><p><code class="xref py py-attr docutils literal"><span class="pre">_traversable</span></code>. The traversable fields of the Node; that is, fields
+walked over by a <code class="xref py py-class docutils literal"><span class="pre">Visitor</span></code>. All arguments in __init__ whose name
+appears in this list are treated as traversable fields.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -2140,6 +2208,7 @@ of a Node constructor and is represented as a string.</p>
 <dt id="devito.nodes.Block">
 <em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Block</code><span class="sig-paren">(</span><em>header=None</em>, <em>body=None</em>, <em>footer=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Block"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Block" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
+<p>A sequence of nodes, wrapped in a block {…}.</p>
 <dl class="attribute">
 <dt id="devito.nodes.Block.children">
 <code class="descname">children</code><a class="headerlink" href="#devito.nodes.Block.children" title="Permalink to this definition">¶</a></dt>
@@ -2163,7 +2232,7 @@ of a Node constructor and is represented as a string.</p>
 <dt id="devito.nodes.Expression">
 <em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Expression</code><span class="sig-paren">(</span><em>expr</em>, <em>dtype=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Expression" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
-<p>Class encpasulating a single SymPy equation.</p>
+<p>A node encapsulating a single SymPy equation.</p>
 <dl class="attribute">
 <dt id="devito.nodes.Expression.is_Expression">
 <code class="descname">is_Expression</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.Expression.is_Expression" title="Permalink to this definition">¶</a></dt>
@@ -2185,12 +2254,6 @@ of a Node constructor and is represented as a string.</p>
 <dt id="devito.nodes.Expression.output">
 <code class="descname">output</code><a class="headerlink" href="#devito.nodes.Expression.output" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the symbol written by this Expression.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.nodes.Expression.output_function">
-<code class="descname">output_function</code><a class="headerlink" href="#devito.nodes.Expression.output_function" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the function written by this Expression.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -2220,13 +2283,19 @@ the stored expression.</td>
 </table>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="devito.nodes.Expression.write">
+<code class="descname">write</code><a class="headerlink" href="#devito.nodes.Expression.write" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the function written by this Expression.</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.nodes.Callable">
 <em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Callable</code><span class="sig-paren">(</span><em>name</em>, <em>body</em>, <em>retval</em>, <em>parameters=None</em>, <em>prefix=('static'</em>, <em>'inline')</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Callable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Callable" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
-<p>A node representing a C function.</p>
+<p>A node representing a function.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -2261,7 +2330,7 @@ The default value is (‘static’, ‘inline’).</li>
 <dt id="devito.nodes.Call">
 <em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Call</code><span class="sig-paren">(</span><em>name</em>, <em>params=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Call"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Call" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
-<p>A node representing a function call.</p>
+<p>A function call.</p>
 <dl class="attribute">
 <dt id="devito.nodes.Call.is_Call">
 <code class="descname">is_Call</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.Call.is_Call" title="Permalink to this definition">¶</a></dt>
@@ -2273,7 +2342,7 @@ The default value is (‘static’, ‘inline’).</li>
 <dt id="devito.nodes.Iteration">
 <em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Iteration</code><span class="sig-paren">(</span><em>nodes</em>, <em>dimension</em>, <em>limits</em>, <em>index=None</em>, <em>offsets=None</em>, <em>properties=None</em>, <em>pragmas=None</em>, <em>uindices=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
-<p>Iteration object that encapsualtes a single loop over nodes.</p>
+<p>Implement a for-loop over nodes.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -2285,9 +2354,8 @@ The default value is (‘static’, ‘inline’).</li>
 tuple of the form (start, finish, stepping).</li>
 <li><strong>index</strong> – Symbol to be used as iteration variable.</li>
 <li><strong>offsets</strong> – Optional map list of offsets to honour in the loop.</li>
-<li><strong>properties</strong> – A bag of strings indicating properties of this Iteration.
-For example, the string ‘parallel’ may be used to identify
-a parallelizable Iteration.</li>
+<li><strong>properties</strong> – A bag of <code class="xref py py-class docutils literal"><span class="pre">IterationProperty</span></code> objects, decorating
+the Iteration (sequential, parallel, vectorizable, …).</li>
 <li><strong>pragmas</strong> – A bag of pragmas attached to this Iteration.</li>
 <li><strong>uindices</strong> – a bag of UnboundedIndex objects, representing free iteration
 variables (i.e., the Iteration end point is independent of
@@ -2389,6 +2457,11 @@ if a limit is unknown.</p>
 <code class="descname">is_Vectorizable</code><a class="headerlink" href="#devito.nodes.Iteration.is_Vectorizable" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Wrappable">
+<code class="descname">is_Wrappable</code><a class="headerlink" href="#devito.nodes.Iteration.is_Wrappable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="method">
 <dt id="devito.nodes.Iteration.retag">
 <code class="descname">retag</code><span class="sig-paren">(</span><em>tag_value=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration.retag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration.retag" title="Permalink to this definition">¶</a></dt>
@@ -2421,7 +2494,7 @@ an internally generated tag is used.</p>
 <dt id="devito.nodes.List">
 <em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">List</code><span class="sig-paren">(</span><em>header=None</em>, <em>body=None</em>, <em>footer=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#List"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.List" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Block" title="devito.nodes.Block"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Block</span></code></a></p>
-<p>Class representing a sequence of one or more statements.</p>
+<p>A sequence of nodes.</p>
 <dl class="attribute">
 <dt id="devito.nodes.List.is_List">
 <code class="descname">is_List</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.List.is_List" title="Permalink to this definition">¶</a></dt>
@@ -2433,8 +2506,8 @@ an internally generated tag is used.</p>
 <dt id="devito.nodes.LocalExpression">
 <em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">LocalExpression</code><span class="sig-paren">(</span><em>expr</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#LocalExpression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.LocalExpression" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Expression" title="devito.nodes.Expression"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Expression</span></code></a></p>
-<p>Class encpasulating a single expression with known data type
-(represented as a NumPy data type).</p>
+<p>A node encapsulating a single SymPy equation with known data type,
+represented as a NumPy data type.</p>
 </dd></dl>
 
 <dl class="class">
@@ -3023,7 +3096,7 @@ If called later with the same arguments, the cached value is returned
 <dt id="devito.visitors.CGen">
 <em class="property">class </em><code class="descclassname">devito.visitors.</code><code class="descname">CGen</code><a class="reference internal" href="_modules/devito/visitors.html#CGen"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.CGen" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.visitors.Visitor</span></code></p>
-<p>Return a representation of the Iteration/Expression tree as a <a href="#id9"><span class="problematic" id="id10">:module:`cgen`</span></a> tree.</p>
+<p>Return a representation of the Iteration/Expression tree as a <a href="#id29"><span class="problematic" id="id30">:module:`cgen`</span></a> tree.</p>
 <dl class="method">
 <dt id="devito.visitors.CGen.visit_Block">
 <code class="descname">visit_Block</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#CGen.visit_Block"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.CGen.visit_Block" title="Permalink to this definition">¶</a></dt>
@@ -3077,8 +3150,8 @@ If called later with the same arguments, the cached value is returned
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.visitors.ResolveIterationVariable">
-<em class="property">class </em><code class="descclassname">devito.visitors.</code><code class="descname">ResolveIterationVariable</code><span class="sig-paren">(</span><em>mapper={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveIterationVariable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveIterationVariable" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.visitors.ResolveTimeStepping">
+<em class="property">class </em><code class="descclassname">devito.visitors.</code><code class="descname">ResolveTimeStepping</code><span class="sig-paren">(</span><em>mapper={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveTimeStepping"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveTimeStepping" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.visitors.Transformer" title="devito.visitors.Transformer"><code class="xref py py-class docutils literal"><span class="pre">devito.visitors.Transformer</span></code></a></p>
 <p><a class="reference internal" href="#devito.visitors.Transformer" title="devito.visitors.Transformer"><code class="xref py py-class docutils literal"><span class="pre">Transformer</span></code></a> class that creates a substitution dictionary
 for replacing <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> instances with explicit loop
@@ -3094,14 +3167,39 @@ for exaple.:</p>
 </div>
 </div></blockquote>
 <dl class="method">
-<dt id="devito.visitors.ResolveIterationVariable.visit_Expression">
-<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>subs={}</em>, <em>offsets=defaultdict(&lt;class 'set'&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveIterationVariable.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveIterationVariable.visit_Expression" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.visitors.ResolveTimeStepping.visit">
+<code class="descname">visit</code><span class="sig-paren">(</span><em>o</em>, <em>subs=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveTimeStepping.visit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveTimeStepping.visit" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.visitors.ResolveTimeStepping.visit_Expression">
+<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>offsets=defaultdict(&lt;class 'set'&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveTimeStepping.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveTimeStepping.visit_Expression" title="Permalink to this definition">¶</a></dt>
 <dd><p>Collect all offsets used with a dimension</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="devito.visitors.ResolveIterationVariable.visit_Iteration">
-<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em>, <em>subs={}</em>, <em>offsets=defaultdict(&lt;class 'set'&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveIterationVariable.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveIterationVariable.visit_Iteration" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.visitors.ResolveTimeStepping.visit_Iteration">
+<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>offsets=defaultdict(&lt;class 'set'&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveTimeStepping.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveTimeStepping.visit_Iteration" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.visitors.ResolveTimeStepping.visit_Node">
+<code class="descname">visit_Node</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveTimeStepping.visit_Node"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveTimeStepping.visit_Node" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.visitors.ResolveTimeStepping.visit_list">
+<code class="descname">visit_list</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.visitors.ResolveTimeStepping.visit_list" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.visitors.ResolveTimeStepping.visit_object">
+<code class="descname">visit_object</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveTimeStepping.visit_object"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveTimeStepping.visit_object" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.visitors.ResolveTimeStepping.visit_tuple">
+<code class="descname">visit_tuple</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveTimeStepping.visit_tuple"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveTimeStepping.visit_tuple" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

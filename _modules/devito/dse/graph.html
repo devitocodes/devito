@@ -161,28 +161,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.dse.graph</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">In a DSE graph, a node is a temporary and an edge between two nodes n0 and n1</span>
-<span class="sd">indicates that n1 reads n0. For example, given the excerpt: ::</span>
-
-<span class="sd">    temp0 = a*b</span>
-<span class="sd">    temp1 = temp0*c</span>
-<span class="sd">    temp2 = temp0*d</span>
-<span class="sd">    temp3 = temp1 + temp2</span>
-<span class="sd">    ...</span>
-
-<span class="sd">A section of the ``temporaries graph`` looks as follows: ::</span>
-
-<span class="sd">    temp0 ---&gt; temp1</span>
-<span class="sd">      |          |</span>
-<span class="sd">      |          |</span>
-<span class="sd">      v          v</span>
-<span class="sd">    temp2 ---&gt; temp3</span>
-
-<span class="sd">Temporaries graph are used for symbolic as well as loop-level transformations.</span>
-<span class="sd">&quot;&quot;&quot;</span>
-
-<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">islice</span>
 
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
@@ -206,8 +185,6 @@
 
 <span class="sd">        - :class:`sympy.Eq` writing to ``self``</span>
 <span class="sd">        - :class:`sympy.Eq` reading from ``self``</span>
-
-<span class="sd">    A :class:`Temporary` is used as node in a temporaries graph.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -275,9 +252,27 @@
 <span class="k">class</span> <span class="nc">TemporariesGraph</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A temporaries graph represents an ordered sequence of operations.</span>
+<span class="sd">    A temporaries graph represents an ordered sequence of operations. Operations,</span>
+<span class="sd">    of type :class:`Temporary`, are the nodes of the graph. An edge from ``n0`` to</span>
+<span class="sd">    ``n1`` indicates that ``n1`` reads from ``n0``. For example, the sequence: ::</span>
 
-<span class="sd">    The operations may involve scalars and indexed objects (arrays). The indices</span>
+<span class="sd">        temp0 = a*b</span>
+<span class="sd">        temp1 = temp0*c</span>
+<span class="sd">        temp2 = temp0*d</span>
+<span class="sd">        temp3 = temp1 + temp2</span>
+
+<span class="sd">    is represented by the following TemporariesGraph: ::</span>
+
+<span class="sd">        temp0 ---&gt; temp1</span>
+<span class="sd">          |          |</span>
+<span class="sd">          |          |</span>
+<span class="sd">          v          v</span>
+<span class="sd">        temp2 ---&gt; temp3</span>
+
+<span class="sd">    The input and output edges of a node ``n`` are encoded in ``n.reads`` and</span>
+<span class="sd">    ``n.readby``, respectively.</span>
+
+<span class="sd">    Operations may involve scalars and indexed objects (arrays). The indices</span>
 <span class="sd">    of the indexed objects represent either &quot;space&quot; or &quot;time&quot; dimensions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -491,7 +486,7 @@
 
 <div class="viewcode-block" id="temporaries_graph"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.graph.temporaries_graph">[docs]</a><span class="k">def</span> <span class="nf">temporaries_graph</span><span class="p">(</span><span class="n">temporaries</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Create a dependency graph given a list of :class:`sympy.Eq`.</span>
+<span class="sd">    Create a :class:`TemporariesGraph` given a list of :class:`sympy.Eq`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Check input is legal and initialize the temporaries graph</span>

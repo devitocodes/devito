@@ -75,10 +75,10 @@ devito\.dse\.search module
     :undoc-members:
     :show-inheritance:
 
-devito\.dse\.symbolics module
------------------------------
+devito\.dse\.transformer module
+-------------------------------
 
-.. automodule:: devito.dse.symbolics
+.. automodule:: devito.dse.transformer
     :members:
     :undoc-members:
     :show-inheritance:

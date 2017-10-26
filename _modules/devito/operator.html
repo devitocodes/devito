@@ -170,6 +170,7 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
 
+<span class="kn">from</span> <span class="nn">devito.flow</span> <span class="k">import</span> <span class="n">analyze_iterations</span>
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">Allocator</span>
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
@@ -183,7 +184,7 @@
 <span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">numpy_to_ctypes</span><span class="p">,</span> <span class="n">partial_order</span>
-<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindScopes</span><span class="p">,</span> <span class="n">ResolveIterationVariable</span><span class="p">,</span>
+<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindScopes</span><span class="p">,</span> <span class="n">ResolveTimeStepping</span><span class="p">,</span>
                              <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span><span class="p">,</span> <span class="n">InvalidOperator</span>
 
@@ -263,12 +264,14 @@
         <span class="c1"># Wrap expressions with Iterations according to dimensions</span>
         <span class="n">nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_schedule_expressions</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 
+        <span class="c1"># Data dependency analysis. Properties are attached directly to nodes</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="n">analyze_iterations</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+
         <span class="c1"># Introduce C-level profiling infrastructure</span>
         <span class="n">nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_sections</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
 
         <span class="c1"># Resolve and substitute dimensions for loop index variables</span>
-        <span class="n">subs</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">nodes</span> <span class="o">=</span> <span class="n">ResolveIterationVariable</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">subs</span><span class="p">)</span>
+        <span class="n">nodes</span><span class="p">,</span> <span class="n">subs</span> <span class="o">=</span> <span class="n">ResolveTimeStepping</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
         <span class="n">nodes</span> <span class="o">=</span> <span class="n">SubstituteExpression</span><span class="p">(</span><span class="n">subs</span><span class="o">=</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
 
         <span class="c1"># Apply the Devito Loop Engine (DLE) for loop optimization</span>
@@ -450,9 +453,8 @@
         <span class="k">return</span> <span class="n">arguments</span>
 
     <span class="k">def</span> <span class="nf">_schedule_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">clusters</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Wrap :class:`Expression` objects, already grouped in :class:`Cluster`</span>
-<span class="sd">        objects, within nested :class:`Iteration` objects (representing loops),</span>
-<span class="sd">        according to dimensions and stencils.&quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Create an Iteartion/Expression tree given an iterable of</span>
+<span class="sd">        :class:`Cluster` objects.&quot;&quot;&quot;</span>
 
         <span class="c1"># Topologically sort Iterations</span>
         <span class="n">ordering</span> <span class="o">=</span> <span class="n">partial_order</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">stencil</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">])</span>
@@ -518,8 +520,7 @@
         <span class="k">return</span> <span class="n">nodes</span>
 
     <span class="k">def</span> <span class="nf">_insert_declarations</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Populate the Operator&#39;s body with the required array and variable</span>
-<span class="sd">        declarations, to generate a legal C file.&quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Populate the Operator&#39;s body with the necessary variable declarations.&quot;&quot;&quot;</span>
 
         <span class="c1"># Resolve function calls first</span>
         <span class="n">scopes</span> <span class="o">=</span> <span class="p">[]</span>
@@ -538,17 +539,17 @@
             <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
                 <span class="c1"># Inline declaration</span>
                 <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">LocalExpression</span><span class="p">(</span><span class="o">**</span><span class="n">k</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">output_function</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">:</span>
+            <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">:</span>
                 <span class="c1"># Nothing to do, variable passed as kernel argument</span>
                 <span class="k">continue</span>
-            <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">output_function</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">:</span>
+            <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">:</span>
                 <span class="c1"># On the stack, as established by the DLE</span>
                 <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span>
                 <span class="n">site</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="s1">&#39;asap&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[</span><span class="n">nodes</span><span class="p">]</span>
-                <span class="n">allocator</span><span class="o">.</span><span class="n">push_stack</span><span class="p">(</span><span class="n">site</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">k</span><span class="o">.</span><span class="n">output_function</span><span class="p">)</span>
+                <span class="n">allocator</span><span class="o">.</span><span class="n">push_stack</span><span class="p">(</span><span class="n">site</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># On the heap, as a tensor that must be globally accessible</span>
-                <span class="n">allocator</span><span class="o">.</span><span class="n">push_heap</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">output_function</span><span class="p">)</span>
+                <span class="n">allocator</span><span class="o">.</span><span class="n">push_heap</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>
 
         <span class="c1"># Introduce declarations on the stack</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">allocator</span><span class="o">.</span><span class="n">onstack</span><span class="p">:</span>

@@ -161,8 +161,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.dle.transformer</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Sequence</span>
-
+<span></span><span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Node</span>
 <span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">State</span><span class="p">,</span> <span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">DevitoCustomRewriter</span><span class="p">,</span>
                                  <span class="n">DevitoRewriter</span><span class="p">,</span> <span class="n">DevitoRewriterSafeMath</span><span class="p">,</span>
                                  <span class="n">DevitoSpeculativeRewriter</span><span class="p">)</span>
@@ -225,16 +224,9 @@
 <span class="sd">                         worthwhile applying it.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Check input parameters</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Node</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="nb">str</span><span class="p">)):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Parameter &#39;mode&#39; should be a string, not </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>
-
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">):</span>
-        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">is_Node</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">node</span><span class="p">)</span>
-        <span class="n">node</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">node</span><span class="o">.</span><span class="n">is_Node</span><span class="p">:</span>
-        <span class="n">node</span> <span class="o">=</span> <span class="p">[</span><span class="n">node</span><span class="p">]</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Got illegal node of type </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">node</span><span class="p">))</span>
 
     <span class="c1"># Parse options (local options take precedence over global options)</span>
     <span class="n">options</span> <span class="o">=</span> <span class="n">options</span> <span class="ow">or</span> <span class="p">{}</span>

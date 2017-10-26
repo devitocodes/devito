@@ -215,6 +215,8 @@
 </li>
       <li><a href="devito.html#devito.cgen_utils.Allocator">Allocator (class in devito.cgen_utils)</a>
 </li>
+      <li><a href="devito.html#devito.flow.analyze_iterations">analyze_iterations() (in module devito.flow)</a>
+</li>
       <li><a href="examples.cfd.html#examples.cfd.example_diffusion.animate">animate() (in module examples.cfd.example_diffusion)</a>
 </li>
   </ul></td>
@@ -340,6 +342,8 @@
       <li><a href="devito.html#devito.operator.Operator.compile">compile (devito.operator.Operator attribute)</a>
 </li>
       <li><a href="devito.dle.html#devito.dle.manipulation.compose_nodes">compose_nodes() (in module devito.dle.manipulation)</a>
+</li>
+      <li><a href="devito.html#devito.flow.compute_dependency_graph">compute_dependency_graph() (in module devito.flow)</a>
 </li>
       <li><a href="devito.html#devito.parameters.configuration">configuration (in module devito.parameters)</a>
 </li>
@@ -467,6 +471,16 @@
 </li>
       <li><a href="devito.html#devito.nodes.Denormals">Denormals (class in devito.nodes)</a>
 </li>
+      <li><a href="devito.html#devito.flow.detect_fully_parallel">detect_fully_parallel() (in module devito.flow)</a>
+</li>
+      <li><a href="devito.html#devito.flow.detect_innermost_unitstride">detect_innermost_unitstride() (in module devito.flow)</a>
+</li>
+      <li><a href="devito.html#devito.flow.detect_outermost_parallel">detect_outermost_parallel() (in module devito.flow)</a>
+</li>
+      <li><a href="devito.html#devito.flow.detect_outermost_sequential_inner_parallel">detect_outermost_sequential_inner_parallel() (in module devito.flow)</a>
+</li>
+      <li><a href="devito.html#devito.flow.detect_wrappable_iterations">detect_wrappable_iterations() (in module devito.flow)</a>
+</li>
       <li><a href="devito.html#module-devito">devito (module)</a>
 </li>
       <li><a href="devito.html#module-devito.arguments">devito.arguments (module)</a>
@@ -499,12 +513,12 @@
 </li>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.utils">devito.dle.backends.utils (module)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.html#module-devito.dle.blocking_utils">devito.dle.blocking_utils (module)</a>
 </li>
       <li><a href="devito.dle.html#module-devito.dle.inspection">devito.dle.inspection (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.html#module-devito.dle.manipulation">devito.dle.manipulation (module)</a>
 </li>
       <li><a href="devito.dle.html#module-devito.dle.transformer">devito.dle.transformer (module)</a>
@@ -537,11 +551,13 @@
 </li>
       <li><a href="devito.dse.html#module-devito.dse.search">devito.dse.search (module)</a>
 </li>
-      <li><a href="devito.dse.html#module-devito.dse.symbolics">devito.dse.symbolics (module)</a>
+      <li><a href="devito.dse.html#module-devito.dse.transformer">devito.dse.transformer (module)</a>
 </li>
       <li><a href="devito.html#module-devito.exceptions">devito.exceptions (module)</a>
 </li>
       <li><a href="devito.html#module-devito.finite_difference">devito.finite_difference (module)</a>
+</li>
+      <li><a href="devito.html#module-devito.flow">devito.flow (module)</a>
 </li>
       <li><a href="devito.foreign.html#module-devito.foreign">devito.foreign (module)</a>
 </li>
@@ -1061,6 +1077,8 @@
 </li>
       <li><a href="devito.html#devito.nodes.Iteration.is_Vectorizable">is_Vectorizable (devito.nodes.Iteration attribute)</a>
 </li>
+      <li><a href="devito.html#devito.nodes.Iteration.is_Wrappable">is_Wrappable (devito.nodes.Iteration attribute)</a>
+</li>
       <li><a href="devito.html#devito.base.Operator.is_zero">is_zero (devito.base.Operator attribute)</a>
 </li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.iso_stencil">iso_stencil() (in module examples.seismic.acoustic.operators)</a>
@@ -1217,8 +1235,6 @@
 </li>
       <li><a href="devito.html#devito.nodes.Expression.output">output (devito.nodes.Expression attribute)</a>
 </li>
-      <li><a href="devito.html#devito.nodes.Expression.output_function">output_function (devito.nodes.Expression attribute)</a>
-</li>
   </ul></td>
 </tr></table>
 
@@ -1311,7 +1327,7 @@
         <li><a href="devito.html#devito.arguments.DimensionArgProvider.reset">(devito.arguments.DimensionArgProvider method)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.visitors.ResolveIterationVariable">ResolveIterationVariable (class in devito.visitors)</a>
+      <li><a href="devito.html#devito.visitors.ResolveTimeStepping">ResolveTimeStepping (class in devito.visitors)</a>
 </li>
       <li><a href="devito.html#devito.nodes.Iteration.retag">retag() (devito.nodes.Iteration method)</a>
 </li>
@@ -1327,7 +1343,7 @@
 </li>
       <li><a href="devito.html#devito.dimension.SteppingDimension.reverse">reverse (devito.dimension.SteppingDimension attribute)</a>
 </li>
-      <li><a href="devito.dse.html#devito.dse.symbolics.rewrite">rewrite() (in module devito.dse.symbolics)</a>
+      <li><a href="devito.dse.html#devito.dse.transformer.rewrite">rewrite() (in module devito.dse.transformer)</a>
 </li>
       <li><a href="examples.seismic.html#examples.seismic.source.RickerSource">RickerSource (class in examples.seismic.source)</a>
 </li>
@@ -1593,8 +1609,12 @@
       </ul></li>
       <li><a href="devito.html#devito.nodes.Node.view">view (devito.nodes.Node attribute)</a>
 </li>
-      <li><a href="devito.html#devito.visitors.Transformer.visit">visit() (devito.visitors.Transformer method)</a>
+      <li><a href="devito.html#devito.visitors.ResolveTimeStepping.visit">visit() (devito.visitors.ResolveTimeStepping method)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.visitors.Transformer.visit">(devito.visitors.Transformer method)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.visitors.CGen.visit_Block">visit_Block() (devito.visitors.CGen method)</a>
 </li>
       <li><a href="devito.html#devito.visitors.CGen.visit_Call">visit_Call() (devito.visitors.CGen method)</a>
@@ -1624,7 +1644,7 @@
 </li>
         <li><a href="devito.html#devito.visitors.FindSymbols.visit_Expression">(devito.visitors.FindSymbols method)</a>
 </li>
-        <li><a href="devito.html#devito.visitors.ResolveIterationVariable.visit_Expression">(devito.visitors.ResolveIterationVariable method)</a>
+        <li><a href="devito.html#devito.visitors.ResolveTimeStepping.visit_Expression">(devito.visitors.ResolveTimeStepping method)</a>
 </li>
         <li><a href="devito.html#devito.visitors.SubstituteExpression.visit_Expression">(devito.visitors.SubstituteExpression method)</a>
 </li>
@@ -1640,15 +1660,19 @@
 </li>
         <li><a href="devito.html#devito.visitors.IsPerfectIteration.visit_Iteration">(devito.visitors.IsPerfectIteration method)</a>
 </li>
-        <li><a href="devito.html#devito.visitors.ResolveIterationVariable.visit_Iteration">(devito.visitors.ResolveIterationVariable method)</a>
+        <li><a href="devito.html#devito.visitors.ResolveTimeStepping.visit_Iteration">(devito.visitors.ResolveTimeStepping method)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.visitors.CGen.visit_List">visit_List() (devito.visitors.CGen method)</a>
 </li>
-      <li><a href="devito.html#devito.visitors.Transformer.visit_list">visit_list() (devito.visitors.Transformer method)</a>
+      <li><a href="devito.html#devito.visitors.ResolveTimeStepping.visit_list">visit_list() (devito.visitors.ResolveTimeStepping method)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.visitors.Transformer.visit_list">(devito.visitors.Transformer method)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.visitors.CGen.visit_LocalExpression">visit_LocalExpression() (devito.visitors.CGen method)</a>
 </li>
       <li><a href="devito.html#devito.visitors.FindAdjacentIterations.visit_Node">visit_Node() (devito.visitors.FindAdjacentIterations method)</a>
@@ -1662,6 +1686,8 @@
 </li>
         <li><a href="devito.html#devito.visitors.NestedTransformer.visit_Node">(devito.visitors.NestedTransformer method)</a>
 </li>
+        <li><a href="devito.html#devito.visitors.ResolveTimeStepping.visit_Node">(devito.visitors.ResolveTimeStepping method)</a>
+</li>
         <li><a href="devito.html#devito.visitors.Transformer.visit_Node">(devito.visitors.Transformer method)</a>
 </li>
       </ul></li>
@@ -1671,6 +1697,8 @@
         <li><a href="devito.html#devito.visitors.FindNodes.visit_object">(devito.visitors.FindNodes method)</a>
 </li>
         <li><a href="devito.html#devito.visitors.IsPerfectIteration.visit_object">(devito.visitors.IsPerfectIteration method)</a>
+</li>
+        <li><a href="devito.html#devito.visitors.ResolveTimeStepping.visit_object">(devito.visitors.ResolveTimeStepping method)</a>
 </li>
         <li><a href="devito.html#devito.visitors.Transformer.visit_object">(devito.visitors.Transformer method)</a>
 </li>
@@ -1690,6 +1718,8 @@
 </li>
         <li><a href="devito.html#devito.visitors.IsPerfectIteration.visit_tuple">(devito.visitors.IsPerfectIteration method)</a>
 </li>
+        <li><a href="devito.html#devito.visitors.ResolveTimeStepping.visit_tuple">(devito.visitors.ResolveTimeStepping method)</a>
+</li>
         <li><a href="devito.html#devito.visitors.Transformer.visit_tuple">(devito.visitors.Transformer method)</a>
 </li>
       </ul></li>
@@ -1707,14 +1737,16 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.logger.warning">warning() (in module devito.logger)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.html#examples.seismic.source.GaborSource.wavelet">wavelet() (examples.seismic.source.GaborSource method)</a>
 
       <ul>
         <li><a href="examples.seismic.html#examples.seismic.source.RickerSource.wavelet">(examples.seismic.source.RickerSource method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.nodes.Expression.write">write (devito.nodes.Expression attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 

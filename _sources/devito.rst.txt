@@ -79,6 +79,14 @@ devito\.finite\_difference module
     :undoc-members:
     :show-inheritance:
 
+devito\.flow module
+-------------------
+
+.. automodule:: devito.flow
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.function module
 -----------------------
 
