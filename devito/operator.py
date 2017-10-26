@@ -21,9 +21,9 @@ from devito.ir.iet import (Element, Expression, Callable, Iteration, List,
                            LocalExpression, FindScopes, ResolveTimeStepping,
                            SubstituteExpression, Transformer, NestedTransformer,
                            analyze_iterations)
+from devito.ir.support import Stencil
 from devito.parameters import configuration
 from devito.profiling import create_profile
-from devito.stencil import Stencil
 from devito.symbolics import indexify, retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
 from devito.types import Object
