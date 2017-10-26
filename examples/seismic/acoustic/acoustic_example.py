@@ -94,7 +94,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
+    parser.add_argument('--2d', dest='dim2', default=True, action='store_true',
                         help="Preset to determine the physical problem setup")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
@@ -106,13 +106,13 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
-    parser.add_argument("-dse", "-dse", default="advanced",
+    parser.add_argument("-dse", "-dse", default="noop",
                         choices=["noop", "basic", "advanced",
                                  "speculative", "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
-    parser.add_argument("-dle", default="advanced",
+    parser.add_argument("-dle", default="noop",
                         choices=["noop", "advanced", "speculative"],
-                        help="Devito loop engine (DSE) mode")
+                        help="Devito loop engine (DLE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
     args = parser.parse_args()

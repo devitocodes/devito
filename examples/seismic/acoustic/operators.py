@@ -2,7 +2,7 @@ from sympy import solve, Symbol
 
 from devito import Eq, Operator, Forward, Backward, Function, TimeFunction
 from devito.logger import error
-from examples.seismic import PointSource, Receiver
+from examples.seismic import PointSource, Receiver, ABC
 
 
 def laplacian(field, time_order, m, s):
@@ -27,7 +27,7 @@ def laplacian(field, time_order, m, s):
     return field.laplace + s**2/12 * biharmonic
 
 
-def iso_stencil(field, time_order, m, s, damp, **kwargs):
+def iso_stencil(field, time_order, m, s, **kwargs):
     """
     Stencil for the acoustic isotropic wave-equation:
     u.dt2 - H + damp*u.dt = 0
@@ -47,8 +47,6 @@ def iso_stencil(field, time_order, m, s, damp, **kwargs):
     next = field.forward if kwargs.get('forward', True) else field.backward
     # Define PDE
     eq = m * field.dt2 - H - kwargs.get('q', 0)
-    # Add dampening field according to the propagation direction
-    eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
     # Solve the symbolic equation for the field to be updated
     eq_time = solve(eq, next, rational=False, simplify=False)[0]
     # Get the spacial FD
@@ -69,7 +67,6 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     :param space_order: Space discretization order
     :param save: Saving flag, True saves all time steps, False only the three
     """
-    m, damp = model.m, model.damp
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
@@ -84,17 +81,20 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(u, time_order, m, s, damp)
+    eqn = iso_stencil(u, time_order, model.m, s)
 
     # Construct expression to inject source values
-    src_term = src.inject(field=u.forward, expr=src * dt**2 / m,
+    src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m,
                           offset=model.nbpml)
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, offset=model.nbpml)
 
+    BC = ABC(model, u, model.m)
+    eq_abc = BC.abc
+
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
+    return Operator(eqn + eq_abc +src_term + rec_term, subs=model.spacing_map,
                     time_axis=Forward, name='Forward', **kwargs)
 
 

@@ -1,6 +1,8 @@
 from __future__ import division
 
-from devito import Dimension, x, y, z, t, Forward
+import numpy as np
+
+from devito import Dimension, Forward, Function
 from devito.exceptions import InvalidArgument
 
 from sympy import Eq
@@ -24,11 +26,14 @@ class ABC(object):
         self.full_shape = model.shape_domain
         self.p_abc = Dimension(name="abc")
         self.ndim = model.dim
+        self.indices = field.indices
         self.field = field
+        self.tindex = self.field.grid.time_dim
         self.m = m
         self.taxis = taxis
         self.fs = Dimension(name="fs")
         self.freesurface = kwargs.get("freesurface", False)
+        self.damp = Function
 
     @property
     def abc_eq(self):
@@ -37,7 +42,7 @@ class ABC(object):
         :param val: symbolic value of the dampening profile
         :return: Symbolic equation inside the boundary layer
         """
-        s = t.spacing
+        s = self.tindex.spacing
         next = self.field.forward if self.taxis is Forward else self.field.backward
         prev = self.field.backward if self.taxis is Forward else self.field.forward
         return Eq(next, self.m / (self.m + s * self.damp_profile) * next +
@@ -73,48 +78,35 @@ class ABC(object):
         Dampening profile along a single direction
         :return:
         """
-        pos = (self.nbpml - self.p_abc)
-        # 1 - exp(-(0.004*pos)**2) first order Taylor (very close to 0)
+
+        profile = [1 - np.exp(-(0.004*pos)**2) for pos in range(self.nbpml)]
         # second order would be 1/250*pos)**2 *(1 + 1/2*(1/250*pos)*(1/250*pos))
-        profile = (1 / 250 * pos) * (1 / 250 * pos)
-        return profile
+        # profile = (1 / 250 * pos) * (1 / 250 * pos)
+        return Function(name="damp", shape=(self.nbpml,), dimensions=(self.p_abc,), data=profile)
 
     def damp_x(self):
         """
         Dampening profile along x
         :return:
         """
-        return [self.abc_eq.subs({x: self.p_abc}),
-                self.abc_eq.subs({x: self.full_shape[0] - 1 - self.p_abc})]
+        return [self.abc_eq.subs({self.indices[0]: self.p_abc}),
+                self.abc_eq.subs({self.indices[0]: self.full_shape[0] - 1 - self.p_abc})]
 
     def damp_y(self):
         """
         Dampening profile along y
         :return:
         """
-        return [self.abc_eq.subs({y: self.p_abc}),
-                self.abc_eq.subs({y: self.full_shape[0] - 1 - self.p_abc})]
+        return [self.abc_eq.subs({self.indices[1]: self.p_abc}),
+                self.abc_eq.subs({self.indices[1]: self.full_shape[0] - 1 - self.p_abc})]
 
     def damp_z(self):
         """
-        Dampening profile along z
-        This seems to need a different Dimension to avoid beeing
-        stuck in an infinite loop inside /devito/tools.py", line 123 while loop on queue
+        Dampening profile along y
         :return:
         """
-        p_abcz = Dimension(name="abcz", size=self.nbpml)
-        pos = (self.nbpml - p_abcz + 1)
-        profile = (1 / 250 * pos) ** 2
-        s = t.spacing
-        next = self.field.forward if self.taxis is Forward else self.field.backward
-        prev = self.field.backward if self.taxis is Forward else self.field.forward
-        abc_eq = Eq(next, self.m / (self.m + s * profile) * next +
-                    s * profile / (self.m + s * profile) * prev)
-        return [abc_eq.subs({z: p_abcz}),
-                abc_eq.subs({z: self.full_shape[0] - 1 - p_abcz})]
-        # return [self.abc_eq.subs({z: self.p_abc, h: z.spacing}),
-        #         self.abc_eq.subs({z: self.full_shape[0] - 1 - self.p_abc,
-        #                                h: z.spacing})]
+        return [self.abc_eq.subs({self.indices[2]: self.p_abc}),
+                self.abc_eq.subs({self.indices[2]: self.full_shape[0] - 1 - self.p_abc})]
 
     def damp_2d(self):
         """
