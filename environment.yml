@@ -19,6 +19,7 @@ dependencies:
   - dask
   - distributed
   - scikit-image
+  - cython
   - pip:
     - "git+https://github.com/inducer/codepy"
     - "git+https://github.com/opesci/pyrevolve"
