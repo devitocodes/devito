@@ -5,7 +5,7 @@ import pytest
 from sympy import cos, Symbol  # noqa
 
 from devito import (Dimension, Eq, TimeDimension, SteppingDimension, SpaceDimension,  # noqa
-                    Constant, Function, configuration)  # noqa
+                    Constant, Function, TimeFunction, Grid, configuration)  # noqa
 from devito.types import Scalar, Array
 from devito.ir.iet import Iteration
 from devito.tools import as_tuple
@@ -13,6 +13,13 @@ from devito.tools import as_tuple
 
 skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
                                  reason="YASK testing is currently restricted")
+
+
+# Testing dimensions for space and time
+grid = Grid(shape=(3, 3, 3))
+time = grid.time_dim
+t = grid.stepping_dim
+x, y, z = grid.dimensions
 
 
 def scalar(name):
@@ -32,6 +39,10 @@ def function(name, shape, dimensions):
     return Function(name=name, shape=shape, dimensions=dimensions)
 
 
+def timefunction(name):
+    return TimeFunction(name=name, grid=grid)
+
+
 @pytest.fixture(scope="session")
 def dims():
     return {'i': Dimension(name='i'),
@@ -40,14 +51,6 @@ def dims():
             'l': Dimension(name='l'),
             's': Dimension(name='s'),
             'q': Dimension(name='q')}
-
-
-# Testing dimensions for space and time
-time = TimeDimension('time', spacing=Constant(name='dt'))
-t = SteppingDimension('t', parent=time)
-x = SpaceDimension('x', spacing=Constant(name='h_x'))
-y = SpaceDimension('y', spacing=Constant(name='h_y'))
-z = SpaceDimension('z', spacing=Constant(name='h_z'))
 
 
 @pytest.fixture(scope="session")
@@ -150,17 +153,17 @@ def ti3(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def tu(dims):
-    return array('tu', (10, 3, 5, 7), (t, x, y, z)).indexify()
+    return timefunction('tu').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def tv(dims):
-    return array('tv', (10, 3, 5, 7), (t, x, y, z)).indexify()
+    return timefunction('tv').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def tw(dims):
-    return array('tw', (10, 3, 5, 7), (t, x, y, z)).indexify()
+    return timefunction('tw').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
