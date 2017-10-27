@@ -9,8 +9,8 @@ import os
 from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
-from devito.parameters import Parameters, add_sub_configuration, infer_cpu
-from devito.tools import ctypes_pointer
+from devito.parameters import Parameters, add_sub_configuration
+from devito.tools import ctypes_pointer, infer_cpu
 
 
 def exit(emsg):

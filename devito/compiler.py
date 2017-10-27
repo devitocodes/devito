@@ -291,9 +291,3 @@ compiler_registry = {
     'intel-mic': IntelMICCompiler, 'mic': IntelMICCompiler,
     'intel-knl': IntelKNLCompiler, 'knl': IntelKNLCompiler,
 }
-
-
-configuration.add('compiler', 'custom', list(compiler_registry),
-                  lambda i: compiler_registry[i]())
-configuration.add('openmp', 0, [0, 1], lambda i: bool(i))
-configuration.add('debug_compiler', 0, [0, 1], lambda i: bool(i))

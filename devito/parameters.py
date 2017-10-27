@@ -2,12 +2,9 @@
 
 from collections import OrderedDict
 from os import environ
-from subprocess import PIPE, Popen
-
-import cpuinfo
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'add_sub_configuration', 'infer_cpu']
+           'add_sub_configuration']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -100,18 +97,6 @@ env_vars_mapper = {
 configuration = Parameters("Devito-Configuration")
 """The Devito configuration parameters."""
 
-configuration.add('travis_test', 0, [0, 1], lambda i: bool(i))
-# Set the Instruction Set Architecture (ISA)
-default_isa = 'cpp'
-ISAs = [None, 'cpp', 'avx', 'avx2', 'avx512', 'knc']
-configuration.add('isa', None, ISAs)
-# Set the CPU architecture (only codename)
-default_platform = 'intel64'
-PLATFORMs = [None, 'intel64', 'sandybridge', 'ivybridge', 'haswell',
-             'broadwell', 'skylake', 'knc', 'knl']
-# TODO: switch arch to actual architecture names; use the mapper in /YASK/
-configuration.add('platform', None, PLATFORMs)
-
 
 def init_configuration(configuration=configuration, env_vars_mapper=env_vars_mapper):
     # Populate /configuration/ with user-provided options
@@ -178,38 +163,3 @@ def print_state():
     from devito.logger import info
     for k, v in configuration.items():
         info('%s: %s' % (k, v))
-
-
-def infer_cpu():
-    """
-    Detect the highest Instruction Set Architecture and the platform
-    codename using cpu flags and/or leveraging other tools. Return default
-    values if the detection procedure was unsuccesful.
-    """
-    info = cpuinfo.get_cpu_info()
-    # ISA
-    isa = default_isa
-    for i in reversed(ISAs):
-        if i in info['flags']:
-            isa = i
-            break
-    # Platform
-    try:
-        # First, try leveraging `gcc`
-        p1 = Popen(['gcc', '-march=native', '-Q', '--help=target'], stdout=PIPE)
-        p2 = Popen(['grep', 'march'], stdin=p1.stdout, stdout=PIPE)
-        p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
-        output, _ = p2.communicate()
-        platform = output.decode("utf-8").split()[1]
-    except:
-        # Then, try infer from the brand name, otherwise fallback to default
-        try:
-            mapper = {'v3': 'haswell', 'v4': 'broadwell', 'v5': 'skylake'}
-            cpu_iteration = info['brand'].split()[4]
-            platform = mapper[cpu_iteration]
-        except:
-            platform = None
-    # Is it a known platform?
-    if platform not in PLATFORMs:
-        platform = default_platform
-    return isa, platform

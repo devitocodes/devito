@@ -1,16 +1,19 @@
+import numpy as np
 import os
 import ctypes
 from collections import Callable, Iterable, OrderedDict, Hashable
 from functools import partial
+from subprocess import PIPE, Popen
+import cpuinfo
 try:
     from itertools import izip_longest as zip_longest
 except ImportError:
     # Python3.5 compatibility
     from itertools import zip_longest
 
-import numpy as np
+from devito.parameters import configuration
 
-__all__ = ['memoized']
+__all__ = ['memoized', 'infer_cpu']
 
 
 def as_tuple(item, type=None, length=None):
@@ -265,3 +268,42 @@ class memoized(object):
     def __get__(self, obj, objtype):
         """Support instance methods."""
         return partial(self.__call__, obj)
+
+
+default_isa = 'cpp'
+default_platform = 'intel64'
+
+
+def infer_cpu():
+    """
+    Detect the highest Instruction Set Architecture and the platform
+    codename using cpu flags and/or leveraging other tools. Return default
+    values if the detection procedure was unsuccesful.
+    """
+    info = cpuinfo.get_cpu_info()
+    # ISA
+    isa = default_isa
+    for i in reversed(configuration._accepted['isa']):
+        if i in info['flags']:
+            isa = i
+            break
+    # Platform
+    try:
+        # First, try leveraging `gcc`
+        p1 = Popen(['gcc', '-march=native', '-Q', '--help=target'], stdout=PIPE)
+        p2 = Popen(['grep', 'march'], stdin=p1.stdout, stdout=PIPE)
+        p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
+        output, _ = p2.communicate()
+        platform = output.decode("utf-8").split()[1]
+    except:
+        # Then, try infer from the brand name, otherwise fallback to default
+        try:
+            mapper = {'v3': 'haswell', 'v4': 'broadwell', 'v5': 'skylake'}
+            cpu_iteration = info['brand'].split()[4]
+            platform = mapper[cpu_iteration]
+        except:
+            platform = None
+    # Is it a known platform?
+    if platform not in configuration._accepted['platform']:
+        platform = default_platform
+    return isa, platform
