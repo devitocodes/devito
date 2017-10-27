@@ -41,10 +41,10 @@ class Stencil(DefaultOrderedDict):
             else:
                 for j in i:
                     if isinstance(j, StencilEntry):
-                        processed.append((j.dim, j.ofs))
+                        processed.append((j.dim, set(j.ofs)))
                     elif isinstance(j, tuple) and len(j) == 2:
                         entry = StencilEntry(*j)  # Type checking
-                        processed.append((entry.dim, entry.ofs))
+                        processed.append((entry.dim, set(entry.ofs)))
                     else:
                         raise RuntimeError('Cannot construct a Stencil for %s' % str(j))
         super(Stencil, self).__init__(set, processed)
@@ -227,6 +227,30 @@ class Stencil(DefaultOrderedDict):
     def get(self, k, v=None):
         obj = super(Stencil, self).get(k, v)
         return frozenset([0]) if obj is None else obj
+
+    def prefix(self, o):
+        """
+        Return the common prefix of ``self`` and ``o`` as a new Stencil.
+        """
+        output = Stencil()
+        for (k1, v1), (k2, v2) in zip(self.items(), o.items()):
+            if k1 == k2 and v1 == v2:
+                output[k1] = set(v1)
+            else:
+                break
+        return output
+
+    def copy(self):
+        """
+        Return a deep copy of the Stencil.
+        """
+        return Stencil(self.entries)
+
+    def __eq__(self, other):
+        return self.entries == other.entries
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __setitem__(self, key, val):
         entry = StencilEntry(key, val)  # Type checking
