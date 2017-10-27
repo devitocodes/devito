@@ -100,7 +100,6 @@ env_vars_mapper = {
 configuration = Parameters("Devito-Configuration")
 """The Devito configuration parameters."""
 
-configuration.add('travis_test', 0, [0, 1], lambda i: bool(i))
 # Set the Instruction Set Architecture (ISA)
 default_isa = 'cpp'
 ISAs = [None, 'cpp', 'avx', 'avx2', 'avx512', 'knc']
