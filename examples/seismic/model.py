@@ -383,6 +383,13 @@ class Model(object):
         return self.grid.spacing
 
     @property
+    def spacing_map(self):
+        """
+        Map between spacing symbols and their values for each :class:`SpaceDimension`
+        """
+        return self.grid.spacing_map
+
+    @property
     def origin(self):
         """
         Coordinates of the origin of the physical model.

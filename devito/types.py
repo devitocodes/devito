@@ -23,18 +23,20 @@ class Basic(object):
     Base class for API objects, used to build and run :class:`Operator`s.
 
     There are two main types of objects: symbolic and generic. Symbolic objects
-    may carry data, and are used to build equations. Generic objects may be
-    used to represent or pass arbitrary data structures. The following diagram
-    outlines the top of this hierarchy.
+    may carry data, and are used to build equations. Generic objects are used
+    to represent arbitrary data structures. The following diagram outlines the
+    top of this hierarchy.
 
-                                 Basic
-                                   |
-                    ----------------------------------
-                    |                                |
-              CachedSymbol                         Object
-                    |                       <see Object.__doc__>
-             AbstractFunction
-    <see diagram in AbstractFunction.__doc__>
+                                       Basic
+                                         |
+                        -----------------------------------
+                        |                                 |
+                  CachedSymbol                          Object
+                        |                          <see Object.__doc__>
+           --------------------------
+           |                        |
+    AbstractSymbol          AbstractFunction
+                        <see AbstractFunction.__doc__>
 
     All derived :class:`Basic` objects may be emitted through code generation
     to create a just-in-time compilable kernel.
@@ -122,6 +124,25 @@ class AbstractSymbol(sympy.Symbol, CachedSymbol):
             newcls._cache_put(newobj)
         return newobj
 
+    @property
+    def indices(self):
+        return ()
+
+    @property
+    def shape(self):
+        return ()
+
+    @property
+    def symbolic_shape(self):
+        return ()
+
+    @property
+    def function(self):
+        return self
+
+    def indexify(self):
+        return self
+
 
 class Symbol(AbstractSymbol):
 
@@ -135,25 +156,6 @@ class Symbol(AbstractSymbol):
 
     @property
     def base(self):
-        return self
-
-    @property
-    def function(self):
-        return self
-
-    @property
-    def indices(self):
-        return ()
-
-    @property
-    def shape(self):
-        return ()
-
-    @property
-    def symbolic_shape(self):
-        return ()
-
-    def indexify(self):
         return self
 
 
@@ -388,10 +390,11 @@ class Array(SymbolicData, ArrayArgProvider):
         self.shape = shape or self.shape
         self.indices = dimensions or self.indices
 
-        self._external = bool(external)
-        self._onstack = bool(onstack)
-        self._onheap = bool(onheap)
-        assert single_or([self._external, self._onstack, self._onheap])
+        if any(i is not None for i in [external, onstack, onheap]):
+            self._external = bool(external)
+            self._onstack = bool(onstack)
+            self._onheap = bool(onheap)
+            assert single_or([self._external, self._onstack, self._onheap])
 
 
 class SymbolicFunction(AbstractFunction):

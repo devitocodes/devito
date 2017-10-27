@@ -11,9 +11,10 @@ from conftest import EVAL
 
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import Grid, Function, TimeFunction, Eq, Operator, t, x, y
+from devito import Grid, Function, TimeFunction, Eq, Operator
+from devito.flow import analyze_iterations
 from devito.nodes import ELEMENTAL, Expression, Callable, Iteration, List, tagger
-from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
+from devito.visitors import (ResolveTimeStepping, SubstituteExpression,
                              Transformer, FindNodes)
 
 
@@ -39,8 +40,7 @@ def simple_function(a, b, c, d, exprs, iters):
     symbols = [i.base.function for i in [a, b, c, d]]
     body = iters[0](iters[1](iters[2]([exprs[0], exprs[1]])))
     f = Callable('foo', body, 'void', symbols, ())
-    subs = {}
-    f = ResolveIterationVariable().visit(f, subs=subs)
+    f, subs = ResolveTimeStepping().visit(f)
     f = SubstituteExpression(subs=subs).visit(f)
     return f
 
@@ -55,8 +55,7 @@ def simple_function_with_paddable_arrays(a_dense, b_dense, exprs, iters):
     symbols = [i.base.function for i in [a_dense, b_dense]]
     body = iters[0](iters[1](iters[2](exprs[6])))
     f = Callable('foo', body, 'void', symbols, ())
-    subs = {}
-    f = ResolveIterationVariable().visit(f, subs=subs)
+    f, subs = ResolveTimeStepping().visit(f)
     f = SubstituteExpression(subs=subs).visit(f)
     return f
 
@@ -72,8 +71,7 @@ def simple_function_fissionable(a, b, exprs, iters):
     symbols = [i.base.function for i in [a, b]]
     body = iters[0](iters[1](iters[2]([exprs[0], exprs[2]])))
     f = Callable('foo', body, 'void', symbols, ())
-    subs = {}
-    f = ResolveIterationVariable().visit(f, subs=subs)
+    f, subs = ResolveTimeStepping().visit(f)
     f = SubstituteExpression(subs=subs).visit(f)
     return f
 
@@ -95,8 +93,7 @@ def complex_function(a, b, c, d, exprs, iters):
                      iters[1](iters[2]([exprs[3], exprs[4]])),
                      iters[4](exprs[5])])
     f = Callable('foo', body, 'void', symbols, ())
-    subs = {}
-    f = ResolveIterationVariable().visit(f, subs=subs)
+    f, subs = ResolveTimeStepping().visit(f)
     f = SubstituteExpression(subs=subs).visit(f)
     return f
 
@@ -150,12 +147,10 @@ def _new_operator3(shape, time_order, **kwargs):
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2) - c * (u.dxl + u.dyl))
     stencil = solve(eqn, u.forward, rational=False)[0]
-    op = Operator(Eq(u.forward, stencil), subs={x.spacing: spacing,
-                                                y.spacing: spacing,
-                                                t.spacing: dt}, **kwargs)
+    op = Operator(Eq(u.forward, stencil), **kwargs)
 
     # Execute the generated Devito stencil operator
-    op.apply(u=u, t=10)
+    op.apply(u=u, t=10, dt=dt)
     return u.data[1, :], op
 
 
@@ -167,7 +162,7 @@ def test_create_elemental_functions_simple(simple_function):
               for i, j in zip(roots, retagged)}
     function = Transformer(mapper).visit(simple_function)
     handle = transform(function, mode='split')
-    block = List(body=handle.nodes + handle.elemental_functions)
+    block = List(body=[handle.nodes] + handle.elemental_functions)
     output = str(block.ccode)
     # Make output compiler independent
     output = [i for i in output.split('\n')
@@ -215,7 +210,7 @@ def test_create_elemental_functions_complex(complex_function):
               for i, j in zip(roots, retagged)}
     function = Transformer(mapper).visit(complex_function)
     handle = transform(function, mode='split')
-    block = List(body=handle.nodes + handle.elemental_functions)
+    block = List(body=[handle.nodes] + handle.elemental_functions)
     output = str(block.ccode)
     # Make output compiler independent
     output = [i for i in output.split('\n')
@@ -355,7 +350,6 @@ def test_cache_blocking_edge_cases(shape, blockshape):
     w_blocking, _ = _new_operator2(shape, time_order=2,
                                    dle=('blocking', {'blockshape': blockshape,
                                                      'blockinner': True}))
-
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
@@ -380,7 +374,6 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
     w_blocking, _ = _new_operator3(shape, time_order=2,
                                    dle=('blocking', {'blockshape': blockshape,
                                                      'blockinner': True}))
-
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
@@ -410,14 +403,14 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
     # outermost sequential w/ repeated dimensions
     (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x+1], t0 + 1)'],
      (False, False)),
-    # outermost sequential, innermost sequential
+    # outermost sequential, innermost sequential (classic skewing example)
     (['Eq(fc[x,y], fc[x,y+1] + fc[x-1,y])'],
      (False, False)),
     # outermost parallel, innermost sequential w/ double tensor write
     (['Eq(fc[x,y], fc[x,y+1] + fd[x-1,y])', 'Eq(fd[x-1,y+1], fd[x-1,y] + fc[x,y+1])'],
      (True, False)),
     # outermost sequential, innermost parallel w/ mixed dimensions
-    (['Eq(fc[x+1,y], fc[x,y+1] + fa[y])', 'Eq(fa[y], 2. + fc[x,y+1])'],
+    (['Eq(fc[x+1,y], fc[x,y+1] + fc[x,y])', 'Eq(fc[x+1,y], 2. + fc[x,y+1])'],
      (False, True)),
 ])
 def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
@@ -425,10 +418,10 @@ def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
     node_exprs = [Expression(EVAL(i, *scope)) for i in exprs]
     ast = iters[6](iters[7](node_exprs))
 
+    ast = analyze_iterations(ast)
+
     nodes = transform(ast, mode='openmp').nodes
-    assert len(nodes) == 1
-    ast = nodes[0]
-    iterations = FindNodes(Iteration).visit(ast)
+    iterations = FindNodes(Iteration).visit(nodes)
     assert len(iterations) == len(expected)
 
     # Check for presence of pragma omp
@@ -459,7 +452,7 @@ def test_loop_nofission(simple_function):
         a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
       }
     }
-  }""" in str(handle.nodes[0].ccode)
+  }""" in str(handle.nodes)
     Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission'] = old
 
 
@@ -482,19 +475,22 @@ def test_loop_fission(simple_function_fissionable):
         b[i] = a[i] + pow(b[i], 2) + 3;
       }
     }
-  }""" in str(handle.nodes[0].ccode)
+  }""" in str(handle.nodes)
     Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission'] = old
 
 
 @skipif_yask
 def test_padding(simple_function_with_paddable_arrays):
     handle = transform(simple_function_with_paddable_arrays, mode='padding')
-    assert str(handle.nodes[0].ccode) == """\
+    assert """\
 for (int i = 0; i < 3; i += 1)
 {
   pa_dense[i] = a_dense[i];
-}"""
-    assert """\
+}
+void foo(float *restrict a_dense_vec, float *restrict b_dense_vec)
+{
+  float (*restrict a_dense) __attribute__((aligned(64))) = (float (*)) a_dense_vec;
+  float (*restrict b_dense) __attribute__((aligned(64))) = (float (*)) b_dense_vec;
   for (int i = 0; i < 3; i += 1)
   {
     for (int j = 0; j < 5; j += 1)
@@ -504,12 +500,12 @@ for (int i = 0; i < 3; i += 1)
         pa_dense[i] = b_dense[i] + pa_dense[i] + 5.0F;
       }
     }
-  }""" in str(handle.nodes[1].ccode)
-    assert str(handle.nodes[2].ccode) == """\
+  }
+}
 for (int i = 0; i < 3; i += 1)
 {
   a_dense[i] = pa_dense[i];
-}"""
+}""" in str(handle.nodes)
 
 
 @skipif_yask

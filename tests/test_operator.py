@@ -2,13 +2,13 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from conftest import EVAL, dims, skipif_yask
+from conftest import EVAL, dims, time, x, y, z, skipif_yask
 
 import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
-                    TimeFunction, SparseFunction, Dimension, time, x, y, z, configuration)
+                    TimeFunction, SparseFunction, Dimension, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
@@ -42,15 +42,19 @@ class TestAPI(object):
         """
         eqn = Eq(a_dense, a_dense + 2.*const)
         op = Operator(eqn)
-        assert len(op.parameters) == 4
+        assert len(op.parameters) == 6
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_TensorArgument
         assert op.parameters[1].name == 'constant'
         assert op.parameters[1].is_ScalarArgument
         assert op.parameters[2].name == 'i_size'
         assert op.parameters[2].is_ScalarArgument
-        assert op.parameters[3].name == 'timings'
-        assert op.parameters[3].is_PtrArgument
+        assert op.parameters[3].name == 'i_s'
+        assert op.parameters[3].is_ScalarArgument
+        assert op.parameters[4].name == 'i_e'
+        assert op.parameters[4].is_ScalarArgument
+        assert op.parameters[5].name == 'timings'
+        assert op.parameters[5].is_PtrArgument
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
@@ -271,23 +275,38 @@ class TestArguments(object):
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
-        i, j, k = dimify('i j k')
-        shape = (3, 5, 7)
-        a = Function(name='a', shape=shape, dimensions=(i, j, k)).indexed
-        b = TimeFunction(name='b', shape=shape, dimensions=(i, j, k),
-                         save=True, time_dim=nt).indexed
-        eqn = Eq(b[time, x, y, z], a[x, y, z])
-        op = Operator(eqn)
+        grid = Grid(shape=(3, 5, 7))
+        a = Function(name='a', grid=grid)
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        op = Operator(Eq(b, a))
 
-        _, op_dim_sizes = op.arguments()
-        assert(op_dim_sizes[time.name] == nt)
+        time = b.indices[0]
+        op_arguments, _ = op.arguments()
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt)
+
+    def test_dimension_offset_adjust(self, nt=100):
+        """Test that the dimension sizes are being inferred correctly"""
+        i, j, k = dimify('i j k')
+        shape = (10, 10, 10)
+        grid = Grid(shape=shape, dimensions=(i, j, k))
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        time = b.indices[0]
+        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
+                 + b.indexed[time, i, j, k] + a[i, j, k])
+        op = Operator(eqn)
+        args = {time.end_name: nt-10}
+        op_arguments, _ = op.arguments(**args)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 8)
 
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
-        i, j, k = dimify('i j k')
-        shape = (3, 5, 7)
-        a = TimeFunction(name='a', dimensions=(i, j, k), shape=shape)
-        one = symbol(name='one', dimensions=(i, j, k), shape=shape, value=1.)
+        grid = Grid(shape=(3, 5, 7))
+        a = TimeFunction(name='a', grid=grid)
+        one = Function(name='one', grid=grid)
+        one.data[:] = 1.
         op = Operator(Eq(a.forward, a + one))
 
         # Test dimension override via the buffered dimenions
@@ -302,16 +321,15 @@ class TestArguments(object):
 
     def test_override_composite_data(self):
         i, j = dimify('i j')
+        grid = Grid(shape=(10, 10), dimensions=(i, j))
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension('p_src')
-        ndim = len(original_coords)
-        u = TimeFunction(name='u', time_order=2, space_order=2,
-                         shape=(10, 10), dimensions=(i, j))
-        src1 = SparseFunction(name='src1', dimensions=[time, p_dim], npoint=1,
-                              nt=10, ndim=ndim, coordinates=original_coords)
-        src2 = SparseFunction(name='src1', dimensions=[time, p_dim], npoint=1,
-                              nt=10, ndim=ndim, coordinates=new_coords)
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        src1 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                              npoint=1, nt=10, coordinates=original_coords)
+        src2 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                              npoint=1, nt=10, coordinates=new_coords)
         op = Operator(src1.inject(u, src1))
 
         # Move the source from the location where the setup put it so we can test
@@ -321,6 +339,77 @@ class TestArguments(object):
         args = op.arguments(src1=src2)[0]
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
+
+    def test_start_end_2d(self):
+        """ In a 2D square domain, ask the operator to operate over a smaller square
+        and then ensure that it only operated on the requested region
+        """
+        i, j = dimify('i j')
+        shape = (10, 10)
+        start = 3
+        end = 6
+        a = Function(name='a', shape=shape, dimensions=(i, j))
+        eqn = Eq(a, a + 1)
+        op = Operator(eqn)
+        op(i_s=start, i_e=end, j_s=start, j_e=end)
+        mask = np.ones(shape, np.bool)
+        mask[start:end, start:end] = 0
+        assert(np.allclose(a.data[start:end, start:end], 1))
+        assert(np.allclose(a.data[mask], 0))
+
+    def test_start_end_3d(self):
+        """ In a 3D cubical domain, ask the operator to operate over a smaller cube
+        and then ensure that it only operated on the requested region
+        """
+        i, j, k = dimify('i j k')
+        shape = (10, 10, 10)
+        start = 3
+        end = 6
+        a = Function(name='a', shape=shape, dimensions=(i, j, k))
+        eqn = Eq(a, a + 1)
+        op = Operator(eqn)
+        op(i_s=start, i_e=end, j_s=start, j_e=end, k_s=start, k_e=end)
+        mask = np.ones(shape, np.bool)
+        mask[start:end, start:end, start:end] = 0
+        assert(np.allclose(a.data[start:end, start:end, start:end], 1))
+        assert(np.allclose(a.data[mask], 0))
+
+    def test_argument_derivation_order(self, nt=100):
+        """ Ensure the precedence order of arguments is respected
+        Defaults < (overriden by) Tensor Arguments < Dimensions < Scalar Arguments
+        """
+        i, j, k = dimify('i j k')
+        shape = (10, 10, 10)
+        grid = Grid(shape=shape, dimensions=(i, j, k))
+        a = Function(name='a', grid=grid).indexed
+        b_function = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = b_function.indexed
+        time = b_function.indices[0]
+        b1 = TimeFunction(name='b1', grid=grid, save=True, time_dim=nt+1).indexed
+        eqn = Eq(b[time, i, j, k], a[i, j, k])
+        op = Operator(eqn)
+
+        # Simple case, same as that tested above.
+        # Repeated here for clarity of further tests.
+        op_arguments, _ = op.arguments()
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt)
+
+        # Providing a tensor argument should infer the dimension size from its shape
+        op_arguments, _ = op.arguments(b=b1)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt + 1)
+
+        # Providing a dimension size explicitly should override the automatically inferred
+        op_arguments, _ = op.arguments(b=b1, time=nt - 1)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 1)
+
+        # Providing a scalar argument explicitly should override the automatically\
+        # inferred
+        op_arguments, _ = op.arguments(b=b1, time=nt - 1, time_e=nt - 2)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 2)
 
 
 @skipif_yask
@@ -337,7 +426,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
@@ -356,9 +445,9 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
-    for (int j = 0; j < j_size; j += 1)
+    for (int j = j_s; j < j_e; j += 1)
     {
       a[i] = c[i][j];
       c[i][j] = a[i]*c[i][j];
@@ -380,10 +469,10 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = 0.0F;
-    for (int j = 0; j < j_size; j += 1)
+    for (int j = j_s; j < j_e; j += 1)
     {
       c[i][j] = a[i]*c[i][j];
     }
@@ -403,7 +492,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
@@ -418,18 +507,18 @@ class TestDeclarator(object):
     def test_stack_vector_temporaries(self, c_stack, e):
         operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle=None)
         assert """\
+  float c_stack[i_size][j_size] __attribute__((aligned(64)));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int k = 0; k < k_size; k += 1)
+  for (int k = k_s; k < k_e; k += 1)
   {
-    float c_stack[i_size][j_size] __attribute__((aligned(64)));
-    for (int s = 0; s < s_size; s += 1)
+    for (int s = s_s; s < s_e; s += 1)
     {
-      for (int q = 0; q < q_size; q += 1)
+      for (int q = q_s; q < q_e; q += 1)
       {
-        for (int i = 0; i < i_size; i += 1)
+        for (int i = i_s; i < i_e; i += 1)
         {
-          for (int j = 0; j < j_size; j += 1)
+          for (int j = j_s; j < j_e; j += 1)
           {
             c_stack[i][j] = 1.0F*e[k][s][q][i][j];
           }
@@ -524,10 +613,11 @@ class TestLoopScheduler(object):
         Test that bc-like equations get inserted into the same loop nest
         as the "main" equations.
         """
-        shape = (3, 3, 3)
-        a = Function(name='a', shape=shape, dimensions=(x, y)).indexed
-        b = TimeFunction(name='b', shape=shape, dimensions=(x, y),
-                         save=True, time_dim=6).indexed
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        time = grid.time_dim
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
@@ -577,7 +667,8 @@ class TestLoopScheduler(object):
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
-        a = TimeFunction(name='a', shape=shape, time_order=2, dimensions=dimensions,
+        grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
+        a = TimeFunction(name='a', grid=grid, time_order=2,
                          space_order=2, time_dim=6, save=False)
         p_aux = Dimension(name='p_aux', size=10)
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),

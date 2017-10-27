@@ -19,12 +19,12 @@ def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     time = np.linspace(t0, tn, nt)
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', ndim=model.dim, f0=0.015, time=time)
+    src = RickerSource(name='src', grid=model.grid, f0=0.015, time=time)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
     # Define receiver geometry (spread across x, lust below surface)
-    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 

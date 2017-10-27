@@ -1,7 +1,7 @@
 import devito.types as types
 import devito.function as function
 
-from devito.yask.wrappers import contexts
+from devito.yask.wrappers import YaskGridConst, contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction']
 
@@ -14,6 +14,14 @@ types.Array.from_YASK = True
 class Constant(function.Constant):
 
     from_YASK = True
+
+    def __init__(self, *args, **kwargs):
+        value = kwargs.pop('value', 0.)
+        super(Constant, self).__init__(*args, value=YaskGridConst(value), **kwargs)
+
+    @function.Constant.data.setter
+    def data(self, val):
+        self._value = YaskGridConst(val)
 
 
 class Function(function.Function):
@@ -29,7 +37,7 @@ class Function(function.Function):
         # Fetch the appropriate context
         context = contexts.fetch(self.indices, self.shape, self.dtype)
 
-        # TODO : the following will fail if not using a BufferedDimension,
+        # TODO : the following will fail if not using a SteppingDimension,
         # eg with save=True one gets /time/ instead /t/
         self._data_object = context.make_grid(self)
 

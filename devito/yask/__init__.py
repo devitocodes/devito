@@ -9,8 +9,8 @@ import os
 from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
-from devito.parameters import Parameters, add_sub_configuration, infer_cpu
-from devito.tools import ctypes_pointer
+from devito.parameters import Parameters, add_sub_configuration
+from devito.tools import ctypes_pointer, infer_cpu
 
 
 def exit(emsg):
@@ -76,8 +76,10 @@ class YaskCompiler(configuration['compiler'].__class__):
 yask_configuration = Parameters('yask')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
-yask_configuration.add('folding', None, callback=lambda i: eval(i) if i else None)
-yask_configuration.add('blockshape', None, callback=lambda i: eval(i) if i else None)
+callback = lambda i: eval(i) if i else ()
+yask_configuration.add('folding', (), callback=callback)
+yask_configuration.add('blockshape', (), callback=callback)
+yask_configuration.add('clustering', (), callback=callback)
 yask_configuration.add('options', None)
 yask_configuration.add('dump', None)
 
@@ -110,6 +112,7 @@ env_vars_mapper = {
     'DEVITO_YASK_DEVELOP': 'develop-mode',
     'DEVITO_YASK_FOLDING': 'folding',
     'DEVITO_YASK_BLOCKING': 'blockshape',
+    'DEVITO_YASK_CLUSTERING': 'clustering',
     'DEVITO_YASK_OPTIONS': 'options',
     'DEVITO_YASK_DUMP': 'dump'
 }

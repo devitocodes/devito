@@ -7,9 +7,10 @@ import ctypes
 import numpy as np
 import sympy
 
+from devito.flow import analyze_iterations
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
-from devito.dimension import time, Dimension
+from devito.dimension import Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
 from devito.function import Forward, Backward, CompositeFunction
@@ -20,7 +21,7 @@ from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
-from devito.visitors import (FindScopes, ResolveIterationVariable,
+from devito.visitors import (FindScopes, ResolveTimeStepping,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
 
@@ -71,9 +72,6 @@ class Operator(Callable):
         self._lib = None
         self._cfunction = None
 
-        # Set the direction of time acoording to the given TimeAxis
-        time.reverse = time_axis == Backward
-
         # Expression lowering
         expressions = [indexify(s) for s in expressions]
         expressions = [s.xreplace(subs) for s in expressions]
@@ -83,8 +81,16 @@ class Operator(Callable):
         self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
         stencils = self._retrieve_stencils(expressions)
 
+        # Extract argument offsets
+        self._store_argument_offsets(stencils)
+
+        # Set the direction of time acoording to the given TimeAxis
+        for time in [d for d in self.dimensions if d.is_Time]:
+            if not time.is_Stepping:
+                time.reverse = time_axis == Backward
+
         # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
+        parameters = self.input + self.dimensions
 
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
@@ -95,12 +101,14 @@ class Operator(Callable):
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters)
 
+        # Data dependency analysis. Properties are attached directly to nodes
+        nodes = analyze_iterations(nodes)
+
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes, parameters)
 
         # Resolve and substitute dimensions for loop index variables
-        subs = {}
-        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
+        nodes, subs = ResolveTimeStepping().visit(nodes)
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
@@ -152,18 +160,27 @@ class Operator(Callable):
         for i in self.parameters:
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None)))
-        runtime_dimensions = [d for d in self.dimensions if d.value is not None]
-        for d in runtime_dimensions:
-            d.verify(kwargs.pop(d.name, None))
+        for d in self.dimensions:
+            d.verify(kwargs.pop(d.name, None), enforce=True)
         for i in self.parameters:
             if i.is_ScalarArgument:
-                i.verify(kwargs.pop(i.name, None))
-
-        dim_sizes = OrderedDict([(d.name, d.value) for d in runtime_dimensions])
+                user_provided_value = kwargs.pop(i.name, None)
+                if user_provided_value is not None:
+                    user_provided_value += self.argument_offsets.get(i.name, 0)
+                i.verify(user_provided_value, enforce=True)
+        dim_sizes = {}
+        for d in self.dimensions:
+            if d.value is not None:
+                _, d_start, d_end = d.value
+                # Calculte loop extent
+                d_extent = d_end - d_start
+            else:
+                d_extent = None
+            dim_sizes[d.name] = d_extent
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
 
-        autotune = kwargs.pop('autotune', False) and autotune
+        autotune = autotune and kwargs.pop('autotune', False)
 
         # Make sure we've used all arguments passed
         if len(kwargs) > 0:
@@ -199,9 +216,7 @@ class Operator(Callable):
         dle_arguments = OrderedDict()
         autotune = True
         for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name,
-                                     i.original_dim.size if i.original_dim.is_Fixed
-                                     else None)
+            dim_size = dim_sizes.get(i.original_dim.name, None)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
                       'Please provide an explicit value.' % i.original_dim.name)
@@ -219,6 +234,12 @@ class Operator(Callable):
     @property
     def elemental_functions(self):
         return tuple(i.root for i in self.func_table.values())
+
+    def _store_argument_offsets(self, stencils):
+        offs = Stencil.union(*stencils)
+        arg_offs = {d: v for d, v in offs.diameter.items()}
+        arg_offs.update({d.parent: v for d, v in arg_offs.items() if d.is_Stepping})
+        self.argument_offsets = {d.end_name: v for d, v in arg_offs.items()}
 
     @property
     def compile(self):
@@ -269,14 +290,13 @@ class Operator(Callable):
         return arguments
 
     def _schedule_expressions(self, clusters):
-        """Wrap :class:`Expression` objects, already grouped in :class:`Cluster`
-        objects, within nested :class:`Iteration` objects (representing loops),
-        according to dimensions and stencils."""
+        """Create an Iteartion/Expression tree given an iterable of
+        :class:`Cluster` objects."""
 
         # Topologically sort Iterations
         ordering = partial_order([i.stencil.dimensions for i in clusters])
         for i, d in enumerate(list(ordering)):
-            if d.is_Buffered:
+            if d.is_Stepping:
                 ordering.insert(i, d.parent)
 
         # Build the Iteration/Expression tree
@@ -305,8 +325,8 @@ class Operator(Callable):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.symbolic_size, offsets=j.ofs)
-                         for j in needed]
+                iters = [Iteration([], j.dim, j.dim.limits, offsets=j.ofs) for j in
+                         needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:
@@ -337,8 +357,7 @@ class Operator(Callable):
         return nodes
 
     def _insert_declarations(self, nodes):
-        """Populate the Operator's body with the required array and variable
-        declarations, to generate a legal C file."""
+        """Populate the Operator's body with the necessary variable declarations."""
 
         # Resolve function calls first
         scopes = []
@@ -357,17 +376,17 @@ class Operator(Callable):
             if k.is_scalar:
                 # Inline declaration
                 mapper[k] = LocalExpression(**k.args)
-            elif k.output_function._mem_external:
+            elif k.write._mem_external:
                 # Nothing to do, variable passed as kernel argument
                 continue
-            elif k.output_function._mem_stack:
+            elif k.write._mem_stack:
                 # On the stack, as established by the DLE
                 key = lambda i: not i.is_Parallel
                 site = filter_iterations(v, key=key, stop='asap') or [nodes]
-                allocator.push_stack(site[-1], k.output_function)
+                allocator.push_stack(site[-1], k.write)
             else:
                 # On the heap, as a tensor that must be globally accessible
-                allocator.push_heap(k.output_function)
+                allocator.push_heap(k.write)
 
         # Introduce declarations on the stack
         for k, v in allocator.onstack:
@@ -400,8 +419,8 @@ class Operator(Callable):
         stencils = [Stencil(i) for i in expressions]
         dimensions = set.union(*[set(i.dimensions) for i in stencils])
 
-        # Filter out aliasing buffered dimensions
-        mapper = {d.parent: d for d in dimensions if d.is_Buffered}
+        # Filter out aliasing stepping dimensions
+        mapper = {d.parent: d for d in dimensions if d.is_Stepping}
         for i in list(stencils):
             for d in i.dimensions:
                 if d in mapper:
@@ -433,7 +452,7 @@ class Operator(Callable):
                 dimensions.extend([k for k in i.free_symbols
                                    if isinstance(k, Dimension)])
             dimensions.extend(list(indexed.base.function.indices))
-        dimensions.extend([d.parent for d in dimensions if d.is_Buffered])
+        dimensions.extend([d.parent for d in dimensions if d.is_Stepping])
         dimensions = filter_sorted(dimensions, key=attrgetter('name'))
 
         return input, output, dimensions
@@ -457,11 +476,11 @@ class OperatorRunnable(Operator):
         self.cfunction(*list(arguments.values()))
 
         # Output summary of performance achieved
-        return self._profile_output(dim_sizes)
+        return self._profile_output(arguments)
 
-    def _profile_output(self, dim_sizes):
+    def _profile_output(self, arguments):
         """Return a performance summary of the profiled sections."""
-        summary = self.profiler.summary(dim_sizes, self.dtype)
+        summary = self.profiler.summary(arguments, self.dtype)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))

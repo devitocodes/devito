@@ -33,17 +33,17 @@ def rewrite(clusters, mode='advanced'):
 
          * 'noop': Do nothing.
          * 'basic': Apply common sub-expressions elimination.
-         * 'advanced': Compose all transformations that will reduce the
-                       operation count w/o increasing the memory pressure,
+         * 'advanced': Apply all transformations that will reduce the
+                       operation count w/ minimum increase to the memory pressure,
                        namely 'basic', factorization, CSRE for time-invariants only.
          * 'speculative': Like 'advanced', but apply CSRE also to time-varying
-                          sub-expressions, which might increase the memory pressure.
+                          sub-expressions, which might further increase the memory
+                          pressure.
          * 'aggressive': Like 'speculative', but apply CSRE to any non-trivial
                          sub-expression (i.e., anything that is at least in a
-                         sum-of-products form).
-
+                         sum-of-products form). This may substantially increase
+                         the memory pressure.
     """
-    # Check input parameters
     if not (mode is None or isinstance(mode, str)):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
 

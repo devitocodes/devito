@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import cgen as c
+import numpy as np
 from sympy import Indexed
 
 from devito.cgen_utils import ccode
@@ -16,7 +17,7 @@ from devito.visitors import IsPerfectIteration, Transformer
 
 from devito.yask import nfac, namespace, exit, configuration
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
-from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
+from devito.yask.wrappers import YaskGridConst, YaskNullContext, YaskNullKernel, contexts
 
 __all__ = ['Operator']
 
@@ -125,11 +126,14 @@ class Operator(OperatorRunnable):
             if grid_arg is not None:
                 assert i.provider.from_YASK is True
                 obj = kwargs.get(i.name, i.provider)
+                # Get the associated YaskGrid wrapper (scalars are a special case)
+                wrapper = obj.data if not np.isscalar(obj) else YaskGridConst(obj)
                 # Setup YASK grids ("sharing" user-provided or default data)
-                if i.name in self.yk_soln.grids:
-                    self.yk_soln.update(obj)
+                target = self.yk_soln.grids.get(i.name)
+                if target is not None:
+                    wrapper.give_storage(target)
                 # Add C-level pointer to the YASK grids
-                assert grid_arg.verify(obj.data.rawpointer)
+                assert grid_arg.verify(wrapper.rawpointer)
             elif i.name in local_grids_mapper:
                 # Add C-level pointer to the temporary YASK grids
                 assert i.verify(rawpointer(local_grids_mapper[i.name]))
@@ -146,8 +150,10 @@ class Operator(OperatorRunnable):
         log("  Domain dimensions: %s" % str(self.context.space_dimensions))
         log("  Grids:")
         for grid in self.yk_soln.grids.values():
-            size = [grid.get_rank_domain_size(i) for i in self.context.space_dimensions]
-            pad = [grid.get_pad_size(i) for i in self.context.space_dimensions]
+            space_dimensions = [i for i in grid.get_dim_names()
+                                if i in self.context.space_dimensions]
+            size = [grid.get_rank_domain_size(i) for i in space_dimensions]
+            pad = [grid.get_pad_size(i) for i in space_dimensions]
             log("    %s%s, size=%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()),
                                                size, pad))
 
@@ -161,7 +167,7 @@ class Operator(OperatorRunnable):
         log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
-        return self._profile_output(dim_sizes)
+        return self._profile_output(arguments)
 
     @property
     def compile(self):
@@ -206,8 +212,15 @@ class sympy2yask(object):
                 return nfac.new_const_number_node(float(expr))
             elif expr.is_Symbol:
                 function = expr.base.function
-                assert function in self.mapper
-                return self.mapper[function]
+                if function.is_Constant:
+                    if function not in self.mapper:
+                        self.mapper[function] = self.yc_soln.new_grid(function.name, [])
+                    return self.mapper[function].new_relative_grid_point([])
+                else:
+                    # A DSE-generated temporary, which must have already been
+                    # encountered as a LHS of a previous expression
+                    assert function in self.mapper
+                    return self.mapper[function]
             elif isinstance(expr, Indexed):
                 function = expr.base.function
                 if function not in self.mapper:

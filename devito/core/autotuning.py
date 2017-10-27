@@ -6,8 +6,6 @@ from functools import reduce
 from operator import mul
 import resource
 
-from psutil import cpu_count
-
 from devito.logger import info, info_at
 from devito.nodes import Iteration
 from devito.parameters import configuration
@@ -40,12 +38,13 @@ def autotune(operator, arguments, tunable):
         timesteps = 1
     elif len(sequentials) == 1:
         sequential = sequentials[0]
-        timesteps = sequential.extent(finish=options['at_squeezer'])
+        start = sequential.dim.rtargs.start.default_value
+        timesteps = sequential.extent(start=start, finish=options['at_squeezer'])
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps + 1
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)
         at_arguments[sequential.dim.symbolic_size.name] = timesteps
-        if sequential.dim.is_Buffered:
+        if sequential.dim.is_Stepping:
             at_arguments[sequential.dim.parent.symbolic_size.name] = timesteps
     else:
         info_at("Couldn't understand loop structure, giving up auto-tuning")
@@ -166,7 +165,7 @@ def more_heuristic_attempts(blocksizes):
 
 options = {
     'at_squeezer': 5,
-    'at_blocksize': sorted({8, 16, 24, 32, 40, 64, 128, cpu_count(logical=False)}),
+    'at_blocksize': sorted({8, 16, 24, 32, 40, 64, 128}),
     'at_stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }
 """Autotuning options."""
