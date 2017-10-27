@@ -4,7 +4,6 @@ import gc
 from sympy.core import cache
 
 from devito.base import *  # noqa
-from devito.backends import init_backend
 from devito.finite_difference import *  # noqa
 from devito.dimension import *  # noqa
 from devito.grid import *  # noqa
@@ -29,7 +28,6 @@ from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
 del get_versions
 
-
-# Initialize the Devito backend
+# Initialize the configuration, which will also trigger
+# the backend initialization
 init_configuration()
-init_backend(configuration['backend'])
