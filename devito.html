@@ -2617,13 +2617,13 @@ C code evaluating stencil expressions, can also execute the computation.</p>
 <p>The parameters dictionary contains global parameter settings.</p>
 <dl class="data">
 <dt id="devito.parameters.configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([('travis_test', False), ('isa', None), ('platform', None), ('log_level', 'DEBUG'), ('backend', 'core'), ('first_touch', False), ('dse', 'advanced'), ('compiler', DevitoJITCompiler[GNUCompiler]), ('openmp', False), ('debug_compiler', False), ('dle', 'advanced'), ('dle_options', {'blockinner': False, 'blockshape': None, 'blockalways': False})])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([('log_level', 'DEBUG'), ('first_touch', False), ('dse', 'advanced'), ('dle', 'advanced'), ('dle_options', {'blockinner': False, 'blockshape': None, 'blockalways': False}), ('compiler', DevitoJITCompiler[GNUCompiler]), ('openmp', False), ('debug_compiler', False), ('backend', 'core'), ('isa', None), ('platform', None)])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Devito configuration parameters.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.parameters.init_configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">init_configuration</code><span class="sig-paren">(</span><em>configuration=Parameters([('travis_test'</em>, <em>False)</em>, <em>('isa'</em>, <em>None)</em>, <em>('platform'</em>, <em>None)</em>, <em>('log_level'</em>, <em>'DEBUG')</em>, <em>('backend'</em>, <em>'core')</em>, <em>('first_touch'</em>, <em>False)</em>, <em>('dse'</em>, <em>'advanced')</em>, <em>('compiler'</em>, <em>DevitoJITCompiler[GNUCompiler])</em>, <em>('openmp'</em>, <em>False)</em>, <em>('debug_compiler'</em>, <em>False)</em>, <em>('dle'</em>, <em>'advanced')</em>, <em>('dle_options'</em>, <em>{'blockinner': False</em>, <em>'blockshape': None</em>, <em>'blockalways': False})])</em>, <em>env_vars_mapper={'DEVITO_ARCH': 'compiler'</em>, <em>'DEVITO_ISA': 'isa'</em>, <em>'DEVITO_PLATFORM': 'platform'</em>, <em>'DEVITO_BACKEND': 'backend'</em>, <em>'DEVITO_DSE': 'dse'</em>, <em>'DEVITO_DLE': 'dle'</em>, <em>'DEVITO_DLE_OPTIONS': 'dle_options'</em>, <em>'DEVITO_OPENMP': 'openmp'</em>, <em>'DEVITO_LOGGING': 'log_level'</em>, <em>'DEVITO_FIRST_TOUCH': 'first_touch'</em>, <em>'DEVITO_DEBUG_COMPILER': 'debug_compiler'}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#init_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.init_configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">init_configuration</code><span class="sig-paren">(</span><em>configuration=Parameters([('log_level'</em>, <em>'DEBUG')</em>, <em>('first_touch'</em>, <em>False)</em>, <em>('dse'</em>, <em>'advanced')</em>, <em>('dle'</em>, <em>'advanced')</em>, <em>('dle_options'</em>, <em>{'blockinner': False</em>, <em>'blockshape': None</em>, <em>'blockalways': False})</em>, <em>('compiler'</em>, <em>DevitoJITCompiler[GNUCompiler])</em>, <em>('openmp'</em>, <em>False)</em>, <em>('debug_compiler'</em>, <em>False)</em>, <em>('backend'</em>, <em>'core')</em>, <em>('isa'</em>, <em>None)</em>, <em>('platform'</em>, <em>None)])</em>, <em>env_vars_mapper={'DEVITO_ARCH': 'compiler'</em>, <em>'DEVITO_ISA': 'isa'</em>, <em>'DEVITO_PLATFORM': 'platform'</em>, <em>'DEVITO_BACKEND': 'backend'</em>, <em>'DEVITO_DSE': 'dse'</em>, <em>'DEVITO_DLE': 'dle'</em>, <em>'DEVITO_DLE_OPTIONS': 'dle_options'</em>, <em>'DEVITO_OPENMP': 'openmp'</em>, <em>'DEVITO_LOGGING': 'log_level'</em>, <em>'DEVITO_FIRST_TOUCH': 'first_touch'</em>, <em>'DEVITO_DEBUG_COMPILER': 'debug_compiler'}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#init_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.init_configuration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
@@ -2643,14 +2643,6 @@ as well as all of the accepted values.</p>
 <dt id="devito.parameters.add_sub_configuration">
 <code class="descclassname">devito.parameters.</code><code class="descname">add_sub_configuration</code><span class="sig-paren">(</span><em>sub_configuration</em>, <em>sub_env_vars_mapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#add_sub_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.add_sub_configuration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.parameters.infer_cpu">
-<code class="descclassname">devito.parameters.</code><code class="descname">infer_cpu</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#infer_cpu"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.infer_cpu" title="Permalink to this definition">¶</a></dt>
-<dd><p>Detect the highest Instruction Set Architecture and the platform
-codename using cpu flags and/or leveraging other tools. Return default
-values if the detection procedure was unsuccesful.</p>
-</dd></dl>
 
 </div>
 <div class="section" id="module-devito.profiling">
@@ -2852,6 +2844,14 @@ If called later with the same arguments, the cached value is returned
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">wiki</span><span class="o">.</span><span class="n">python</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">moin</span><span class="o">/</span><span class="n">PythonDecoratorLibrary</span><span class="c1">#Memoize</span>
 </pre></div>
 </div>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.infer_cpu">
+<code class="descclassname">devito.tools.</code><code class="descname">infer_cpu</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#infer_cpu"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.infer_cpu" title="Permalink to this definition">¶</a></dt>
+<dd><p>Detect the highest Instruction Set Architecture and the platform
+codename using cpu flags and/or leveraging other tools. Return default
+values if the detection procedure was unsuccesful.</p>
 </dd></dl>
 
 </div>

@@ -454,12 +454,6 @@
     <span class="s1">&#39;intel-mic&#39;</span><span class="p">:</span> <span class="n">IntelMICCompiler</span><span class="p">,</span> <span class="s1">&#39;mic&#39;</span><span class="p">:</span> <span class="n">IntelMICCompiler</span><span class="p">,</span>
     <span class="s1">&#39;intel-knl&#39;</span><span class="p">:</span> <span class="n">IntelKNLCompiler</span><span class="p">,</span> <span class="s1">&#39;knl&#39;</span><span class="p">:</span> <span class="n">IntelKNLCompiler</span><span class="p">,</span>
 <span class="p">}</span>
-
-
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;compiler&#39;</span><span class="p">,</span> <span class="s1">&#39;custom&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">compiler_registry</span><span class="p">),</span>
-                  <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">i</span><span class="p">]())</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;debug_compiler&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
 </pre></div>
 
            </div>

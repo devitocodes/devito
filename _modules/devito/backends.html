@@ -174,7 +174,6 @@
 
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DevitoError</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
-<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
 <span class="n">backends</span> <span class="o">=</span> <span class="p">{}</span>
 
@@ -275,18 +274,16 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">global</span> <span class="n">_BackendSelector</span>
     <span class="k">if</span> <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span> <span class="o">!=</span> <span class="n">void</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;The backend can only be set once!&quot;</span><span class="p">)</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;WARNING: Switching backend to </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">)</span>
 
-    <span class="n">mod</span> <span class="o">=</span> <span class="n">backends</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">mod</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="c1"># We need to pass a non-empty fromlist so that __import__</span>
-            <span class="c1"># returns the submodule (i.e. the backend) rather than the</span>
-            <span class="c1"># package.</span>
-            <span class="n">mod</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="s1">&#39;devito.</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">,</span> <span class="n">fromlist</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;None&#39;</span><span class="p">])</span>
-        <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Unable to import backend </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">)</span>
-            <span class="k">raise</span> <span class="n">e</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># We need to pass a non-empty fromlist so that __import__</span>
+        <span class="c1"># returns the submodule (i.e. the backend) rather than the</span>
+        <span class="c1"># package.</span>
+        <span class="n">mod</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="s1">&#39;devito.</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">,</span> <span class="n">fromlist</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;None&#39;</span><span class="p">])</span>
+    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Unable to import backend </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">e</span>
     <span class="n">backends</span><span class="p">[</span><span class="n">backend</span><span class="p">]</span> <span class="o">=</span> <span class="n">mod</span>
     <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="n">mod</span></div>
 
@@ -300,17 +297,13 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Initialise Devito: select the backend and other configuration options.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">current_backend</span> <span class="o">=</span> <span class="n">get_backend</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">current_backend</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">backends_registry</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">backend</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">backends_registry</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Calling init() for a different backend is illegal.&quot;</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">current_backend</span> <span class="o">==</span> <span class="s1">&#39;void&#39;</span><span class="p">:</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">set_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
-        <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">DevitoError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t initialize Devito.&quot;</span><span class="p">)</span></div>
 
-
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="s1">&#39;core&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">backends_registry</span><span class="p">))</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">set_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">DevitoError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t initialize Devito.&quot;</span><span class="p">)</span></div>
 </pre></div>
 
            </div>
