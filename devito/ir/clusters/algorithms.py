@@ -1,75 +1,163 @@
 from collections import OrderedDict, namedtuple
 
+from devito.ir.support.basic import Scope
 from devito.ir.clusters.cluster import Cluster
 from devito.ir.dfg import TemporariesGraph
 from devito.ir.support import Stencil
 from devito.symbolics import xreplace_indices
 from devito.types import Scalar
+from devito.tools import flatten
 
-__all__ = ['clusterize', 'optimize']
+__all__ = ['clusterize', 'merge']
 
 
 def merge(clusters):
     """
     Given an ordered collection of :class:`Cluster` objects, return a
     (potentially) smaller sequence in which clusters with identical stencil
-    have been merged into a single :class:`Cluster`.
+    have been merged into a single :class:`Cluster`, as long as data
+    dependences are honored.
     """
-    mapper = OrderedDict()
+
+    def _merge(source, sink):
+        temporaries = OrderedDict(source.trace.items())
+        temporaries.update(OrderedDict([(k, v) for k, v in sink.trace.items()
+                                        if k not in temporaries]))
+        return Cluster(temporaries.values(), source.stencil, source.atomics)
+
+    processed = []
     for c in clusters:
-        mapper.setdefault((c.stencil.entries, c.atomics), []).append(c)
-
-    processed = []
-    for (entries, atomics), clusters in mapper.items():
-        # Eliminate redundant temporaries
-        temporaries = OrderedDict()
-        for c in clusters:
-            for k, v in c.trace.items():
-                if k not in temporaries:
-                    temporaries[k] = v
-        # Squash the clusters together
-        processed.append(Cluster(temporaries.values(), Stencil(entries), atomics))
-
-    return processed
-
-
-def optimize(clusters):
-    """
-    Attempt scalar promotion. Candidates are tensors that do not appear in
-    any other clusters.
-    """
-    clusters = merge(clusters)
-
-    processed = []
-    for c1 in clusters:
-        mapper = {}
-        temporaries = []
-        for k, v in c1.trace.items():
-            if v.function.is_Array and\
-                    not any(v.function in c2.unknown for c2 in clusters):
-                for i in c1.tensors[v.function]:
-                    # LHS scalarization
-                    scalarized = Scalar(name='s%d' % len(mapper)).indexify()
-                    mapper[i] = scalarized
-
-                    # May have to "unroll" some tensor expressions for scalarization;
-                    # e.g., if we have two occurrences of r0, say r0[x,y,z] and
-                    # r0[x+1,y,z], and r0 is to be scalarized, this will require a
-                    # different scalar for each unique set of indices.
-                    assert len(v.function.indices) == len(k.indices) == len(i.indices)
-                    shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
-                                zip(v.function.indices, k.indices, i.indices)}
-
-                    # Transform /v/, introducing (i) a scalarized LHS and (ii) shifted
-                    # indices if necessary
-                    handle = v.func(scalarized, v.rhs.xreplace(mapper))
-                    handle = xreplace_indices(handle, shifting)
-                    temporaries.append(handle)
-            else:
-                temporaries.append(v.func(k, v.rhs.xreplace(mapper)))
-        processed.append(c1.rebuild(temporaries))
+        merged = None
+        for candidate in reversed(list(processed)):
+            # Get the data dependences relevant for cluster fusion
+            scope = Scope(exprs=candidate.exprs + c.exprs)
+            d_true = scope.d_anti.carried() - scope.d_anti.indirect()
+            if candidate.stencil == c.stencil:
+                d_fake = scope.d_flow.independent() - scope.d_flow.indirect()
+                d_funcs = [i.function for i in d_true + d_fake]
+                if all(is_local(i, candidate, c, clusters) for i in d_funcs):
+                    # /c/ will be merged into /candidate/. However, all fusion-induced
+                    # anti dependences need to be removed. This is achieved through so
+                    # called index bumping and array contraction
+                    merged = _merge(*bump_and_contract(d_funcs, candidate, c))
+                    processed[processed.index(candidate)] = merged
+                break
+            elif scope.d_all:
+                # Data dependences prevent fusion with earlier Clusters.
+                break
+        # Fallback
+        if not merged:
+            processed.append(c)
 
     return processed
+
+
+def is_local(array, source, sink, context):
+    """
+    Return True if ``array`` satisfies the following conditions: ::
+
+        * it's a temporary; that is, of type :class:`Array`;
+        * it's written once, within the ``source`` :class:`Cluster`;
+        * it's read in the ``sink`` :class:`Cluster` only; in particular,
+          it doesn't appear in any other :class:`Cluster`s out of those
+          provided in ``context``.
+
+    If any of these conditions do not hold, return False.
+    """
+    if not array.is_Array:
+        return False
+
+    # Written in source
+    if array not in [i.function for i in source.trace.values()]:
+        return False
+
+    # Never read outside of sink
+    context = [i for i in context if i not in [source, sink]]
+    if array in flatten(i.unknown for i in context):
+        return False
+
+    return True
+
+
+def bump_and_contract(targets, source, sink):
+    """
+    Return a new source and a new sink in which the :class:`Array`s in ``targets``
+    have been turned into scalars. This is implemented through index bumping and
+    array contraction.
+
+    :param targets: The :class:`Array`s that will be contracted.
+    :param source: The source :class:`Cluster`.
+    :param sink: The sink :class:`Cluster`.
+
+    Examples
+    ========
+    Index bumping
+    -------------
+    Given: ::
+
+        r[x,y,z] = b[x,y,z]*2
+
+    Produce: ::
+
+        r[x,y,z] = b[x,y,z]*2
+        r[x,y,z+1] = b[x,y,z+1]*2
+
+    Array contraction
+    -----------------
+    Given: ::
+
+        r[x,y,z] = b[x,y,z]*2
+        r[x,y,z+1] = b[x,y,z+1]*2
+
+    Produce: ::
+
+        tmp0 = b[x,y,z]*2
+        tmp1 = b[x,y,z+1]*2
+
+    Full example (bump+contraction)
+    -------------------------------
+    Given: ::
+
+        source: [r[x,y,z] = b[x,y,z]*2]
+        sink: [a = ... r[x,y,z] ... r[x,y,z+1] ...]
+        targets: r
+
+    Produce: ::
+
+        source: [tmp0 = b[x,y,z]*2, tmp1 = b[x,y,z+1]*2]
+        sink: [a = ... tmp0 ... tmp1 ...]
+    """
+    if not targets:
+        return source, sink
+
+    mapper = {}
+
+    # Build the new source
+    processed = []
+    for k, v in source.trace.items():
+        if any(v.function not in i for i in [targets, sink.tensors]):
+            processed.append(v.func(k, v.rhs.xreplace(mapper)))
+        else:
+            for i in sink.tensors[v.function]:
+                scalarized = Scalar(name='s%d' % len(mapper)).indexify()
+                mapper[i] = scalarized
+
+                # Index bumping
+                assert len(v.function.indices) == len(k.indices) == len(i.indices)
+                shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
+                            zip(v.function.indices, k.indices, i.indices)}
+
+                # Array contraction
+                handle = v.func(scalarized, v.rhs.xreplace(mapper))
+                handle = xreplace_indices(handle, shifting)
+                processed.append(handle)
+    source = source.rebuild(processed)
+
+    # Build the new sink
+    processed = [v.func(k, v.rhs.xreplace(mapper)) for k, v in sink.trace.items()]
+    sink = sink.rebuild(processed)
+
+    return source, sink
 
 
 def aggregate(exprs, stencils):
@@ -111,11 +199,10 @@ def aggregate(exprs, stencils):
     return exprs, stencils
 
 
-def clusterize(exprs, stencils, atomics=None):
+def clusterize(exprs, stencils):
     """
     Derive :class:`Cluster` objects from an iterable of expressions; a stencil for
-    each expression must be provided. A list of atomic dimensions (see description
-    in Cluster.__doc__) may be provided.
+    each expression must be provided.
     """
     assert len(exprs) == len(stencils)
 
@@ -160,6 +247,6 @@ def clusterize(exprs, stencils, atomics=None):
         exprs = [i for i in info.trace if i.lhs.is_Symbol or i.lhs == target]
 
         # Create and track the cluster
-        clusters.append(Cluster(exprs, info.stencil.frozen, atomics))
+        clusters.append(Cluster(exprs, info.stencil.frozen))
 
     return merge(clusters)

@@ -619,14 +619,14 @@ class TestLoopScheduler(object):
     @pytest.mark.parametrize('exprs', [
         ('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])', 'Eq(ti1[x,y,z], ti3[x,y,z])',
          'Eq(ti3[x,y,z], ti1[x,y,z] + 1.)'),
-        ('Eq(ti0[x,y,z], ti0[x,y,z-1] + ti1[x,y,z+1])', 'Eq(ti1[x,y,z], ti3[x,y,z+1])',
+        ('Eq(ti0[x,y,z], ti0[x,y,z-1] + ti1[x,y,z-1])', 'Eq(ti1[x,y,z], ti3[x,y,z-1])',
          'Eq(ti3[x,y,z], ti3[x,y,z-1] + ti0[x,y,z])'),
         ('Eq(ti0[x,y,z+2], ti0[x,y,z-1] + ti1[x,y,z+1])',
          'Eq(ti1[x,y,z+3], ti3[x,y,z+1])',
          'Eq(ti3[x,y,z+2], ti0[x,y,z+1]*ti3[x,y,z-1])'),
         ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x+2,y+3,z+1])',
-         'Eq(ti1[x,y,z], ti3[x+1,y-4,z+1])',
-         'Eq(ti3[x,y,z], ti3[x+5,y,z-1] - ti0[x+3,y-2,z+4])')
+         'Eq(ti1[x+4,y+5,z+3], ti3[x+1,y-4,z+1])',
+         'Eq(ti3[x+7,y,z+2], ti3[x+5,y,z-1] - ti0[x-3,y-2,z-4])')
     ])
     def test_consistency_coupled_w_ofs(self, exprs, ti0, ti1, ti3):
         """
