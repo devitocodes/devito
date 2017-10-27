@@ -1,6 +1,8 @@
-from sympy import Basic
+from cached_property import cached_property
 
-from devito.symbolics import retrieve_indexed
+from sympy import Basic, Eq
+
+from devito.symbolics import retrieve_indexed, q_identity, q_affine
 from devito.tools import as_tuple, is_integer, filter_sorted
 from devito.types import Indexed
 
@@ -164,6 +166,22 @@ class IterationInstance(Vector):
 
     def __le__(self, other):
         return self.__eq__(other) or self.__lt__(other)
+
+    @cached_property
+    def index_mode(self):
+        ret = []
+        for i, fi in zip(self, self.findices):
+            if is_integer(i):
+                ret.append('constant')
+            elif q_identity(i, fi):
+                ret.append('regular')
+            elif q_affine(i, fi):
+                ret.append('affine')
+            elif retrieve_indexed(i):
+                ret.append('indirect')
+            else:
+                ret.append('irregular')
+        return tuple(ret)
 
     def distance(self, sink, dim=None):
         """Compute vector distance from ``self`` to ``sink``. If ``dim`` is
