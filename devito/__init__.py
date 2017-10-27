@@ -42,6 +42,17 @@ configuration.add('debug_compiler', 0, [0, 1], lambda i: bool(i))
 configuration.add('backend', 'core', list(backends_registry),
                   callback=init_backend)
 
+# Set the Instruction Set Architecture (ISA)
+ISAs = [None, 'cpp', 'avx', 'avx2', 'avx512', 'knc']
+configuration.add('isa', None, ISAs)
+
+# Set the CPU architecture (only codename)
+PLATFORMs = [None, 'intel64', 'sandybridge', 'ivybridge', 'haswell',
+             'broadwell', 'skylake', 'knc', 'knl']
+# TODO: switch arch to actual architecture names; use the mapper in /YASK/
+configuration.add('platform', None, PLATFORMs)
+
+
 # Initialize the configuration, either from the environment or
 # defaults. This will also trigger the backend initialization
 init_configuration()
