@@ -18,14 +18,14 @@ class Cluster(object):
     in the subsequent clusters.
     """
 
-    def __init__(self, exprs, stencil, atomics):
+    def __init__(self, exprs, stencil, atomics=None):
         self.trace = TemporariesGraph(exprs)
         self.stencil = stencil
         self.atomics = as_tuple(atomics)
 
     @property
     def exprs(self):
-        return self.trace.values()
+        return list(self.trace.values())
 
     @property
     def unknown(self):
