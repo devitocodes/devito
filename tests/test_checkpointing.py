@@ -3,8 +3,10 @@ from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperat
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 from pyrevolve import Revolver
 import numpy as np
+from conftest import skipif_yask
 
 
+@skipif_yask
 def test_forward_with_breaks():
     time_order = 2
     fw, gradop, u, rec_s, m0, src, rec_g, v, grad, _, _, nt, dt = cp_setup((150, 150),
@@ -27,6 +29,7 @@ def test_forward_with_breaks():
     assert(np.allclose(rec_temp, rec_s.data))
 
 
+@skipif_yask
 def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
                                   time_order=2, space_order=4, nbpml=10):
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
