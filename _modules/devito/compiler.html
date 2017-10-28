@@ -163,8 +163,8 @@
   <h1>Source code for devito.compiler</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span>
 <span class="kn">from</span> <span class="nn">hashlib</span> <span class="k">import</span> <span class="n">sha1</span>
-<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">environ</span><span class="p">,</span> <span class="n">getuid</span><span class="p">,</span> <span class="n">mkdir</span><span class="p">,</span> <span class="n">path</span>
-<span class="kn">from</span> <span class="nn">tempfile</span> <span class="k">import</span> <span class="n">gettempdir</span>
+<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">environ</span><span class="p">,</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">tempfile</span> <span class="k">import</span> <span class="n">mkdtemp</span>
 <span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
 <span class="kn">from</span> <span class="nn">sys</span> <span class="k">import</span> <span class="n">platform</span>
 <span class="kn">import</span> <span class="nn">subprocess</span>
@@ -357,12 +357,13 @@
 
 <span class="sd">    :return: Path to a devito-specific tmp directory</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">tmpdir</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gettempdir</span><span class="p">(),</span> <span class="s2">&quot;devito-</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">getuid</span><span class="p">())</span>
+    <span class="k">global</span> <span class="n">_devito_compiler_tmpdir</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">_devito_compiler_tmpdir</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="n">_devito_compiler_tmpdir</span> <span class="o">=</span> <span class="n">mkdtemp</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;devito-&quot;</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">):</span>
-        <span class="n">mkdir</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">tmpdir</span>
+    <span class="k">return</span> <span class="n">_devito_compiler_tmpdir</span>
 
 
 <div class="viewcode-block" id="load"><a class="viewcode-back" href="../../devito.html#devito.compiler.load">[docs]</a><span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="n">compiler</span><span class="p">):</span>
