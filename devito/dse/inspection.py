@@ -115,26 +115,32 @@ def estimate_memory(handle, mode='realistic'):
         return len(reads) + len(writes)
 
 
-def as_symbol(expr):
+def as_symbol(obj):
     """
-    Extract the "main" symbol from a SymPy object.
+    Turn ``obj`` into a :class:`sympy.Symbol`. Raise ``TypeError`` if no
+    conversion rule for the type of ``obj`` is known.
     """
     try:
-        return Number(expr)
+        return Number(obj)
     except (TypeError, ValueError):
         pass
-    if isinstance(expr, str):
-        return Symbol(expr)
-    elif isinstance(expr, Dimension):
-        return Symbol(expr.name)
-    elif expr.is_Symbol:
-        return expr
-    elif isinstance(expr, Indexed):
-        return expr.base.label
-    elif isinstance(expr, Function):
-        return Symbol(expr.__class__.__name__)
+    if isinstance(obj, str):
+        return Symbol(obj)
+    elif isinstance(obj, Dimension):
+        return Symbol(obj.name)
+    elif obj.is_Symbol:
+        return obj
+    elif isinstance(obj, Indexed):
+        return obj.base.label
+    elif isinstance(obj, Function):
+        try:
+            # Can be converted only if no args or if it's a Devito.Function
+            if len(obj.args) == 0 or obj.is_AbstractSymbol:
+                return Symbol(obj.__class__.__name__)
+        except AttributeError:
+            raise TypeError("Cannot symbolify Function w/ args %s" % str(obj.args))
     else:
-        raise TypeError("Cannot extract symbol from type %s" % type(expr))
+        raise TypeError("Cannot symbolify from type %s" % type(obj))
 
 
 def indexify(expr):
