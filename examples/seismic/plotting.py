@@ -109,8 +109,7 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
         ax = plt.gca()
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
-        cbar = plt.colorbar(plot, cax=cax)
-        cbar.set_label('Velocity (km/s)')
+        plt.colorbar(plot, cax=cax)
 
     plt.show()
 
