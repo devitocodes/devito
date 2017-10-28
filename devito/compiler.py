@@ -1,7 +1,7 @@
 from functools import partial
 from hashlib import sha1
-from os import environ, getuid, mkdir, path
-from tempfile import gettempdir
+from os import environ, path
+from tempfile import mkdtemp
 from time import time
 from sys import platform
 import subprocess
@@ -194,12 +194,13 @@ def get_tmp_dir():
 
     :return: Path to a devito-specific tmp directory
     """
-    tmpdir = path.join(gettempdir(), "devito-%s" % getuid())
+    global _devito_compiler_tmpdir
+    try:
+        path.exists(_devito_compiler_tmpdir)
+    except:
+        _devito_compiler_tmpdir = mkdtemp(prefix="devito-")
 
-    if not path.exists(tmpdir):
-        mkdir(tmpdir)
-
-    return tmpdir
+    return _devito_compiler_tmpdir
 
 
 def load(basename, compiler):

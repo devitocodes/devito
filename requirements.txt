@@ -10,3 +10,6 @@ psutil>=5.1.0
 py-cpuinfo
 git+https://github.com/inducer/cgen
 git+https://github.com/inducer/codepy
+dask
+distributed
+scikit-image

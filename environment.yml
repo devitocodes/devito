@@ -16,6 +16,9 @@ dependencies:
   - psutil>=5.1.0
   - sphinx
   - sphinx_rtd_theme
+  - dask
+  - distributed
+  - scikit-image
   - pip:
     - "git+https://github.com/inducer/codepy"
     - py-cpuinfo
