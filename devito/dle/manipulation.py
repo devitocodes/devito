@@ -14,7 +14,8 @@ def compose_nodes(nodes, retrieve=False):
 
     if not isinstance(l[0], Iteration):
         # Nothing to compose
-        body = List(body=flatten(l))
+        body = flatten(l)
+        body = List(body=body) if len(body) > 1 else body[0]
     else:
         body = l.pop(-1)
         while l:
