@@ -22,10 +22,16 @@ def benchmark():
 
     Further, this script can generate a roofline plot from a benchmark
     """
-    pass
+
+    # Make sure that with YASK we run in performance mode
+    if configuration['backend'] == 'yask':
+        configuration.yask['develop-mode'] = False
 
 
 def option_simulation(f):
+    def default(ctx, param, value):
+        return value if len(value) > 0 else (2, )
+
     options = [
         click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti']),
                      help='Number of grid points along each axis'),
@@ -35,10 +41,10 @@ def option_simulation(f):
                      help='Spacing between grid sizes in meters'),
         click.option('-n', '--nbpml', default=10,
                      help='Number of PML layers'),
-        click.option('-so', '--space-order', default=2,
-                     help='Space order of the simulation'),
-        click.option('-to', '--time-order', default=2,
-                     help='Time order of the simulation'),
+        click.option('-so', '--space-order', type=int, multiple=True,
+                     callback=default, help='Space order of the simulation'),
+        click.option('-to', '--time-order', type=int, multiple=True,
+                     callback=default, help='Time order of the simulation'),
         click.option('-t', '--tn', default=250,
                      help='End time of the simulation in ms'),
     ]
@@ -50,15 +56,45 @@ def option_simulation(f):
 @benchmark.command()
 @option_simulation
 @click.option('--dse', default='noop', help='Devito symbolic engine (DSE) mode',
-              type=click.Choice(['noop', 'basic', 'advanced', 'speculative',
-                                 'aggressive']))
+              type=click.Choice(['noop'] + configuration._accepted['dse']))
 @click.option('--dle', default='noop', help='Devito loop engine (DLE) mode',
-              type=click.Choice(['noop', 'advanced', 'speculative']))
-@click.option('-a', '--autotune', default=False,
+              type=click.Choice(['noop'] + configuration._accepted['dle']))
+@click.option('-a', '--autotune', default=False, is_flag=True,
               help='Switch auto tuning on/off; ignored if execmode=bench')
 def run(problem, **kwargs):
     run = tti_run if problem == 'tti' else acoustic_run
-    run(**kwargs)
+    time_order = kwargs.pop('time_order')[0]
+    space_order = kwargs.pop('space_order')[0]
+    run(space_order=space_order, time_order=time_order, **kwargs)
+
+
+@benchmark.command()
+@option_simulation
+@click.option('--dse', default='noop', help='Devito symbolic engine (DSE) mode',
+              type=click.Choice(['noop'] + configuration._accepted['dse']))
+@click.option('--dle', default='noop', help='Devito loop engine (DLE) mode',
+              type=click.Choice(['noop'] + configuration._accepted['dle']))
+@click.option('-a', '--autotune', default=False, is_flag=True,
+              help='Switch auto tuning on/off; ignored if execmode=bench')
+def test(problem, **kwargs):
+    run = tti_run if problem == 'tti' else acoustic_run
+
+    # Create a parameter sweep over space and time orders
+    sweep_options = ('space_order', 'time_order')
+    sweep_values = [kwargs[option] for option in sweep_options]
+    param_sweep = [dict(zip(sweep_options, v)) for v in product(*sweep_values)]
+
+    last_res = None
+    parameters = kwargs.copy()
+    for params in param_sweep:
+        parameters.update(params)
+        _, _, _, res = run(**parameters)
+
+        if last_res is None:
+            last_res = res
+        else:
+            for i in range(len(res)):
+                np.isclose(res[i], last_res[i])
 
 
 if __name__ == "__main__":
