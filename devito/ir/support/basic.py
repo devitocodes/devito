@@ -2,6 +2,7 @@ from cached_property import cached_property
 
 from sympy import Basic, Eq
 
+from devito.dimension import Dimension
 from devito.symbolics import retrieve_indexed, q_identity, q_affine
 from devito.tools import as_tuple, is_integer, filter_sorted
 from devito.types import Indexed
@@ -45,60 +46,71 @@ class Vector(tuple):
             raise TypeError("Illegal Vector element type")
         return super(Vector, cls).__new__(cls, items)
 
-    def _asvector(func):
-        def wrapper(self, other):
-            if not isinstance(other, Vector):
-                try:
-                    other = Vector(*other)
-                except TypeError:
-                    # Not iterable
-                    other = Vector(*(as_tuple(other)*len(self)))
-            if len(self) != len(other):
-                raise TypeError("Cannot operate with Vectors of different rank")
-            return func(self, other)
-        return wrapper
+    def _asvector(relax=False):
+        def __asvector(func):
+            def wrapper(self, other):
+                if not isinstance(other, Vector):
+                    try:
+                        other = Vector(*other)
+                    except TypeError:
+                        # Not iterable
+                        other = Vector(*(as_tuple(other)*len(self)))
+                if relax is False and len(self) != len(other):
+                    raise TypeError("Cannot operate with Vectors of different rank")
+                return func(self, other)
+            return wrapper
+        return __asvector
 
-    @_asvector
+    @_asvector()
     def __add__(self, other):
         return Vector(*[i + j for i, j in zip(self, other)])
 
-    @_asvector
+    @_asvector()
     def __radd__(self, other):
         return self + other
 
-    @_asvector
+    @_asvector()
     def __sub__(self, other):
         return Vector(*[i - j for i, j in zip(self, other)])
 
-    @_asvector
+    @_asvector()
     def __rsub__(self, other):
         return self - other
 
-    @_asvector
+    @_asvector(relax=True)
     def __eq__(self, other):
         return super(Vector, self).__eq__(other)
 
-    @_asvector
+    @_asvector(relax=True)
     def __ne__(self, other):
         return super(Vector, self).__ne__(other)
 
-    @_asvector
+    @_asvector()
     def __lt__(self, other):
-        try:
-            diff = [int(i) for i in self.order(other)]
-        except TypeError:
-            raise TypeError("Cannot compare due to non-comparable index functions")
-        return diff < [0]*self.rank
+        # This might raise an exception if the distance between the i-th entry
+        # of /self/ and /other/ isn't integer, but rather a generic function
+        # (and thus not comparable to 0). However, the implementation is "smart",
+        # in the sense that it will return as soon as the first two comparable
+        # entries (i.e., such that their distance is a non-zero integer) are found
+        for i in self.distance(other):
+            try:
+                val = int(i)
+            except TypeError:
+                raise TypeError("Cannot compare due to non-comparable index functions")
+            if val < 0:
+                return True
+            elif val > 0:
+                return False
 
-    @_asvector
+    @_asvector()
     def __gt__(self, other):
         return other.__lt__(self)
 
-    @_asvector
+    @_asvector()
     def __ge__(self, other):
         return self.__eq__(other) or self.__gt__(other)
 
-    @_asvector
+    @_asvector()
     def __le__(self, other):
         return self.__eq__(other) or self.__lt__(other)
 
@@ -107,6 +119,8 @@ class Vector(tuple):
         return Vector(*ret) if isinstance(key, slice) else ret
 
     def __repr__(self):
+        if self.rank == 0:
+            return 'NullVector'
         maxlen = max(3, max([len(str(i)) for i in self]))
         return '\n'.join([('|{:^%d}|' % maxlen).format(str(i)) for i in self])
 
@@ -119,19 +133,29 @@ class Vector(tuple):
         return sum(self)
 
     def distance(self, other):
-        """Compute vector distance from ``self`` to ``other``."""
+        """
+        Compute the distance from ``self`` to ``other``.
+
+        The distance is a reflexive, transitive, and anti-symmetric relation,
+        which establishes a total ordering amongst Vectors.
+
+        The distance is a function [Vector x Vector --> D]. D is a tuple of length
+        equal to the Vector ``rank``. The i-th entry of D, D_i, indicates whether
+        the i-th component of ``self``, self_i, precedes (< 0), equals (== 0), or
+        succeeds (> 0) the i-th component of ``other``, other_i.
+
+        In particular, the *absolute value* of D_i represents the number of
+        integer points that exist between self_i and sink_i.
+
+        Example
+        =======
+                 | 3 |           | 1 |               |  2  |
+        source = | 2 | ,  sink = | 4 | , distance => | -2  |
+                 | 1 |           | 5 |               | -4  |
+
+        There are 2, 2, and 4 points between [3-2], [2-4], and [1-5], respectively.
+        """
         return self - other
-
-    def order(self, other):
-        """
-        A reflexive, transitive, and anti-symmetric relation for total ordering.
-
-        Return a tuple of length equal to the Vector ``rank``. The i-th tuple
-        entry, of type int, indicates whether the i-th component of ``self``
-        precedes (< 0), equals (== 0), or succeeds (> 0) the i-th component of
-        ``other``.
-        """
-        return self.distance(other)
 
 
 class IterationInstance(Vector):
@@ -167,6 +191,17 @@ class IterationInstance(Vector):
     def __le__(self, other):
         return self.__eq__(other) or self.__lt__(other)
 
+    def __getitem__(self, index):
+        if isinstance(index, (slice, int)):
+            return super(IterationInstance, self).__getitem__(index)
+        elif index in self.findices:
+            return super(IterationInstance, self).__getitem__(self.findices.index(index))
+        elif isinstance(index, Dimension):
+            return None
+        else:
+            raise TypeError("IterationInstance indices must be integers, slices, or "
+                            "Dimensions, not %s" % type(index))
+
     @cached_property
     def index_mode(self):
         ret = []
@@ -183,12 +218,12 @@ class IterationInstance(Vector):
                 ret.append('irregular')
         return tuple(ret)
 
-    def distance(self, sink, dim=None):
-        """Compute vector distance from ``self`` to ``sink``. If ``dim`` is
+    def distance(self, other, dim=None):
+        """Compute vector distance from ``self`` to ``other``. If ``dim`` is
         supplied, compute the vector distance up to and including ``dim``."""
-        if not isinstance(sink, IterationInstance):
-            raise TypeError("Cannot compute distance from obj of type %s", type(sink))
-        if self.findices != sink.findices:
+        if not isinstance(other, IterationInstance):
+            raise TypeError("Cannot compute distance from obj of type %s", type(other))
+        if self.findices != other.findices:
             raise TypeError("Cannot compute distance due to mismatching `findices`")
         if dim is not None:
             try:
@@ -197,7 +232,13 @@ class IterationInstance(Vector):
                 raise TypeError("Cannot compute distance as `dim` is not in `findices`")
         else:
             limit = self.rank
-        return super(IterationInstance, self).distance(sink)[:limit]
+        return super(IterationInstance, self).distance(other)[:limit]
+
+    def section(self, dims):
+        """Return a view of ``self`` in which the findices in ``dims`` have
+        been zeroed."""
+        return Vector(*[i if d not in as_tuple(dims) else 0
+                        for i, d in zip(self, self.findices)])
 
 
 class Access(IterationInstance):
@@ -210,7 +251,7 @@ class Access(IterationInstance):
 
     The comparison operators ``==, !=, <, <=, >, >=`` should be regarded as
     operators for lexicographic ordering of :class:`Access` objects, based
-    on the values of the access functions (and the access functions only).
+    on the values of the index functions (and the index functions only).
 
     For example, if two Access objects A and B employ the same index functions,
     the operation A == B will return True regardless of whether A and B are
@@ -316,11 +357,17 @@ class TimedAccess(Access):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
-    def order(self, other):
+    def distance(self, other, dim=None):
         if (self.direction != other.direction) or (self.rank != other.rank):
             raise TypeError("Cannot order due to mismatching `direction` and/or `rank`")
-        return [i - j if d == INC else j - i
-                for i, j, d in zip(self, other, self.direction)]
+        ret = super(TimedAccess, self).distance(other, dim)
+        if dim is not None:
+            limit = self.findices.index(dim) + 1
+            direction = self.direction[:limit]
+        else:
+            direction = self.direction
+        assert len(direction) == len(ret)
+        return Vector(*[i if d == INC else (-i) for i, d in zip(ret, direction)])
 
 
 class Dependence(object):
