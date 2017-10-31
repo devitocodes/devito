@@ -1,15 +1,69 @@
 import sys
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from itertools import product
-
 import numpy as np
+import click
 
 from devito import clear_cache, configuration
 from devito.logger import warning
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run
 from examples.seismic.tti.tti_example import run as tti_run
 
+
+@click.group()
+def benchmark():
+    """
+    Benchmarking script for seismic forward operators.
+
+    There are three main 'execution modes':
+    run:   a single run with given DSE/DLE levels
+    bench: complete benchmark with multiple DSE/DLE levels
+    test:  tests numerical correctness with different parameters
+
+    Further, this script can generate a roofline plot from a benchmark
+    """
+    pass
+
+
+def option_simulation(f):
+    options = [
+        click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti']),
+                     help='Number of grid points along each axis'),
+        click.option('-d', '--shape', default=(50, 50, 50),
+                     help='Number of grid points along each axis'),
+        click.option('-s', '--spacing', default=(20., 20., 20.),
+                     help='Spacing between grid sizes in meters'),
+        click.option('-n', '--nbpml', default=10,
+                     help='Number of PML layers'),
+        click.option('-so', '--space-order', default=2,
+                     help='Space order of the simulation'),
+        click.option('-to', '--time-order', default=2,
+                     help='Time order of the simulation'),
+        click.option('-t', '--tn', default=250,
+                     help='End time of the simulation in ms'),
+    ]
+    for option in reversed(options):
+        f = option(f)
+    return f
+
+
+@benchmark.command()
+@option_simulation
+@click.option('--dse', default='noop', help='Devito symbolic engine (DSE) mode',
+              type=click.Choice(['noop', 'basic', 'advanced', 'speculative',
+                                 'aggressive']))
+@click.option('--dle', default='noop', help='Devito loop engine (DLE) mode',
+              type=click.Choice(['noop', 'advanced', 'speculative']))
+@click.option('-a', '--autotune', default=False,
+              help='Switch auto tuning on/off; ignored if execmode=bench')
+def run(problem, **kwargs):
+    run = tti_run if problem == 'tti' else acoustic_run
+    run(**kwargs)
+
+
 if __name__ == "__main__":
+    benchmark()
+
     description = ("Benchmarking script for seismic forward operators.\n\n" +
                    "There are three main 'execution modes':\n" +
                    "\trun:   a single run with given DSE/DLE levels\n" +
