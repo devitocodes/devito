@@ -222,7 +222,7 @@ def clusterize(exprs, stencils):
     # A cluster stencil is determined iteratively, by first calculating the
     # "local" stencil and then by looking at the stencils of all other clusters
     # depending on it. The stencil information is propagated until there are
-    # no more updates.
+    # no more updates
     queue = list(mapper)
     while queue:
         target = queue.pop(0)
@@ -249,4 +249,15 @@ def clusterize(exprs, stencils):
         # Create and track the cluster
         clusters.append(Cluster(exprs, info.stencil.frozen))
 
-    return merge(clusters)
+    clusters = merge(clusters)
+
+    # For each cluster, derive its atomics dimensions
+    for c1 in clusters:
+        atomics = set()
+        for c2 in reversed(clusters[:clusters.index(c1)]):
+            scope = Scope(exprs=c1.exprs + c2.exprs)
+            true = scope.d_anti.carried() - scope.d_anti.indirect()
+            atomics |= set(c1.stencil.dimensions) & set(true.cause)
+        c1.atomics = atomics
+
+    return clusters
