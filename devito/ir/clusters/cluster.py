@@ -21,7 +21,7 @@ class Cluster(object):
     def __init__(self, exprs, stencil, atomics=None):
         self.trace = TemporariesGraph(exprs)
         self.stencil = stencil
-        self.atomics = as_tuple(atomics)
+        self._atomics = as_tuple(atomics)
 
     @property
     def exprs(self):
@@ -42,6 +42,14 @@ class Cluster(object):
     @property
     def is_sparse(self):
         return not self.is_dense
+
+    @property
+    def atomics(self):
+        return self._atomics
+
+    @atomics.setter
+    def atomics(self, val):
+        self._atomics = as_tuple(val)
 
     def rebuild(self, exprs):
         """
