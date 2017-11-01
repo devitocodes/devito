@@ -233,7 +233,8 @@ class DimensionArgProvider(ArgumentProvider):
                     return False
             except AttributeError:
                 return False
-        # Make sure we're dealing with a 3-tuple. See docstring of infer_dimension_values_tuple for more
+        # Make sure we're dealing with a 3-tuple.
+        # See docstring of infer_dimension_values_tuple for more info
         value = infer_dimension_values_tuple(value, self.rtargs)
         if hasattr(self, 'parent'):
             parent_value = self.parent.value
@@ -317,6 +318,7 @@ def log_args(arguments):
         else:
             arg_str.append('(%s, value=%s)' % (k, str(v)))
     debug("Passing Arguments: " + ", ".join(arg_str))
+
 
 def infer_dimension_values_tuple(value, rtargs, offsets=None):
     """ Strictly, a dimension's value is a 3-tuple consisting of the

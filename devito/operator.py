@@ -164,7 +164,8 @@ class Operator(Callable):
         for d in self.dimensions:
             user_provided_value = kwargs.pop(d.name, None)
             if user_provided_value is not None:
-                user_provided_value = infer_dimension_values_tuple(user_provided_value, d.rtargs,
+                user_provided_value = infer_dimension_values_tuple(user_provided_value,
+                                                                   d.rtargs,
                                                                    self.argument_offsets)
             d.verify(user_provided_value, enforce=True)
         for i in self.parameters:
