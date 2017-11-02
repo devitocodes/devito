@@ -1,8 +1,11 @@
+from __future__ import absolute_import
 import weakref
 import abc
 
 import numpy as np
 import sympy
+from operator import mul
+from functools import reduce
 
 from devito.arguments import ScalarArgProvider, ArrayArgProvider, ObjectArgProvider
 from devito.parameters import configuration
@@ -286,6 +289,14 @@ class AbstractFunction(sympy.Function, CachedSymbol):
         """Return True if the associated data was/is/will be allocated on the heap
         in a C module, False otherwise."""
         return False
+
+    @property
+    def size(self):
+        """Return the number of elements this function is expected to store in memory.
+           Note that this would need to be combined with self.dtype to give the actual
+           size in bytes
+        """
+        return reduce(mul, self.shape)
 
     def indexify(self, indices=None):
         """Create a :class:`sympy.Indexed` object from the current object."""

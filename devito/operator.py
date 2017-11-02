@@ -24,6 +24,7 @@ from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, part
 from devito.visitors import (FindScopes, ResolveTimeStepping,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
+from devito.arguments import infer_dimension_values_tuple
 
 
 class Operator(Callable):
@@ -161,7 +162,12 @@ class Operator(Callable):
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None)))
         for d in self.dimensions:
-            d.verify(kwargs.pop(d.name, None), enforce=True)
+            user_provided_value = kwargs.pop(d.name, None)
+            if user_provided_value is not None:
+                user_provided_value = infer_dimension_values_tuple(user_provided_value,
+                                                                   d.rtargs,
+                                                                   self.argument_offsets)
+            d.verify(user_provided_value, enforce=True)
         for i in self.parameters:
             if i.is_ScalarArgument:
                 user_provided_value = kwargs.pop(i.name, None)

@@ -13,3 +13,4 @@ git+https://github.com/inducer/codepy
 dask
 distributed
 scikit-image
+git+https://github.com/opesci/pyrevolve

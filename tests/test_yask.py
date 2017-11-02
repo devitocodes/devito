@@ -192,7 +192,7 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data.with_halo[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
-        op(yu4D=u, t=12)
+        op(yu4D=u, t=11)
         assert 'run_solution' in str(op)
         assert np.all(u.data[0] == 10.)
         assert np.all(u.data[1] == 11.)
@@ -214,7 +214,7 @@ class TestOperatorSimple(object):
         v = TimeFunction(name='yv4D', grid=grid, space_order=space_order)
         v.data.with_halo[:] = 1.
         op = Operator(Eq(v.forward, v.laplace + 6*v), subs=grid.spacing_map)
-        op(yv4D=v, t=1.)
+        op(yv4D=v, t=1)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 6.)
@@ -482,7 +482,7 @@ class TestOperatorAcoustic(object):
         op = Operator(eqns, subs=model.spacing_map)
         assert 'run_solution' in str(op)
 
-        op.apply(u=u, m=m, damp=damp, src=src, t=1, dt=dt)
+        op.apply(u=u, m=m, damp=damp, src=src, dt=dt)
 
         exp_u = 152.76
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
@@ -500,7 +500,7 @@ class TestOperatorAcoustic(object):
         op = Operator(eqns, subs=model.spacing_map)
         assert 'run_solution' in str(op)
 
-        op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1, dt=dt)
+        op.apply(u=u, m=m, damp=damp, src=src, rec=rec, dt=dt)
 
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.
