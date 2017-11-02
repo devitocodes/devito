@@ -77,14 +77,31 @@ class ScalarArgument(Argument):
     def __init__(self, name, provider, reducer=lambda old, new: new, default_value=None):
         super(ScalarArgument, self).__init__(name, provider, default_value)
         self.reducer = reducer
+        self._frozen = False
+
+    def reset(self):
+        super(ScalarArgument, self).reset()
+        self._frozen = False
 
     def verify(self, value, enforce=False):
-        # Assuming self._value was initialised as appropriate for the reducer
+        # If we're being passed a null value, ignore
         if value is not None:
             if self._value is not None and not enforce:
-                self._value = self.reducer(self._value, value)
+                # We already have a value and the value passed
+                # here is not enforced (i.e. optional)
+                # If we aren't frozen, use the reducer
+                if not self._frozen:
+                    self._value = self.reducer(self._value, value)
             else:
-                self._value = value
+                # Either this is the first time we're getting a value (self.value = None)
+                # or this is an enforced value
+                if enforce or not self._frozen:
+                    # If we're frozen, ignore, else use this value directly
+                    self._value = value
+                    if enforce:
+                        # If we were forced to use this value, make sure we don't change
+                        # it in the same invocation
+                        self._frozen = True
         return self._value is not None
 
 
@@ -184,35 +201,6 @@ class DimensionArgProvider(ArgumentProvider):
         end = ScalarArgument(self.end_name, self, max)
         return namedtuple("RuntimeArguments", ["size", "start", "end"])(size, start, end)
 
-    def _promote(self, value):
-        """ Strictly, a dimension's value is a 3-tuple consisting of the
-            values of each of its rtargs - currently size, start and end. However, for
-            convenience, we may accept partial representations of the value, e.g. scalars
-            and 2-tuples and interpret them in a certain way while assuming defaults for
-            missing information. If value is:
-            3-tuple: it contains explicit values for all 3 rtargs and hence will be used
-            directly
-            2-tuple: We assume we are being provided the (start, end) values. This will be
-            promoted to a 3-tuple assuming size to be the same as end.
-            scalar: We assume we are being provided the value of size. Promote to 3-tuple
-            by assuming this scalar is the size and the end of the dimension. start will
-            default to 0.
-        """
-
-        if not isinstance(value, tuple):
-            # scalar
-            size, start, end = self.rtargs
-            value = (value, start.default_value, value)
-        else:
-            if len(value) == 2:
-                # 2-tuple
-                # Assume we've been passed a (start, end) tuple
-                start, end = value
-                value = (end, start, end)
-            elif len(value) != 3:
-                raise InvalidArgument("Expected either a scalar value or a tuple(2/3)")
-        return value
-
     # TODO: Can we do without a verify on a dimension?
     def verify(self, value, enforce=False):
         verify = True
@@ -226,12 +214,12 @@ class DimensionArgProvider(ArgumentProvider):
                     return False
             except AttributeError:
                 return False
-        # Make sure we're dealing with a 3-tuple. See docstring of _promote for more
-        value = self._promote(value)
+        # Make sure we're dealing with a 3-tuple. See docstring of infer_dimension_values_tuple for more
+        value = infer_dimension_values_tuple(value, self.rtargs)
         if hasattr(self, 'parent'):
             parent_value = self.parent.value
             if parent_value is not None and not enforce:
-                parent_value = self._promote(parent_value)
+                parent_value = infer_dimension_values_tuple(parent_value, self.rtargs)
                 value = tuple([self.reducer(i1, i2) for i1, i2 in zip(value,
                                                                       parent_value)])
             verify = verify and self.parent.verify(value)
@@ -310,3 +298,33 @@ def log_args(arguments):
         else:
             arg_str.append('(%s, value=%s)' % (k, str(v)))
     debug("Passing Arguments: " + ", ".join(arg_str))
+
+def infer_dimension_values_tuple(value, rtargs, offsets=None):
+    """ Strictly, a dimension's value is a 3-tuple consisting of the
+        values of each of its rtargs - currently size, start and end. However, for
+        convenience, we may accept partial representations of the value, e.g. scalars
+        and 2-tuples and interpret them in a certain way while assuming defaults for
+        missing information. If value is:
+        3-tuple: it contains explicit values for all 3 rtargs and hence will be used
+        directly
+        2-tuple: We assume we are being provided the (start, end) values. This will be
+        promoted to a 3-tuple assuming size to be the same as end.
+        scalar: We assume we are being provided the value of size. Promote to 3-tuple
+        by assuming this scalar is the size and the end of the dimension. start will
+        default to 0.
+    """
+    size_arg, start_arg, end_arg = rtargs
+    start_offset = 0 if offsets is None else offsets.get(start_arg.name, 0)
+    end_offset = 0 if offsets is None else offsets.get(end_arg.name, 0)
+    if not isinstance(value, tuple):
+        # scalar
+        value = (value, start_arg.default_value + start_offset, value + end_offset)
+    else:
+        if len(value) == 2:
+            # 2-tuple
+            # Assume we've been passed a (start, end) tuple
+            start, end = value
+            value = (end, start + start_offset, end + end_offset)
+        elif len(value) != 3:
+            raise InvalidArgument("Expected either a scalar value or a tuple(2/3)")
+    return value
