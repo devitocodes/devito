@@ -60,7 +60,8 @@ class Node(object):
 
         This is a shorthand for
 
-            .. code-block::
+           .. code-block:: python
+
               from devito.visitors import CGen
               CGen().visit(self)
         """
