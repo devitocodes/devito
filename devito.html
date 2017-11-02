@@ -455,9 +455,35 @@ i.e. if it is a user-provided value, use it directly.</p>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="devito.arguments.ScalarArgument.reset">
+<code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ScalarArgument.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ScalarArgument.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
 <dt id="devito.arguments.ScalarArgument.verify">
 <code class="descname">verify</code><span class="sig-paren">(</span><em>value</em>, <em>enforce=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ScalarArgument.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ScalarArgument.verify" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>ScalarArgument.verify is called from many different places, with different
+values. e.g.
+1. From inside Operator.arguments(), with an accompanying user-provided
+value from kwargs
+2. From the verify of a Dimension object, with an accompanying “derived”
+value, which is the best-guess for this ScalarArgument’s value that
+the Dimension can come up with.
+In the above two cases, the value passed in case 2 is “optional”, since
+a dimension “belongs” to multiple Function objects and each object might
+lead to a different best-guess. During normal behaviour, verify is expected
+to be called multiple times with different values and this method will
+combine all the values received in the different invocations in a configurable
+(self.reducer) way. However, if the user has explicitly passed in a value
+(case 1 above), that value has to be respected and this best-guess behaviour
+described above needs to be switched off.
+Another thing to note is that, once a ScalarArgument has been passed a value
+with enforce=True, any further calls to verify should not change the stored
+value. The self._frozen flag is used to ensure that.
+:param enforce: Turn off the best-guess behaviour and just use the value</p>
+<blockquote>
+<div>passed, ignoring any previously stored values.</div></blockquote>
+</dd></dl>
 
 </dd></dl>
 
@@ -490,6 +516,23 @@ arguments.</p>
 <code class="descname">rtargs</code><a class="headerlink" href="#devito.arguments.TensorFunctionArgProvider.rtargs" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.arguments.infer_dimension_values_tuple">
+<code class="descclassname">devito.arguments.</code><code class="descname">infer_dimension_values_tuple</code><span class="sig-paren">(</span><em>value</em>, <em>rtargs</em>, <em>offsets=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#infer_dimension_values_tuple"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.infer_dimension_values_tuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Strictly, a dimension’s value is a 3-tuple consisting of the
+values of each of its rtargs - currently size, start and end. However, for
+convenience, we may accept partial representations of the value, e.g. scalars
+and 2-tuples and interpret them in a certain way while assuming defaults for
+missing information. If value is:
+3-tuple: it contains explicit values for all 3 rtargs and hence will be used
+directly
+2-tuple: We assume we are being provided the (start, end) values. This will be
+promoted to a 3-tuple assuming size to be the same as end.
+scalar: We assume we are being provided the value of size. Promote to 3-tuple
+by assuming this scalar is the size and the end of the dimension. start will
+default to 0.</p>
 </dd></dl>
 
 <dl class="function">

@@ -240,19 +240,55 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">reducer</span><span class="o">=</span><span class="k">lambda</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="n">new</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">ScalarArgument</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">default_value</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reducer</span> <span class="o">=</span> <span class="n">reducer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frozen</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="ScalarArgument.reset"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarArgument.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ScalarArgument</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frozen</span> <span class="o">=</span> <span class="kc">False</span></div>
 
 <div class="viewcode-block" id="ScalarArgument.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarArgument.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">enforce</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="c1"># Assuming self._value was initialised as appropriate for the reducer</span>
+        <span class="sd">&quot;&quot;&quot; ScalarArgument.verify is called from many different places, with different</span>
+<span class="sd">            values. e.g.</span>
+<span class="sd">            1. From inside Operator.arguments(), with an accompanying user-provided</span>
+<span class="sd">            value from kwargs</span>
+<span class="sd">            2. From the verify of a Dimension object, with an accompanying &quot;derived&quot;</span>
+<span class="sd">            value, which is the best-guess for this ScalarArgument&#39;s value that</span>
+<span class="sd">            the Dimension can come up with.</span>
+<span class="sd">            In the above two cases, the value passed in case 2 is &quot;optional&quot;, since</span>
+<span class="sd">            a dimension &quot;belongs&quot; to multiple Function objects and each object might</span>
+<span class="sd">            lead to a different best-guess. During normal behaviour, verify is expected</span>
+<span class="sd">            to be called multiple times with different values and this method will</span>
+<span class="sd">            combine all the values received in the different invocations in a configurable</span>
+<span class="sd">            (self.reducer) way. However, if the user has explicitly passed in a value</span>
+<span class="sd">            (case 1 above), that value has to be respected and this best-guess behaviour</span>
+<span class="sd">            described above needs to be switched off.</span>
+<span class="sd">            Another thing to note is that, once a ScalarArgument has been passed a value</span>
+<span class="sd">            with enforce=True, any further calls to verify should not change the stored</span>
+<span class="sd">            value. The self._frozen flag is used to ensure that.</span>
+<span class="sd">            :param enforce: Turn off the best-guess behaviour and just use the value</span>
+<span class="sd">                            passed, ignoring any previously stored values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">enforce</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reducer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+                <span class="c1"># We already have a value and the value passed</span>
+                <span class="c1"># here is not enforced (i.e. optional)</span>
+                <span class="c1"># If we aren&#39;t frozen, use the reducer</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_frozen</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reducer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="c1"># Either this is the first time we&#39;re getting a value (self.value = None)</span>
+                <span class="c1"># or this is an enforced value</span>
+                <span class="k">if</span> <span class="n">enforce</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_frozen</span><span class="p">:</span>
+                    <span class="c1"># If we&#39;re frozen, ignore, else use this value directly</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span>
+                    <span class="k">if</span> <span class="n">enforce</span><span class="p">:</span>
+                        <span class="c1"># If we were forced to use this value, make sure we don&#39;t change</span>
+                        <span class="c1"># it in the same invocation</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_frozen</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span></div></div>
 
 
 <div class="viewcode-block" id="TensorArgument"><a class="viewcode-back" href="../../devito.html#devito.arguments.TensorArgument">[docs]</a><span class="k">class</span> <span class="nc">TensorArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">):</span>
-
     <span class="sd">&quot;&quot;&quot; Class representing tensor arguments that a kernel might expect.</span>
 <span class="sd">        Most commonly used to pass numpy-like multi-dimensional arrays.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -347,35 +383,6 @@
         <span class="n">end</span> <span class="o">=</span> <span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="nb">max</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;RuntimeArguments&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;size&quot;</span><span class="p">,</span> <span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">])(</span><span class="n">size</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_promote</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Strictly, a dimension&#39;s value is a 3-tuple consisting of the</span>
-<span class="sd">            values of each of its rtargs - currently size, start and end. However, for</span>
-<span class="sd">            convenience, we may accept partial representations of the value, e.g. scalars</span>
-<span class="sd">            and 2-tuples and interpret them in a certain way while assuming defaults for</span>
-<span class="sd">            missing information. If value is:</span>
-<span class="sd">            3-tuple: it contains explicit values for all 3 rtargs and hence will be used</span>
-<span class="sd">            directly</span>
-<span class="sd">            2-tuple: We assume we are being provided the (start, end) values. This will be</span>
-<span class="sd">            promoted to a 3-tuple assuming size to be the same as end.</span>
-<span class="sd">            scalar: We assume we are being provided the value of size. Promote to 3-tuple</span>
-<span class="sd">            by assuming this scalar is the size and the end of the dimension. start will</span>
-<span class="sd">            default to 0.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
-            <span class="c1"># scalar</span>
-            <span class="n">size</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span>
-            <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">start</span><span class="o">.</span><span class="n">default_value</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="c1"># 2-tuple</span>
-                <span class="c1"># Assume we&#39;ve been passed a (start, end) tuple</span>
-                <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="n">value</span>
-                <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">end</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Expected either a scalar value or a tuple(2/3)&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">value</span>
-
     <span class="c1"># TODO: Can we do without a verify on a dimension?</span>
 <div class="viewcode-block" id="DimensionArgProvider.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.DimensionArgProvider.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">enforce</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="n">verify</span> <span class="o">=</span> <span class="kc">True</span>
@@ -389,12 +396,13 @@
                     <span class="k">return</span> <span class="kc">False</span>
             <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">False</span>
-        <span class="c1"># Make sure we&#39;re dealing with a 3-tuple. See docstring of _promote for more</span>
-        <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_promote</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="c1"># Make sure we&#39;re dealing with a 3-tuple.</span>
+        <span class="c1"># See docstring of infer_dimension_values_tuple for more info</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">infer_dimension_values_tuple</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">):</span>
             <span class="n">parent_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">value</span>
             <span class="k">if</span> <span class="n">parent_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">enforce</span><span class="p">:</span>
-                <span class="n">parent_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_promote</span><span class="p">(</span><span class="n">parent_value</span><span class="p">)</span>
+                <span class="n">parent_value</span> <span class="o">=</span> <span class="n">infer_dimension_values_tuple</span><span class="p">(</span><span class="n">parent_value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">)</span>
                 <span class="n">value</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">reducer</span><span class="p">(</span><span class="n">i1</span><span class="p">,</span> <span class="n">i2</span><span class="p">)</span> <span class="k">for</span> <span class="n">i1</span><span class="p">,</span> <span class="n">i2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">value</span><span class="p">,</span>
                                                                       <span class="n">parent_value</span><span class="p">)])</span>
             <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
@@ -473,6 +481,37 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">arg_str</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;(</span><span class="si">%s</span><span class="s1">, value=</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)))</span>
     <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Passing Arguments: &quot;</span> <span class="o">+</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">arg_str</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="infer_dimension_values_tuple"><a class="viewcode-back" href="../../devito.html#devito.arguments.infer_dimension_values_tuple">[docs]</a><span class="k">def</span> <span class="nf">infer_dimension_values_tuple</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">rtargs</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Strictly, a dimension&#39;s value is a 3-tuple consisting of the</span>
+<span class="sd">        values of each of its rtargs - currently size, start and end. However, for</span>
+<span class="sd">        convenience, we may accept partial representations of the value, e.g. scalars</span>
+<span class="sd">        and 2-tuples and interpret them in a certain way while assuming defaults for</span>
+<span class="sd">        missing information. If value is:</span>
+<span class="sd">        3-tuple: it contains explicit values for all 3 rtargs and hence will be used</span>
+<span class="sd">        directly</span>
+<span class="sd">        2-tuple: We assume we are being provided the (start, end) values. This will be</span>
+<span class="sd">        promoted to a 3-tuple assuming size to be the same as end.</span>
+<span class="sd">        scalar: We assume we are being provided the value of size. Promote to 3-tuple</span>
+<span class="sd">        by assuming this scalar is the size and the end of the dimension. start will</span>
+<span class="sd">        default to 0.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">size_arg</span><span class="p">,</span> <span class="n">start_arg</span><span class="p">,</span> <span class="n">end_arg</span> <span class="o">=</span> <span class="n">rtargs</span>
+    <span class="n">start_offset</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">offsets</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">offsets</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">start_arg</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">end_offset</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">offsets</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">offsets</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">end_arg</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="c1"># scalar</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">start_arg</span><span class="o">.</span><span class="n">default_value</span> <span class="o">+</span> <span class="n">start_offset</span><span class="p">,</span> <span class="n">value</span> <span class="o">+</span> <span class="n">end_offset</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1"># 2-tuple</span>
+            <span class="c1"># Assume we&#39;ve been passed a (start, end) tuple</span>
+            <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">end</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="n">start_offset</span><span class="p">,</span> <span class="n">end</span> <span class="o">+</span> <span class="n">end_offset</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Expected either a scalar value or a tuple(2/3)&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span></div>
 </pre></div>
 
            </div>
