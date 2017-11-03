@@ -14,7 +14,7 @@ from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
 from devito.dse import *  # noqa
 
-from devito.compiler import compiler_registry
+from devito.compiler import compiler_registry, GNUCompiler
 from devito.backends import backends_registry, init_backend
 
 
@@ -38,7 +38,11 @@ configuration.add('compiler', 'custom', list(compiler_registry),
 
 def _cast_and_update_compiler(val):
     # Force re-build the compiler
-    configuration['compiler'].__init__()
+    compiler = configuration['compiler']
+    if isinstance(compiler, GNUCompiler):
+        compiler.__init__(version=compiler.version)
+    else:
+        compiler.__init__()
     return bool(val)
 
 
