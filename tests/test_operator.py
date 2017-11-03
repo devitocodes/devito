@@ -67,9 +67,9 @@ class TestArithmetic(object):
 
     @pytest.mark.parametrize('expr, result', [
         ('Eq(a, a + b + 5.)', 10.),
-        # ('Eq(a, b - a)', 1.),
-        # ('Eq(a, 4 * (b * a))', 24.),
-        # ('Eq(a, (6. / b) + (8. * a))', 18.),
+        ('Eq(a, b - a)', 1.),
+        ('Eq(a, 4 * (b * a))', 24.),
+        ('Eq(a, (6. / b) + (8. * a))', 18.),
     ])
     @pytest.mark.parametrize('mode', ['function'])
     def test_flat(self, expr, result, mode):
