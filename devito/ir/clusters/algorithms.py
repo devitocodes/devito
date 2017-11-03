@@ -1,55 +1,62 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 
-from devito.ir.support.basic import Scope
-from devito.ir.clusters.cluster import Cluster
+from devito.ir.support import Scope
+from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.ir.dfg import TemporariesGraph
-from devito.ir.support import Stencil
 from devito.symbolics import xreplace_indices
 from devito.types import Scalar
 from devito.tools import flatten
 
-__all__ = ['clusterize', 'merge']
+__all__ = ['clusterize', 'groupby']
 
 
-def merge(clusters):
+def groupby(clusters):
     """
-    Given an ordered collection of :class:`Cluster` objects, return a
-    (potentially) smaller sequence in which clusters with identical stencil
-    have been merged into a single :class:`Cluster`, as long as data
-    dependences are honored.
+    Given an ordered collection of :class:`PartialCluster` objects, return a
+    (potentially) smaller sequence in which dependence-free PartialClusters with
+    identical stencil have been squashed into a single PartialCluster.
     """
+    clusters = clusters.unfreeze()
 
-    def _merge(source, sink):
-        temporaries = OrderedDict(source.trace.items())
-        temporaries.update(OrderedDict([(k, v) for k, v in sink.trace.items()
-                                        if k not in temporaries]))
-        return Cluster(temporaries.values(), source.stencil, source.atomics)
-
-    processed = []
+    # Attempt cluster fusion
+    processed = ClusterGroup()
     for c in clusters:
-        merged = None
+        fused = False
         for candidate in reversed(list(processed)):
-            # Get the data dependences relevant for cluster fusion
+            # Check all data dependences relevant for cluster fusion
             scope = Scope(exprs=candidate.exprs + c.exprs)
-            d_true = scope.d_anti.carried() - scope.d_anti.indirect()
-            if candidate.stencil == c.stencil:
-                d_fake = scope.d_flow.independent() - scope.d_flow.indirect()
-                d_funcs = [i.function for i in d_true + d_fake]
-                if all(is_local(i, candidate, c, clusters) for i in d_funcs):
-                    # /c/ will be merged into /candidate/. However, all fusion-induced
-                    # anti dependences need to be removed. This is achieved through so
-                    # called index bumping and array contraction
-                    merged = _merge(*bump_and_contract(d_funcs, candidate, c))
-                    processed[processed.index(candidate)] = merged
+            anti = scope.d_anti.carried() - scope.d_anti.indirect()
+            flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.indirect())
+            funcs = [i.function for i in anti]
+            if candidate.stencil == c.stencil and\
+                    all(is_local(i, candidate, c, clusters) for i in funcs):
+                # /c/ will be fused into /candidate/. All fusion-induced anti
+                # dependences are eliminated through so called "index bumping and
+                # array contraction", which transforms array accesses into scalars
+
+                # Optimization: we also bump-and-contract the Arrays inducing
+                # non-carried dependences, to avoid useless memory accesses
+                funcs += [i.function for i in scope.d_flow.independent()
+                          if is_local(i.function, candidate, c, clusters)]
+
+                bump_and_contract(funcs, candidate, c)
+                candidate.squash(c)
+                fused = True
                 break
-            elif scope.d_all:
-                # Data dependences prevent fusion with earlier Clusters.
+            elif anti:
+                # Data dependences prevent fusion with earlier clusters, so
+                # must break up the search
+                processed.atomics[c].update(set(anti.cause))
+                break
+            elif set(flow).intersection(processed.atomics[candidate]):
+                # We cannot even attempt fusing with earlier clusters, as
+                # otherwise the existing flow dependences wouldn't be honored
                 break
         # Fallback
-        if not merged:
+        if not fused:
             processed.append(c)
 
-    return processed
+    return processed.freeze()
 
 
 def is_local(array, source, sink, context):
@@ -57,9 +64,10 @@ def is_local(array, source, sink, context):
     Return True if ``array`` satisfies the following conditions: ::
 
         * it's a temporary; that is, of type :class:`Array`;
-        * it's written once, within the ``source`` :class:`Cluster`;
-        * it's read in the ``sink`` :class:`Cluster` only; in particular,
-          it doesn't appear in any other :class:`Cluster`s out of those
+        * it's written once, within the ``source`` :class:`PartialCluster`, and
+          its value only depends on global data;
+        * it's read in the ``sink`` :class:`PartialCluster` only; in particular,
+          it doesn't appear in any other :class:`PartialCluster`s out of those
           provided in ``context``.
 
     If any of these conditions do not hold, return False.
@@ -68,7 +76,20 @@ def is_local(array, source, sink, context):
         return False
 
     # Written in source
-    if array not in [i.function for i in source.trace.values()]:
+    written_once = False
+    for i in source.trace.values():
+        if array == i.function:
+            if written_once is True:
+                # Written more than once, break
+                written_once = False
+                break
+            reads = [j.base.function for j in i.reads]
+            if any(j.is_SymbolicFunction or j.is_Scalar for j in reads):
+                # Can't guarantee its value only depends on local data
+                written_once = False
+                break
+            written_once = True
+    if written_once is False:
         return False
 
     # Never read outside of sink
@@ -81,13 +102,13 @@ def is_local(array, source, sink, context):
 
 def bump_and_contract(targets, source, sink):
     """
-    Return a new source and a new sink in which the :class:`Array`s in ``targets``
-    have been turned into scalars. This is implemented through index bumping and
-    array contraction.
+    Transform in-place the PartialClusters ``source`` and ``sink`` by turning the
+    :class:`Array`s in ``targets`` into :class:`Scalar`. This is implemented
+    through index bumping and array contraction.
 
-    :param targets: The :class:`Array`s that will be contracted.
-    :param source: The source :class:`Cluster`.
-    :param sink: The sink :class:`Cluster`.
+    :param targets: The :class:`Array` objects that will be contracted.
+    :param source: The source :class:`PartialCluster`.
+    :param sink: The sink :class:`PartialCluster`.
 
     Examples
     ========
@@ -128,11 +149,11 @@ def bump_and_contract(targets, source, sink):
         sink: [a = ... tmp0 ... tmp1 ...]
     """
     if not targets:
-        return source, sink
+        return
 
     mapper = {}
 
-    # Build the new source
+    # source
     processed = []
     for k, v in source.trace.items():
         if any(v.function not in i for i in [targets, sink.tensors]):
@@ -151,13 +172,11 @@ def bump_and_contract(targets, source, sink):
                 handle = v.func(scalarized, v.rhs.xreplace(mapper))
                 handle = xreplace_indices(handle, shifting)
                 processed.append(handle)
-    source = source.rebuild(processed)
+    source.exprs = processed
 
-    # Build the new sink
+    # sink
     processed = [v.func(k, v.rhs.xreplace(mapper)) for k, v in sink.trace.items()]
-    sink = sink.rebuild(processed)
-
-    return source, sink
+    sink.exprs = processed
 
 
 def aggregate(exprs, stencils):
@@ -208,56 +227,39 @@ def clusterize(exprs, stencils):
 
     exprs, stencils = aggregate(exprs, stencils)
 
-    Info = namedtuple('Info', 'trace stencil')
-
-    # Build a dependence graph and associate each node with its Stencil
+    # Create a PartialCluster for each sequence of expressions computing a tensor
     mapper = OrderedDict()
     g = TemporariesGraph(exprs)
     for (k, v), j in zip(g.items(), stencils):
         if v.is_tensor:
-            trace = g.trace(k)
-            trace += tuple(i for i in g.trace(k, readby=True) if i not in trace)
-            mapper[k] = Info(trace, j)
+            exprs = g.trace(k)
+            exprs += tuple(i for i in g.trace(k, readby=True) if i not in exprs)
+            mapper[k] = PartialCluster(exprs, j)
 
-    # A cluster stencil is determined iteratively, by first calculating the
-    # "local" stencil and then by looking at the stencils of all other clusters
-    # depending on it. The stencil information is propagated until there are
-    # no more updates
+    # Update the PartialClusters' Stencils by looking at the Stencil of the
+    # surrounding PartialClusters.
     queue = list(mapper)
     while queue:
         target = queue.pop(0)
 
-        info = mapper[target]
-        strict_trace = [i.lhs for i in info.trace if i.lhs != target]
+        pc = mapper[target]
+        strict_trace = [i.lhs for i in pc.exprs if i.lhs != target]
 
-        stencil = Stencil(info.stencil.entries)
+        stencil = pc.stencil.copy()
         for i in strict_trace:
             if i in mapper:
                 stencil = stencil.add(mapper[i].stencil)
 
-        mapper[target] = Info(info.trace, stencil)
-
-        if stencil != info.stencil:
+        if stencil != pc.stencil:
             # Something has changed, need to propagate the update
+            pc.stencil = stencil
             queue.extend([i for i in strict_trace if i not in queue])
 
-    clusters = []
-    for target, info in mapper.items():
-        # Drop all non-output tensors, as computed by other clusters
-        exprs = [i for i in info.trace if i.lhs.is_Symbol or i.lhs == target]
+    # Drop all non-output tensors, as computed by other clusters
+    clusters = ClusterGroup()
+    for target, pc in mapper.items():
+        exprs = [i for i in pc.exprs if i.lhs.is_Symbol or i.lhs == target]
+        clusters.append(PartialCluster(exprs, pc.stencil))
 
-        # Create and track the cluster
-        clusters.append(Cluster(exprs, info.stencil.frozen))
-
-    clusters = merge(clusters)
-
-    # For each cluster, derive its atomics dimensions
-    for c1 in clusters:
-        atomics = set()
-        for c2 in reversed(clusters[:clusters.index(c1)]):
-            scope = Scope(exprs=c1.exprs + c2.exprs)
-            true = scope.d_anti.carried() - scope.d_anti.indirect()
-            atomics |= set(c1.stencil.dimensions) & set(true.cause)
-        c1.atomics = atomics
-
-    return clusters
+    # Attempt grouping as many PartialClusters as possible together
+    return groupby(clusters)

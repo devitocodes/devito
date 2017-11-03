@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from devito.ir.clusters import ClusterGroup, groupby
 from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
                                  AggressiveRewriter, CustomRewriter)
 from devito.exceptions import DSEException
@@ -50,7 +51,7 @@ def rewrite(clusters, mode='advanced'):
     if mode is None or mode == 'noop':
         return clusters
 
-    processed = []
+    processed = ClusterGroup()
     for cluster in clusters:
         if cluster.is_dense:
             if mode in modes:
@@ -66,4 +67,5 @@ def rewrite(clusters, mode='advanced'):
             # pointless to expose loop-redundancies when the iteration space
             # only consists of a few points
             processed.extend(BasicRewriter(False).run(cluster))
-    return processed
+
+    return groupby(processed)

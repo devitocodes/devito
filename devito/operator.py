@@ -98,7 +98,7 @@ class Operator(Callable):
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = self.input + self.dimensions
 
-        # Group expressions based on their Stencil
+        # Group expressions based on their Stencil and data dependences
         clusters = clusterize(expressions, stencils)
 
         # Apply the Devito Symbolic Engine (DSE) for symbolic optimization
@@ -319,7 +319,7 @@ class Operator(Callable):
                 # Can I reuse any of the previously scheduled Iterations ?
                 index = 0
                 for j0, j1 in zip(entries, list(schedule)):
-                    if j0 != j1 or j0.dim in i.atomics:
+                    if j0 != j1 or j0.dim in clusters.atomics[i]:
                         break
                     root = schedule[j1]
                     index += 1
