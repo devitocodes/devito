@@ -517,6 +517,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
 class DevitoCustomRewriter(DevitoSpeculativeRewriter):
 
     passes_mapper = {
+        'denormals': DevitoSpeculativeRewriter._avoid_denormals,
         'blocking': DevitoSpeculativeRewriter._loop_blocking,
         'openmp': DevitoSpeculativeRewriter._ompize,
         'simd': DevitoSpeculativeRewriter._simdize,
@@ -529,9 +530,9 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
         try:
             passes = passes.split(',')
         except AttributeError:
-            raise DLEException
-        if not all(i in DevitoCustomRewriter.passes_mapper for i in passes):
-            raise DLEException
+            # Already in tuple format
+            if not all(i in DevitoCustomRewriter.passes_mapper for i in passes):
+                raise DLEException
         self.passes = passes
         super(DevitoCustomRewriter, self).__init__(nodes, params)
 
