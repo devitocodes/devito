@@ -13,7 +13,6 @@ from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import rewrite
-from devito.flow import analyze_iterations
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.function import Forward, Backward, CompositeFunction
 from devito.logger import bar, error, info
