@@ -155,8 +155,10 @@ class DevitoRewriter(BasicRewriter):
             intra_blocks = []
             remainders = []
             for i in iterations:
+                name = "%s%d_block" % (i.dim.name, len(mapper))
+
                 # Build Iteration over blocks
-                dim = blocked.setdefault(i, Dimension("%s_block" % i.dim.name))
+                dim = blocked.setdefault(i, Dimension(name))
                 block_size = dim.symbolic_size
                 iter_size = i.dim.symbolic_extent
                 start = i.limits[0] - i.offsets[0]
