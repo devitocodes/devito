@@ -14,7 +14,7 @@ from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
 from devito.dse import *  # noqa
 
-from devito.compiler import compiler_registry
+from devito.compiler import compiler_registry, GNUCompiler
 from devito.backends import backends_registry, init_backend
 
 
@@ -33,8 +33,20 @@ del get_versions
 
 # First add the compiler configuration option...
 configuration.add('compiler', 'custom', list(compiler_registry),
-                  lambda i: compiler_registry[i]())
-configuration.add('openmp', 0, [0, 1], lambda i: bool(i))
+                  callback=lambda i: compiler_registry[i]())
+
+
+def _cast_and_update_compiler(val):
+    # Force re-build the compiler
+    compiler = configuration['compiler']
+    if isinstance(compiler, GNUCompiler):
+        compiler.__init__(version=compiler.version)
+    else:
+        compiler.__init__()
+    return bool(val)
+
+
+configuration.add('openmp', 0, [0, 1], callback=_cast_and_update_compiler)
 configuration.add('debug_compiler', 0, [0, 1], lambda i: bool(i))
 
 # ... then the backend configuration. The order is important since the
