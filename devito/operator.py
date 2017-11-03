@@ -539,8 +539,10 @@ def set_dle_mode(mode):
     elif isinstance(mode, str):
         return mode, {}
     elif isinstance(mode, tuple):
-        if len(mode) == 1:
-            return mode[0], {}
-        elif len(mode) == 2 and isinstance(mode[1], dict):
-            return mode
+        if len(mode) == 0:
+            return 'noop', {}
+        elif isinstance(mode[-1], dict):
+            return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
+        else:
+            return tuple(flatten(i.split(',') for i in mode)), {}
     raise TypeError("Illegal DLE mode %s." % str(mode))

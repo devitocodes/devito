@@ -60,10 +60,7 @@ def transform(node, mode='basic', options=None):
         * 'blockalways': Apply blocking even though the DLE thinks it's not
                          worthwhile applying it.
     """
-    # Check input parameters
     assert isinstance(node, Node)
-    if not (mode is None or isinstance(mode, str)):
-        raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
 
     # Parse options (local options take precedence over global options)
     options = options or {}
