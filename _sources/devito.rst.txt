@@ -10,6 +10,8 @@ Subpackages
     devito.dle
     devito.dse
     devito.foreign
+    devito.ir
+    devito.symbolics
     devito.yask
 
 Submodules
@@ -79,14 +81,6 @@ devito\.finite\_difference module
     :undoc-members:
     :show-inheritance:
 
-devito\.flow module
--------------------
-
-.. automodule:: devito.flow
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 devito\.function module
 -----------------------
 
@@ -115,14 +109,6 @@ devito\.memory module
 ---------------------
 
 .. automodule:: devito.memory
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.nodes module
---------------------
-
-.. automodule:: devito.nodes
     :members:
     :undoc-members:
     :show-inheritance:
@@ -171,14 +157,6 @@ devito\.types module
 --------------------
 
 .. automodule:: devito.types
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.visitors module
------------------------
-
-.. automodule:: devito.visitors
     :members:
     :undoc-members:
     :show-inheritance:

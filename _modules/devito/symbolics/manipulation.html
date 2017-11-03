@@ -1,0 +1,426 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.symbolics.manipulation &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.symbolics.manipulation</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.symbolics.manipulation</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Number</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">preorder_traversal</span>
+
+<span class="kn">from</span> <span class="nn">devito.symbolics.extended_sympy</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Eq</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;freeze_expression&#39;</span><span class="p">,</span> <span class="s1">&#39;xreplace_constrained&#39;</span><span class="p">,</span> <span class="s1">&#39;xreplace_indices&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;pow_to_mul&#39;</span><span class="p">,</span> <span class="s1">&#39;as_symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;indexify&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="freeze_expression"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.freeze_expression">[docs]</a><span class="k">def</span> <span class="nf">freeze_expression</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`</span>
+<span class="sd">    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span>
+    <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+        <span class="n">rebuilt_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt_args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+        <span class="n">rebuilt_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt_args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span><span class="p">:</span>
+        <span class="n">rebuilt_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt_args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="xreplace_constrained"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.xreplace_constrained">[docs]</a><span class="k">def</span> <span class="nf">xreplace_constrained</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">make</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">costmodel</span><span class="o">=</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Unlike ``xreplace``, which replaces all objects specified in a mapper,</span>
+<span class="sd">    this function replaces all objects satisfying two criteria: ::</span>
+
+<span class="sd">        * The &quot;matching rule&quot; -- a function returning True if a node within ``expr``</span>
+<span class="sd">            satisfies a given property, and as such should be replaced;</span>
+<span class="sd">        * A &quot;cost model&quot; -- a function triggering replacement only if a certain</span>
+<span class="sd">            cost (e.g., operation count) is exceeded. This function is optional.</span>
+
+<span class="sd">    Note that there is not necessarily a relationship between the set of nodes</span>
+<span class="sd">    for which the matching rule returns True and those nodes passing the cost</span>
+<span class="sd">    model check. It might happen for example that, given the expression ``a + b``,</span>
+<span class="sd">    all of ``a``, ``b``, and ``a + b`` satisfy the matching rule, but only</span>
+<span class="sd">    ``a + b`` satisfies the cost model.</span>
+
+<span class="sd">    :param exprs: The target SymPy expression, or a collection of SymPy expressions.</span>
+<span class="sd">    :param make: Either a mapper M: K -&gt; V, indicating how to replace an expression</span>
+<span class="sd">                 in K with a symbol in V, or a function, used to construct new, unique</span>
+<span class="sd">                 symbols. Such a function should take as input a parameter, used to</span>
+<span class="sd">                 enumerate the new symbols.</span>
+<span class="sd">    :param rule: The matching rule (a lambda function). May be left unspecified if</span>
+<span class="sd">                 ``make`` is a mapper.</span>
+<span class="sd">    :param costmodel: The cost model (a lambda function, optional).</span>
+<span class="sd">    :param repeat: Repeatedly apply ``xreplace`` until no more replacements are</span>
+<span class="sd">                   possible (optional, defaults to False).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">found</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># Define /replace()/ based on the user-provided /make/</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">make</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">rule</span> <span class="o">=</span> <span class="n">rule</span> <span class="k">if</span> <span class="n">rule</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">make</span><span class="p">)</span>
+        <span class="n">replace</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">make</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">callable</span><span class="p">(</span><span class="n">make</span><span class="p">)</span> <span class="ow">and</span> <span class="n">callable</span><span class="p">(</span><span class="n">rule</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">replace</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">make</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">make</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span>
+            <span class="n">temporary</span> <span class="o">=</span> <span class="n">found</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">temporary</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">temporary</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">temporary</span> <span class="o">=</span> <span class="n">make</span><span class="p">(</span><span class="n">replace</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+                <span class="n">found</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">temporary</span>
+                <span class="n">replace</span><span class="o">.</span><span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">return</span> <span class="n">temporary</span>
+        <span class="n">replace</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Unique identifier for new temporaries</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">expr</span><span class="p">,</span> <span class="n">rule</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+            <span class="n">base</span><span class="p">,</span> <span class="n">flag</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">flag</span> <span class="ow">and</span> <span class="n">costmodel</span><span class="p">(</span><span class="n">base</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">replace</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">flag</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">children</span> <span class="o">=</span> <span class="p">[</span><span class="n">run</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+            <span class="n">matching</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">flag</span> <span class="ow">in</span> <span class="n">children</span> <span class="k">if</span> <span class="n">flag</span><span class="p">]</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">children</span> <span class="k">if</span> <span class="n">a</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">matching</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">matching</span><span class="p">:</span>
+                <span class="n">matched</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">matching</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matching</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span> <span class="ow">and</span> <span class="n">rule</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+                    <span class="c1"># Go look for longer expressions first</span>
+                    <span class="k">return</span> <span class="n">matched</span><span class="p">,</span> <span class="kc">True</span>
+                <span class="k">elif</span> <span class="n">rule</span><span class="p">(</span><span class="n">matched</span><span class="p">)</span> <span class="ow">and</span> <span class="n">costmodel</span><span class="p">(</span><span class="n">matched</span><span class="p">):</span>
+                    <span class="c1"># Replace what I can replace, then give up</span>
+                    <span class="n">rebuilt</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">other</span> <span class="o">+</span> <span class="p">[</span><span class="n">replace</span><span class="p">(</span><span class="n">matched</span><span class="p">)]),</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">rebuilt</span><span class="p">,</span> <span class="kc">False</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Replace flagged children, then give up</span>
+                    <span class="n">replaced</span> <span class="o">=</span> <span class="p">[</span><span class="n">replace</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">matching</span> <span class="k">if</span> <span class="n">costmodel</span><span class="p">(</span><span class="n">e</span><span class="p">)]</span>
+                    <span class="n">unreplaced</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">matching</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">costmodel</span><span class="p">(</span><span class="n">e</span><span class="p">)]</span>
+                    <span class="n">rebuilt</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">other</span> <span class="o">+</span> <span class="n">replaced</span> <span class="o">+</span> <span class="n">unreplaced</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">rebuilt</span><span class="p">,</span> <span class="kc">False</span>
+            <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">other</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="kc">False</span>
+
+    <span class="c1"># Process the provided expressions</span>
+    <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span>
+
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">ret</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">repeat</span> <span class="ow">and</span> <span class="n">ret</span> <span class="o">!=</span> <span class="n">root</span><span class="p">:</span>
+                <span class="n">root</span> <span class="o">=</span> <span class="n">ret</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rebuilt</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">ret</span><span class="p">))</span>
+                <span class="k">break</span>
+
+    <span class="c1"># Post-process the output</span>
+    <span class="n">found</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">found</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+
+    <span class="k">return</span> <span class="n">found</span> <span class="o">+</span> <span class="n">rebuilt</span><span class="p">,</span> <span class="n">found</span></div>
+
+
+<div class="viewcode-block" id="xreplace_indices"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.xreplace_indices">[docs]</a><span class="k">def</span> <span class="nf">xreplace_indices</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">candidates</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">only_rhs</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create new expressions from ``exprs``, by replacing all index variables</span>
+<span class="sd">    specified in mapper appearing as a tensor index. Only tensors whose symbolic</span>
+<span class="sd">    name appears in ``candidates`` are considered if ``candidates`` is not None.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">get</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">rhs</span> <span class="k">if</span> <span class="n">only_rhs</span> <span class="ow">is</span> <span class="kc">True</span> <span class="k">else</span> <span class="n">i</span>
+    <span class="n">handle</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">candidates</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">]</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]))</span>
+    <span class="n">replaced</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">replaced</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="k">else</span> <span class="n">replaced</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="pow_to_mul"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.pow_to_mul">[docs]</a><span class="k">def</span> <span class="nf">pow_to_mul</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span>
+    <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">exp</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Cannot handle powers containing non-integer non-positive exponents</span>
+            <span class="k">return</span> <span class="n">expr</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">base</span><span class="p">]</span><span class="o">*</span><span class="n">exp</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">pow_to_mul</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">],</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="as_symbol"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.as_symbol">[docs]</a><span class="k">def</span> <span class="nf">as_symbol</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extract the &quot;main&quot; symbol from a SymPy object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Number</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="k">pass</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot extract symbol from type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="indexify"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.indexify">[docs]</a><span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert functions into indexed matrix accesses in sympy expression.</span>
+
+<span class="sd">    :param expr: sympy function expression to be converted.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">replacements</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="s1">&#39;indexed&#39;</span><span class="p">):</span>
+            <span class="n">replacements</span><span class="p">[</span><span class="n">e</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">replacements</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+devito\.ir package
+==================
+
+Subpackages
+-----------
+
+.. toctree::
+
+    devito.ir.analysis
+    devito.ir.clusters
+    devito.ir.dfg
+    devito.ir.iet
+
+Module contents
+---------------
+
+.. automodule:: devito.ir
+    :members:
+    :undoc-members:
+    :show-inheritance:

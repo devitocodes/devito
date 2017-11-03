@@ -19,58 +19,10 @@ devito\.dse\.aliases module
     :undoc-members:
     :show-inheritance:
 
-devito\.dse\.clusterizer module
--------------------------------
-
-.. automodule:: devito.dse.clusterizer
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.dse\.extended\_sympy module
------------------------------------
-
-.. automodule:: devito.dse.extended_sympy
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.dse\.graph module
--------------------------
-
-.. automodule:: devito.dse.graph
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.dse\.inspection module
-------------------------------
-
-.. automodule:: devito.dse.inspection
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 devito\.dse\.manipulation module
 --------------------------------
 
 .. automodule:: devito.dse.manipulation
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.dse\.queries module
----------------------------
-
-.. automodule:: devito.dse.queries
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.dse\.search module
---------------------------
-
-.. automodule:: devito.dse.search
     :members:
     :undoc-members:
     :show-inheritance:

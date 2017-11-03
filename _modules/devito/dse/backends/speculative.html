@@ -161,12 +161,10 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.dse.backends.speculative</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">devito.dse.backends</span> <span class="k">import</span> <span class="n">AdvancedRewriter</span><span class="p">,</span> <span class="n">dse_pass</span>
-<span class="kn">from</span> <span class="nn">devito.dse.clusterizer</span> <span class="k">import</span> <span class="n">optimize</span>
-<span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">estimate_cost</span>
-<span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="n">xreplace_constrained</span>
-<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">iq_timevarying</span><span class="p">,</span> <span class="n">q_leaf</span><span class="p">,</span> <span class="n">q_sum_of_product</span><span class="p">,</span> <span class="n">q_terminalop</span>
-
+<span></span><span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="k">import</span> <span class="n">optimize</span>
+<span class="kn">from</span> <span class="nn">devito.dse.backends</span> <span class="k">import</span> <span class="n">AdvancedRewriter</span><span class="p">,</span> <span class="n">dse_pass</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="p">(</span><span class="n">estimate_cost</span><span class="p">,</span> <span class="n">xreplace_constrained</span><span class="p">,</span>
+                              <span class="n">iq_timevarying</span><span class="p">,</span> <span class="n">q_leaf</span><span class="p">,</span> <span class="n">q_sum_of_product</span><span class="p">,</span> <span class="n">q_terminalop</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
 
 

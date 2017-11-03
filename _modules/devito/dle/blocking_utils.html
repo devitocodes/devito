@@ -166,10 +166,10 @@
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">is_foldable</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span>
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">xreplace_indices</span>
-<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">UnboundedIndex</span><span class="p">,</span> <span class="n">ntags</span>
-<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindAdjacentIterations</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
-                             <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">UnboundedIndex</span><span class="p">,</span> <span class="n">ntags</span><span class="p">,</span>
+                           <span class="n">FindAdjacentIterations</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
+                           <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">xreplace_indices</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;fold_blockable_tree&#39;</span><span class="p">,</span> <span class="s1">&#39;unfold_blocked_tree&#39;</span><span class="p">]</span>

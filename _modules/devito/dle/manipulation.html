@@ -161,10 +161,9 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.dle.manipulation</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">devito.dse.extended_sympy</span> <span class="k">import</span> <span class="n">Eq</span>
-<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span>
+<span></span><span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">MergeOuterIterations</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
-<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="n">MergeOuterIterations</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;compose_nodes&#39;</span><span class="p">,</span> <span class="s1">&#39;copy_arrays&#39;</span><span class="p">]</span>
 

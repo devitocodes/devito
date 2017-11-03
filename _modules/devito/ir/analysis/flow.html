@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.flow &mdash; Devito 1 documentation</title>
+  <title>devito.ir.analysis.flow &mdash; Devito 1 documentation</title>
   
 
   
@@ -26,20 +26,20 @@
 
   
   
-    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
   
 
   
 
   
         <link rel="index" title="Index"
-              href="../../genindex.html"/>
-        <link rel="search" title="Search" href="../../search.html"/>
-    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
-        <link rel="up" title="devito" href="../devito.html"/> 
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="devito" href="../../../devito.html"/> 
 
   
-  <script src="../../_static/js/modernizr.min.js"></script>
+  <script src="../../../../_static/js/modernizr.min.js"></script>
 
 </head>
 
@@ -55,7 +55,7 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> Devito
+            <a href="../../../../index.html" class="icon icon-home"> Devito
           
 
           
@@ -72,7 +72,7 @@
 
           
 <div role="search">
-  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
@@ -90,11 +90,11 @@
             
             
               <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
 </ul>
 
             
@@ -109,7 +109,7 @@
       <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../index.html">Devito</a>
+          <a href="../../../../index.html">Devito</a>
         
       </nav>
 
@@ -137,13 +137,13 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="../../index.html">Docs</a> &raquo;</li>
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="../index.html">Module code</a> &raquo;</li>
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
         
-          <li><a href="../devito.html">devito</a> &raquo;</li>
+          <li><a href="../../../devito.html">devito</a> &raquo;</li>
         
-      <li>devito.flow</li>
+      <li>devito.ir.analysis.flow</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -160,7 +160,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for devito.flow</h1><div class="highlight"><pre>
+  <h1>Source code for devito.ir.analysis.flow</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">A collection of algorithms to analyze and decorate :class:`Iteration` in an</span>
 <span class="sd">Iteration/Expression tree. Decoration comes in the form of :class:`IterationProperty`</span>
@@ -174,13 +174,15 @@
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span>
-<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">VECTOR</span><span class="p">,</span> <span class="n">WRAPPABLE</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Iteration</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">VECTOR</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span>
+                           <span class="n">FindSections</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
-<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">NestedTransformer</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;analyze_iterations&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="analyze_iterations"><a class="viewcode-back" href="../../devito.html#devito.flow.analyze_iterations">[docs]</a><span class="k">def</span> <span class="nf">analyze_iterations</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
+<div class="viewcode-block" id="analyze_iterations"><a class="viewcode-back" href="../../../../devito.ir.analysis.html#devito.ir.analysis.flow.analyze_iterations">[docs]</a><span class="k">def</span> <span class="nf">analyze_iterations</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Attach :class:`IterationProperty` to :class:`Iteration` objects within</span>
 <span class="sd">    ``nodes``. The recognized IterationProperty decorators are listed in</span>
@@ -213,7 +215,7 @@
     <span class="k">return</span> <span class="n">processed</span></div>
 
 
-<div class="viewcode-block" id="compute_dependency_graph"><a class="viewcode-back" href="../../devito.html#devito.flow.compute_dependency_graph">[docs]</a><span class="k">def</span> <span class="nf">compute_dependency_graph</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">compute_dependency_graph</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Given an ordered list of :class:`Expression`, build a mapper from lvalues</span>
 <span class="sd">    to reads occurring in the rvalues.</span>
@@ -224,10 +226,10 @@
         <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
             <span class="n">i_reads</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">reads</span> <span class="k">if</span> <span class="n">as_symbol</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="n">as_symbol</span><span class="p">(</span><span class="n">j</span><span class="p">)]</span>
             <span class="n">deps_graph</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">i_reads</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">deps_graph</span></div>
+    <span class="k">return</span> <span class="n">deps_graph</span>
 
 
-<div class="viewcode-block" id="detect_fully_parallel"><a class="viewcode-back" href="../../devito.html#devito.flow.detect_fully_parallel">[docs]</a><span class="k">def</span> <span class="nf">detect_fully_parallel</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">detect_fully_parallel</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update ``mapper``, a dictionary from :class:`Iteration`s to</span>
 <span class="sd">    :class:`IterationProperty`s, by annotating nested, fully-parallel Iterations.</span>
@@ -240,10 +242,10 @@
     <span class="k">if</span> <span class="n">is_FP</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">:</span>
             <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PARALLEL</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">mapper</span></div>
+    <span class="k">return</span> <span class="n">mapper</span>
 
 
-<div class="viewcode-block" id="detect_outermost_parallel"><a class="viewcode-back" href="../../devito.html#devito.flow.detect_outermost_parallel">[docs]</a><span class="k">def</span> <span class="nf">detect_outermost_parallel</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">detect_outermost_parallel</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update ``mapper``, a dictionary from :class:`Iteration`s to</span>
 <span class="sd">    :class:`IterationProperty`s, by annotating the outermost Iteration if this</span>
@@ -259,10 +261,10 @@
                          <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>  <span class="c1"># not A[x,y] = A[x,x+1]</span>
     <span class="k">if</span> <span class="n">is_OP</span><span class="p">:</span>
         <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">tree</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PARALLEL</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">mapper</span></div>
+    <span class="k">return</span> <span class="n">mapper</span>
 
 
-<div class="viewcode-block" id="detect_outermost_sequential_inner_parallel"><a class="viewcode-back" href="../../devito.html#devito.flow.detect_outermost_sequential_inner_parallel">[docs]</a><span class="k">def</span> <span class="nf">detect_outermost_sequential_inner_parallel</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">detect_outermost_sequential_inner_parallel</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update ``mapper``, a dictionary from :class:`Iteration`s to</span>
 <span class="sd">    :class:`IterationProperty`s, by annotating the outermost Iteration if this</span>
@@ -295,10 +297,10 @@
         <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SEQUENTIAL</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">[</span><span class="n">tree</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]:</span>
             <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PARALLEL</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">mapper</span></div>
+    <span class="k">return</span> <span class="n">mapper</span>
 
 
-<div class="viewcode-block" id="detect_innermost_unitstride"><a class="viewcode-back" href="../../devito.html#devito.flow.detect_innermost_unitstride">[docs]</a><span class="k">def</span> <span class="nf">detect_innermost_unitstride</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">detect_innermost_unitstride</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update ``mapper``, a dictionary from :class:`Iteration`s to</span>
 <span class="sd">    :class:`IterationProperty`s, by annotating the innermost Iteration as</span>
@@ -320,10 +322,10 @@
         <span class="n">is_US</span> <span class="o">&amp;=</span> <span class="nb">all</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">is_US</span> <span class="ow">or</span> <span class="n">PARALLEL</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">innermost</span><span class="p">,</span> <span class="p">[]):</span>
         <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">innermost</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">VECTOR</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">mapper</span></div>
+    <span class="k">return</span> <span class="n">mapper</span>
 
 
-<div class="viewcode-block" id="detect_wrappable_iterations"><a class="viewcode-back" href="../../devito.html#devito.flow.detect_wrappable_iterations">[docs]</a><span class="k">def</span> <span class="nf">detect_wrappable_iterations</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">detect_wrappable_iterations</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">deps_graph</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update ``mapper``, a dictionary from :class:`Iteration`s to</span>
 <span class="sd">    :class:`IterationProperty`s, by annotating an Iteration as wrappable</span>
@@ -346,7 +348,7 @@
                          <span class="k">if</span> <span class="n">candidate</span> <span class="o">==</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
     <span class="k">if</span> <span class="n">is_WP</span><span class="p">:</span>
         <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">stepping</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">WRAPPABLE</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">mapper</span></div>
+    <span class="k">return</span> <span class="n">mapper</span>
 </pre></div>
 
            </div>
@@ -382,7 +384,7 @@
 
     <script type="text/javascript">
         var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'../../',
+            URL_ROOT:'../../../../',
             VERSION:'1',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
@@ -390,16 +392,16 @@
             SOURCELINK_SUFFIX: '.txt'
         };
     </script>
-      <script type="text/javascript" src="../../_static/jquery.js"></script>
-      <script type="text/javascript" src="../../_static/underscore.js"></script>
-      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
       <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 
   
 
   
   
-    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
   
 
   

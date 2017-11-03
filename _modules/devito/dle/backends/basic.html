@@ -171,14 +171,14 @@
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span>
 <span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="n">AbstractRewriter</span><span class="p">,</span> <span class="n">dle_pass</span><span class="p">,</span> <span class="n">complang_ALL</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
-<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="p">(</span><span class="n">Denormals</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Call</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
-                          <span class="n">UnboundedIndex</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Denormals</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Call</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
+                           <span class="n">UnboundedIndex</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span>
+                           <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
-<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">Transformer</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
 
 
 <div class="viewcode-block" id="BasicRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.basic.BasicRewriter">[docs]</a><span class="k">class</span> <span class="nc">BasicRewriter</span><span class="p">(</span><span class="n">AbstractRewriter</span><span class="p">):</span>

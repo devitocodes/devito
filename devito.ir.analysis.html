@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.core package &mdash; Devito 1 documentation</title>
+  <title>devito.ir.analysis package &mdash; Devito 1 documentation</title>
   
 
   
@@ -36,9 +36,9 @@
               href="genindex.html"/>
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Devito 1 documentation" href="index.html"/>
-        <link rel="up" title="devito package" href="devito.html"/>
-        <link rel="next" title="devito.dle package" href="devito.dle.html"/>
-        <link rel="prev" title="devito package" href="devito.html"/> 
+        <link rel="up" title="devito.ir package" href="devito.ir.html"/>
+        <link rel="next" title="devito.ir.clusters package" href="devito.ir.clusters.html"/>
+        <link rel="prev" title="devito.ir package" href="devito.ir.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -98,17 +98,15 @@
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.core package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.core.autotuning">devito.core.autotuning module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.core.operator">devito.core.operator module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.core">Module contents</a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.foreign.html">devito.foreign package</a></li>
-<li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="devito.ir.html">devito.ir package</a><ul class="current">
+<li class="toctree-l4 current"><a class="reference internal" href="devito.ir.html#subpackages">Subpackages</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.html#module-devito.ir">Module contents</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
 </ul>
 </li>
@@ -180,13 +178,15 @@
         
           <li><a href="devito.html">devito package</a> &raquo;</li>
         
-      <li>devito.core package</li>
+          <li><a href="devito.ir.html">devito.ir package</a> &raquo;</li>
+        
+      <li>devito.ir.analysis package</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/devito.core.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/devito.ir.analysis.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -199,36 +199,31 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="devito-core-package">
-<h1>devito.core package<a class="headerlink" href="#devito-core-package" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="devito-ir-analysis-package">
+<h1>devito.ir.analysis package<a class="headerlink" href="#devito-ir-analysis-package" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-devito.core.autotuning">
-<span id="devito-core-autotuning-module"></span><h2>devito.core.autotuning module<a class="headerlink" href="#module-devito.core.autotuning" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.ir.analysis.flow">
+<span id="devito-ir-analysis-flow-module"></span><h2>devito.ir.analysis.flow module<a class="headerlink" href="#module-devito.ir.analysis.flow" title="Permalink to this headline">¶</a></h2>
+<p>A collection of algorithms to analyze and decorate <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> in an
+Iteration/Expression tree. Decoration comes in the form of <code class="xref py py-class docutils literal"><span class="pre">IterationProperty</span></code>
+objects, attached to nodes in the Iteration/Expression tree.</p>
+<p>The current implementation is based on simplistic analysis of Iteration/Expression
+trees. A better implementation would use a control flow graph, perhaps derived
+the Iteration/Expression tree itself. An ever better implementation would use
+a library such as ISL (the Integer Set Library).</p>
 <dl class="function">
-<dt id="devito.core.autotuning.autotune">
-<code class="descclassname">devito.core.autotuning.</code><code class="descname">autotune</code><span class="sig-paren">(</span><em>operator</em>, <em>arguments</em>, <em>tunable</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/core/autotuning.html#autotune"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.core.autotuning.autotune" title="Permalink to this definition">¶</a></dt>
-<dd><p>Acting as a high-order function, take as input an operator and a list of
-operator arguments to perform empirical autotuning. Some of the operator
-arguments are marked as tunable.</p>
+<dt id="devito.ir.analysis.flow.analyze_iterations">
+<code class="descclassname">devito.ir.analysis.flow.</code><code class="descname">analyze_iterations</code><span class="sig-paren">(</span><em>nodes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/analysis/flow.html#analyze_iterations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.analysis.flow.analyze_iterations" title="Permalink to this definition">¶</a></dt>
+<dd><p>Attach <code class="xref py py-class docutils literal"><span class="pre">IterationProperty</span></code> to <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> objects within
+<code class="docutils literal"><span class="pre">nodes</span></code>. The recognized IterationProperty decorators are listed in
+<code class="docutils literal"><span class="pre">nodes.IterationProperty._KNOWN</span></code>.</p>
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.core.operator">
-<span id="devito-core-operator-module"></span><h2>devito.core.operator module<a class="headerlink" href="#module-devito.core.operator" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.core.operator.Operator">
-<em class="property">class </em><code class="descclassname">devito.core.operator.</code><code class="descname">Operator</code><a class="reference internal" href="_modules/devito/core/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.core.operator.Operator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
-</dd></dl>
-
-</div>
-<div class="section" id="module-devito.core">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.core" title="Permalink to this headline">¶</a></h2>
-<p>The <code class="docutils literal"><span class="pre">core</span></code> Devito backend is simply a “shadow” of the <code class="docutils literal"><span class="pre">base</span></code> backend,
-common to all other backends. The <code class="docutils literal"><span class="pre">core</span></code> backend (and therefore the <code class="docutils literal"><span class="pre">base</span></code>
-backend as well) are used to run Devito on standard CPU architectures.</p>
+<div class="section" id="module-devito.ir.analysis">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.ir.analysis" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 
@@ -242,10 +237,10 @@ backend as well) are used to run Devito on standard CPU architectures.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="devito.dle.html" class="btn btn-neutral float-right" title="devito.dle package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="devito.ir.clusters.html" class="btn btn-neutral float-right" title="devito.ir.clusters package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="devito.html" class="btn btn-neutral" title="devito package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="devito.ir.html" class="btn btn-neutral" title="devito.ir package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

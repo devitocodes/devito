@@ -181,13 +181,13 @@
                                  <span class="n">simdinfo</span><span class="p">,</span> <span class="n">get_simd_flag</span><span class="p">,</span> <span class="n">get_simd_items</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">promote_scalar_expressions</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Array</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Denormals</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
+                           <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span>
+                           <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
+                           <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
-<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Denormals</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
-                          <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">grouper</span><span class="p">,</span> <span class="n">roundm</span>
-<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
-                             <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Array</span>
 
 
 <div class="viewcode-block" id="DevitoRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
@@ -680,6 +680,7 @@
 <div class="viewcode-block" id="DevitoCustomRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoCustomRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoCustomRewriter</span><span class="p">(</span><span class="n">DevitoSpeculativeRewriter</span><span class="p">):</span>
 
     <span class="n">passes_mapper</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;denormals&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">,</span>
         <span class="s1">&#39;blocking&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">,</span>
         <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_ompize</span><span class="p">,</span>
         <span class="s1">&#39;simd&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_simdize</span><span class="p">,</span>
@@ -692,9 +693,9 @@
         <span class="k">try</span><span class="p">:</span>
             <span class="n">passes</span> <span class="o">=</span> <span class="n">passes</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">DLEException</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">DevitoCustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">passes</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">DLEException</span>
+            <span class="c1"># Already in tuple format</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">DevitoCustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">passes</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">DLEException</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">passes</span> <span class="o">=</span> <span class="n">passes</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DevitoCustomRewriter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
 
