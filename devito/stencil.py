@@ -2,9 +2,9 @@ from collections import OrderedDict, namedtuple
 
 from sympy import Eq
 
-from devito.dse.search import retrieve_indexed, retrieve_terminals
 from devito.exceptions import StencilOperationError
 from devito.dimension import Dimension
+from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import DefaultOrderedDict, flatten, partial_order
 
 

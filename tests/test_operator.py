@@ -11,7 +11,7 @@ from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
                     TimeFunction, SparseFunction, Dimension, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
-from devito.visitors import IsPerfectIteration
+from devito.ir.iet import IsPerfectIteration
 
 
 def dimify(dimensions):

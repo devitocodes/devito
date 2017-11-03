@@ -5,8 +5,7 @@ import numpy as np
 from sympy import Indexed
 
 from devito.exceptions import DSEException
-from devito.dse.search import retrieve_indexed
-from devito.dse.queries import q_indirect
+from devito.symbolics import retrieve_indexed, q_indirect
 from devito.stencil import Stencil
 
 __all__ = ['collect']

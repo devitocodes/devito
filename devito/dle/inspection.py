@@ -1,4 +1,4 @@
-from devito.visitors import FindSections
+from devito.ir.iet import FindSections
 from devito.tools import as_tuple
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree', 'is_foldable']

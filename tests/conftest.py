@@ -4,11 +4,10 @@ import pytest
 
 from sympy import cos, Symbol  # noqa
 
-from devito import Eq  # noqa
-from devito import (Dimension, TimeDimension, SteppingDimension, SpaceDimension,
-                    Constant, Function, configuration)
+from devito import (Dimension, Eq, TimeDimension, SteppingDimension, SpaceDimension,  # noqa
+                    Constant, Function, configuration)  # noqa
 from devito.types import Scalar, Array
-from devito.nodes import Iteration
+from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
 

@@ -1,7 +1,6 @@
-from devito.dse.extended_sympy import Eq
-from devito.nodes import Expression, Iteration, List
+from devito.ir.iet import Expression, Iteration, List, MergeOuterIterations
+from devito.symbolics import Eq
 from devito.tools import flatten
-from devito.visitors import MergeOuterIterations
 
 __all__ = ['compose_nodes', 'copy_arrays']
 

@@ -7,24 +7,26 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.flow import analyze_iterations
+from devito.arguments import infer_dimension_values_tuple
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
+from devito.dse import rewrite
+from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.function import Forward, Backward, CompositeFunction
-from devito.types import Object
 from devito.logger import bar, error, info
-from devito.nodes import Element, Expression, Callable, Iteration, List, LocalExpression
+from devito.ir.analysis import analyze_iterations
+from devito.ir.clusters import clusterize
+from devito.ir.iet import (Element, Expression, Callable, Iteration, List,
+                           LocalExpression, FindScopes, ResolveTimeStepping,
+                           SubstituteExpression, Transformer, NestedTransformer)
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.stencil import Stencil
+from devito.symbolics import indexify, retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
-from devito.visitors import (FindScopes, ResolveTimeStepping,
-                             SubstituteExpression, Transformer, NestedTransformer)
-from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.arguments import infer_dimension_values_tuple
+from devito.types import Object
 
 
 class Operator(Callable):
@@ -537,8 +539,10 @@ def set_dle_mode(mode):
     elif isinstance(mode, str):
         return mode, {}
     elif isinstance(mode, tuple):
-        if len(mode) == 1:
-            return mode[0], {}
-        elif len(mode) == 2 and isinstance(mode[1], dict):
-            return mode
+        if len(mode) == 0:
+            return 'noop', {}
+        elif isinstance(mode[-1], dict):
+            return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
+        else:
+            return tuple(flatten(i.split(',') for i in mode)), {}
     raise TypeError("Illegal DLE mode %s." % str(mode))
