@@ -11,9 +11,7 @@ import psutil
 
 from devito.cgen_utils import ccode
 from devito.dimension import Dimension
-from devito.dle import (compose_nodes, copy_arrays, filter_iterations,
-                        fold_blockable_tree, unfold_blocked_tree,
-                        retrieve_iteration_tree)
+from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.dse import promote_scalar_expressions
@@ -21,7 +19,8 @@ from devito.exceptions import DLEException
 from devito.ir.iet import (Block, Expression, Iteration, List,
                            PARALLEL, ELEMENTAL, REMAINDER, tagger,
                            FindNodes, FindSymbols, IsPerfectIteration,
-                           SubstituteExpression, Transformer)
+                           SubstituteExpression, Transformer, compose_nodes,
+                           retrieve_iteration_tree, filter_iterations, copy_arrays)
 from devito.logger import dle_warning
 from devito.tools import as_tuple, grouper, roundm
 from devito.types import Array

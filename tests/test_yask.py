@@ -7,7 +7,7 @@ pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from devito import (Eq, Grid, Operator, Constant, Function, TimeFunction,
                     SparseFunction, Backward, configuration, clear_cache)  # noqa
-from devito.dle import retrieve_iteration_tree  # noqa
+from devito.ir.iet import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
 # For the acoustic wave test

@@ -2,10 +2,10 @@ import cgen as c
 from sympy import Symbol
 
 from devito.cgen_utils import ccode
-from devito.dle import compose_nodes, is_foldable, retrieve_iteration_tree
 from devito.ir.iet import (Expression, Iteration, List, UnboundedIndex, ntags,
                            FindAdjacentIterations, FindNodes, IsPerfectIteration,
-                           NestedTransformer, Transformer)
+                           NestedTransformer, Transformer, compose_nodes,
+                           is_foldable, retrieve_iteration_tree)
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple
 

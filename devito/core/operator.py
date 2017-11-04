@@ -2,8 +2,7 @@ from __future__ import absolute_import
 
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
-from devito.dle import filter_iterations, retrieve_iteration_tree
-from devito.ir.iet import List, Transformer
+from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
 from devito.operator import OperatorRunnable
 from devito.tools import flatten
 

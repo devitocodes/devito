@@ -7,10 +7,10 @@ from sympy import Indexed
 from devito.cgen_utils import ccode
 from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
-from devito.dle import filter_iterations, retrieve_iteration_tree
 from devito.types import Object
 from devito.logger import yask as log, yask_warning as warning
-from devito.ir.iet import Element, IsPerfectIteration, Transformer
+from devito.ir.iet import (Element, IsPerfectIteration, Transformer,
+                           filter_iterations, retrieve_iteration_tree)
 from devito.operator import OperatorRunnable, FunMeta
 from devito.tools import flatten
 
