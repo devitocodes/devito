@@ -23,7 +23,7 @@ from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctype
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
            'ResolveTimeStepping', 'Transformer', 'NestedTransformer',
-           'FindAdjacentIterations', 'MergeOuterIterations']
+           'FindAdjacentIterations', 'MergeOuterIterations', 'MapExpressions']
 
 
 class Visitor(object):
@@ -413,19 +413,33 @@ class FindSections(Visitor):
 
 class FindScopes(FindSections):
 
-    @classmethod
-    def default_retval(cls):
-        return OrderedDict()
-
     """
-    Map each written variable or :class:`Call` object in the Iteration/Expression
+    Map :class:`Expression` and :class:`Call` objects in the Iteration/Expression
     tree to its section.
     """
 
-    def visit_Call(self, o, ret=None, queue=None, in_omp_region=False):
+    def visit_Call(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         ret[o] = as_tuple(queue)
+        return ret
+
+    visit_Expression = visit_Call
+    visit_Element = FindSections.visit_Node
+
+
+class MapExpressions(FindSections):
+
+    """
+    Map each :class:`Iteration` object in the Iteration/Expression tree to the
+    enclosed :class:`Expression` and :class:`Call` objects.
+    """
+
+    def visit_Call(self, o, ret=None, queue=None):
+        if ret is None:
+            ret = self.default_retval()
+        for i in queue:
+            ret.setdefault(i, []).append(o)
         return ret
 
     visit_Expression = visit_Call
