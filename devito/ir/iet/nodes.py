@@ -11,7 +11,7 @@ from sympy import Eq, Indexed, Symbol
 from devito.cgen_utils import ccode
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
-                           tagger, ntags, UnboundedIndex)
+                           tagger, ntags)
 from devito.ir.support import Stencil
 from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
@@ -19,7 +19,8 @@ from devito.arguments import ArgumentProvider, Argument
 import devito.types as types
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
-           'Call', 'Iteration', 'List', 'LocalExpression', 'TimedList']
+           'Call', 'Iteration', 'List', 'LocalExpression', 'TimedList',
+           'UnboundedIndex']
 
 
 class Node(object):
@@ -531,3 +532,16 @@ class LocalExpression(Expression):
     def __init__(self, expr, dtype):
         super(LocalExpression, self).__init__(expr)
         self.dtype = dtype
+
+
+class UnboundedIndex(object):
+
+    """
+    A generic loop iteration index that can be used in a :class:`Iteration` to
+    add a non-linear traversal of the iteration space.
+    """
+
+    def __init__(self, index, start=0, step=None):
+        self.index = index
+        self.start = start
+        self.step = index + 1 if step is None else step
