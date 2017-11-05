@@ -89,6 +89,11 @@ class Grid(object):
             self.stepping_dim = SteppingDimension('%s_s' % time_dimension.name,
                                                   parent=self.time_dim)
 
+    def __repr__(self):
+        return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
+            self.extent, self.shape, self.dimensions
+        )
+
     @property
     def dim(self):
         """Problem dimension, or number of spatial dimensions."""
