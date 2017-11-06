@@ -3,7 +3,7 @@ from cached_property import cached_property
 from sympy import Basic, Eq
 
 from devito.dimension import Dimension
-from devito.symbolics import retrieve_indexed, q_identity, q_affine
+from devito.symbolics import retrieve_indexed, q_affine
 from devito.tools import as_tuple, is_integer, filter_sorted
 from devito.types import Indexed
 
@@ -160,13 +160,22 @@ class Vector(tuple):
 
 class IterationInstance(Vector):
 
-    """A representation of the iteration space point accessed by a
-    :class:`Indexed` object."""
+    """
+    A representation of the iteration and data points accessed by an
+    :class:`Indexed` object. Two different concepts are distinguished:
+
+        * The index functions; that is, the expressions telling what *iteration*
+          space point is accessed.
+        * The ``findices``: that is, the :class:`Dimension`s telling what *data*
+          space point is accessed.
+    """
 
     def __new__(cls, indexed):
         assert isinstance(indexed, Indexed)
         obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
         obj.findices = tuple(indexed.base.function.indices)
+        if len(obj.findices) != len(set(obj.findices)):
+            raise ValueError("Illegal non-unique `findices`")
         return obj
 
     def __eq__(self, other):
@@ -202,42 +211,26 @@ class IterationInstance(Vector):
             raise TypeError("IterationInstance indices must be integers, slices, or "
                             "Dimensions, not %s" % type(index))
 
-    @cached_property
-    def index_mode(self):
-        ret = []
-        for i, fi in zip(self, self.findices):
-            if is_integer(i):
-                ret.append('constant')
-            elif q_identity(i, fi):
-                ret.append('regular')
-            elif q_affine(i, fi):
-                ret.append('affine')
-            elif retrieve_indexed(i):
-                ret.append('indirect')
-            else:
-                ret.append('irregular')
-        return tuple(ret)
-
-    def distance(self, other, dim=None):
-        """Compute vector distance from ``self`` to ``other``. If ``dim`` is
-        supplied, compute the vector distance up to and including ``dim``."""
+    def distance(self, other, findex=None):
+        """Compute vector distance from ``self`` to ``other``. If ``findex`` is
+        supplied, compute the vector distance up to and including ``findex``."""
         if not isinstance(other, IterationInstance):
             raise TypeError("Cannot compute distance from obj of type %s", type(other))
         if self.findices != other.findices:
             raise TypeError("Cannot compute distance due to mismatching `findices`")
-        if dim is not None:
+        if findex is not None:
             try:
-                limit = self.findices.index(dim) + 1
+                limit = self.findices.index(findex) + 1
             except ValueError:
-                raise TypeError("Cannot compute distance as `dim` is not in `findices`")
+                raise TypeError("Cannot compute distance as `findex` not in `findices`")
         else:
             limit = self.rank
         return super(IterationInstance, self).distance(other)[:limit]
 
-    def section(self, dims):
-        """Return a view of ``self`` in which the findices in ``dims`` have
-        been zeroed."""
-        return Vector(*[i if d not in as_tuple(dims) else 0
+    def section(self, findices):
+        """Return a view of ``self`` in which the slots corresponding to the
+        provided ``findices`` have been zeroed."""
+        return Vector(*[i if d not in as_tuple(findices) else 0
                         for i, d in zip(self, self.findices)])
 
 
@@ -318,6 +311,33 @@ class TimedAccess(Access):
         * an array of directions; there is one direction for each index,
           indicating whether the index function is monotonically increasing
           or decreasing.
+
+    Further, a TimedAccess may be regular or irregular. A TimedAccess is regular
+    if and only if *all* index functions are affine in their respective findex.
+    The downside of irregular TimedAccess objects is that dependence testing is
+    harder, which in turn may force the data dependence analyzer to make stronger
+    assumptions to be conservative.
+
+    Examples
+    ========
+    Given:
+    findices = [x, y, z]
+    w = an object of type Dimension
+
+           | x+1 |           |  x  |           |  x  |          | w |          | x+y |
+    obj1 = | y+2 | ,  obj2 = |  4  | , obj3 => |  x  | , obj4 = | y | , obj5 = |  y  |
+           | z-3 |           | z+1 |           |  y  |          | z |          |  z  |
+
+    We have that: ::
+
+        * obj1 and obj2 are regular;
+        * obj3 is irregular because an findex, ``x``, appears outside of its index
+          function (i.e., in the second slot, whew ``y`` is expected);
+        * obj4 is irregular, because a different dimension, ``w``, is used in place
+          of ``x`` within the first index function, where ``x`` is expected;
+        * obj5 is irregular, as two findices appear in the same index function --
+          the one in the first slot, where only ``x`` is expected.
+
     """
 
     def __new__(cls, indexed, mode, timestamp):
@@ -339,6 +359,19 @@ class TimedAccess(Access):
             raise TypeError("Cannot compare due to mismatching `direction`")
         return super(TimedAccess, self).__lt__(other)
 
+    @cached_property
+    def index_mode(self):
+        return ['regular' if (is_integer(i) or q_affine(i, fi)) else 'irregular'
+                for i, fi in zip(self, self.findices)]
+
+    @property
+    def is_regular(self):
+        return all(i == 'regular' for i in self.index_mode)
+
+    @property
+    def is_irregular(self):
+        return not self.is_regular
+
     def lex_eq(self, other):
         return self.timestamp == other.timestamp
 
@@ -357,12 +390,12 @@ class TimedAccess(Access):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
-    def distance(self, other, dim=None):
+    def distance(self, other, findex=None):
         if (self.direction != other.direction) or (self.rank != other.rank):
             raise TypeError("Cannot order due to mismatching `direction` and/or `rank`")
-        ret = super(TimedAccess, self).distance(other, dim)
-        if dim is not None:
-            limit = self.findices.index(dim) + 1
+        ret = super(TimedAccess, self).distance(other, findex)
+        if findex is not None:
+            limit = self.findices.index(findex) + 1
             direction = self.direction[:limit]
         else:
             direction = self.direction
@@ -385,7 +418,7 @@ class Dependence(object):
 
     @cached_property
     def cause(self):
-        """Return the dimension causing the dependence (if any -- return None if
+        """Return the findex causing the dependence (if any -- return None if
         the dependence is between scalars)."""
         for i, j in zip(self.findices, self.distance):
             try:
@@ -400,7 +433,7 @@ class Dependence(object):
         """Return True if induced by an indirection array (e.g., A[B[i]]),
         False otherwise."""
         for d, i, j in zip(self.findices, self.source.index_mode, self.sink.index_mode):
-            if d == self.cause and i == j and i in ['indirect', 'irregular']:
+            if d == self.cause and i == j == 'irregular':
                 return True
         return False
 
@@ -421,14 +454,17 @@ class Dependence(object):
     def is_independent(self, dim=None):
         """Return True if a dimension-independent dependence, False otherwise."""
         try:
-            return (self.distance == 0) if dim is None else self.cause != dim
+            if dim is None or self.source.is_irregular or self.sink.is_irregular:
+                return self.distance == 0
+            else:
+                return self.cause != dim
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False
 
     def is_inplace(self, dim=None):
         """Stronger than ``is_independent()``, as it also compares the timestamps."""
-        return self.is_independent() and self.source.lex_eq(self.sink)
+        return self.is_independent(dim) and self.source.lex_eq(self.sink)
 
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
