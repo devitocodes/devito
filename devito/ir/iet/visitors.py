@@ -21,10 +21,10 @@ from devito.types import Scalar
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C
 
 
-__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
+__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
            'ResolveTimeStepping', 'Transformer', 'NestedTransformer',
-           'FindAdjacentIterations', 'MergeOuterIterations', 'MapExpressions']
+           'FindAdjacentIterations', 'MergeOuterIterations', 'MapIteration']
 
 
 class Visitor(object):
@@ -412,11 +412,11 @@ class FindSections(Visitor):
     visit_Call = visit_Expression
 
 
-class FindScopes(FindSections):
+class MapExpressions(FindSections):
 
     """
     Map :class:`Expression` and :class:`Call` objects in the Iteration/Expression
-    tree to its section.
+    tree to their respective section.
     """
 
     def visit_Call(self, o, ret=None, queue=None):
@@ -429,7 +429,7 @@ class FindScopes(FindSections):
     visit_Element = FindSections.visit_Node
 
 
-class MapExpressions(FindSections):
+class MapIteration(FindSections):
 
     """
     Map each :class:`Iteration` object in the Iteration/Expression tree to the
