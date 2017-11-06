@@ -2,7 +2,7 @@ import pytest
 
 from conftest import x, y
 
-from devito.ir.support.basic import IterationInstance
+from devito.ir.analysis.basic import IterationInstance
 
 
 @pytest.fixture(scope="session")

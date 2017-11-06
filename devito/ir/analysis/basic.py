@@ -1,7 +1,6 @@
-from sympy import Basic, Eq
+from sympy import Basic
 
-from devito.symbolics import retrieve_indexed
-from devito.tools import as_tuple, is_integer, flatten
+from devito.tools import as_tuple, is_integer
 from devito.types import Indexed
 
 
