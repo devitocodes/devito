@@ -12,7 +12,6 @@ from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.ir.iet import IsPerfectIteration
-from devito.logger import set_log_level
 
 
 def dimify(dimensions):
@@ -683,7 +682,6 @@ class TestLoopScheduler(object):
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
-        set_log_level("DEBUG")
         grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
         a = TimeFunction(name='a', grid=grid, time_order=2,
                          space_order=2)
