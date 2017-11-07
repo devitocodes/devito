@@ -18,7 +18,7 @@ from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
-from devito.ir.iet import (Block, Denormals, Expression, Iteration, List,
+from devito.ir.iet import (Block, Expression, Iteration, List,
                            PARALLEL, ELEMENTAL, REMAINDER, tagger,
                            FindNodes, FindSymbols, IsPerfectIteration,
                            SubstituteExpression, Transformer)
@@ -277,10 +277,6 @@ class DevitoRewriter(BasicRewriter):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code
         """
-        # Reset denormals flag each time a parallel region is entered
-        denormals = FindNodes(Denormals).visit(nodes)
-        mapper = OrderedDict([(i, None) for i in denormals])
-
         # Group by outer loop so that we can embed within the same parallel region
         was_tagged = False
         groups = OrderedDict()
@@ -300,6 +296,7 @@ class DevitoRewriter(BasicRewriter):
             was_tagged = is_tagged
 
         # Handle parallelizable loops
+        mapper = OrderedDict()
         for group in groups.values():
             private = []
             for root, tree in group.items():
@@ -323,8 +320,7 @@ class DevitoRewriter(BasicRewriter):
             private = sorted(set([i.name for i in private]))
             private = ('private(%s)' % ','.join(private)) if private else ''
             rebuilt = [v for k, v in mapper.items() if k in group]
-            par_region = Block(header=omplang['par-region'](private),
-                               body=denormals + rebuilt)
+            par_region = Block(header=omplang['par-region'](private), body=rebuilt)
             for k, v in list(mapper.items()):
                 if isinstance(v, Iteration):
                     mapper[k] = None if v.is_Remainder else par_region
