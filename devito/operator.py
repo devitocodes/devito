@@ -75,6 +75,9 @@ class Operator(Callable):
         self._lib = None
         self._cfunction = None
 
+        # References to local or external routines
+        self.func_table = OrderedDict()
+
         # Expression lowering
         expressions = [indexify(s) for s in expressions]
         expressions = [s.xreplace(subs) for s in expressions]
@@ -114,24 +117,24 @@ class Operator(Callable):
         nodes, subs = ResolveTimeStepping().visit(nodes)
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
+        # Translate into backend-specific representation (e.g., GPU, Yask)
+        nodes = self._specialize(nodes, parameters)
+
         # Apply the Devito Loop Engine (DLE) for loop optimization
         dle_state = transform(nodes, *set_dle_mode(dle))
 
         # Update the Operator state based on the DLE
         self.dle_arguments = dle_state.arguments
         self.dle_flags = dle_state.flags
-        self.func_table = OrderedDict([(i.name, FunMeta(i, True))
-                                       for i in dle_state.elemental_functions])
+        self.func_table.update(OrderedDict([(i.name, FunMeta(i, True))
+                                            for i in dle_state.elemental_functions]))
         parameters.extend([i.argument for i in self.dle_arguments])
         self.dimensions.extend([i.argument for i in self.dle_arguments
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
 
-        # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes = self._specialize(dle_state.nodes, parameters)
-
         # Introduce all required C declarations
-        nodes = self._insert_declarations(nodes)
+        nodes = self._insert_declarations(dle_state.nodes)
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
