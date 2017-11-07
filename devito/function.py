@@ -478,7 +478,7 @@ class SparseFunction(CompositeFunction):
     def __new__(cls, *args, **kwargs):
         nt = kwargs.get('nt', 0)
         npoint = kwargs.get('npoint')
-        kwargs['shape'] = (nt, npoint) if nt >0 else (npoint, )
+        kwargs['shape'] = (nt, npoint) if nt > 0 else (npoint, )
 
         return Function.__new__(cls, *args, **kwargs)
 
