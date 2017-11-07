@@ -53,7 +53,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     field_last_time_step = np.copy(u.data[last_time_step, :, :])
     rec_bk = np.copy(rec.data)
     rec, u, summary = solver.forward(save=False)
-    last_time_step = (last_time_step) % (time_order + 1)
+    last_time_step = solver.source.nt % time_order
     assert(np.allclose(u.data[last_time_step, :, :], field_last_time_step))
     assert(np.allclose(rec.data, rec_bk))
 

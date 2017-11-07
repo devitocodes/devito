@@ -371,12 +371,12 @@ class TestArguments(object):
         # Test dimension override via the buffered dimenions
         a.data[0] = 0.
         op(a=a, t=6)
-        assert(np.allclose(a.data[1], 5.))
+        assert(np.allclose(a.data[0], 6.))
 
         # Test dimension override via the parent dimenions
         a.data[0] = 0.
         op(a=a, time=5)
-        assert(np.allclose(a.data[0], 4.))
+        assert(np.allclose(a.data[0], 5.))
 
     def test_override_composite_data(self):
         i, j = dimify('i j')
