@@ -344,6 +344,8 @@ class YaskKernel(object):
         """Run the YaskKernel through the YASK Python API."""
         self.soln.prepare_solution()
         self.soln.run_solution(ntimesteps)
+        # Dump performance data
+        self.soln.get_stats()
 
     def run_c(self, cfunction, arguments):
         """
@@ -364,6 +366,8 @@ class YaskKernel(object):
         # Deallocate temporary grids
         for i in self.local_grids.values():
             i.release_storage()
+        # Dump performance data
+        self.soln.get_stats()
 
     @property
     def space_dimensions(self):
