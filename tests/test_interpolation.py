@@ -29,7 +29,7 @@ def points(grid, ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
-    points = SparseFunction(name=name, grid=grid, nt=1, npoint=npoints)
+    points = SparseFunction(name=name, grid=grid, npoint=npoints)
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
@@ -49,9 +49,29 @@ def test_interpolate(shape, coords, npoints=20):
     xcoords = p.coordinates.data[:, 0]
 
     expr = p.interpolate(a)
-    Operator(expr)(a=a, time=1)
+    Operator(expr)(a=a)
 
-    assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
+    assert np.allclose(p.data[:], xcoords, rtol=1e-6)
+
+
+@skipif_yask
+@pytest.mark.parametrize('shape, coords', [
+    ((11, 11), [(.05, .9), (.01, .8)]),
+    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
+])
+def test_interpolate_cumm(shape, coords, npoints=20):
+    """Test generic point interpolation testing the x-coordinate of an
+    abitrary set of points going across the grid.
+    """
+    a = unit_box(shape=shape)
+    p = points(a.grid, coords, npoints=npoints)
+    xcoords = p.coordinates.data[:, 0]
+
+    p.data[:] = 1.
+    expr = p.interpolate(a, cummulative=True)
+    Operator(expr)(a=a)
+
+    assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
 
 
 @skipif_yask
@@ -118,7 +138,7 @@ def test_adjoint_inject_interpolate(shape, coords,
     # Read receiver
     p2 = points(a.grid, name='points2', ranges=coords, npoints=npoints)
     expr2 = p2.interpolate(expr=c)
-    Operator(expr + expr2)(a=a, c=c, time=1)
+    Operator(expr + expr2)(a=a, c=c)
     # < P x, y > - < x, P^T y>
     # Px => p2
     # y => p
