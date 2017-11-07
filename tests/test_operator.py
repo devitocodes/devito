@@ -12,6 +12,7 @@ from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.ir.iet import IsPerfectIteration
+from devito.logger import set_log_level
 
 
 def dimify(dimensions):
@@ -682,9 +683,10 @@ class TestLoopScheduler(object):
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
+        set_log_level("DEBUG")
         grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
         a = TimeFunction(name='a', grid=grid, time_order=2,
-                         space_order=2, time_dim=6, save=False)
+                         space_order=2)
         p_aux = Dimension(name='p_aux', size=10)
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                      space_order=2)
@@ -708,11 +710,13 @@ class TestLoopScheduler(object):
         assert all(trees[0][i] is trees[1][i] for i in range(3))
 
         # Verify both operators produce the same result
-        op()
-        op2()
+        op(time=10)
+        a.data[:] = 0.
+        op2(time=10)
 
-        assert(np.allclose(b2.data[2, ...].reshape(-1) -
-                           b.data[..., 2].reshape(-1), 0.))
+        for i in range(10):
+            assert(np.allclose(b2.data[i, ...].reshape(-1) -
+                               b.data[..., i].reshape(-1), 0.))
 
 
 @skipif_yask
@@ -736,3 +740,8 @@ class TestForeign(object):
         args['a'] = array
         op.cfunction(*list(args.values()))
         assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
+
+
+if __name__ == "__main__":
+    tester = TestLoopScheduler()
+    tester.test_equations_mixed_densedata_timedata((11, 11), (x, y))
