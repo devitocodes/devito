@@ -64,6 +64,7 @@ class Node(object):
         This is a shorthand for
 
             .. code-block:: python
+
               from devito.ir.iet import CGen
               CGen().visit(self)
         """
