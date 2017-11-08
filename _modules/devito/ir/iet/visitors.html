@@ -186,7 +186,7 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FindNodes&#39;</span><span class="p">,</span> <span class="s1">&#39;FindSections&#39;</span><span class="p">,</span> <span class="s1">&#39;FindSymbols&#39;</span><span class="p">,</span> <span class="s1">&#39;FindScopes&#39;</span><span class="p">,</span>
            <span class="s1">&#39;IsPerfectIteration&#39;</span><span class="p">,</span> <span class="s1">&#39;SubstituteExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;printAST&#39;</span><span class="p">,</span> <span class="s1">&#39;CGen&#39;</span><span class="p">,</span>
            <span class="s1">&#39;ResolveTimeStepping&#39;</span><span class="p">,</span> <span class="s1">&#39;Transformer&#39;</span><span class="p">,</span> <span class="s1">&#39;NestedTransformer&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;FindAdjacentIterations&#39;</span><span class="p">,</span> <span class="s1">&#39;MergeOuterIterations&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;FindAdjacentIterations&#39;</span><span class="p">,</span> <span class="s1">&#39;MergeOuterIterations&#39;</span><span class="p">,</span> <span class="s1">&#39;MapExpressions&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">Visitor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -576,19 +576,33 @@
 
 <div class="viewcode-block" id="FindScopes"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindScopes">[docs]</a><span class="k">class</span> <span class="nc">FindScopes</span><span class="p">(</span><span class="n">FindSections</span><span class="p">):</span>
 
-<div class="viewcode-block" id="FindScopes.default_retval"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindScopes.default_retval">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">default_retval</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">()</span></div>
-
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Map each written variable or :class:`Call` object in the Iteration/Expression</span>
+<span class="sd">    Map :class:`Expression` and :class:`Call` objects in the Iteration/Expression</span>
 <span class="sd">    tree to its section.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="FindScopes.visit_Call"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindScopes.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">in_omp_region</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="FindScopes.visit_Call"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindScopes.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
         <span class="n">ret</span><span class="p">[</span><span class="n">o</span><span class="p">]</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">queue</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+    <span class="n">visit_Expression</span> <span class="o">=</span> <span class="n">visit_Call</span>
+    <span class="n">visit_Element</span> <span class="o">=</span> <span class="n">FindSections</span><span class="o">.</span><span class="n">visit_Node</span></div>
+
+
+<div class="viewcode-block" id="MapExpressions"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions">[docs]</a><span class="k">class</span> <span class="nc">MapExpressions</span><span class="p">(</span><span class="n">FindSections</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Map each :class:`Iteration` object in the Iteration/Expression tree to the</span>
+<span class="sd">    enclosed :class:`Expression` and :class:`Call` objects.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="MapExpressions.visit_Call"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">queue</span><span class="p">:</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">ret</span></div>
 
     <span class="n">visit_Expression</span> <span class="o">=</span> <span class="n">visit_Call</span>

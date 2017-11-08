@@ -4,6 +4,14 @@ devito\.ir\.analysis package
 Submodules
 ----------
 
+devito\.ir\.analysis\.basic module
+----------------------------------
+
+.. automodule:: devito.ir.analysis.basic
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.ir\.analysis\.flow module
 ---------------------------------
 

@@ -464,8 +464,6 @@
       <ul>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindNodes.default_retval">(devito.ir.iet.visitors.FindNodes class method)</a>
 </li>
-        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindScopes.default_retval">(devito.ir.iet.visitors.FindScopes class method)</a>
-</li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSections.default_retval">(devito.ir.iet.visitors.FindSections class method)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols.default_retval">(devito.ir.iet.visitors.FindSymbols class method)</a>
@@ -521,12 +519,12 @@
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends">devito.dse.backends (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.advanced">devito.dse.backends.advanced (module)</a>
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.basic">devito.dse.backends.basic (module)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.common">devito.dse.backends.common (module)</a>
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.speculative">devito.dse.backends.speculative (module)</a>
@@ -550,6 +548,8 @@
       <li><a href="devito.ir.html#module-devito.ir">devito.ir (module)</a>
 </li>
       <li><a href="devito.ir.analysis.html#module-devito.ir.analysis">devito.ir.analysis (module)</a>
+</li>
+      <li><a href="devito.ir.analysis.html#module-devito.ir.analysis.basic">devito.ir.analysis.basic (module)</a>
 </li>
       <li><a href="devito.ir.analysis.html#module-devito.ir.analysis.flow">devito.ir.analysis.flow (module)</a>
 </li>
@@ -629,6 +629,12 @@
 </li>
       <li><a href="devito.html#devito.stencil.Stencil.dimensions">dimensions (devito.stencil.Stencil attribute)</a>
 </li>
+      <li><a href="devito.ir.analysis.html#devito.ir.analysis.basic.IterationInstance.distance">distance() (devito.ir.analysis.basic.IterationInstance method)</a>
+
+      <ul>
+        <li><a href="devito.ir.analysis.html#devito.ir.analysis.basic.Vector.distance">(devito.ir.analysis.basic.Vector method)</a>
+</li>
+      </ul></li>
       <li><a href="devito.html#devito.logger.dle">dle() (in module devito.logger)</a>
 </li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.dle_pass">dle_pass() (in module devito.dle.backends.common)</a>
@@ -1119,6 +1125,8 @@
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration">Iteration (class in devito.ir.iet.nodes)</a>
 </li>
+      <li><a href="devito.ir.analysis.html#devito.ir.analysis.basic.IterationInstance">IterationInstance (class in devito.ir.analysis.basic)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.properties.IterationProperty">IterationProperty (class in devito.ir.iet.properties)</a>
 </li>
   </ul></td>
@@ -1184,6 +1192,8 @@
       <li><a href="devito.html#devito.compiler.make">make() (in module devito.compiler)</a>
 </li>
       <li><a href="devito.html#devito.memory.malloc_aligned">malloc_aligned() (in module devito.memory)</a>
+</li>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions">MapExpressions (class in devito.ir.iet.visitors)</a>
 </li>
       <li><a href="devito.html#devito.tools.memoized">memoized (class in devito.tools)</a>
 </li>
@@ -1269,6 +1279,8 @@
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.algorithms.optimize">optimize() (in module devito.ir.clusters.algorithms)</a>
 </li>
+      <li><a href="devito.ir.analysis.html#devito.ir.analysis.basic.Vector.order">order() (devito.ir.analysis.basic.Vector method)</a>
+</li>
       <li><a href="examples.seismic.html#examples.seismic.model.Model.origin">origin (examples.seismic.model.Model attribute)</a>
 </li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.BlockingArg.original_dim">original_dim (devito.dle.backends.common.BlockingArg attribute)</a>
@@ -1333,16 +1345,22 @@
 <h2 id="Q">Q</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.symbolics.html#devito.symbolics.queries.q_affine">q_affine() (in module devito.symbolics.queries)</a>
+</li>
+      <li><a href="devito.symbolics.html#devito.symbolics.queries.q_identity">q_identity() (in module devito.symbolics.queries)</a>
+</li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_indexed">q_indexed() (in module devito.symbolics.queries)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_indirect">q_indirect() (in module devito.symbolics.queries)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_leaf">q_leaf() (in module devito.symbolics.queries)</a>
 </li>
-      <li><a href="devito.symbolics.html#devito.symbolics.queries.q_op">q_op() (in module devito.symbolics.queries)</a>
+      <li><a href="devito.symbolics.html#devito.symbolics.queries.q_linear">q_linear() (in module devito.symbolics.queries)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.symbolics.html#devito.symbolics.queries.q_op">q_op() (in module devito.symbolics.queries)</a>
+</li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_sum_of_product">q_sum_of_product() (in module devito.symbolics.queries)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_terminal">q_terminal() (in module devito.symbolics.queries)</a>
@@ -1359,6 +1377,8 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.ir.analysis.html#devito.ir.analysis.basic.Vector.rank">rank (devito.ir.analysis.basic.Vector attribute)</a>
+</li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.rebuild">rebuild() (devito.ir.clusters.cluster.Cluster method)</a>
 </li>
       <li><a href="examples.seismic.html#examples.seismic.source.Receiver">Receiver (in module examples.seismic.source)</a>
@@ -1395,10 +1415,10 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.transformer.rewrite">rewrite() (in module devito.dse.transformer)</a>
 </li>
-      <li><a href="examples.seismic.html#examples.seismic.source.RickerSource">RickerSource (class in examples.seismic.source)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="examples.seismic.html#examples.seismic.source.RickerSource">RickerSource (class in examples.seismic.source)</a>
+</li>
       <li><a href="examples.cfd.html#examples.cfd.example_diffusion.ring_initial">ring_initial() (in module examples.cfd.example_diffusion)</a>
 </li>
       <li><a href="devito.html#devito.operator.FunMeta.root">root (devito.operator.FunMeta attribute)</a>
@@ -1559,6 +1579,8 @@
 </li>
       <li><a href="devito.html#devito.stencil.Stencil.subtract">subtract() (devito.stencil.Stencil method)</a>
 </li>
+      <li><a href="devito.ir.analysis.html#devito.ir.analysis.basic.Vector.sum">sum (devito.ir.analysis.basic.Vector attribute)</a>
+</li>
       <li><a href="devito.html#devito.types.Symbol">Symbol (class in devito.types)</a>
 </li>
       <li><a href="devito.html#devito.dimension.Dimension.symbolic_end">symbolic_end (devito.dimension.Dimension attribute)</a>
@@ -1651,6 +1673,8 @@
         <li><a href="devito.html#devito.arguments.DimensionArgProvider.value">(devito.arguments.DimensionArgProvider attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.ir.analysis.html#devito.ir.analysis.basic.Vector">Vector (class in devito.ir.analysis.basic)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.properties.VECTOR">VECTOR (in module devito.ir.iet.properties)</a>
 </li>
       <li><a href="devito.html#devito.arguments.Argument.verify">verify (devito.arguments.Argument attribute)</a>
@@ -1682,6 +1706,8 @@
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Call">(devito.ir.iet.visitors.FindSections method)</a>
 </li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions.visit_Call">(devito.ir.iet.visitors.MapExpressions method)</a>
+</li>
       </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Callable">visit_Callable() (devito.ir.iet.visitors.CGen method)</a>
 </li>
@@ -1692,6 +1718,8 @@
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Element">(devito.ir.iet.visitors.FindSections method)</a>
 </li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions.visit_Element">(devito.ir.iet.visitors.MapExpressions method)</a>
+</li>
       </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Expression">visit_Expression() (devito.ir.iet.visitors.CGen method)</a>
 
@@ -1701,6 +1729,8 @@
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Expression">(devito.ir.iet.visitors.FindSections method)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols.visit_Expression">(devito.ir.iet.visitors.FindSymbols method)</a>
+</li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions.visit_Expression">(devito.ir.iet.visitors.MapExpressions method)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit_Expression">(devito.ir.iet.visitors.ResolveTimeStepping method)</a>
 </li>

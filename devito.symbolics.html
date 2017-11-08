@@ -507,18 +507,44 @@ name appears in <code class="docutils literal"><span class="pre">candidates</spa
 <div class="section" id="module-devito.symbolics.queries">
 <span id="devito-symbolics-queries-module"></span><h2>devito.symbolics.queries module<a class="headerlink" href="#module-devito.symbolics.queries" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
-<dt id="devito.symbolics.queries.iq_timeinvariant">
-<code class="descclassname">devito.symbolics.queries.</code><code class="descname">iq_timeinvariant</code><span class="sig-paren">(</span><em>graph</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#iq_timeinvariant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.iq_timeinvariant" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.symbolics.queries.iq_timevarying">
-<code class="descclassname">devito.symbolics.queries.</code><code class="descname">iq_timevarying</code><span class="sig-paren">(</span><em>graph</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#iq_timevarying"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.iq_timevarying" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dt id="devito.symbolics.queries.q_leaf">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_leaf</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_leaf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_leaf" title="Permalink to this definition">¶</a></dt>
+<dd><p>The DSE interprets the following SymPy objects as tree leaves:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Number</span>
+<span class="o">*</span> <span class="n">Symbol</span>
+<span class="o">*</span> <span class="n">Indexed</span>
+</pre></div>
+</div>
+</dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.queries.q_indexed">
 <code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_indexed</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_indexed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_indexed" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.q_terminal">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_terminal</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_terminal"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_terminal" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.q_trigonometry">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_trigonometry</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_trigonometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_trigonometry" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.q_op">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_op</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_op" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.q_terminalop">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_terminalop</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_terminalop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_terminalop" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.q_sum_of_product">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_sum_of_product</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_sum_of_product"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_sum_of_product" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
@@ -538,44 +564,44 @@ a[b[i]] –&gt; True</p>
 </dd></dl>
 
 <dl class="function">
-<dt id="devito.symbolics.queries.q_leaf">
-<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_leaf</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_leaf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_leaf" title="Permalink to this definition">¶</a></dt>
-<dd><p>The DSE interprets the following SymPy objects as tree leaves:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Number</span>
-<span class="o">*</span> <span class="n">Symbol</span>
-<span class="o">*</span> <span class="n">Indexed</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.symbolics.queries.q_op">
-<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_op</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_op" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.symbolics.queries.q_sum_of_product">
-<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_sum_of_product</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_sum_of_product"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_sum_of_product" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.symbolics.queries.q_terminal">
-<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_terminal</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_terminal"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_terminal" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.symbolics.queries.q_terminalop">
-<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_terminalop</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_terminalop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_terminalop" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
 <dt id="devito.symbolics.queries.q_timedimension">
 <code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_timedimension</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_timedimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_timedimension" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
-<dt id="devito.symbolics.queries.q_trigonometry">
-<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_trigonometry</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_trigonometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_trigonometry" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.symbolics.queries.q_affine">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_affine</code><span class="sig-paren">(</span><em>expr</em>, <em>vars</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_affine"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_affine" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if <code class="docutils literal"><span class="pre">expr</span></code> is (separately) affine in the variables <code class="docutils literal"><span class="pre">vars</span></code>,
+False otherwise.</p>
+<p>Readapted from: <a class="reference external" href="https://stackoverflow.com/questions/36283548">https://stackoverflow.com/questions/36283548</a>        /check-if-an-equation-is-linear-for-a-specific-set-of-variables/</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.q_linear">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_linear</code><span class="sig-paren">(</span><em>expr</em>, <em>vars</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_linear"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_linear" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if <code class="docutils literal"><span class="pre">expr</span></code> is (separately) linear in the variables <code class="docutils literal"><span class="pre">vars</span></code>,
+False otherwise.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.q_identity">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_identity</code><span class="sig-paren">(</span><em>expr</em>, <em>var</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_identity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_identity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if <code class="docutils literal"><span class="pre">expr</span></code> is the identity function in <code class="docutils literal"><span class="pre">var</span></code>, modulo a constant
+(that is, a function affine in <code class="docutils literal"><span class="pre">var</span></code> in which the value of the coefficient of
+<code class="docutils literal"><span class="pre">var</span></code> is 1), False otherwise.</p>
+<p>3x -&gt; False
+3x + 1 -&gt; False
+x + 2 -&gt; True</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.iq_timeinvariant">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">iq_timeinvariant</code><span class="sig-paren">(</span><em>graph</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#iq_timeinvariant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.iq_timeinvariant" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.queries.iq_timevarying">
+<code class="descclassname">devito.symbolics.queries.</code><code class="descname">iq_timevarying</code><span class="sig-paren">(</span><em>graph</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#iq_timevarying"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.iq_timevarying" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </div>

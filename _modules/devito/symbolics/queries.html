@@ -161,8 +161,14 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.symbolics.queries</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span>
+<span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">diff</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span>
+
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;q_leaf&#39;</span><span class="p">,</span> <span class="s1">&#39;q_indexed&#39;</span><span class="p">,</span> <span class="s1">&#39;q_terminal&#39;</span><span class="p">,</span> <span class="s1">&#39;q_trigonometry&#39;</span><span class="p">,</span> <span class="s1">&#39;q_op&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;q_terminalop&#39;</span><span class="p">,</span> <span class="s1">&#39;q_sum_of_product&#39;</span><span class="p">,</span> <span class="s1">&#39;q_indirect&#39;</span><span class="p">,</span> <span class="s1">&#39;q_timedimension&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;q_affine&#39;</span><span class="p">,</span> <span class="s1">&#39;q_linear&#39;</span><span class="p">,</span> <span class="s1">&#39;q_identity&#39;</span><span class="p">,</span> <span class="s1">&#39;iq_timeinvariant&#39;</span><span class="p">,</span> <span class="s1">&#39;iq_timevarying&#39;</span><span class="p">]</span>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -233,16 +239,60 @@
     <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="q_timedimension"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_timedimension">[docs]</a><span class="k">def</span> <span class="nf">q_timedimension</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Time</span></div>
+
+
+<div class="viewcode-block" id="q_affine"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_affine">[docs]</a><span class="k">def</span> <span class="nf">q_affine</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">vars</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if ``expr`` is (separately) affine in the variables ``vars``,</span>
+<span class="sd">    False otherwise.</span>
+
+<span class="sd">    Readapted from: https://stackoverflow.com/questions/36283548\</span>
+<span class="sd">        /check-if-an-equation-is-linear-for-a-specific-set-of-variables/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># A function is (separately) affine in a given set of variables if all</span>
+    <span class="c1"># non-mixed second order derivatives are identically zero.</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="nb">vars</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">atoms</span><span class="p">():</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">Eq</span><span class="p">(</span><span class="n">diff</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="q_linear"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_linear">[docs]</a><span class="k">def</span> <span class="nf">q_linear</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">vars</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if ``expr`` is (separately) linear in the variables ``vars``,</span>
+<span class="sd">    False otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">q_affine</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">vars</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Number</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="q_identity"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_identity">[docs]</a><span class="k">def</span> <span class="nf">q_identity</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">var</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if ``expr`` is the identity function in ``var``, modulo a constant</span>
+<span class="sd">    (that is, a function affine in ``var`` in which the value of the coefficient of</span>
+<span class="sd">    ``var`` is 1), False otherwise.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+<span class="sd">    3x -&gt; False</span>
+<span class="sd">    3x + 1 -&gt; False</span>
+<span class="sd">    x + 2 -&gt; True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">var</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">q_affine</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">var</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">expr</span> <span class="o">-</span> <span class="n">var</span><span class="p">)</span><span class="o">.</span><span class="n">is_Number</span></div>
+
+
 <div class="viewcode-block" id="iq_timeinvariant"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.iq_timeinvariant">[docs]</a><span class="k">def</span> <span class="nf">iq_timeinvariant</span><span class="p">(</span><span class="n">graph</span><span class="p">):</span>
     <span class="k">return</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span> <span class="n">graph</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">(</span><span class="n">e</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="iq_timevarying"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.iq_timevarying">[docs]</a><span class="k">def</span> <span class="nf">iq_timevarying</span><span class="p">(</span><span class="n">graph</span><span class="p">):</span>
     <span class="k">return</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">graph</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">(</span><span class="n">e</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="q_timedimension"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_timedimension">[docs]</a><span class="k">def</span> <span class="nf">q_timedimension</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Time</span></div>
 </pre></div>
 
            </div>

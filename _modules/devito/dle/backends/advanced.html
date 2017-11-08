@@ -181,7 +181,7 @@
                                  <span class="n">simdinfo</span><span class="p">,</span> <span class="n">get_simd_flag</span><span class="p">,</span> <span class="n">get_simd_items</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">promote_scalar_expressions</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Denormals</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
                            <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span>
                            <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
                            <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
@@ -318,8 +318,10 @@
             <span class="n">intra_blocks</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">remainders</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">_block&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span>
+
                 <span class="c1"># Build Iteration over blocks</span>
-                <span class="n">dim</span> <span class="o">=</span> <span class="n">blocked</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_block&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+                <span class="n">dim</span> <span class="o">=</span> <span class="n">blocked</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
                 <span class="n">block_size</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span>
                 <span class="n">iter_size</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_extent</span>
                 <span class="n">start</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">i</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -440,10 +442,6 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Reset denormals flag each time a parallel region is entered</span>
-        <span class="n">denormals</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Denormals</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">denormals</span><span class="p">])</span>
-
         <span class="c1"># Group by outer loop so that we can embed within the same parallel region</span>
         <span class="n">was_tagged</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="n">groups</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
@@ -463,6 +461,7 @@
             <span class="n">was_tagged</span> <span class="o">=</span> <span class="n">is_tagged</span>
 
         <span class="c1"># Handle parallelizable loops</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="n">private</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">group</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -486,8 +485,7 @@
             <span class="n">private</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">private</span><span class="p">]))</span>
             <span class="n">private</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;private(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">private</span><span class="p">))</span> <span class="k">if</span> <span class="n">private</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
             <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
-            <span class="n">par_region</span> <span class="o">=</span> <span class="n">Block</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;par-region&#39;</span><span class="p">](</span><span class="n">private</span><span class="p">),</span>
-                               <span class="n">body</span><span class="o">=</span><span class="n">denormals</span> <span class="o">+</span> <span class="n">rebuilt</span><span class="p">)</span>
+            <span class="n">par_region</span> <span class="o">=</span> <span class="n">Block</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;par-region&#39;</span><span class="p">](</span><span class="n">private</span><span class="p">),</span> <span class="n">body</span><span class="o">=</span><span class="n">rebuilt</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
                     <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Remainder</span> <span class="k">else</span> <span class="n">par_region</span>

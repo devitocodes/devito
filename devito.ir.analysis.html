@@ -204,6 +204,73 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
 </div>
+<div class="section" id="module-devito.ir.analysis.basic">
+<span id="devito-ir-analysis-basic-module"></span><h2>devito.ir.analysis.basic module<a class="headerlink" href="#module-devito.ir.analysis.basic" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.ir.analysis.basic.IterationInstance">
+<em class="property">class </em><code class="descclassname">devito.ir.analysis.basic.</code><code class="descname">IterationInstance</code><a class="reference internal" href="_modules/devito/ir/analysis/basic.html#IterationInstance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.analysis.basic.IterationInstance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.analysis.basic.Vector" title="devito.ir.analysis.basic.Vector"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.analysis.basic.Vector</span></code></a></p>
+<p>A representation of the iteration space point accessed by a
+<code class="xref py py-class docutils literal"><span class="pre">Indexed</span></code> object.</p>
+<dl class="method">
+<dt id="devito.ir.analysis.basic.IterationInstance.distance">
+<code class="descname">distance</code><span class="sig-paren">(</span><em>sink</em>, <em>dim=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/analysis/basic.html#IterationInstance.distance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.analysis.basic.IterationInstance.distance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute vector distance from <code class="docutils literal"><span class="pre">self</span></code> to <code class="docutils literal"><span class="pre">sink</span></code>. If <code class="docutils literal"><span class="pre">dim</span></code> is
+supplied, compute the vector distance up to and including <code class="docutils literal"><span class="pre">dim</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.analysis.basic.Vector">
+<em class="property">class </em><code class="descclassname">devito.ir.analysis.basic.</code><code class="descname">Vector</code><a class="reference internal" href="_modules/devito/ir/analysis/basic.html#Vector"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.analysis.basic.Vector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">tuple</span></code></p>
+<p>A representation of a vector in Z^n.</p>
+<p>The elements of a Vector can be integers or any SymPy expression.</p>
+<p>If a comparison between a vector and a non-vector is attempted, then the
+non-vector is promoted to a vector; if this is not possible, an exception
+is raised. This is handy because it turns a vector-scalar comparison into
+a vector-vector comparison with the scalar broadcasted to all vector entries.
+For example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span> <span class="o">=&gt;</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">&gt;</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>When we compare two entries that are both generic SymPy expressions, it is
+generally not possible to determine the truth value of the relation. For
+example, the truth value of <cite>3*i &lt; 4*j</cite> cannot be determined. In some cases,
+however, the comparison is feasible; for example, <cite>i + 4 &lt; i</cite> should always
+return false. A sufficient condition for two Vectors to be comparable is that
+their pair-wise indices are affine functions of the same variables, with
+coefficient 1.</p>
+<dl class="method">
+<dt id="devito.ir.analysis.basic.Vector.distance">
+<code class="descname">distance</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/analysis/basic.html#Vector.distance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.analysis.basic.Vector.distance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute vector distance from <code class="docutils literal"><span class="pre">self</span></code> to <code class="docutils literal"><span class="pre">other</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.analysis.basic.Vector.order">
+<code class="descname">order</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/analysis/basic.html#Vector.order"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.analysis.basic.Vector.order" title="Permalink to this definition">¶</a></dt>
+<dd><p>A reflexive, transitive, and anti-symmetric relation for total ordering.</p>
+<p>Return a tuple of length equal to the Vector <code class="docutils literal"><span class="pre">rank</span></code>. The i-th tuple
+entry, of type int, indicates whether the i-th component of <code class="docutils literal"><span class="pre">self</span></code>
+precedes (&lt; 0), equals (== 0), or succeeds (&gt; 0) the i-th component of
+<code class="docutils literal"><span class="pre">other</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.analysis.basic.Vector.rank">
+<code class="descname">rank</code><a class="headerlink" href="#devito.ir.analysis.basic.Vector.rank" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.analysis.basic.Vector.sum">
+<code class="descname">sum</code><a class="headerlink" href="#devito.ir.analysis.basic.Vector.sum" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
 <div class="section" id="module-devito.ir.analysis.flow">
 <span id="devito-ir-analysis-flow-module"></span><h2>devito.ir.analysis.flow module<a class="headerlink" href="#module-devito.ir.analysis.flow" title="Permalink to this headline">¶</a></h2>
 <p>A collection of algorithms to analyze and decorate <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> in an
