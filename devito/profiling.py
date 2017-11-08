@@ -7,8 +7,7 @@ from functools import reduce
 from ctypes import Structure, byref, c_double
 from cgen import Struct, Value
 
-from devito.ir.iet import (Expression, TimedList, IsPerfectIteration,
-                           FindSections, FindNodes, Transformer)
+from devito.ir.iet import Expression, TimedList, FindSections, FindNodes, Transformer
 from devito.symbolics import estimate_cost, estimate_memory
 
 __all__ = ['Profile', 'create_profile']
@@ -60,16 +59,18 @@ def create_profile(node):
     mapper = OrderedDict()
     for i, group in enumerate(found):
         name = 'section_%d' % i
-        section, remainder = group[0], group[1:]
 
-        index = len(section) > 1 and not IsPerfectIteration().visit(section[0])
-        root = section[index]
+        # We time at the single timestep level
+        for i in zip(*group):
+            root = i[0]
+            remainder = tuple(j for j in i if j is not root)
+            if not (root.dim.is_Time or root.dim.is_Stepping):
+                break
 
         # Prepare to transform the Iteration/Expression tree
-        body = tuple(j[index] for j in group)
+        body = (root,) + remainder
         mapper[root] = TimedList(gname=profiler.varname, lname=name, body=body)
-        for j in remainder:
-            mapper[j[index]] = None
+        mapper.update(OrderedDict([(j, None) for j in remainder]))
 
         # Estimate computational properties of the profiled section
         expressions = FindNodes(Expression).visit(body)
@@ -77,7 +78,7 @@ def create_profile(node):
         memory = estimate_memory([e.expr for e in expressions])
 
         # Keep track of the new profiled section
-        profiler.add(name, section, ops, memory)
+        profiler.add(name, group[0], ops, memory)
 
     # Transform the Iteration/Expression tree introducing the C-level timers
     processed = Transformer(mapper).visit(node)

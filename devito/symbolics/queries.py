@@ -1,5 +1,11 @@
-from sympy import cos, sin
+from sympy import Eq, diff, cos, sin
+
 from devito.dimension import Dimension
+from devito.tools import as_tuple
+
+__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op',
+           'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
+           'q_affine', 'q_linear', 'q_identity', 'iq_timeinvariant', 'iq_timevarying']
 
 
 """
@@ -70,13 +76,57 @@ def q_indirect(expr):
     return any(retrieve_indexed(i) for i in expr.indices)
 
 
+def q_timedimension(expr):
+    return isinstance(expr, Dimension) and expr.is_Time
+
+
+def q_affine(expr, vars):
+    """
+    Return True if ``expr`` is (separately) affine in the variables ``vars``,
+    False otherwise.
+
+    Readapted from: https://stackoverflow.com/questions/36283548\
+        /check-if-an-equation-is-linear-for-a-specific-set-of-variables/
+    """
+    # A function is (separately) affine in a given set of variables if all
+    # non-mixed second order derivatives are identically zero.
+    for x in as_tuple(vars):
+        if x not in expr.atoms():
+            return False
+        try:
+            if not Eq(diff(expr, x, x), 0):
+                return False
+        except TypeError:
+            return False
+    return True
+
+
+def q_linear(expr, vars):
+    """
+    Return True if ``expr`` is (separately) linear in the variables ``vars``,
+    False otherwise.
+    """
+    return q_affine(expr, vars) and all(not i.is_Number for i in expr.args)
+
+
+def q_identity(expr, var):
+    """
+    Return True if ``expr`` is the identity function in ``var``, modulo a constant
+    (that is, a function affine in ``var`` in which the value of the coefficient of
+    ``var`` is 1), False otherwise.
+
+    Examples
+    ========
+    3x -> False
+    3x + 1 -> False
+    x + 2 -> True
+    """
+    return len(as_tuple(var)) == 1 and q_affine(expr, var) and (expr - var).is_Number
+
+
 def iq_timeinvariant(graph):
     return lambda e: not e.is_Number and graph.time_invariant(e)
 
 
 def iq_timevarying(graph):
     return lambda e: e.is_Number or not graph.time_invariant(e)
-
-
-def q_timedimension(expr):
-    return isinstance(expr, Dimension) and expr.is_Time

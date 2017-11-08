@@ -482,8 +482,8 @@ class TestDeclarator(object):
   float (*c)[j_size];
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section_1, end_section_1;
+  gettimeofday(&start_section_1, NULL);
   for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = 0.0F;
@@ -492,9 +492,9 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section_1, NULL);
+  timings->section_1 += (double)(end_section_1.tv_sec-start_section_1.tv_sec)\
++(double)(end_section_1.tv_usec-start_section_1.tv_usec)/1000000;
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
