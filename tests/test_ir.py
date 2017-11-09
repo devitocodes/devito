@@ -1,8 +1,9 @@
 import pytest
 
-from conftest import x, y
+from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
 
-from devito.ir.support.basic import IterationInstance, TimedAccess
+from devito import Eq  # noqa
+from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
 
 
 @pytest.fixture(scope="session")
@@ -35,6 +36,7 @@ def ta_literal(fc):
     return tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1
 
 
+@skipif_yask
 def test_iteration_instance_arithmetic(dims, ii_num, ii_literal):
     """
     Tests arithmetic operations involving objects of type IterationInstance.
@@ -74,9 +76,10 @@ def test_iteration_instance_arithmetic(dims, ii_num, ii_literal):
             assert False
 
 
+@skipif_yask
 def test_iteration_instance_cmp(ii_num, ii_literal):
     """
-    Tests arithmetic operations involving objects of type IterationInstance.
+    Tests comparison of objects of type IterationInstance.
     """
     fa4, fc00, fc11, fc23 = ii_num
     fax, fcxy, fcx1y = ii_literal
@@ -104,7 +107,11 @@ def test_iteration_instance_cmp(ii_num, ii_literal):
     assert fcxy < fcx1y
 
 
+@skipif_yask
 def test_iteration_instance_distance(dims, ii_num, ii_literal):
+    """
+    Tests calculation of vector distance between objects of type IterationInstance.
+    """
     _, fc00, fc11, fc23 = ii_num
     fax, fcxy, fcx1y = ii_literal
 
@@ -132,6 +139,9 @@ def test_iteration_instance_distance(dims, ii_num, ii_literal):
 
 
 def test_timed_access_cmp(ta_literal):
+    """
+    Tests comparison of objects of type TimedAccess.
+    """
     tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1 = ta_literal
 
     # Equality check
@@ -162,3 +172,142 @@ def test_timed_access_cmp(ta_literal):
         assert True
     except:
         assert False
+
+
+@skipif_yask
+@pytest.mark.parametrize('expr,expected', [
+    ('Eq(ti0[x,y,z], ti1[x,y,z])', None),
+    ('Eq(ti0[x,y,z], ti0[x,y,z])', 'flow,independent,None,direct'),
+    ('Eq(ti0[x,y,z], ti0[x,y,z])', 'flow,inplace,None,direct'),
+    ('Eq(ti0[x,y,z], ti0[x,y,z-1])', 'flow,carried,z,direct'),
+    ('Eq(ti0[x,y,z], ti0[x-1,y,z-1])', 'flow,carried,x,direct'),
+    ('Eq(ti0[x,y,z], ti0[x-1,y,z+1])', 'flow,carried,x,direct'),
+    ('Eq(ti0[x,y,z], ti0[x+1,y+2,z])', 'anti,carried,x,direct'),
+    ('Eq(ti0[x,y,z], ti0[x,y+2,z-3])', 'anti,carried,y,direct'),
+    ('Eq(ti0[x,y,z], ti0[fa[x],y,z])', 'all,carried,x,indirect'),
+    ('Eq(ti0[x,y,z], ti0[fa[x],y,fa[z]])', 'all,carried,x,indirect'),
+    ('Eq(ti0[x,fa[y],z], ti0[x,y,z])', 'all,carried,y,indirect'),
+    ('Eq(ti0[x,y,z], ti0[x-1,fa[y],z])', 'flow,carried,x,direct'),
+])
+def test_dependences_eq(expr, expected, ti0, ti1, fa):
+    """
+    Tests data dependences within a single equation consisting of only two Indexeds.
+
+    ``expected`` is a comma-separated word consisting of four pieces of information:
+
+        * if it's a flow, anti, or output dependence
+        * if it's loop-carried or loop-independent
+        * the dimension causing the dependence
+        * whether it's direct or indirect (i.e., through A[B[i]])
+    """
+    expr = EVAL(expr, ti0.base, ti1.base, fa)
+
+    scope = Scope(expr)
+    deps = scope.d_all
+    if expected is None:
+        assert len(deps) == 0
+        return
+    else:
+        type, mode, cause, direct = expected.split(',')
+        if type == 'all':
+            assert len(deps) == 2
+        else:
+            assert len(deps) == 1
+    dep = deps[0]
+
+    # Check type
+    types = ['flow', 'anti']
+    if type != 'all':
+        types.remove(type)
+        assert len(getattr(scope, 'd_%s' % type)) == 1
+        assert all(len(getattr(scope, 'd_%s' % i)) == 0 for i in types)
+    else:
+        assert all(len(getattr(scope, 'd_%s' % i)) == 1 for i in types)
+
+    # Check mode
+    assert getattr(dep, 'is_%s' % mode)()
+
+    # Check cause
+    if cause == 'None':
+        assert dep.cause is None
+        return
+    else:
+        assert dep.cause.name == cause
+
+    # Check mode restricted to the cause
+    assert getattr(dep, 'is_%s' % mode)(dep.cause)
+    non_causes = [i for i in [x, y, z] if i is not dep.cause]
+    assert all(not getattr(dep, 'is_%s' % mode)(i) for i in non_causes)
+
+    # Check if it's direct or indirect
+    assert getattr(dep, 'is_%s' % direct)
+
+
+@skipif_yask
+@pytest.mark.parametrize('exprs,expected', [
+    # Trivial flow dep
+    (['Eq(ti0[x,y,z], ti1[x,y,z])',
+      'Eq(ti3[x,y,z], ti0[x,y,z])'],
+     ['ti0,flow,None']),
+    # One flow dep, one anti dep
+    (['Eq(ti0[x,y,z], ti1[x,y,z])',
+      'Eq(ti1[x,y,z], ti0[x,y,z])'],
+     ['ti0,flow,None', 'ti1,anti,None']),
+    # One output dep, two identical flow deps
+    (['Eq(ti3[x+1,y,z], ti1[x,y,z])',
+      'Eq(ti3[x+1,y,z], ti3[x,y,z])'],
+     ['ti3,output,None', 'ti3,flow,x', 'ti3,flow,x']),
+    # One flow independent dep, two flow carried flow deps
+    (['Eq(ti0[x,y,z], ti0[x,y,z])',
+      'Eq(ti1[x,y,z], ti0[x,y-1,z])',
+      'Eq(ti3[x,y,z], ti0[x-2,y,z])'],
+     ['ti0,flow,None', 'ti0,flow,y', 'ti0,flow,x']),
+    # An indirect dep, conservatively assumed flow and anti
+    (['Eq(ti0[x,y,z], ti1[x,y,z])',
+      'Eq(ti3[x,y,z], ti0[fa[x],y,z])'],
+     ['ti0,flow,x', 'ti0,anti,x']),
+    # A direct anti dep "masking" the indirect dep in an inner dimension
+    (['Eq(ti0[x,y,z], ti1[x,y,z])',
+      'Eq(ti3[x,y,z], ti0[x+1,fa[y],z])'],
+     ['ti0,anti,x']),
+    # Conservatively assume dependences due to "complex" affine index functions
+    (['Eq(ti0[x,y,z], ti1[x,2*y,z])',
+      'Eq(ti1[x,3*y,z], ti0[x+1,y,z])'],
+     ['ti1,flow,y', 'ti1,anti,y', 'ti0,anti,x']),
+    # Data indices don't match iteration indices, so conservatively assume
+    # all sort of deps
+    (['Eq(ti0[x,y,z], ti1[x,y,z])',
+      'Eq(ti3[x,y,z], ti0[y+1,y,y])'],
+     ['ti0,flow,x', 'ti0,anti,x']),
+    # Data indices don't match iteration indices, so conservatively assume
+    # all sort of deps
+    (['Eq(ti0[x,y,z], ti1[x,y,z])',
+      'Eq(ti3[x,y,z], ti0[x,y,x])'],
+     ['ti0,flow,z', 'ti0,anti,z']),
+])
+def test_dependences_scope(exprs, expected, ti0, ti1, ti3, fa):
+    """
+    Tests data dependences across ordered sequences of equations representing
+    a scope.
+
+    ``expected`` is a list of comma-separated words, each word representing a
+    dependence in the scope and consisting of three pieces of information:
+
+        * the name of the function inducing a dependence
+        * if it's a flow, anti, or output dependence
+        * the dimension causing the dependence
+    """
+    exprs = EVAL(exprs, ti0.base, ti1.base, ti3.base, fa)
+    expected = [tuple(i.split(',')) for i in expected]
+
+    scope = Scope(exprs)
+    assert len(scope.d_all) == len(expected)
+
+    for i in ['flow', 'anti', 'output']:
+        for dep in getattr(scope, 'd_%s' % i):
+            item = (dep.function.name, i, str(dep.cause))
+            assert item in expected
+            expected.remove(item)
+
+    # Sanity check: we did find all of the expected dependences
+    assert len(expected) == 0
