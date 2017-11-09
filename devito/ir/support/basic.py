@@ -433,7 +433,7 @@ class Dependence(object):
         """Return True if induced by an indirection array (e.g., A[B[i]]),
         False otherwise."""
         for d, i, j in zip(self.findices, self.source.index_mode, self.sink.index_mode):
-            if d == self.cause and i == j == 'irregular':
+            if d == self.cause and (i == 'irregular' or j == 'irregular'):
                 return True
         return False
 
