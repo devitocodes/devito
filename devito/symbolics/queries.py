@@ -1,4 +1,4 @@
-from sympy import Eq, diff, cos, sin
+from sympy import Eq, diff, cos, sin, nan
 
 from devito.dimension import Dimension
 from devito.tools import as_tuple
@@ -94,7 +94,7 @@ def q_affine(expr, vars):
         if x not in expr.atoms():
             return False
         try:
-            if not Eq(diff(expr, x, x), 0):
+            if diff(expr, x) == nan or not Eq(diff(expr, x, x), 0):
                 return False
         except TypeError:
             return False
