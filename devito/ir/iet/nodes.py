@@ -9,10 +9,10 @@ import cgen as c
 from sympy import Eq, Indexed, Symbol
 
 from devito.cgen_utils import ccode
-from devito.stencil import Stencil
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
                            tagger, ntags, UnboundedIndex)
+from devito.ir.support import Stencil
 from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 from devito.arguments import ArgumentProvider, Argument
