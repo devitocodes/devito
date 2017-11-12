@@ -11,12 +11,13 @@ from collections import Iterable, OrderedDict, defaultdict
 from operator import attrgetter
 
 import cgen as c
+import numpy as np
 
 from devito.cgen_utils import blankline, ccode
 from devito.dimension import LoweredDimension
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Iteration, Node, UnboundedIndex
-from devito.types import Symbol
+from devito.types import Scalar
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C
 
 
@@ -732,12 +733,12 @@ class ResolveTimeStepping(Transformer):
             # definition of buffered variables, eg. t+1 => t1
             init = []
             for i, off in enumerate(filter_ordered(offsets[o.dim])):
-                vname = Symbol(name="%s%d" % (o.dim.name, i))
+                vname = Scalar(name="%s%d" % (o.dim.name, i), dtype=np.int32)
                 value = (o.dim.parent + off) % o.dim.modulo
                 init.append(UnboundedIndex(vname, value, value))
                 subs[o.dim + off] = LoweredDimension(vname.name, o.dim, off)
             # Always lower to symbol
-            subs[o.dim.parent] = Symbol(name=o.dim.parent.name)
+            subs[o.dim.parent] = Scalar(name=o.dim.parent.name, dtype=np.int32)
             return o._rebuild(index=o.dim.parent.name, uindices=init), subs
         else:
             return o._rebuild(*nodes), subs
