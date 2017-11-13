@@ -70,7 +70,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     plt.figure()
     plt.imshow(rec.data[:, :], vmin=-10, vmax=10, cmap="seismic", aspect=.2)
     plt.figure()
-    plt.imshow(np.transpose(u.data[-1, :, :]), vmin=-1, vmax=1, cmap="seismic", aspect=1)
+    plt.imshow(np.transpose(u.data[-1, 90, :, :]), vmin=-1, vmax=1, cmap="seismic", aspect=1)
     plt.show()
 
     if constant:
@@ -106,7 +106,7 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
-    parser.add_argument("-dse", "-dse", default="advanced",
+    parser.add_argument("-dse", default="advanced",
                         choices=["noop", "basic", "advanced",
                                  "speculative", "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
