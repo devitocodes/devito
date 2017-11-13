@@ -235,6 +235,29 @@ class TestAllocation(object):
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
 
+    @pytest.mark.parametrize('staggered', [
+        (0, 0, 0), (0, 0, 1), (0, 1, 0), (0, 1, 1),
+        (0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
+        (0, 1, 1, 0), (0, 1, 0, 1), (0, 0, 1, 1), (0, 1, 1, 1),
+    ])
+    def test_staggered_time(self, staggered):
+        """
+        Test the "deformed" allocation for staggered functions
+        """
+        grid = Grid(shape=tuple(11 for _ in staggered[1:]))
+        f = TimeFunction(name='f', grid=grid, staggered=staggered)
+        # from IPython import embed; embed()
+        assert f.data.shape[1:] == tuple(11-i for i in staggered[1:])
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
+        g = TimeFunction(name='g', grid=grid)
+        # Test insertion into a central point
+        index = tuple([0] + [5 for _ in staggered[1:]])
+        set_f = Eq(f.indexed[index], 2.)
+        set_g = Eq(g.indexed[index], 3.)
+        Operator([set_f, set_g])()
+        assert f.data[index] == 2.
+
 
 @skipif_yask
 class TestArguments(object):

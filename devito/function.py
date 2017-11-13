@@ -319,6 +319,7 @@ class TimeFunction(Function):
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param grid: :class:`Grid` object from which to infer the data shape
                  and :class:`Dimension` indices.
+    :param staggered: (Optional) tuple containing staggering offsets.
     :param dtype: (Optional) data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
@@ -379,8 +380,13 @@ class TimeFunction(Function):
         """
         Full allocated shape of the data associated with this :class:`TimeFunction`.
         """
-        tsize = self.time_dim if self.save else self.time_order + 1
-        return (tsize, ) + self.shape_domain
+        if self.save:
+            tsize = self.time_dim - self.staggered[0]
+        else:
+            tsize = self.time_order + 1
+        shape_domain = tuple(i - s for i, s in zip(self.shape_domain,
+                                                   self.staggered[1:]))
+        return (tsize, ) + shape_domain
 
     def initialize(self):
         if self.initializer is not None:
