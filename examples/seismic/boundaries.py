@@ -97,28 +97,35 @@ class ABC(object):
         :return:
         """
         return [self.abc_eq.subs({self.indices[1]: self.p_abc}),
-                self.abc_eq.subs({self.indices[1]: self.full_shape[0] - 1 - self.p_abc})]
+                self.abc_eq.subs({self.indices[1]: self.full_shape[1] - 1 - self.p_abc})]
 
     def damp_z(self):
         """
-        Dampening profile along z
+        Dampening profile along y
         :return:
         """
-        p_abcz = Dimension(name="abcz")
-        profile = [1 - np.exp(-(0.004 * pos) ** 2) for pos in range(self.nbpml - 1, -1, -1)]
-        # second order would be 1/250*pos)**2 *(1 + 1/2*(1/250*pos)*(1/250*pos))
-        # profile = [(1 / 250 * pos) * (1 / 250 * pos) for pos in range(self.nbpml-1,0,-1)]
-        damp_profile = Function(name="dampz", shape=(self.nbpml,), dimensions=(p_abcz,), dtype=np.float32)
-        damp_profile.data[:] = profile
-
-        s = self.tindex.spacing
-        next = self.field.forward if self.taxis is Forward else self.field.backward
-        prev = self.field.backward if self.taxis is Forward else self.field.forward
-        abc_eq = Eq(next, self.m / (self.m + s * damp_profile) * next +
-                    s * damp_profile / (self.m + s * damp_profile) * prev)
-
-        return [abc_eq.subs({self.indices[2]: p_abcz}),
-                abc_eq.subs({self.indices[2]: self.full_shape[0] - 1 - p_abcz})]
+        return [self.abc_eq.subs({self.indices[2]: self.p_abc}),
+                self.abc_eq.subs({self.indices[2]: self.full_shape[2] - 1 - self.p_abc})]
+    # def damp_z(self):
+    #     """
+    #     Dampening profile along z
+    #     :return:
+    #     """
+    #     p_abcz = Dimension(name="abcz")
+    #     profile = [1 - np.exp(-(0.004 * pos) ** 2) for pos in range(self.nbpml - 1, -1, -1)]
+    #     # second order would be 1/250*pos)**2 *(1 + 1/2*(1/250*pos)*(1/250*pos))
+    #     # profile = [(1 / 250 * pos) * (1 / 250 * pos) for pos in range(self.nbpml-1,0,-1)]
+    #     damp_profile = Function(name="dampz", shape=(self.nbpml,), dimensions=(p_abcz,), dtype=np.float32)
+    #     damp_profile.data[:] = profile
+    #
+    #     s = self.tindex.spacing
+    #     next = self.field.forward if self.taxis is Forward else self.field.backward
+    #     prev = self.field.backward if self.taxis is Forward else self.field.forward
+    #     abc_eq = Eq(next, self.m / (self.m + s * damp_profile) * next +
+    #                 s * damp_profile / (self.m + s * damp_profile) * prev)
+    #
+    #     return [abc_eq.subs({self.indices[2]: p_abcz}),
+    #             abc_eq.subs({self.indices[2]: self.full_shape[0] - 1 - p_abcz})]
 
     def damp_2d(self):
         """
