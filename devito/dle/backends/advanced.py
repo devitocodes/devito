@@ -340,9 +340,8 @@ class DevitoRewriter(BasicRewriter):
         mapper = {}
         for tree in retrieve_iteration_tree(nodes):
             vector_iterations = [i for i in tree if i.is_Vectorizable]
-            if not vector_iterations:
+            if not vector_iterations or len(vector_iterations) > 1:
                 continue
-            assert len(vector_iterations) == 1
             root = vector_iterations[0]
             if root.tag is None:
                 continue
