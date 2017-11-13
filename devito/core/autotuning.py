@@ -42,9 +42,11 @@ def autotune(operator, arguments, tunable):
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps + 1
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)
-        at_arguments[sequential.dim.symbolic_size.name] = timesteps
+        at_arguments[sequential.dim.symbolic_start.name] = start
+        at_arguments[sequential.dim.symbolic_end.name] = timesteps
         if sequential.dim.is_Stepping:
-            at_arguments[sequential.dim.parent.symbolic_size.name] = timesteps
+            at_arguments[sequential.dim.parent.symbolic_start.name] = start
+            at_arguments[sequential.dim.parent.symbolic_end.name] = timesteps
     else:
         info_at("Couldn't understand loop structure, giving up auto-tuning")
         return arguments
@@ -54,7 +56,8 @@ def autotune(operator, arguments, tunable):
     # ... Defaults (basic mode)
     blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
     # ... Always try the entire iteration space (degenerate block)
-    datashape = [at_arguments[mapper[i].original_dim.symbolic_size.name] for i in mapper]
+    datashape = [at_arguments[mapper[i].original_dim.symbolic_end.name] -
+                 at_arguments[mapper[i].original_dim.symbolic_start.name] for i in mapper]
     blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j))
                       for i, j in zip(mapper, datashape)]))
     # ... More attempts if auto-tuning in aggressive mode
@@ -76,8 +79,9 @@ def autotune(operator, arguments, tunable):
         for k, v in at_arguments.items():
             if k in bs:
                 val = bs[k]
-                handle = at_arguments[mapper[k].original_dim.symbolic_size.name]
-                if val <= mapper[k].iteration.extent(0, handle):
+                start = at_arguments[mapper[k].original_dim.symbolic_start.name]
+                end = at_arguments[mapper[k].original_dim.symbolic_end.name]
+                if val <= mapper[k].iteration.extent(start, end):
                     at_arguments[k] = val
                 else:
                     # Block size cannot be larger than actual dimension
