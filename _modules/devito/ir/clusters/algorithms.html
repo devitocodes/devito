@@ -165,8 +165,8 @@
 
 <span class="kn">from</span> <span class="nn">devito.ir.clusters.cluster</span> <span class="k">import</span> <span class="n">Cluster</span>
 <span class="kn">from</span> <span class="nn">devito.ir.dfg</span> <span class="k">import</span> <span class="n">temporaries_graph</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">xreplace_indices</span>
-<span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;clusterize&#39;</span><span class="p">,</span> <span class="s1">&#39;optimize&#39;</span><span class="p">]</span>
@@ -286,9 +286,14 @@
 
     <span class="n">Info</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Info&#39;</span><span class="p">,</span> <span class="s1">&#39;trace stencil&#39;</span><span class="p">)</span>
 
+    <span class="c1"># Build a dependence graph and associate each node with its Stencil</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
     <span class="n">g</span> <span class="o">=</span> <span class="n">temporaries_graph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">Info</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">+</span> <span class="n">g</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">j</span><span class="p">))</span>
-                          <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">stencils</span><span class="p">)</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">])</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">stencils</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">:</span>
+            <span class="n">trace</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="n">trace</span> <span class="o">+=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">trace</span><span class="p">)</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">Info</span><span class="p">(</span><span class="n">trace</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
 
     <span class="c1"># A cluster stencil is determined iteratively, by first calculating the</span>
     <span class="c1"># &quot;local&quot; stencil and then by looking at the stencils of all other clusters</span>

@@ -172,10 +172,10 @@
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
-<span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">IterationProperty</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span>
                            <span class="n">VECTOR</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span>
                            <span class="n">tagger</span><span class="p">,</span> <span class="n">ntags</span><span class="p">,</span> <span class="n">UnboundedIndex</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentProvider</span><span class="p">,</span> <span class="n">Argument</span>

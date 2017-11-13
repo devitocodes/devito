@@ -37,7 +37,7 @@
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Devito 1 documentation" href="index.html"/>
         <link rel="up" title="devito.ir package" href="devito.ir.html"/>
-        <link rel="next" title="devito.symbolics package" href="devito.symbolics.html"/>
+        <link rel="next" title="devito.ir.support package" href="devito.ir.support.html"/>
         <link rel="prev" title="devito.ir.dfg package" href="devito.ir.dfg.html"/> 
 
   
@@ -126,7 +126,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.stencil">devito.stencil module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
@@ -203,6 +202,24 @@
 <h1>devito.ir.iet package<a class="headerlink" href="#devito-ir-iet-package" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-devito.ir.iet.analysis">
+<span id="devito-ir-iet-analysis-module"></span><h2>devito.ir.iet.analysis module<a class="headerlink" href="#module-devito.ir.iet.analysis" title="Permalink to this headline">¶</a></h2>
+<p>A collection of algorithms to analyze and decorate <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> in an
+Iteration/Expression tree. Decoration comes in the form of <code class="xref py py-class docutils literal"><span class="pre">IterationProperty</span></code>
+objects, attached to nodes in the Iteration/Expression tree.</p>
+<p>The current implementation is based on simplistic analysis of Iteration/Expression
+trees. A better implementation would use a control flow graph, perhaps derived
+the Iteration/Expression tree itself. An ever better implementation would use
+a library such as ISL (the Integer Set Library).</p>
+<dl class="function">
+<dt id="devito.ir.iet.analysis.analyze_iterations">
+<code class="descclassname">devito.ir.iet.analysis.</code><code class="descname">analyze_iterations</code><span class="sig-paren">(</span><em>nodes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/analysis.html#analyze_iterations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.analysis.analyze_iterations" title="Permalink to this definition">¶</a></dt>
+<dd><p>Attach <code class="xref py py-class docutils literal"><span class="pre">IterationProperty</span></code> to <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> objects within
+<code class="docutils literal"><span class="pre">nodes</span></code>. The recognized IterationProperty decorators are listed in
+<code class="docutils literal"><span class="pre">nodes.IterationProperty._KNOWN</span></code>.</p>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.ir.iet.nodes">
 <span id="devito-ir-iet-nodes-module"></span><h2>devito.ir.iet.nodes module<a class="headerlink" href="#module-devito.ir.iet.nodes" title="Permalink to this headline">¶</a></h2>
@@ -1157,7 +1174,7 @@ enclosed <code class="xref py py-class docutils literal"><span class="pre">Expre
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="devito.symbolics.html" class="btn btn-neutral float-right" title="devito.symbolics package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="devito.ir.support.html" class="btn btn-neutral float-right" title="devito.ir.support package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="devito.ir.dfg.html" class="btn btn-neutral" title="devito.ir.dfg package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

@@ -121,7 +121,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.profiling">devito.profiling module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.stencil">devito.stencil module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.types">devito.types module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito">Module contents</a></li>
@@ -252,13 +251,6 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="devito.ir.html">devito.ir package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.html#subpackages">Subpackages</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="devito.ir.analysis.html">devito.ir.analysis package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="devito.ir.analysis.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="devito.ir.analysis.html#module-devito.ir.analysis.basic">devito.ir.analysis.basic module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="devito.ir.analysis.html#module-devito.ir.analysis.flow">devito.ir.analysis.flow module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="devito.ir.analysis.html#module-devito.ir.analysis">Module contents</a></li>
-</ul>
-</li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.clusters.html">devito.ir.clusters package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.clusters.html#submodules">Submodules</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.clusters.html#module-devito.ir.clusters.algorithms">devito.ir.clusters.algorithms module</a></li>
@@ -274,11 +266,19 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.iet.html">devito.ir.iet package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.analysis">devito.ir.iet.analysis module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.nodes">devito.ir.iet.nodes module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.properties">devito.ir.iet.properties module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.utils">devito.ir.iet.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.visitors">devito.ir.iet.visitors module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="devito.ir.support.html">devito.ir.support package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.basic">devito.ir.support.basic module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.stencil">devito.ir.support.stencil module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support">Module contents</a></li>
 </ul>
 </li>
 </ul>
@@ -2297,143 +2297,6 @@ The following code sections are profiled:</p>
 * Any perfectly nested loops.
 </pre></div>
 </div>
-</dd></dl>
-
-</div>
-<div class="section" id="module-devito.stencil">
-<span id="devito-stencil-module"></span><h2>devito.stencil module<a class="headerlink" href="#module-devito.stencil" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.stencil.Stencil">
-<em class="property">class </em><code class="descclassname">devito.stencil.</code><code class="descname">Stencil</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.tools.DefaultOrderedDict</span></code></p>
-<p>A Stencil is a mapping from <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> symbols to the set of integer
-offsets used with it in expressions (the “neighboring points accessed”).</p>
-<p>This also include zero offsets.</p>
-<p>The mapping is ordered based on the order in which dimensions are encountered
-(if extracted from expressions) or inserted.</p>
-<p>Note: Expressions must have been indexified for a Stencil to be computed.</p>
-<dl class="method">
-<dt id="devito.stencil.Stencil.add">
-<code class="descname">add</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.add" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the set union of each Dimension in self with the corresponding
-Dimension in <code class="docutils literal"><span class="pre">o</span></code>.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.stencil.Stencil.anti">
-<code class="descname">anti</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.anti"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.anti" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the anti-Stencil of <code class="docutils literal"><span class="pre">self</span></code> constrained by <code class="docutils literal"><span class="pre">o</span></code>.</p>
-<p>Examples:</p>
-<p>Assuming one single dimension (omitted for brevity)</p>
-<p>self = {-3, -2, -1, 0, 1, 2, 3}
-o = {-3, -2, -1, 0, 1, 2, 3}
-self.anti(o) &gt;&gt; {}</p>
-<p>self = {-3, -2, -1, 0, 1, 2, 3}
-o = {-2, -1, 0, 1}
-self.anti(o) &gt;&gt; {-1, 0, 1, 2}</p>
-<p>self = {-1, 0, 1}
-o = {-2, -1, 0, 1, 2}
-self.anti(o) &gt;&gt; {-1, 0, 1}</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.stencil.Stencil.diameter">
-<code class="descname">diameter</code><a class="headerlink" href="#devito.stencil.Stencil.diameter" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.stencil.Stencil.dimensions">
-<code class="descname">dimensions</code><a class="headerlink" href="#devito.stencil.Stencil.dimensions" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.stencil.Stencil.empty">
-<code class="descname">empty</code><a class="headerlink" href="#devito.stencil.Stencil.empty" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.stencil.Stencil.entries">
-<code class="descname">entries</code><a class="headerlink" href="#devito.stencil.Stencil.entries" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="classmethod">
-<dt id="devito.stencil.Stencil.extract">
-<em class="property">classmethod </em><code class="descname">extract</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.extract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.extract" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the stencil of <code class="docutils literal"><span class="pre">expr</span></code>.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.stencil.Stencil.frozen">
-<code class="descname">frozen</code><a class="headerlink" href="#devito.stencil.Stencil.frozen" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="devito.stencil.Stencil.get">
-<code class="descname">get</code><span class="sig-paren">(</span><em>k</em>, <em>v=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.get" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="devito.stencil.Stencil.null">
-<code class="descname">null</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.null"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.null" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the null Stencil of <code class="docutils literal"><span class="pre">self</span></code>.</p>
-<p>Examples:</p>
-<p>self = {i: {-1, 0, 1}, j: {-2, -1, 0, 1, 2}}
-self.null() &gt;&gt; {i: {0}, j: {0}}</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.stencil.Stencil.rshift">
-<code class="descname">rshift</code><span class="sig-paren">(</span><em>m</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.rshift"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.rshift" title="Permalink to this definition">¶</a></dt>
-<dd><p>Right-shift the Dimensions <code class="docutils literal"><span class="pre">d</span></code> of <code class="docutils literal"><span class="pre">self</span></code> appearing in the mapper <code class="docutils literal"><span class="pre">m</span></code>
-by the constant quantity <code class="docutils literal"><span class="pre">m[d]</span></code>.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.stencil.Stencil.section">
-<code class="descname">section</code><span class="sig-paren">(</span><em>d</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.section"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.section" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a view of the Stencil in which the Dimensions in <code class="docutils literal"><span class="pre">d</span></code> have been
-dropped.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.stencil.Stencil.split">
-<code class="descname">split</code><span class="sig-paren">(</span><em>ds=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.split"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.split" title="Permalink to this definition">¶</a></dt>
-<dd><p>Split <code class="docutils literal"><span class="pre">self</span></code> into two Stencils, one with the negative axis, and one
-with the positive axis. If <code class="docutils literal"><span class="pre">ds</span></code> is provided, the split occurs only
-along the Dimensions listed in <code class="docutils literal"><span class="pre">ds</span></code>.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.stencil.Stencil.subtract">
-<code class="descname">subtract</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.subtract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.subtract" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the set difference of each Dimension in self with the corresponding
-Dimension in <code class="docutils literal"><span class="pre">o</span></code>.</p>
-</dd></dl>
-
-<dl class="classmethod">
-<dt id="devito.stencil.Stencil.union">
-<em class="property">classmethod </em><code class="descname">union</code><span class="sig-paren">(</span><em>*dicts</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.union"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.union" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the union of an iterable of <a class="reference internal" href="#devito.stencil.Stencil" title="devito.stencil.Stencil"><code class="xref py py-class docutils literal"><span class="pre">Stencil</span></code></a> objects.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="devito.stencil.StencilEntry">
-<em class="property">class </em><code class="descclassname">devito.stencil.</code><code class="descname">StencilEntry</code><span class="sig-paren">(</span><em>dim</em>, <em>ofs</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.stencil.StencilEntry" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">tuple</span></code></p>
-<dl class="attribute">
-<dt id="devito.stencil.StencilEntry.dim">
-<code class="descname">dim</code><a class="headerlink" href="#devito.stencil.StencilEntry.dim" title="Permalink to this definition">¶</a></dt>
-<dd><p>Alias for field number 0</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.stencil.StencilEntry.ofs">
-<code class="descname">ofs</code><a class="headerlink" href="#devito.stencil.StencilEntry.ofs" title="Permalink to this definition">¶</a></dt>
-<dd><p>Alias for field number 1</p>
-</dd></dl>
-
 </dd></dl>
 
 </div>

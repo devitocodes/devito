@@ -37,7 +37,7 @@
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Devito 1 documentation" href="index.html"/>
         <link rel="up" title="devito package" href="devito.html"/>
-        <link rel="next" title="devito.ir.analysis package" href="devito.ir.analysis.html"/>
+        <link rel="next" title="devito.ir.clusters package" href="devito.ir.clusters.html"/>
         <link rel="prev" title="devito.foreign package" href="devito.foreign.html"/> 
 
   
@@ -126,7 +126,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.stencil">devito.stencil module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
@@ -203,13 +202,6 @@
 <h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this headline">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="devito.ir.analysis.html">devito.ir.analysis package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.analysis.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.analysis.html#module-devito.ir.analysis.basic">devito.ir.analysis.basic module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.analysis.html#module-devito.ir.analysis.flow">devito.ir.analysis.flow module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.analysis.html#module-devito.ir.analysis">Module contents</a></li>
-</ul>
-</li>
 <li class="toctree-l1"><a class="reference internal" href="devito.ir.clusters.html">devito.ir.clusters package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.clusters.html#submodules">Submodules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.clusters.html#module-devito.ir.clusters.algorithms">devito.ir.clusters.algorithms module</a></li>
@@ -225,11 +217,19 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="devito.ir.iet.html">devito.ir.iet package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.analysis">devito.ir.iet.analysis module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.nodes">devito.ir.iet.nodes module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.properties">devito.ir.iet.properties module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.utils">devito.ir.iet.utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.visitors">devito.ir.iet.visitors module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="devito.ir.support.html">devito.ir.support package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="devito.ir.support.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.basic">devito.ir.support.basic module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.stencil">devito.ir.support.stencil module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support">Module contents</a></li>
 </ul>
 </li>
 </ul>
@@ -250,7 +250,7 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="devito.ir.analysis.html" class="btn btn-neutral float-right" title="devito.ir.analysis package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="devito.ir.clusters.html" class="btn btn-neutral float-right" title="devito.ir.clusters package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="devito.foreign.html" class="btn btn-neutral" title="devito.foreign package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

@@ -4,6 +4,14 @@ devito\.ir\.iet package
 Submodules
 ----------
 
+devito\.ir\.iet\.analysis module
+--------------------------------
+
+.. automodule:: devito.ir.iet.analysis
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.ir\.iet\.nodes module
 -----------------------------
 
