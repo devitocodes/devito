@@ -96,6 +96,7 @@ class Function(TensorFunction):
     :param shape: (Optional) shape of the associated data for this symbol.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
+    :param staggered: (Optional) tuple containing staggering offsets.
     :param dtype: (Optional) data type of the buffered data.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
@@ -108,6 +109,15 @@ class Function(TensorFunction):
        :class:`Function` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
        :class:`TimeFunction` for time-varying grid data.
+
+    .. note::
+
+       The tuple :param staggered: contains a ``1`` in each dimension
+       entry that should be staggered, and ``0`` otherwise. For example,
+       ``staggered=(1, 0, 0)`` entails discretization on horizontal edges,
+       ``staggered=(0, 0, 1)`` entails discretization on vertical edges,
+       ``staggered=(0, 1, 1)`` entails discretization side facets and
+       ``staggered=(1, 1, 1)`` entails discretization on cells.
     """
 
     is_Function = True
@@ -128,6 +138,8 @@ class Function(TensorFunction):
                 self.shape_domain = self.grid.shape_domain
                 self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.indices = self._indices(**kwargs)
+            self.staggered = kwargs.get('staggered',
+                                        tuple(0 for _ in self.indices))
 
             self.space_order = kwargs.get('space_order', 1)
             self.initializer = kwargs.get('initializer', None)
@@ -235,7 +247,7 @@ class Function(TensorFunction):
         """
         Full allocated shape of the data associated with this :class:`Function`.
         """
-        return self.shape_domain
+        return tuple(i - s for i, s in zip(self.shape_domain, self.staggered))
 
     @property
     def shape(self):
