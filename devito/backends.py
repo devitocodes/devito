@@ -11,7 +11,6 @@ from sympy.core.function import FunctionClass
 
 from devito.exceptions import DevitoError
 from devito.logger import warning
-from devito.parameters import configuration
 
 backends = {}
 
@@ -112,18 +111,16 @@ def set_backend(backend):
     """
     global _BackendSelector
     if _BackendSelector._backend != void:
-        raise RuntimeError("The backend can only be set once!")
+        warning("WARNING: Switching backend to %s" % backend)
 
-    mod = backends.get(backend)
-    if mod is None:
-        try:
-            # We need to pass a non-empty fromlist so that __import__
-            # returns the submodule (i.e. the backend) rather than the
-            # package.
-            mod = __import__('devito.%s' % backend, fromlist=['None'])
-        except ImportError as e:
-            warning('Unable to import backend %s' % backend)
-            raise e
+    try:
+        # We need to pass a non-empty fromlist so that __import__
+        # returns the submodule (i.e. the backend) rather than the
+        # package.
+        mod = __import__('devito.%s' % backend, fromlist=['None'])
+    except ImportError as e:
+        warning('Unable to import backend %s' % backend)
+        raise e
     backends[backend] = mod
     _BackendSelector._backend = mod
 
@@ -137,14 +134,10 @@ def init_backend(backend):
     """
     Initialise Devito: select the backend and other configuration options.
     """
-    current_backend = get_backend()
-    if current_backend not in backends_registry:
+    if backend not in backends_registry:
         raise RuntimeError("Calling init() for a different backend is illegal.")
-    if current_backend == 'void':
-        try:
-            set_backend(backend)
-        except (ImportError, RuntimeError):
-            raise DevitoError("Couldn't initialize Devito.")
 
-
-configuration.add('backend', 'core', list(backends_registry))
+    try:
+        set_backend(backend)
+    except (ImportError, RuntimeError):
+        raise DevitoError("Couldn't initialize Devito.")

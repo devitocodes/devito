@@ -11,7 +11,7 @@ from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
                     TimeFunction, SparseFunction, Dimension, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
-from devito.visitors import IsPerfectIteration
+from devito.ir.iet import IsPerfectIteration
 
 
 def dimify(dimensions):
@@ -67,9 +67,9 @@ class TestArithmetic(object):
 
     @pytest.mark.parametrize('expr, result', [
         ('Eq(a, a + b + 5.)', 10.),
-        # ('Eq(a, b - a)', 1.),
-        # ('Eq(a, 4 * (b * a))', 24.),
-        # ('Eq(a, (6. / b) + (8. * a))', 18.),
+        ('Eq(a, b - a)', 1.),
+        ('Eq(a, 4 * (b * a))', 24.),
+        ('Eq(a, (6. / b) + (8. * a))', 18.),
     ])
     @pytest.mark.parametrize('mode', ['function'])
     def test_flat(self, expr, result, mode):
@@ -285,7 +285,7 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
 
-    def test_dimension_offset_adjust(self, nt=100):
+    def test_arg_offset_adjust(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
@@ -301,7 +301,22 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 8)
 
-    def test_dimension_size_override(self, nt=100):
+    def test_dimension_offset_adjust(self, nt=100):
+        """Test that the dimension sizes are being inferred correctly"""
+        i, j, k = dimify('i j k')
+        shape = (10, 10, 10)
+        grid = Grid(shape=shape, dimensions=(i, j, k))
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        time = b.indices[0]
+        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
+                 + b.indexed[time, i, j, k] + a[i, j, k])
+        op = Operator(eqn)
+        op_arguments, _ = op.arguments(time=nt-10)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 8)
+
+    def test_dimension_size_override(self):
         """Test explicit overrides for the leading time dimension"""
         grid = Grid(shape=(3, 5, 7))
         a = TimeFunction(name='a', grid=grid)
@@ -467,8 +482,8 @@ class TestDeclarator(object):
   float (*c)[j_size];
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section_1, end_section_1;
+  gettimeofday(&start_section_1, NULL);
   for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = 0.0F;
@@ -477,9 +492,9 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section_1, NULL);
+  timings->section_1 += (double)(end_section_1.tv_sec-start_section_1.tv_sec)\
++(double)(end_section_1.tv_usec-start_section_1.tv_usec)/1000000;
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
@@ -668,8 +683,7 @@ class TestLoopScheduler(object):
         are embedded within the same time loop.
         """
         grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
-        a = TimeFunction(name='a', grid=grid, time_order=2,
-                         space_order=2, time_dim=6, save=False)
+        a = TimeFunction(name='a', grid=grid, time_order=2, space_order=2)
         p_aux = Dimension(name='p_aux', size=10)
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                      space_order=2)
@@ -690,14 +704,15 @@ class TestLoopScheduler(object):
         op2 = Operator(eqns2, subs=subs, dle='noop')
         trees = retrieve_iteration_tree(op2)
         assert len(trees) == 2
-        assert all(trees[0][i] is trees[1][i] for i in range(3))
 
         # Verify both operators produce the same result
-        op()
-        op2()
+        op(time=10)
+        a.data[:] = 0.
+        op2(time=10)
 
-        assert(np.allclose(b2.data[2, ...].reshape(-1) -
-                           b.data[..., 2].reshape(-1), 0.))
+        for i in range(10):
+            assert(np.allclose(b2.data[i, ...].reshape(-1) -
+                               b.data[..., i].reshape(-1), 0.))
 
 
 @skipif_yask

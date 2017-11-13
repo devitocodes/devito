@@ -18,13 +18,13 @@ from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
-from devito.types import Array
+from devito.ir.iet import (Block, Expression, Iteration, List,
+                           PARALLEL, ELEMENTAL, REMAINDER, tagger,
+                           FindNodes, FindSymbols, IsPerfectIteration,
+                           SubstituteExpression, Transformer)
 from devito.logger import dle_warning
-from devito.nodes import (Block, Denormals, Expression, Iteration, List,
-                          PARALLEL, ELEMENTAL, REMAINDER, tagger)
 from devito.tools import as_tuple, grouper, roundm
-from devito.visitors import (FindNodes, FindSymbols, IsPerfectIteration,
-                             SubstituteExpression, Transformer)
+from devito.types import Array
 
 
 class DevitoRewriter(BasicRewriter):
@@ -155,8 +155,10 @@ class DevitoRewriter(BasicRewriter):
             intra_blocks = []
             remainders = []
             for i in iterations:
+                name = "%s%d_block" % (i.dim.name, len(mapper))
+
                 # Build Iteration over blocks
-                dim = blocked.setdefault(i, Dimension("%s_block" % i.dim.name))
+                dim = blocked.setdefault(i, Dimension(name))
                 block_size = dim.symbolic_size
                 iter_size = i.dim.symbolic_extent
                 start = i.limits[0] - i.offsets[0]
@@ -277,10 +279,6 @@ class DevitoRewriter(BasicRewriter):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code
         """
-        # Reset denormals flag each time a parallel region is entered
-        denormals = FindNodes(Denormals).visit(nodes)
-        mapper = OrderedDict([(i, None) for i in denormals])
-
         # Group by outer loop so that we can embed within the same parallel region
         was_tagged = False
         groups = OrderedDict()
@@ -300,6 +298,7 @@ class DevitoRewriter(BasicRewriter):
             was_tagged = is_tagged
 
         # Handle parallelizable loops
+        mapper = OrderedDict()
         for group in groups.values():
             private = []
             for root, tree in group.items():
@@ -323,8 +322,7 @@ class DevitoRewriter(BasicRewriter):
             private = sorted(set([i.name for i in private]))
             private = ('private(%s)' % ','.join(private)) if private else ''
             rebuilt = [v for k, v in mapper.items() if k in group]
-            par_region = Block(header=omplang['par-region'](private),
-                               body=denormals + rebuilt)
+            par_region = Block(header=omplang['par-region'](private), body=rebuilt)
             for k, v in list(mapper.items()):
                 if isinstance(v, Iteration):
                     mapper[k] = None if v.is_Remainder else par_region
@@ -342,9 +340,8 @@ class DevitoRewriter(BasicRewriter):
         mapper = {}
         for tree in retrieve_iteration_tree(nodes):
             vector_iterations = [i for i in tree if i.is_Vectorizable]
-            if not vector_iterations:
+            if not vector_iterations or len(vector_iterations) > 1:
                 continue
-            assert len(vector_iterations) == 1
             root = vector_iterations[0]
             if root.tag is None:
                 continue
@@ -517,6 +514,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
 class DevitoCustomRewriter(DevitoSpeculativeRewriter):
 
     passes_mapper = {
+        'denormals': DevitoSpeculativeRewriter._avoid_denormals,
         'blocking': DevitoSpeculativeRewriter._loop_blocking,
         'openmp': DevitoSpeculativeRewriter._ompize,
         'simd': DevitoSpeculativeRewriter._simdize,
@@ -529,9 +527,9 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
         try:
             passes = passes.split(',')
         except AttributeError:
-            raise DLEException
-        if not all(i in DevitoCustomRewriter.passes_mapper for i in passes):
-            raise DLEException
+            # Already in tuple format
+            if not all(i in DevitoCustomRewriter.passes_mapper for i in passes):
+                raise DLEException
         self.passes = passes
         super(DevitoCustomRewriter, self).__init__(nodes, params)
 

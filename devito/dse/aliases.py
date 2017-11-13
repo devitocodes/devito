@@ -4,10 +4,9 @@ from collections import OrderedDict, namedtuple
 import numpy as np
 from sympy import Indexed
 
+from devito.ir.support import Stencil
 from devito.exceptions import DSEException
-from devito.dse.search import retrieve_indexed
-from devito.dse.queries import q_indirect
-from devito.stencil import Stencil
+from devito.symbolics import retrieve_indexed, q_indirect
 
 __all__ = ['collect']
 

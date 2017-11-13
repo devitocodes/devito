@@ -4,11 +4,10 @@ import pytest
 
 from sympy import cos, Symbol  # noqa
 
-from devito import Eq  # noqa
-from devito import (Dimension, TimeDimension, SteppingDimension, SpaceDimension,
-                    Constant, Function, configuration)
+from devito import (Dimension, Eq, TimeDimension, SteppingDimension, SpaceDimension,  # noqa
+                    Constant, Function, configuration)  # noqa
 from devito.types import Scalar, Array
-from devito.nodes import Iteration
+from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
 
@@ -197,8 +196,12 @@ def EVAL(exprs, *args):
     for i in args:
         try:
             scope[i.base.function.name] = i
+            for j in i.base.function.indices:
+                scope[j.name] = j
         except AttributeError:
             scope[i.label.name] = i
+            for j in i.function.indices:
+                scope[j.name] = j
     processed = []
     for i in as_tuple(exprs):
         processed.append(eval(i, globals(), scope))

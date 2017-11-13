@@ -1,7 +1,7 @@
 """
-Visitor hierarchy to inspect and/or create Expression/Iteration trees.
+Visitor hierarchy to inspect and/or create IETs.
 
-The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
+The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
 from __future__ import absolute_import
@@ -11,19 +11,20 @@ from collections import Iterable, OrderedDict, defaultdict
 from operator import attrgetter
 
 import cgen as c
+import numpy as np
 
 from devito.cgen_utils import blankline, ccode
 from devito.dimension import LoweredDimension
 from devito.exceptions import VisitorException
-from devito.nodes import Iteration, Node, UnboundedIndex
-from devito.types import Symbol
+from devito.ir.iet.nodes import Iteration, Node, UnboundedIndex
+from devito.types import Scalar
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
            'ResolveTimeStepping', 'Transformer', 'NestedTransformer',
-           'FindAdjacentIterations']
+           'FindAdjacentIterations', 'MergeOuterIterations', 'MapExpressions']
 
 
 class Visitor(object):
@@ -413,19 +414,33 @@ class FindSections(Visitor):
 
 class FindScopes(FindSections):
 
-    @classmethod
-    def default_retval(cls):
-        return OrderedDict()
-
     """
-    Map each written variable or :class:`Call` object in the Iteration/Expression
+    Map :class:`Expression` and :class:`Call` objects in the Iteration/Expression
     tree to its section.
     """
 
-    def visit_Call(self, o, ret=None, queue=None, in_omp_region=False):
+    def visit_Call(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         ret[o] = as_tuple(queue)
+        return ret
+
+    visit_Expression = visit_Call
+    visit_Element = FindSections.visit_Node
+
+
+class MapExpressions(FindSections):
+
+    """
+    Map each :class:`Iteration` object in the Iteration/Expression tree to the
+    enclosed :class:`Expression` and :class:`Call` objects.
+    """
+
+    def visit_Call(self, o, ret=None, queue=None):
+        if ret is None:
+            ret = self.default_retval()
+        for i in queue:
+            ret.setdefault(i, []).append(o)
         return ret
 
     visit_Expression = visit_Call
@@ -718,12 +733,12 @@ class ResolveTimeStepping(Transformer):
             # definition of buffered variables, eg. t+1 => t1
             init = []
             for i, off in enumerate(filter_ordered(offsets[o.dim])):
-                vname = Symbol(name="%s%d" % (o.dim.name, i))
+                vname = Scalar(name="%s%d" % (o.dim.name, i), dtype=np.int32)
                 value = (o.dim.parent + off) % o.dim.modulo
                 init.append(UnboundedIndex(vname, value, value))
                 subs[o.dim + off] = LoweredDimension(vname.name, o.dim, off)
             # Always lower to symbol
-            subs[o.dim.parent] = Symbol(name=o.dim.parent.name)
+            subs[o.dim.parent] = Scalar(name=o.dim.parent.name, dtype=np.int32)
             return o._rebuild(index=o.dim.parent.name, uindices=init), subs
         else:
             return o._rebuild(*nodes), subs

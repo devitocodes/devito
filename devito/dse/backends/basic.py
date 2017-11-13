@@ -1,7 +1,7 @@
 from sympy import cos, sin
 
 from devito.dse.backends import AbstractRewriter, dse_pass
-from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
+from devito.symbolics import bhaskara_cos, bhaskara_sin
 from devito.dse.manipulation import common_subexprs_elimination
 
 from devito.types import Scalar

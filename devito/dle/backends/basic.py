@@ -8,14 +8,14 @@ import numpy as np
 from sympy import Symbol
 
 from devito.cgen_utils import ccode
-from devito.dse import as_symbol
 from devito.dle import retrieve_iteration_tree, filter_iterations
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
-from devito.types import Scalar
-from devito.nodes import (Denormals, Expression, Call, Callable, List,
-                          UnboundedIndex)
+from devito.ir.iet import (Denormals, Expression, Call, Callable, List,
+                           UnboundedIndex, FindNodes, FindSymbols,
+                           NestedTransformer, Transformer)
+from devito.symbolics import as_symbol
 from devito.tools import filter_sorted, flatten
-from devito.visitors import FindNodes, FindSymbols, NestedTransformer, Transformer
+from devito.types import Scalar
 
 
 class BasicRewriter(AbstractRewriter):
@@ -84,17 +84,19 @@ class BasicRewriter(AbstractRewriter):
             expressions = FindNodes(Expression).visit(free)
             fsymbols = FindSymbols('symbolics').visit(free)
 
-            # Retrieve symbolic arguments
+            # Add all definitely-required arguments
+            not_required.update({i.output for i in expressions if i.is_scalar})
             for i in fsymbols:
-                if i.is_Array:
+                if i in not_required:
+                    continue
+                elif i.is_Array:
                     args.append(("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name), i))
                 elif i.is_TensorFunction:
                     args.append(("%s_vec" % i.name, i))
-                elif i.is_Constant:
+                elif i.is_Scalar:
                     args.append((i.name, i))
 
-            # Retrieve scalar arguments
-            not_required.update({i.output for i in expressions if i.is_scalar})
+            # Add all maybe-required arguments that turn out to be required
             maybe_required.update(set(FindSymbols(mode='free-symbols').visit(free)))
             for i in fsymbols:
                 not_required.update({as_symbol(i), i.indexify()})

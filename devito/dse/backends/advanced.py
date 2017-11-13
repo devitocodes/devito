@@ -2,14 +2,12 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
+from devito.ir import clusterize
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
-from devito.dse.clusterizer import clusterize
-from devito.dse.extended_sympy import Eq
-from devito.dse.inspection import estimate_cost
+from devito.symbolics import Eq, estimate_cost, xreplace_constrained, iq_timeinvariant
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
-                                     xreplace_constrained, compact_temporaries)
-from devito.dse.queries import iq_timeinvariant
+                                     compact_temporaries)
 from devito.types import Indexed, Scalar, Array
 
 

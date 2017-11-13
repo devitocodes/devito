@@ -2,8 +2,7 @@ import abc
 from collections import OrderedDict
 from time import time
 
-from devito.dse.inspection import estimate_cost
-from devito.dse.manipulation import freeze_expression, pow_to_mul
+from devito.symbolics import estimate_cost, freeze_expression, pow_to_mul
 
 from devito.logger import dse
 from devito.tools import flatten

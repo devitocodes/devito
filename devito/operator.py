@@ -7,23 +7,26 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.flow import analyze_iterations
+from devito.arguments import infer_dimension_values_tuple
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
+from devito.dse import rewrite
+from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.function import Forward, Backward, CompositeFunction
-from devito.types import Object
 from devito.logger import bar, error, info
-from devito.nodes import Element, Expression, Callable, Iteration, List, LocalExpression
+from devito.ir.clusters import clusterize
+from devito.ir.iet import (Element, Expression, Callable, Iteration, List,
+                           LocalExpression, FindScopes, ResolveTimeStepping,
+                           SubstituteExpression, Transformer, NestedTransformer,
+                           analyze_iterations)
+from devito.ir.support import Stencil
 from devito.parameters import configuration
 from devito.profiling import create_profile
-from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
-from devito.visitors import (FindScopes, ResolveTimeStepping,
-                             SubstituteExpression, Transformer, NestedTransformer)
-from devito.exceptions import InvalidArgument, InvalidOperator
+from devito.symbolics import indexify, retrieve_terminals
+from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
+from devito.types import Object
 
 
 class Operator(Callable):
@@ -72,6 +75,9 @@ class Operator(Callable):
         self._lib = None
         self._cfunction = None
 
+        # References to local or external routines
+        self.func_table = OrderedDict()
+
         # Expression lowering
         expressions = [indexify(s) for s in expressions]
         expressions = [s.xreplace(subs) for s in expressions]
@@ -111,24 +117,24 @@ class Operator(Callable):
         nodes, subs = ResolveTimeStepping().visit(nodes)
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
+        # Translate into backend-specific representation (e.g., GPU, Yask)
+        nodes = self._specialize(nodes, parameters)
+
         # Apply the Devito Loop Engine (DLE) for loop optimization
         dle_state = transform(nodes, *set_dle_mode(dle))
 
         # Update the Operator state based on the DLE
         self.dle_arguments = dle_state.arguments
         self.dle_flags = dle_state.flags
-        self.func_table = OrderedDict([(i.name, FunMeta(i, True))
-                                       for i in dle_state.elemental_functions])
+        self.func_table.update(OrderedDict([(i.name, FunMeta(i, True))
+                                            for i in dle_state.elemental_functions]))
         parameters.extend([i.argument for i in self.dle_arguments])
         self.dimensions.extend([i.argument for i in self.dle_arguments
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
 
-        # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes = self._specialize(dle_state.nodes, parameters)
-
         # Introduce all required C declarations
-        nodes = self._insert_declarations(nodes)
+        nodes = self._insert_declarations(dle_state.nodes)
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
@@ -161,7 +167,12 @@ class Operator(Callable):
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None)))
         for d in self.dimensions:
-            d.verify(kwargs.pop(d.name, None), enforce=True)
+            user_provided_value = kwargs.pop(d.name, None)
+            if user_provided_value is not None:
+                user_provided_value = infer_dimension_values_tuple(user_provided_value,
+                                                                   d.rtargs,
+                                                                   self.argument_offsets)
+            d.verify(user_provided_value, enforce=True)
         for i in self.parameters:
             if i.is_ScalarArgument:
                 user_provided_value = kwargs.pop(i.name, None)
@@ -292,12 +303,6 @@ class Operator(Callable):
         """Create an Iteartion/Expression tree given an iterable of
         :class:`Cluster` objects."""
 
-        # Topologically sort Iterations
-        ordering = partial_order([i.stencil.dimensions for i in clusters])
-        for i, d in enumerate(list(ordering)):
-            if d.is_Stepping:
-                ordering.insert(i, d.parent)
-
         # Build the Iteration/Expression tree
         processed = []
         schedule = OrderedDict()
@@ -310,9 +315,6 @@ class Operator(Callable):
             if not i.stencil.empty:
                 root = None
                 entries = i.stencil.entries
-
-                # Reorder based on the globally-established loop ordering
-                entries = sorted(entries, key=lambda i: ordering.index(i.dim))
 
                 # Can I reuse any of the previously scheduled Iterations ?
                 index = 0
@@ -530,8 +532,10 @@ def set_dle_mode(mode):
     elif isinstance(mode, str):
         return mode, {}
     elif isinstance(mode, tuple):
-        if len(mode) == 1:
-            return mode[0], {}
-        elif len(mode) == 2 and isinstance(mode[1], dict):
-            return mode
+        if len(mode) == 0:
+            return 'noop', {}
+        elif isinstance(mode[-1], dict):
+            return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
+        else:
+            return tuple(flatten(i.split(',') for i in mode)), {}
     raise TypeError("Illegal DLE mode %s." % str(mode))

@@ -10,10 +10,9 @@ from devito.dimension import LoweredDimension
 from devito.dle import filter_iterations, retrieve_iteration_tree
 from devito.types import Object
 from devito.logger import yask as log, yask_warning as warning
-from devito.nodes import Element
+from devito.ir.iet import Element, IsPerfectIteration, Transformer
 from devito.operator import OperatorRunnable, FunMeta
 from devito.tools import flatten
-from devito.visitors import IsPerfectIteration, Transformer
 
 from devito.yask import nfac, namespace, exit, configuration
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
@@ -33,7 +32,7 @@ class Operator(OperatorRunnable):
     _default_includes = OperatorRunnable._default_includes + ['yask_kernel_api.hpp']
 
     def __init__(self, expressions, **kwargs):
-        kwargs['dle'] = 'basic'
+        kwargs['dle'] = ('denormals',) + (('openmp',) if configuration['openmp'] else ())
         super(Operator, self).__init__(expressions, **kwargs)
         # Each YASK Operator needs to have its own compiler (hence the copy()
         # below) because Operator-specific shared object will be added to the
