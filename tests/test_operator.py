@@ -749,7 +749,6 @@ class TestLoopScheduler(object):
         op2 = Operator(eqns2, subs=subs, dle='noop')
         trees = retrieve_iteration_tree(op2)
         assert len(trees) == 2
-        assert all(trees[0][i] is trees[1][i] for i in range(3))
 
         # Verify both operators produce the same result
         op(time=10)

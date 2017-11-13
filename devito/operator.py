@@ -25,7 +25,7 @@ from devito.ir.support import Stencil
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify, retrieve_terminals
-from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
+from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
 from devito.types import Object
 
 
@@ -304,12 +304,6 @@ class Operator(Callable):
         """Create an Iteartion/Expression tree given an iterable of
         :class:`Cluster` objects."""
 
-        # Topologically sort Iterations
-        ordering = partial_order([i.stencil.dimensions for i in clusters])
-        for i, d in enumerate(list(ordering)):
-            if d.is_Stepping:
-                ordering.insert(i, d.parent)
-
         # Build the Iteration/Expression tree
         processed = []
         schedule = OrderedDict()
@@ -322,9 +316,6 @@ class Operator(Callable):
             if not i.stencil.empty:
                 root = None
                 entries = i.stencil.entries
-
-                # Reorder based on the globally-established loop ordering
-                entries = sorted(entries, key=lambda i: ordering.index(i.dim))
 
                 # Can I reuse any of the previously scheduled Iterations ?
                 index = 0
