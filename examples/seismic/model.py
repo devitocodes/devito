@@ -305,6 +305,7 @@ class Model(object):
                  epsilon=None, delta=None, theta=None, phi=None):
         self.shape = shape
         self.nbpml = int(nbpml)
+        self.origin = origin
 
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
@@ -388,13 +389,6 @@ class Model(object):
         Map between spacing symbols and their values for each :class:`SpaceDimension`
         """
         return self.grid.spacing_map
-
-    @property
-    def origin(self):
-        """
-        Coordinates of the origin of the physical model.
-        """
-        return self.grid.origin
 
     @property
     def dtype(self):
