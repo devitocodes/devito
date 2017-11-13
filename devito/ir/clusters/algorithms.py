@@ -2,8 +2,8 @@ from collections import OrderedDict, namedtuple
 
 from devito.ir.clusters.cluster import Cluster
 from devito.ir.dfg import temporaries_graph
+from devito.ir.support import Stencil
 from devito.symbolics import xreplace_indices
-from devito.stencil import Stencil
 from devito.types import Scalar
 
 __all__ = ['clusterize', 'optimize']
@@ -123,9 +123,14 @@ def clusterize(exprs, stencils, atomics=None):
 
     Info = namedtuple('Info', 'trace stencil')
 
+    # Build a dependence graph and associate each node with its Stencil
+    mapper = OrderedDict()
     g = temporaries_graph(exprs)
-    mapper = OrderedDict([(k, Info(g.trace(k) + g.trace(k, readby=True, strict=True), j))
-                          for (k, v), j in zip(g.items(), stencils) if v.is_tensor])
+    for (k, v), j in zip(g.items(), stencils):
+        if v.is_tensor:
+            trace = g.trace(k)
+            trace += tuple(i for i in g.trace(k, readby=True) if i not in trace)
+            mapper[k] = Info(trace, j)
 
     # A cluster stencil is determined iteratively, by first calculating the
     # "local" stencil and then by looking at the stencils of all other clusters

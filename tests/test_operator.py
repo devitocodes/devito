@@ -482,8 +482,8 @@ class TestDeclarator(object):
   float (*c)[j_size];
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section_1, end_section_1;
+  gettimeofday(&start_section_1, NULL);
   for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = 0.0F;
@@ -492,9 +492,9 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section_1, NULL);
+  timings->section_1 += (double)(end_section_1.tv_sec-start_section_1.tv_sec)\
++(double)(end_section_1.tv_usec-start_section_1.tv_usec)/1000000;
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
@@ -683,8 +683,7 @@ class TestLoopScheduler(object):
         are embedded within the same time loop.
         """
         grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
-        a = TimeFunction(name='a', grid=grid, time_order=2,
-                         space_order=2, time_dim=6, save=False)
+        a = TimeFunction(name='a', grid=grid, time_order=2, space_order=2)
         p_aux = Dimension(name='p_aux', size=10)
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                      space_order=2)
@@ -708,11 +707,13 @@ class TestLoopScheduler(object):
         assert all(trees[0][i] is trees[1][i] for i in range(3))
 
         # Verify both operators produce the same result
-        op()
-        op2()
+        op(time=10)
+        a.data[:] = 0.
+        op2(time=10)
 
-        assert(np.allclose(b2.data[2, ...].reshape(-1) -
-                           b.data[..., 2].reshape(-1), 0.))
+        for i in range(10):
+            assert(np.allclose(b2.data[i, ...].reshape(-1) -
+                               b.data[..., i].reshape(-1), 0.))
 
 
 @skipif_yask
