@@ -591,8 +591,8 @@ class SparseFunction(CompositeFunction):
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
         indices = self.grid.dimensions
-        return tuple([INT(sympy.Function('floor')(c / i.spacing))
-                      for c, i in zip(self.coordinate_symbols,
+        return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
+                      for c, o, i in zip(self.coordinate_symbols, self.grid.origin,
                                       indices[:self.grid.dim])])
 
     @property
