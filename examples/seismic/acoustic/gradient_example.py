@@ -6,9 +6,10 @@ from devito import TimeFunction, Function
 from examples.seismic import Receiver, RickerSource, demo_model
 from examples.seismic.acoustic import ForwardOperator, GradientOperator, smooth10
 
+
 class GradientExample(object):
-    def __init__(self, shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500., time_order=2,
-            space_order=4, nbpml=10):
+    def __init__(self, shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
+                 time_order=2, space_order=4, nbpml=10):
         self.time_order = time_order
         self.space_order = space_order
         self._setup_model_and_acquisition(shape, spacing, nbpml, tn)
@@ -43,10 +44,11 @@ class GradientExample(object):
 
         # and the other for the smoothed run
         self.rec = Receiver(name='rec', grid=model.grid, ntime=self.nt, npoint=nrec,
-                     coordinates=rec_t.coordinates.data)
+                            coordinates=rec_t.coordinates.data)
 
         # Receiver for Gradient
-        self.rec_g = Receiver(name="rec_g", coordinates=self.rec.coordinates.data, grid=model.grid, dt=self.dt, ntime=self.nt)
+        self.rec_g = Receiver(name="rec_g", coordinates=self.rec.coordinates.data,
+                              grid=model.grid, dt=self.dt, ntime=self.nt)
 
         # Gradient symbol
         self.grad = Function(name="grad", grid=model.grid)
@@ -58,31 +60,36 @@ class GradientExample(object):
 
     def _true_data(self):
         # Calculate receiver data for true velocity
-        self.verify_operator.apply(u=self.temp_field, rec=self.rec_t, src=self.src, dt=self.dt)
+        self.verify_operator.apply(u=self.temp_field, rec=self.rec_t, src=self.src,
+                                   dt=self.dt)
 
     @cached_property
     def forward_operator(self):
-        return ForwardOperator(self.model, self.src, self.rec_t, time_order=self.time_order,
-                         spc_order=self.space_order, save=True)
+        return ForwardOperator(self.model, self.src, self.rec_t,
+                               time_order=self.time_order, spc_order=self.space_order,
+                               save=True)
 
     @cached_property
     def gradient_operator(self):
-        return GradientOperator(self.model, self.src, self.rec_g, time_order=self.time_order,
-                              spc_order=self.space_order)
+        return GradientOperator(self.model, self.src, self.rec_g,
+                                time_order=self.time_order, spc_order=self.space_order)
 
     @cached_property
     def verify_operator(self):
-        return ForwardOperator(self.model, self.src, self.rec_t, time_order=self.time_order, spc_order=self.space_order, save=False)
+        return ForwardOperator(self.model, self.src, self.rec_t,
+                               time_order=self.time_order, spc_order=self.space_order,
+                               save=False)
 
     @property
     def temp_field(self):
         return TimeFunction(name="u", grid=self.model.grid, time_order=self.time_order,
                             space_order=self.space_order, save=False)
-    
+
     @cached_property
     def forward_field(self):
         return TimeFunction(name="u", grid=self.model.grid, time_dim=self.nt,
-                          time_order=self.time_order, space_order=self.space_order, save=True)
+                            time_order=self.time_order, space_order=self.space_order,
+                            save=True)
 
     @cached_property
     def adjoint_field(self):
@@ -91,13 +98,15 @@ class GradientExample(object):
     def gradient(self, m0):
         # Smooth velocity
         # This is the pass that needs checkpointing <----
-        self.forward_operator.apply(u=self.forward_field, rec=self.rec, m=m0, src=self.src, dt=self.dt)
+        self.forward_operator.apply(u=self.forward_field, rec=self.rec, m=m0,
+                                    src=self.src, dt=self.dt)
 
         self.rec_g.data[:] = self.rec.data[:] - self.rec_t.data[:]
-        
+
         # Apply the gradient operator to calculate the gradient
         # This is the pass that requires the checkpointed data
-        self.gradient_operator.apply(u=self.forward_field, v=self.adjoint_field, m=m0, rec=self.rec_g, grad=self.grad, dt=self.dt)
+        self.gradient_operator.apply(u=self.forward_field, v=self.adjoint_field, m=m0,
+                                     rec=self.rec_g, grad=self.grad, dt=self.dt)
 
         return self.grad.data, self.rec.data
 
@@ -122,26 +131,29 @@ class GradientExample(object):
             self.temp_field.data.fill(0)
             # Receiver data for the new model
             # Results will be in rec_s
-            self.verify_operator.apply(u=self.temp_field, rec=self.rec, m=mloc, src=self.src, dt=self.dt)
+            self.verify_operator.apply(u=self.temp_field, rec=self.rec, m=mloc,
+                                       src=self.src, dt=self.dt)
             d = self.rec.data
             # First order error Phi(m0+dm) - Phi(m0)
             error1[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0)
             # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>
-            error2[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0 - H[i] * G)
+            error2[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0 - H[i]
+                                    * G)
 
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
-        
-        
+
+
 def run(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500., time_order=2,
         space_order=4, nbpml=10):
     example = GradientExample(shape, spacing, tn, time_order, space_order, nbpml)
     m0, dm = example.initial_estimate()
     gradient, rec_data = example.gradient(m0)
     example.verify(m0, gradient, rec_data, dm)
+
 
 if __name__ == "__main__":
     run(shape=(150, 150), spacing=(15.0, 15.0), tn=750.0, time_order=2, space_order=4)
