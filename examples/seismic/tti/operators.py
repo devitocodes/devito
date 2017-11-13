@@ -370,8 +370,8 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
        """
     dt = model.critical_dt
 
-    m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
-                                           model.delta, model.theta, model.phi)
+    m, epsilon, delta, theta, phi = (model.m, model.epsilon, model.delta,
+                                     model.theta, model.phi)
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
@@ -399,12 +399,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
     # Stencils
     s = model.grid.stepping_dim.spacing
-    stencilp = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
-    stencilr = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * v + (s * damp - 2.0 * m) *
-         v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
+         
+    stencilp = s ** 2 / m * (epsilon * H0 + delta * Hz) - u + 2 * u.backward
+    stencilr = s ** 2 / m * (delta * H0 + Hz) - v + 2 * v.backward
     first_stencil = Eq(u.forward, stencilp)
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
@@ -415,6 +412,11 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     stencils += src.inject(field=v.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
+    
+    abcv = ABC(model, v, m)
+    abcu = ABC(model, u, m)
+    stencils += abcu.damp_2d() if len(model.shape) == 2 else abcu.damp_3d()
+    stencils += abcv.damp_2d() if len(model.shape) == 2 else abcv.damp_3d()
 
     # Substitute spacing terms to reduce flops
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
