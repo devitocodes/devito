@@ -32,15 +32,11 @@ class CheckpointingExample(GradientExample):
             n_checkpoints = int(floor(maxmem * 10**6 /
                                       (cp.size * self.forward_field.data.itemsize)))
 
-        wrap_fw = CheckpointOperator(self.forward_operator, {'u': self.forward_field,
-                                                             'rec': self.rec, 'm': m0,
-                                                             'src': self.src,
-                                                             'dt': self.dt})
-        wrap_rev = CheckpointOperator(self.gradient_operator, {'u': self.forward_field,
-                                                               'v': self.adjoint_field,
-                                                               'm': m0, 'rec': self.rec_g,
-                                                               'grad': self.grad,
-                                                               'dt': self.dt})
+        wrap_fw = CheckpointOperator(self.forward_operator, u=self.forward_field,
+                                     rec=self.rec, m=m0, src=self.src, dt=self.dt)
+        wrap_rev = CheckpointOperator(self.gradient_operator, u=self.forward_field,
+                                      v=self.adjoint_field, m=m0, rec=self.rec_g,
+                                      grad=self.grad, dt=self.dt)
         wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, self.nt-self.time_order)
 
         wrp.apply_forward()

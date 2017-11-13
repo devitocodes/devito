@@ -18,16 +18,11 @@ def test_forward_with_breaks(shape, time_order, space_order):
     m0, dm = example.initial_estimate()
 
     cp = DevitoCheckpoint([example.forward_field])
-    wrap_fw = CheckpointOperator(example.forward_operator, {'u': example.forward_field,
-                                                            'rec': example.rec, 'm': m0,
-                                                            'src': example.src,
-                                                            'dt': example.dt})
-    wrap_rev = CheckpointOperator(example.gradient_operator, {'u': example.forward_field,
-                                                              'v': example.adjoint_field,
-                                                              'm': m0,
-                                                              'rec': example.rec_g,
-                                                              'grad': example.grad,
-                                                              'dt': example.dt})
+    wrap_fw = CheckpointOperator(example.forward_operator, u=example.forward_field,
+                                 rec=example.rec, m=m0, src=example.src, dt=example.dt)
+    wrap_rev = CheckpointOperator(example.gradient_operator, u=example.forward_field,
+                                  v=example.adjoint_field, m=m0, rec=example.rec_g,
+                                  grad=example.grad, dt=example.dt)
     wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-time_order)
     example.forward_operator.apply(u=example.forward_field, rec=example.rec, m=m0,
                                    src=example.src, dt=example.dt)
