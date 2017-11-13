@@ -214,6 +214,24 @@ class TestAllocation(object):
         assert(np.array_equal(m.data, m2.data))
 
 
+    @pytest.mark.parametrize('staggered', [
+        (0, 0), (0, 1), (1, 0), (1, 1),
+        (0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1),
+        (1, 1, 0), (1, 0, 1), (0, 1, 1), (1, 1, 1),
+    ])
+    def test_staggered(self, staggered):
+        """
+        Test the "deformed" allocation for staggered functions
+        """
+        grid = Grid(shape=tuple(21 for _ in staggered))
+        f = Function(name='f', grid=grid, staggered=staggered)
+        # Ensure correct shape was allocated
+        assert f.data.shape == tuple(21-i for i in staggered)
+        # Test insertion into a central point
+        Operator(Eq(f.indexed[tuple(10 for _ in staggered)], 2.))()
+        assert f.data[10, 10] == 2.
+
+
 @skipif_yask
 class TestArguments(object):
 
