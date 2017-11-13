@@ -593,7 +593,7 @@ class SparseFunction(CompositeFunction):
         indices = self.grid.dimensions
         return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
                       for c, o, i in zip(self.coordinate_symbols, self.grid.origin,
-                                      indices[:self.grid.dim])])
+                                         indices[:self.grid.dim])])
 
     @property
     def coordinate_bases(self):

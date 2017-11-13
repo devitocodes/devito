@@ -64,6 +64,7 @@ class Grid(object):
         self.shape = as_tuple(shape)
         self.extent = as_tuple(extent or tuple(1. for _ in shape))
         self.dtype = dtype
+        origin = as_tuple(origin or tuple(0. for _ in shape))
 
         if dimensions is None:
             # Create the spatial dimensions and constant spacing symbols
