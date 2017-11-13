@@ -160,7 +160,8 @@ class Profiler(object):
                                itershape, datashape)
 
         # Rename the most time consuming section as 'main'
-        summary['main'] = summary.pop(max(summary, key=summary.get))
+        if len(summary) > 0:
+            summary['main'] = summary.pop(max(summary, key=summary.get))
 
         return summary
 
