@@ -2,6 +2,7 @@ from sympy import cos, sin
 
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
+from examples.seismic.boundaries import ABC
 from devito.finite_difference import centered, first_derivative, right, transpose
 
 
