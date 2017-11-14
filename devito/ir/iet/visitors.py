@@ -439,7 +439,7 @@ class MapIteration(FindSections):
     def visit_Call(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
-        for i in queue:
+        for i in as_tuple(queue):
             ret.setdefault(i, []).append(o)
         return ret
 
