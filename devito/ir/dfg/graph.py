@@ -2,7 +2,6 @@ from collections import OrderedDict
 from itertools import islice
 
 from cached_property import cached_property
-from sympy import Indexed
 
 from devito.dimension import Dimension
 from devito.exceptions import DSEException
