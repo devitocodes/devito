@@ -679,6 +679,7 @@ and <code class="xref py py-class docutils literal"><span class="pre">Dimension<
 <li><strong>shape</strong> – (Optional) shape of the associated data for this symbol.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
+<li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives</li>
 <li><strong>initializer</strong> – Function to initialize the data, optional</li>
@@ -694,6 +695,15 @@ data layout and function indices of this symbol.</li>
 <p class="last"><a class="reference internal" href="#devito.base.Function" title="devito.base.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a> objects are assumed to be constant in time
 and therefore do not support time derivatives. Use
 <a class="reference internal" href="#devito.base.TimeFunction" title="devito.base.TimeFunction"><code class="xref py py-class docutils literal"><span class="pre">TimeFunction</span></code></a> for time-varying grid data.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The tuple :param staggered: contains a <code class="docutils literal"><span class="pre">1</span></code> in each dimension
+entry that should be staggered, and <code class="docutils literal"><span class="pre">0</span></code> otherwise. For example,
+<code class="docutils literal"><span class="pre">staggered=(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> entails discretization on horizontal edges,
+<code class="docutils literal"><span class="pre">staggered=(0,</span> <span class="pre">0,</span> <span class="pre">1)</span></code> entails discretization on vertical edges,
+<code class="docutils literal"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
+<code class="docutils literal"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
 </div>
 <dl class="attribute">
 <dt id="devito.base.Function.default_assumptions">
@@ -925,6 +935,7 @@ grid-aligned <a class="reference internal" href="#devito.base.Function" title="d
 <li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
 and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
 to <cite>False</cite>, indicating the use of alternating buffers.</li>
@@ -1589,6 +1600,7 @@ and <code class="xref py py-class docutils literal"><span class="pre">Dimension<
 <li><strong>shape</strong> – (Optional) shape of the associated data for this symbol.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
+<li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives</li>
 <li><strong>initializer</strong> – Function to initialize the data, optional</li>
@@ -1604,6 +1616,15 @@ data layout and function indices of this symbol.</li>
 <p class="last"><a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a> objects are assumed to be constant in time
 and therefore do not support time derivatives. Use
 <a class="reference internal" href="#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal"><span class="pre">TimeFunction</span></code></a> for time-varying grid data.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The tuple :param staggered: contains a <code class="docutils literal"><span class="pre">1</span></code> in each dimension
+entry that should be staggered, and <code class="docutils literal"><span class="pre">0</span></code> otherwise. For example,
+<code class="docutils literal"><span class="pre">staggered=(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> entails discretization on horizontal edges,
+<code class="docutils literal"><span class="pre">staggered=(0,</span> <span class="pre">0,</span> <span class="pre">1)</span></code> entails discretization on vertical edges,
+<code class="docutils literal"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
+<code class="docutils literal"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
 </div>
 <dl class="attribute">
 <dt id="devito.function.Function.data">
@@ -1659,6 +1680,14 @@ wrt. all spatial dimensions.</p>
 <dd><p>Tuple of index dimensions that define physical space.</p>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="devito.function.Function.symbolic_shape">
+<code class="descname">symbolic_shape</code><a class="headerlink" href="#devito.function.Function.symbolic_shape" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the symbolic shape of the object. This is simply the
+appropriate combination of symbolic dimension sizes shifted
+according to the <code class="docutils literal"><span class="pre">staggered</span></code> mask.</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
@@ -1674,6 +1703,7 @@ wrt. all spatial dimensions.</p>
 <li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
 and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
 to <cite>False</cite>, indicating the use of alternating buffers.</li>

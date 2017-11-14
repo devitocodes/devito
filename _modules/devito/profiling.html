@@ -323,7 +323,8 @@
                                <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)</span>
 
         <span class="c1"># Rename the most time consuming section as &#39;main&#39;</span>
-        <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;main&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">summary</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;main&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">summary</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">summary</span>
 
