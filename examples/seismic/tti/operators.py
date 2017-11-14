@@ -401,11 +401,14 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Stencils
     s = model.grid.stepping_dim.spacing
          
-    stencilp = s ** 2 / m * (epsilon * H0 + delta * Hz) - u + 2 * u.backward
-    stencilr = s ** 2 / m * (delta * H0 + Hz) - v + 2 * v.backward
+    stencilp = s ** 2 / m * (epsilon * H0 + delta * Hz) - u.backward + 2 * u
+    stencilr = s ** 2 / m * (delta * H0 + Hz) - v.backward + 2 * v
     first_stencil = Eq(u.forward, stencilp)
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
+    
+    stencils += ABC(model, v, m).abc
+    stencils += ABC(model, u, m).abc
 
     # Source and receivers
     stencils += src.inject(field=u.forward, expr=src * dt * dt / m,
@@ -413,11 +416,6 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     stencils += src.inject(field=v.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
-    
-    abcv = ABC(model, v, m)
-    abcu = ABC(model, u, m)
-    stencils += abcu.damp_2d() if len(model.shape) == 2 else abcu.damp_3d()
-    stencils += abcv.damp_2d() if len(model.shape) == 2 else abcv.damp_3d()
 
     # Substitute spacing terms to reduce flops
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)

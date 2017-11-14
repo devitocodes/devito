@@ -176,7 +176,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, save=
     BC = ABC(model, v, model.m, taxis=Backward)
     eq_abc = BC.abc
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + eq_abc + receivers + [gradient_update], subs=model.spacing_map,
+    return Operator(eqn + receivers + eq_abc + [gradient_update], subs=model.spacing_map,
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
@@ -218,11 +218,8 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, offset=model.nbpml)
 
-    BC = ABC(model, u, model.m)
-    eq_abc = BC.abc
-
-    BCl = ABC(model, U, model.m)
-    eq_abcl = BCl.abc
+    eq_abc = ABC(model, u, model.m).abc
+    eq_abcl = ABC(model, U, model.m).abc
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn1 + eq_abc + source + eqn2 + eq_abcl + receivers, subs=model.spacing_map,

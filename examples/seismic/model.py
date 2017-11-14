@@ -82,7 +82,7 @@ def demo_model(preset, **kwargs):
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.0)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=np.float32)
@@ -307,7 +307,7 @@ class Model(object):
                     self.scale = np.sqrt(np.max(self.epsilon.data))
             else:
                 self.epsilon = 1 + 2 * epsilon
-                self.scale = epsilon
+                self.scale = 1 + 2 * epsilon
         else:
             self.epsilon = 1
 
@@ -316,7 +316,7 @@ class Model(object):
                 self.delta = Function(name="delta", grid=self.grid)
                 self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
             else:
-                self.delta = delta
+                self.delta = np.sqrt(1 + 2 * delta)
         else:
             self.delta = 1
 
