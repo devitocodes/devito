@@ -8,7 +8,7 @@ from devito.dimension import Dimension
 from devito.exceptions import DSEException
 from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminals,
                               q_indirect, q_timedimension)
-from devito.tools import flatten, filter_ordered
+from devito.tools import DefaultOrderedDict, flatten, filter_ordered
 
 __all__ = ['TemporariesGraph']
 
@@ -86,31 +86,30 @@ class TemporariesGraph(OrderedDict):
     """
 
     def __init__(self, exprs, **kwargs):
-        # Check input is legal and initialize the temporaries graph
-        nodes = [i.lhs for i in exprs]
-        if len(set(nodes)) != len(nodes):
+        # Check input legality
+        mapper = OrderedDict([i.args for i in exprs])
+        if len(set(mapper)) != len(mapper):
             raise DSEException("Found redundant node, cannot build TemporariesGraph.")
-        args = zip(nodes, [Temporary(*i.args) for i in exprs])
-        super(TemporariesGraph, self).__init__(args, **kwargs)
 
-        # Construct the temporaries graph by setting up all edges
-        mapper = OrderedDict()
-        for i in nodes:
-            mapper.setdefault(as_symbol(i), []).append(i)
-        for k, v in self.items():
-            # Scalars
-            handle = retrieve_terminals(v.rhs)
-            # Tensors (does not inspect indirections such as A[B[i]])
+        # Construct the temporaries graph
+        tensor_map = DefaultOrderedDict(list)
+        for i in mapper:
+            tensor_map[as_symbol(i)].append(i)
+        reads = DefaultOrderedDict(set)
+        readby = DefaultOrderedDict(set)
+        for k, v in mapper.items():
+            handle = retrieve_terminals(v)
             for i in list(handle):
                 if i.is_Indexed:
                     for idx in i.indices:
                         handle |= retrieve_terminals(idx)
-            # Derive actual reads
-            reads = set(flatten([mapper.get(as_symbol(i), []) for i in handle]))
-            # Propagate information
-            v.reads.update(reads)
-            for i in v.reads:
-                self[i].readby.add(k)
+            reads[k].update(set(flatten([tensor_map.get(as_symbol(i), [])
+                                         for i in handle])))
+            for i in reads[k]:
+                readby[i].add(k)
+        temporaries = [(k, Temporary(k, v, reads=reads[k], readby=readby[k]))
+                       for k, v in mapper.items()]
+        super(TemporariesGraph, self).__init__(temporaries, **kwargs)
 
         # Determine indices along the space and time dimensions
         terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
