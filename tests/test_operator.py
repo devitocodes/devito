@@ -213,6 +213,51 @@ class TestAllocation(object):
         assert(np.allclose(m2.data, 0))
         assert(np.array_equal(m.data, m2.data))
 
+    @pytest.mark.parametrize('staggered', [
+        (0, 0), (0, 1), (1, 0), (1, 1),
+        (0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1),
+        (1, 1, 0), (1, 0, 1), (0, 1, 1), (1, 1, 1),
+    ])
+    def test_staggered(self, staggered):
+        """
+        Test the "deformed" allocation for staggered functions
+        """
+        grid = Grid(shape=tuple(11 for _ in staggered))
+        f = Function(name='f', grid=grid, staggered=staggered)
+        assert f.data.shape == tuple(11-i for i in staggered)
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
+        g = Function(name='g', grid=grid)
+        # Test insertion into a central point
+        index = tuple(5 for _ in staggered)
+        set_f = Eq(f.indexed[index], 2.)
+        set_g = Eq(g.indexed[index], 3.)
+        Operator([set_f, set_g])()
+        assert f.data[index] == 2.
+
+    @pytest.mark.parametrize('staggered', [
+        (0, 0, 0), (0, 0, 1), (0, 1, 0), (0, 1, 1),
+        (0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
+        (0, 1, 1, 0), (0, 1, 0, 1), (0, 0, 1, 1), (0, 1, 1, 1),
+    ])
+    def test_staggered_time(self, staggered):
+        """
+        Test the "deformed" allocation for staggered functions
+        """
+        grid = Grid(shape=tuple(11 for _ in staggered[1:]))
+        f = TimeFunction(name='f', grid=grid, staggered=staggered)
+        # from IPython import embed; embed()
+        assert f.data.shape[1:] == tuple(11-i for i in staggered[1:])
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
+        g = TimeFunction(name='g', grid=grid)
+        # Test insertion into a central point
+        index = tuple([0] + [5 for _ in staggered[1:]])
+        set_f = Eq(f.indexed[index], 2.)
+        set_g = Eq(g.indexed[index], 3.)
+        Operator([set_f, set_g])()
+        assert f.data[index] == 2.
+
 
 @skipif_yask
 class TestArguments(object):
@@ -704,7 +749,6 @@ class TestLoopScheduler(object):
         op2 = Operator(eqns2, subs=subs, dle='noop')
         trees = retrieve_iteration_tree(op2)
         assert len(trees) == 2
-        assert all(trees[0][i] is trees[1][i] for i in range(3))
 
         # Verify both operators produce the same result
         op(time=10)
