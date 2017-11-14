@@ -45,17 +45,6 @@ class Cluster(object):
 
     def rebuild(self, exprs):
         """
-        Build a new cluster with expressions ``exprs`` having same stencil
-        as ``self``.
+        Build a new cluster with expressions ``exprs`` having same stencil as ``self``.
         """
-        return Cluster(exprs, self.stencil, self.atomics)
-
-    def reschedule(self, exprs):
-        """
-        Build a new cluster with expressions ``exprs`` having same stencil
-        as ``self``. The order of the expressions in the new cluster is such that
-        self's ordering is honored.
-        """
-        g = TemporariesGraph(exprs)
-        exprs = g.reschedule(self.exprs)
         return Cluster(exprs, self.stencil, self.atomics)

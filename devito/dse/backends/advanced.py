@@ -42,7 +42,7 @@ class AdvancedRewriter(BasicRewriter):
             # Some temporaries may be droppable at this point
             processed = compact_temporaries(found, leaves)
 
-        return cluster.reschedule(processed)
+        return cluster.rebuild(processed)
 
     @dse_pass
     def _factorize(self, cluster, *args, **kwargs):
