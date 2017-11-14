@@ -10,7 +10,7 @@ from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminal
                               q_indirect, q_timedimension)
 from devito.tools import flatten, filter_ordered
 
-__all__ = ['temporaries_graph']
+__all__ = ['TemporariesGraph']
 
 
 class Temporary(Eq):
@@ -31,16 +31,8 @@ class Temporary(Eq):
         return obj
 
     @property
-    def identifier(self):
-        return self.lhs.base.label.name if self.is_tensor else self.lhs.name
-
-    @property
     def function(self):
         return self.lhs.base.function
-
-    @property
-    def shape(self):
-        return self.lhs.shape if self.is_tensor else ()
 
     @property
     def reads(self):
@@ -51,30 +43,12 @@ class Temporary(Eq):
         return self._readby
 
     @property
-    def is_cyclic_readby(self):
-        return self.lhs in self.readby
-
-    @property
-    def is_terminal(self):
-        return (len(self.readby) == 0) or\
-            (len(self.readby) == 1 and self.is_cyclic_readby)
-
-    @property
     def is_tensor(self):
         return isinstance(self.lhs, Indexed) and self.lhs.rank > 0
 
     @property
     def is_scalar(self):
         return not self.is_tensor
-
-    def construct(self, rule):
-        """
-        Create a new temporary starting from ``self`` replacing symbols in
-        the equation as specified by the dictionary ``rule``.
-        """
-        reads = set(self.reads) - set(rule.keys()) | set(rule.values())
-        rhs = self.rhs.xreplace(rule)
-        return Temporary(self.lhs, rhs, reads=reads, readby=self.readby)
 
     def __repr__(self):
         reads = '[%s%s]' % (', '.join([str(i) for i in self.reads][:2]), '%s')
@@ -111,13 +85,36 @@ class TemporariesGraph(OrderedDict):
     of the indexed objects represent either "space" or "time" dimensions.
     """
 
-    def __init__(self, *args, **kwargs):
-        super(TemporariesGraph, self).__init__(*args, **kwargs)
+    def __init__(self, exprs, **kwargs):
+        # Check input is legal and initialize the temporaries graph
+        nodes = [i.lhs for i in exprs]
+        if len(set(nodes)) != len(nodes):
+            raise DSEException("Found redundant node, cannot build TemporariesGraph.")
+        args = zip(nodes, [Temporary(*i.args) for i in exprs])
+        super(TemporariesGraph, self).__init__(args, **kwargs)
 
-        terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
-        indices = filter_ordered(flatten([i.function.indices for i in terms]))
+        # Construct the temporaries graph by setting up all edges
+        mapper = OrderedDict()
+        for i in nodes:
+            mapper.setdefault(as_symbol(i), []).append(i)
+        for k, v in self.items():
+            # Scalars
+            handle = retrieve_terminals(v.rhs)
+            # Tensors (does not inspect indirections such as A[B[i]])
+            for i in list(handle):
+                if i.is_Indexed:
+                    for idx in i.indices:
+                        handle |= retrieve_terminals(idx)
+            # Derive actual reads
+            reads = set(flatten([mapper.get(as_symbol(i), []) for i in handle]))
+            # Propagate information
+            v.reads.update(reads)
+            for i in v.reads:
+                self[i].readby.add(k)
 
         # Determine indices along the space and time dimensions
+        terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
+        indices = filter_ordered(flatten([i.function.indices for i in terms]))
         self.space_indices = tuple(i for i in indices if i.is_Space)
         self.time_indices = tuple(i for i in indices if i.is_Time)
 
@@ -317,41 +314,3 @@ class TemporariesGraph(OrderedDict):
                     # Not using sets to preserve order
                     found.append(i)
         return mapper
-
-
-def temporaries_graph(temporaries):
-    """
-    Create a :class:`TemporariesGraph` given a list of :class:`sympy.Eq`.
-    """
-
-    # Check input is legal and initialize the temporaries graph
-    temporaries = [Temporary(*i.args) for i in temporaries]
-    nodes = [i.lhs for i in temporaries]
-    if len(set(nodes)) != len(nodes):
-        raise DSEException("Found redundant node in the TemporariesGraph.")
-    graph = TemporariesGraph(zip(nodes, temporaries))
-
-    # Add edges (i.e., reads and readby info) to the graph
-    mapper = OrderedDict()
-    for i in nodes:
-        mapper.setdefault(as_symbol(i), []).append(i)
-
-    for k, v in graph.items():
-        # Scalars
-        handle = retrieve_terminals(v.rhs)
-
-        # Tensors (does not inspect indirections such as A[B[i]])
-        for i in list(handle):
-            if i.is_Indexed:
-                for idx in i.indices:
-                    handle |= retrieve_terminals(idx)
-
-        # Derive actual reads
-        reads = set(flatten([mapper.get(as_symbol(i), []) for i in handle]))
-
-        # Propagate information
-        v.reads.update(reads)
-        for i in v.reads:
-            graph[i].readby.add(k)
-
-    return graph

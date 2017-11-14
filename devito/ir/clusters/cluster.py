@@ -1,4 +1,4 @@
-from devito.ir.dfg import temporaries_graph
+from devito.ir.dfg import TemporariesGraph
 from devito.tools import as_tuple
 
 
@@ -19,7 +19,7 @@ class Cluster(object):
     """
 
     def __init__(self, exprs, stencil, atomics):
-        self.trace = temporaries_graph(exprs)
+        self.trace = TemporariesGraph(exprs)
         self.stencil = stencil
         self.atomics = as_tuple(atomics)
 
@@ -56,6 +56,6 @@ class Cluster(object):
         as ``self``. The order of the expressions in the new cluster is such that
         self's ordering is honored.
         """
-        g = temporaries_graph(exprs)
+        g = TemporariesGraph(exprs)
         exprs = g.reschedule(self.exprs)
         return Cluster(exprs, self.stencil, self.atomics)

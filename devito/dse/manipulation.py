@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from sympy import collect, collect_const
 
-from devito.ir.dfg import temporaries_graph
+from devito.ir.dfg import TemporariesGraph
 from devito.symbolics import Eq, count, estimate_cost, q_op, q_leaf, xreplace_constrained
 from devito.types import Indexed, Array
 from devito.tools import flatten
@@ -18,7 +18,7 @@ def promote_scalar_expressions(exprs, shape, indices, onstack):
     processed = []
 
     # Fist promote the LHS
-    graph = temporaries_graph(exprs)
+    graph = TemporariesGraph(exprs)
     mapper = {}
     for k, v in graph.items():
         if v.is_scalar:
@@ -135,7 +135,7 @@ def compact_temporaries(temporaries, leaves):
     exprs = temporaries + leaves
     targets = {i.lhs for i in leaves}
 
-    g = temporaries_graph(exprs)
+    g = TemporariesGraph(exprs)
 
     mapper = {k: v.rhs for k, v in g.items()
               if v.is_scalar and
