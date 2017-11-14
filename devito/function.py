@@ -140,6 +140,10 @@ class Function(TensorFunction):
             self.indices = self._indices(**kwargs)
             self.staggered = kwargs.get('staggered',
                                         tuple(0 for _ in self.indices))
+            if len(self.staggered) != len(self.indices):
+                error("Staggering argument needs %s entries for indices %s"
+                      % (len(self.indices), self.indices))
+                raise ValueError("Insufficient staggered entries")
 
             self.space_order = kwargs.get('space_order', 1)
             self.initializer = kwargs.get('initializer', None)
