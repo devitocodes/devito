@@ -255,32 +255,6 @@ def demo_model(preset, **kwargs):
         error('Unknown model preset name %s' % preset)
 
 
-def damp_boundary(damp, nbpml, spacing):
-    """Initialise damping field with an absorbing PML layer.
-
-    :param damp: Array data defining the damping field
-    :param nbpml: Number of points in the damping layer
-    :param spacing: Grid spacing coefficent
-    """
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
-    ndim = len(damp.shape)
-    for i in range(nbpml):
-        pos = np.abs((nbpml - i + 1) / float(nbpml))
-        val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-        if ndim == 2:
-            damp[i, :] += val/spacing[0]
-            damp[-(i + 1), :] += val/spacing[0]
-            damp[:, i] += val/spacing[1]
-            damp[:, -(i + 1)] += val/spacing[1]
-        else:
-            damp[i, :, :] += val/spacing[0]
-            damp[-(i + 1), :, :] += val/spacing[0]
-            damp[:, i, :] += val/spacing[1]
-            damp[:, -(i + 1), :] += val/spacing[1]
-            damp[:, :, i] += val/spacing[2]
-            damp[:, :, -(i + 1)] += val/spacing[2]
-
-
 class Model(object):
     """The physical model used in seismic inversion processes.
 
@@ -288,7 +262,7 @@ class Model(object):
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
     :param shape: Number of grid points size in (x,y,z) order
     :param vp: Velocity in km/s
-    :param nbpml: The number of PML layers for boundary damping
+    :param nbpml: The number of absorbing layers for boundary damping
     :param rho: Density in kg/cm^3 (rho=1 for water)
     :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
     :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
@@ -321,10 +295,6 @@ class Model(object):
         # Set model velocity, which will also set `m`
         self.vp = vp
 
-        # Create dampening field as symbol `damp`
-        self.damp = Function(name="damp", grid=self.grid)
-        damp_boundary(self.damp.data, self.nbpml, spacing=self.spacing)
-
         # Additional parameter fields for TTI operators
         self.scale = 1.
 
@@ -337,7 +307,7 @@ class Model(object):
                     self.scale = np.sqrt(np.max(self.epsilon.data))
             else:
                 self.epsilon = 1 + 2 * epsilon
-                self.scale = epsilon
+                self.scale = 1 + 2 * epsilon
         else:
             self.epsilon = 1
 
@@ -346,7 +316,7 @@ class Model(object):
                 self.delta = Function(name="delta", grid=self.grid)
                 self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
             else:
-                self.delta = delta
+                self.delta = np.sqrt(1 + 2 * delta)
         else:
             self.delta = 1
 

@@ -2,6 +2,7 @@ from sympy import cos, sin
 
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
+from examples.seismic.boundaries import ABC
 from devito.finite_difference import centered, first_derivative, right, transpose
 
 
@@ -370,8 +371,8 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
        """
     dt = model.critical_dt
 
-    m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
-                                           model.delta, model.theta, model.phi)
+    m, epsilon, delta, theta, phi = (model.m, model.epsilon, model.delta,
+                                     model.theta, model.phi)
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
@@ -399,15 +400,15 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
     # Stencils
     s = model.grid.stepping_dim.spacing
-    stencilp = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
-    stencilr = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * v + (s * damp - 2.0 * m) *
-         v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
+         
+    stencilp = s ** 2 / m * (epsilon * H0 + delta * Hz) - u.backward + 2 * u
+    stencilr = s ** 2 / m * (delta * H0 + Hz) - v.backward + 2 * v
     first_stencil = Eq(u.forward, stencilp)
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
+    
+    stencils += ABC(model, v, m).abc
+    stencils += ABC(model, u, m).abc
 
     # Source and receivers
     stencils += src.inject(field=u.forward, expr=src * dt * dt / m,
