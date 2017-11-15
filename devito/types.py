@@ -53,7 +53,6 @@ class Basic(object):
     # Symbolic objects created internally by Devito
     is_Symbol = False
     is_SymbolicData = False
-    is_Scalar = False
     is_Array = False
 
     # Symbolic objects created by user

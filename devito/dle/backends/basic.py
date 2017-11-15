@@ -84,17 +84,19 @@ class BasicRewriter(AbstractRewriter):
             expressions = FindNodes(Expression).visit(free)
             fsymbols = FindSymbols('symbolics').visit(free)
 
-            # Retrieve symbolic arguments
+            # Add all definitely-required arguments
+            not_required.update({i.output for i in expressions if i.is_scalar})
             for i in fsymbols:
-                if i.is_Array:
+                if i in not_required:
+                    continue
+                elif i.is_Array:
                     args.append(("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name), i))
                 elif i.is_TensorFunction:
                     args.append(("%s_vec" % i.name, i))
-                elif i.is_Constant:
+                elif i.is_Scalar:
                     args.append((i.name, i))
 
-            # Retrieve scalar arguments
-            not_required.update({i.output for i in expressions if i.is_scalar})
+            # Add all maybe-required arguments that turn out to be required
             maybe_required.update(set(FindSymbols(mode='free-symbols').visit(free)))
             for i in fsymbols:
                 not_required.update({as_symbol(i), i.indexify()})
