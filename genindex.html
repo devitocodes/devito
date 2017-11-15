@@ -209,6 +209,8 @@
 </li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.adjoint">adjoint() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 </li>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.adjoint_field">adjoint_field (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
+</li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.AdjointOperator">AdjointOperator() (in module examples.seismic.acoustic.operators)</a>
 </li>
       <li><a href="devito.dse.backends.html#devito.dse.backends.advanced.AdvancedRewriter">AdvancedRewriter (class in devito.dse.backends.advanced)</a>
@@ -529,10 +531,10 @@
 </li>
       <li><a href="devito.dse.html#module-devito.dse.aliases">devito.dse.aliases (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends">devito.dse.backends (module)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.advanced">devito.dse.backends.advanced (module)</a>
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.basic">devito.dse.backends.basic (module)</a>
@@ -660,7 +662,11 @@
       <li><a href="devito.html#devito.exceptions.DSEException">DSEException</a>
 </li>
       <li><a href="devito.html#devito.function.TimeFunction.dt">dt (devito.function.TimeFunction attribute)</a>
+
+      <ul>
+        <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.dt">(examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.function.TimeFunction.dt2">dt2 (devito.function.TimeFunction attribute)</a>
 </li>
       <li><a href="devito.html#devito.arguments.Argument.dtype">dtype (devito.arguments.Argument attribute)</a>
@@ -797,16 +803,20 @@
 </li>
       <li><a href="devito.dle.html#devito.dle.blocking_utils.fold_blockable_tree">fold_blockable_tree() (in module devito.dle.blocking_utils)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.function.TimeFunction.forward">forward (devito.function.TimeFunction attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.forward">forward() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 
       <ul>
         <li><a href="examples.seismic.tti.html#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.forward">(examples.seismic.tti.wavesolver.AnisotropicWaveSolver method)</a>
 </li>
       </ul></li>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.forward_field">forward_field (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
+</li>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.forward_operator">forward_operator (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
+</li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.ForwardOperator">ForwardOperator() (in module examples.seismic.acoustic.operators)</a>
 
       <ul>
@@ -857,10 +867,18 @@
 </li>
       <li><a href="devito.html#devito.compiler.GNUCompiler">GNUCompiler (class in devito.compiler)</a>
 </li>
-      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.gradient">gradient() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.gradient">gradient() (examples.seismic.acoustic.gradient_example.GradientExample method)</a>
+
+      <ul>
+        <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.gradient">(examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 </li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.gradient_operator">gradient_operator (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
+</li>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample">GradientExample (class in examples.seismic.acoustic.gradient_example)</a>
+</li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.GradientOperator">GradientOperator() (in module examples.seismic.acoustic.operators)</a>
 </li>
       <li><a href="devito.html#devito.grid.Grid">Grid (class in devito.grid)</a>
@@ -918,6 +936,8 @@
       <li><a href="examples.cfd.html#examples.cfd.tools.init_hat">init_hat() (in module examples.cfd.tools)</a>
 </li>
       <li><a href="examples.cfd.html#examples.cfd.tools.init_smooth">init_smooth() (in module examples.cfd.tools)</a>
+</li>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.initial_estimate">initial_estimate() (examples.seismic.acoustic.gradient_example.GradientExample method)</a>
 </li>
       <li><a href="devito.html#devito.backends.initialised_backend">initialised_backend() (in module devito.backends)</a>
 </li>
@@ -1613,6 +1633,8 @@
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.taylor_sin">taylor_sin (class in devito.symbolics.extended_sympy)</a>
 </li>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.temp_field">temp_field (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
+</li>
       <li><a href="devito.ir.dfg.html#devito.ir.dfg.graph.temporaries_graph">temporaries_graph() (in module devito.ir.dfg.graph)</a>
 </li>
       <li><a href="devito.html#devito.arguments.TensorArgument">TensorArgument (class in devito.arguments)</a>
@@ -1621,10 +1643,10 @@
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.tensors">tensors (devito.ir.clusters.cluster.Cluster attribute)</a>
 </li>
-      <li><a href="examples.cfd.html#examples.cfd.example_diffusion.test_diffusion2d">test_diffusion2d() (in module examples.cfd.example_diffusion)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="examples.cfd.html#examples.cfd.example_diffusion.test_diffusion2d">test_diffusion2d() (in module examples.cfd.example_diffusion)</a>
+</li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.AbstractRewriter.thresholds">thresholds (devito.dle.backends.common.AbstractRewriter attribute)</a>
 
       <ul>
@@ -1694,7 +1716,11 @@
 </li>
         <li><a href="devito.html#devito.arguments.TensorArgument.verify">(devito.arguments.TensorArgument method)</a>
 </li>
+        <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.verify">(examples.seismic.acoustic.gradient_example.GradientExample method)</a>
+</li>
       </ul></li>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.verify_operator">verify_operator (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.view">view (devito.ir.iet.nodes.Node attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit">visit() (devito.ir.iet.visitors.ResolveTimeStepping method)</a>
