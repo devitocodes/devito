@@ -15,9 +15,9 @@ class CheckpointOperator(Operator):
     """
     t_arg_names = {'t_start': 't_s', 't_end': 't_e'}
 
-    def __init__(self, op, args):
+    def __init__(self, op, **kwargs):
         self.op = op
-        self.args = args
+        self.args = kwargs
 
     def apply(self, t_start, t_end):
         """ If the devito operator requires some extra arguments in the call to apply
