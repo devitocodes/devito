@@ -2,15 +2,14 @@ from collections import OrderedDict
 from itertools import islice
 
 from cached_property import cached_property
-from sympy import Indexed
 
 from devito.dimension import Dimension
 from devito.exceptions import DSEException
 from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminals,
                               q_indirect, q_timedimension)
-from devito.tools import flatten, filter_ordered
+from devito.tools import DefaultOrderedDict, flatten, filter_ordered
 
-__all__ = ['temporaries_graph']
+__all__ = ['TemporariesGraph']
 
 
 class Temporary(Eq):
@@ -31,16 +30,8 @@ class Temporary(Eq):
         return obj
 
     @property
-    def identifier(self):
-        return self.lhs.base.label.name if self.is_tensor else self.lhs.name
-
-    @property
     def function(self):
         return self.lhs.base.function
-
-    @property
-    def shape(self):
-        return self.lhs.shape if self.is_tensor else ()
 
     @property
     def reads(self):
@@ -51,30 +42,12 @@ class Temporary(Eq):
         return self._readby
 
     @property
-    def is_cyclic_readby(self):
-        return self.lhs in self.readby
-
-    @property
-    def is_terminal(self):
-        return (len(self.readby) == 0) or\
-            (len(self.readby) == 1 and self.is_cyclic_readby)
-
-    @property
     def is_tensor(self):
-        return isinstance(self.lhs, Indexed) and self.lhs.rank > 0
+        return self.lhs.is_Indexed and self.lhs.rank > 0
 
     @property
     def is_scalar(self):
         return not self.is_tensor
-
-    def construct(self, rule):
-        """
-        Create a new temporary starting from ``self`` replacing symbols in
-        the equation as specified by the dictionary ``rule``.
-        """
-        reads = set(self.reads) - set(rule.keys()) | set(rule.values())
-        rhs = self.rhs.xreplace(rule)
-        return Temporary(self.lhs, rhs, reads=reads, readby=self.readby)
 
     def __repr__(self):
         reads = '[%s%s]' % (', '.join([str(i) for i in self.reads][:2]), '%s')
@@ -111,13 +84,50 @@ class TemporariesGraph(OrderedDict):
     of the indexed objects represent either "space" or "time" dimensions.
     """
 
-    def __init__(self, *args, **kwargs):
-        super(TemporariesGraph, self).__init__(*args, **kwargs)
+    def __init__(self, exprs, **kwargs):
+        # Check input legality
+        mapper = OrderedDict([i.args for i in exprs])
+        if len(set(mapper)) != len(mapper):
+            raise DSEException("Found redundant node, cannot build TemporariesGraph.")
 
-        terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
-        indices = filter_ordered(flatten([i.function.indices for i in terms]))
+        # Construct Temporaries, tracking reads and readby
+        tensor_map = DefaultOrderedDict(list)
+        for i in mapper:
+            tensor_map[as_symbol(i)].append(i)
+        reads = DefaultOrderedDict(set)
+        readby = DefaultOrderedDict(set)
+        for k, v in mapper.items():
+            handle = retrieve_terminals(v)
+            for i in list(handle):
+                if i.is_Indexed:
+                    for idx in i.indices:
+                        handle |= retrieve_terminals(idx)
+            reads[k].update(set(flatten([tensor_map.get(as_symbol(i), [])
+                                         for i in handle])))
+            for i in reads[k]:
+                readby[i].add(k)
+
+        # Make sure read-after-writes are honored for scalar temporaries
+        processed = [i for i in mapper if i.is_Indexed]
+        queue = [i for i in mapper if i not in processed]
+        while queue:
+            k = queue.pop(0)
+            if not readby[k]:
+                processed.insert(0, k)
+            elif all(i in processed for i in readby[k]):
+                index = min(processed.index(i) for i in readby[k])
+                processed.insert(index, k)
+            else:
+                queue.append(k)
+
+        # Build up the TemporariesGraph
+        temporaries = [(i, Temporary(i, mapper[i], reads=reads[i], readby=readby[i]))
+                       for i in processed]
+        super(TemporariesGraph, self).__init__(temporaries, **kwargs)
 
         # Determine indices along the space and time dimensions
+        terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
+        indices = filter_ordered(flatten([i.function.indices for i in terms]))
         self.space_indices = tuple(i for i in indices if i.is_Space)
         self.time_indices = tuple(i for i in indices if i.is_Time)
 
@@ -152,48 +162,6 @@ class TemporariesGraph(OrderedDict):
         if strict is True:
             found.pop(key)
         return tuple(found.values())
-
-    def reschedule(self, context):
-        """
-        Starting from the temporaries in ``self``, return a new sequence of
-        expressions that: ::
-
-            * includes all expressions in ``context`` not appearing in ``self``, and
-            * is ordered so that the ordering in ``context`` is honored.
-
-        Examples
-        ========
-        Assume that: ::
-
-            * ``self`` has five temporaries ``[t0, t1, t2, e1, e2]``,
-            * ``t1`` depends on the temporary ``e1``, and ``t2`` depends on ``t1``
-            * ``context = [e1, e2]``
-
-        Then the following sequence is returned ``[t0, e1, t1, t2, e2]``.
-
-        If, instead, we had had everything like before except: ::
-
-            * ``context = [t1, e1, e2]``
-
-        Then the following sequence is returned ``[t0, t1, t2, e1, e2]``.
-        That is, in the latter example the original ordering dictated by ``context``
-        was honored.
-        """
-        processed = [i.lhs for i in context]
-        queue = [i for i in self if i not in processed]
-        while queue:
-            k = queue.pop(0)
-            handle = self[k].readby
-            if all(i in processed for i in handle):
-                index = min(processed.index(i) for i in handle)
-                processed.insert(index, k)
-            else:
-                # Note: push at the back
-                queue.append(k)
-
-        processed = [self[i] for i in processed]
-
-        return processed
 
     def time_invariant(self, expr=None):
         """
@@ -317,41 +285,3 @@ class TemporariesGraph(OrderedDict):
                     # Not using sets to preserve order
                     found.append(i)
         return mapper
-
-
-def temporaries_graph(temporaries):
-    """
-    Create a :class:`TemporariesGraph` given a list of :class:`sympy.Eq`.
-    """
-
-    # Check input is legal and initialize the temporaries graph
-    temporaries = [Temporary(*i.args) for i in temporaries]
-    nodes = [i.lhs for i in temporaries]
-    if len(set(nodes)) != len(nodes):
-        raise DSEException("Found redundant node in the TemporariesGraph.")
-    graph = TemporariesGraph(zip(nodes, temporaries))
-
-    # Add edges (i.e., reads and readby info) to the graph
-    mapper = OrderedDict()
-    for i in nodes:
-        mapper.setdefault(as_symbol(i), []).append(i)
-
-    for k, v in graph.items():
-        # Scalars
-        handle = retrieve_terminals(v.rhs)
-
-        # Tensors (does not inspect indirections such as A[B[i]])
-        for i in list(handle):
-            if i.is_Indexed:
-                for idx in i.indices:
-                    handle |= retrieve_terminals(idx)
-
-        # Derive actual reads
-        reads = set(flatten([mapper.get(as_symbol(i), []) for i in handle]))
-
-        # Propagate information
-        v.reads.update(reads)
-        for i in v.reads:
-            graph[i].readby.add(k)
-
-    return graph

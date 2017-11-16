@@ -1,7 +1,7 @@
 from collections import OrderedDict, namedtuple
 
 from devito.ir.clusters.cluster import Cluster
-from devito.ir.dfg import temporaries_graph
+from devito.ir.dfg import TemporariesGraph
 from devito.ir.support import Stencil
 from devito.symbolics import xreplace_indices
 from devito.types import Scalar
@@ -125,7 +125,7 @@ def clusterize(exprs, stencils, atomics=None):
 
     # Build a dependence graph and associate each node with its Stencil
     mapper = OrderedDict()
-    g = temporaries_graph(exprs)
+    g = TemporariesGraph(exprs)
     for (k, v), j in zip(g.items(), stencils):
         if v.is_tensor:
             trace = g.trace(k)

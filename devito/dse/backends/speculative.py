@@ -27,7 +27,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         costmodel = lambda i: estimate_cost(i) > 0
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
-        return cluster.reschedule(processed)
+        return cluster.rebuild(processed)
 
 
 class AggressiveRewriter(SpeculativeRewriter):
@@ -62,7 +62,7 @@ class AggressiveRewriter(SpeculativeRewriter):
         costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
-        return cluster.reschedule(processed)
+        return cluster.rebuild(processed)
 
 
 class CustomRewriter(AggressiveRewriter):
