@@ -205,7 +205,7 @@
             <span class="c1"># Some temporaries may be droppable at this point</span>
             <span class="n">processed</span> <span class="o">=</span> <span class="n">compact_temporaries</span><span class="p">(</span><span class="n">found</span><span class="p">,</span> <span class="n">leaves</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">reschedule</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">rebuild</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
 
     <span class="nd">@dse_pass</span>
     <span class="k">def</span> <span class="nf">_factorize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>

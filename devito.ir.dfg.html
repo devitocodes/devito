@@ -205,10 +205,95 @@
 </div>
 <div class="section" id="module-devito.ir.dfg.graph">
 <span id="devito-ir-dfg-graph-module"></span><h2>devito.ir.dfg.graph module<a class="headerlink" href="#module-devito.ir.dfg.graph" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="devito.ir.dfg.graph.temporaries_graph">
-<code class="descclassname">devito.ir.dfg.graph.</code><code class="descname">temporaries_graph</code><span class="sig-paren">(</span><em>temporaries</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/dfg/graph.html#temporaries_graph"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.dfg.graph.temporaries_graph" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a <code class="xref py py-class docutils literal"><span class="pre">TemporariesGraph</span></code> given a list of <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code>.</p>
+<dl class="class">
+<dt id="devito.ir.dfg.graph.TemporariesGraph">
+<em class="property">class </em><code class="descclassname">devito.ir.dfg.graph.</code><code class="descname">TemporariesGraph</code><span class="sig-paren">(</span><em>exprs</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/dfg/graph.html#TemporariesGraph"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.dfg.graph.TemporariesGraph" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">collections.OrderedDict</span></code></p>
+<p>A temporaries graph represents an ordered sequence of operations. Operations,
+of type <code class="xref py py-class docutils literal"><span class="pre">Temporary</span></code>, are the nodes of the graph. An edge from <code class="docutils literal"><span class="pre">n0</span></code> to
+<code class="docutils literal"><span class="pre">n1</span></code> indicates that <code class="docutils literal"><span class="pre">n1</span></code> reads from <code class="docutils literal"><span class="pre">n0</span></code>. For example, the sequence:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">temp0</span> <span class="o">=</span> <span class="n">a</span><span class="o">*</span><span class="n">b</span>
+<span class="n">temp1</span> <span class="o">=</span> <span class="n">temp0</span><span class="o">*</span><span class="n">c</span>
+<span class="n">temp2</span> <span class="o">=</span> <span class="n">temp0</span><span class="o">*</span><span class="n">d</span>
+<span class="n">temp3</span> <span class="o">=</span> <span class="n">temp1</span> <span class="o">+</span> <span class="n">temp2</span>
+</pre></div>
+</div>
+<p>is represented by the following TemporariesGraph:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">temp0</span> <span class="o">---&gt;</span> <span class="n">temp1</span>
+  <span class="o">|</span>          <span class="o">|</span>
+  <span class="o">|</span>          <span class="o">|</span>
+  <span class="n">v</span>          <span class="n">v</span>
+<span class="n">temp2</span> <span class="o">---&gt;</span> <span class="n">temp3</span>
+</pre></div>
+</div>
+<p>The input and output edges of a node <code class="docutils literal"><span class="pre">n</span></code> are encoded in <code class="docutils literal"><span class="pre">n.reads</span></code> and
+<code class="docutils literal"><span class="pre">n.readby</span></code>, respectively.</p>
+<p>Operations may involve scalars and indexed objects (arrays). The indices
+of the indexed objects represent either “space” or “time” dimensions.</p>
+<dl class="method">
+<dt id="devito.ir.dfg.graph.TemporariesGraph.extract">
+<code class="descname">extract</code><span class="sig-paren">(</span><em>key</em>, <em>readby=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/dfg/graph.html#TemporariesGraph.extract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.dfg.graph.TemporariesGraph.extract" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the list of nodes appearing in <code class="docutils literal"><span class="pre">key.reads</span></code>, in program order
+(ie, based on the order in which the temporaries appear in <code class="docutils literal"><span class="pre">self</span></code>). If
+<code class="docutils literal"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">True</span></code>, then return instead the list of nodes appearing
+<code class="docutils literal"><span class="pre">key.readby</span></code>, in program order.</p>
+<p>Given the following sequence of operations:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">t1</span> <span class="o">=</span> <span class="o">...</span>
+<span class="n">t0</span> <span class="o">=</span> <span class="o">...</span>
+<span class="n">u</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span> <span class="n">v</span> <span class="o">...</span>
+<span class="n">u</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span>
+<span class="n">v</span> <span class="o">=</span> <span class="n">t0</span> <span class="o">+</span> <span class="n">t1</span> <span class="o">+</span> <span class="n">u</span><span class="p">[</span><span class="n">z</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span>
+<span class="n">t2</span> <span class="o">=</span> <span class="o">...</span>
+</pre></div>
+</div>
+<p>Assuming <code class="docutils literal"><span class="pre">key</span> <span class="pre">==</span> <span class="pre">v</span></code> and <code class="docutils literal"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">False</span></code> (as by default), return
+the following list of <code class="xref py py-class docutils literal"><span class="pre">Temporary</span></code> objects:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">t1</span><span class="p">,</span> <span class="n">t0</span><span class="p">,</span> <span class="n">u</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">u</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="n">j</span><span class="p">]]</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">True</span></code>, return:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">v</span><span class="p">,</span> <span class="n">t2</span><span class="p">]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.dfg.graph.TemporariesGraph.is_index">
+<code class="descname">is_index</code><span class="sig-paren">(</span><em>key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/dfg/graph.html#TemporariesGraph.is_index"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.dfg.graph.TemporariesGraph.is_index" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if <code class="docutils literal"><span class="pre">key</span></code> is used as array index in an expression of the
+TemporariesGraph, False otherwise.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.dfg.graph.TemporariesGraph.tensors">
+<code class="descname">tensors</code><a class="headerlink" href="#devito.ir.dfg.graph.TemporariesGraph.tensors" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all occurrences of the tensors in <code class="docutils literal"><span class="pre">self</span></code> keyed by function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.dfg.graph.TemporariesGraph.time_invariant">
+<code class="descname">time_invariant</code><span class="sig-paren">(</span><em>expr=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/dfg/graph.html#TemporariesGraph.time_invariant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.dfg.graph.TemporariesGraph.time_invariant" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if <code class="docutils literal"><span class="pre">expr</span></code> is time invariant. <code class="docutils literal"><span class="pre">expr</span></code> may be an expression <code class="docutils literal"><span class="pre">e</span></code>
+explicitly tracked by the TemporariesGraph or even a generic subexpression
+of <code class="docutils literal"><span class="pre">e</span></code>. If no <code class="docutils literal"><span class="pre">expr</span></code> is provided, then time invariance of the entire
+TemporariesGraph is assessed.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.dfg.graph.TemporariesGraph.trace">
+<code class="descname">trace</code><span class="sig-paren">(</span><em>key</em>, <em>readby=False</em>, <em>strict=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/dfg/graph.html#TemporariesGraph.trace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.dfg.graph.TemporariesGraph.trace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the sequence of operations required to compute the temporary <code class="docutils literal"><span class="pre">key</span></code>.
+If <code class="docutils literal"><span class="pre">readby</span> <span class="pre">=</span> <span class="pre">True</span></code>, then return the sequence of operations that will
+depend on <code class="docutils literal"><span class="pre">key</span></code>, instead. With <code class="docutils literal"><span class="pre">strict</span> <span class="pre">=</span> <span class="pre">True</span></code>, drop <code class="docutils literal"><span class="pre">key</span></code> from the
+result.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.dfg.graph.TemporariesGraph.unknown">
+<code class="descname">unknown</code><a class="headerlink" href="#devito.ir.dfg.graph.TemporariesGraph.unknown" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all symbols appearing in self for which a temporary is not available.</p>
+</dd></dl>
+
 </dd></dl>
 
 </div>
