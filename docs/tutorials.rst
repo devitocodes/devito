@@ -56,5 +56,9 @@ inversion problems.
   <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/02_rtm.ipynb>`_
 * `03 - Full-Waveform Inversion (FWI)
   <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/03_fwi.ipynb>`_
-* `04 - Parallel FWI with Dask
-  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/04_dask.ipynb>`_
+* `04 - FWI with scipy.optimize
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/04_scipy_optimise.ipynb>`_
+* `05 - Distributed FWI with Dask
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/05_dask.ipynb>`_
+* `06 - FWI with total variation (TV)) minimisation
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/06_skimage_tv.ipynb>`_
