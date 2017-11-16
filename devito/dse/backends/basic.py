@@ -26,7 +26,7 @@ class BasicRewriter(AbstractRewriter):
 
         processed = common_subexprs_elimination(candidates, make)
 
-        return cluster.reschedule(skip + processed)
+        return cluster.rebuild(skip + processed)
 
     @dse_pass
     def _optimize_trigonometry(self, cluster, **kwargs):
