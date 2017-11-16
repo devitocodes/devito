@@ -1,0 +1,46 @@
+devito\.yask package
+====================
+
+Submodules
+----------
+
+devito\.yask\.function module
+-----------------------------
+
+.. automodule:: devito.yask.function
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito\.yask\.operator module
+-----------------------------
+
+.. automodule:: devito.yask.operator
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito\.yask\.utils module
+--------------------------
+
+.. automodule:: devito.yask.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito\.yask\.wrappers module
+-----------------------------
+
+.. automodule:: devito.yask.wrappers
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: devito.yask
+    :members:
+    :undoc-members:
+    :show-inheritance:

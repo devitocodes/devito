@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.ir package &mdash; Devito 1 documentation</title>
+  <title>devito.yask package &mdash; Devito 1 documentation</title>
   
 
   
@@ -37,8 +37,7 @@
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Devito 1 documentation" href="index.html"/>
         <link rel="up" title="devito package" href="devito.html"/>
-        <link rel="next" title="devito.ir.clusters package" href="devito.ir.clusters.html"/>
-        <link rel="prev" title="devito.foreign package" href="devito.foreign.html"/> 
+        <link rel="prev" title="devito.symbolics package" href="devito.symbolics.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -102,13 +101,17 @@
 <li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.foreign.html">devito.foreign package</a></li>
-<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.ir package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#subpackages">Subpackages</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.ir">Module contents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.yask package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito-yask-function-module">devito.yask.function module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito-yask-operator-module">devito.yask.operator module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito-yask-utils-module">devito.yask.utils module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito-yask-wrappers-module">devito.yask.wrappers module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-contents">Module contents</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
-<li class="toctree-l3"><a class="reference internal" href="devito.yask.html">devito.yask package</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
@@ -178,13 +181,13 @@
         
           <li><a href="devito.html">devito package</a> &raquo;</li>
         
-      <li>devito.ir package</li>
+      <li>devito.yask package</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/devito.ir.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/devito.yask.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -197,47 +200,25 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="devito-ir-package">
-<h1>devito.ir package<a class="headerlink" href="#devito-ir-package" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="subpackages">
-<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this headline">¶</a></h2>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="devito.ir.clusters.html">devito.ir.clusters package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.clusters.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.clusters.html#module-devito.ir.clusters.algorithms">devito.ir.clusters.algorithms module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.clusters.html#module-devito.ir.clusters.cluster">devito.ir.clusters.cluster module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.clusters.html#module-devito.ir.clusters">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="devito.ir.dfg.html">devito.ir.dfg package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.dfg.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.dfg.html#module-devito.ir.dfg.graph">devito.ir.dfg.graph module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.dfg.html#module-devito.ir.dfg">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="devito.ir.iet.html">devito.ir.iet package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.analysis">devito.ir.iet.analysis module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.nodes">devito.ir.iet.nodes module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.properties">devito.ir.iet.properties module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.utils">devito.ir.iet.utils module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.visitors">devito.ir.iet.visitors module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="devito.ir.support.html">devito.ir.support package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.support.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.basic">devito.ir.support.basic module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.stencil">devito.ir.support.stencil module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support">Module contents</a></li>
-</ul>
-</li>
-</ul>
+  <div class="section" id="devito-yask-package">
+<h1>devito.yask package<a class="headerlink" href="#devito-yask-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
 </div>
+<div class="section" id="devito-yask-function-module">
+<h2>devito.yask.function module<a class="headerlink" href="#devito-yask-function-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-devito.ir">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.ir" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="devito-yask-operator-module">
+<h2>devito.yask.operator module<a class="headerlink" href="#devito-yask-operator-module" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="devito-yask-utils-module">
+<h2>devito.yask.utils module<a class="headerlink" href="#devito-yask-utils-module" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="devito-yask-wrappers-module">
+<h2>devito.yask.wrappers module<a class="headerlink" href="#devito-yask-wrappers-module" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-contents">
+<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 
@@ -251,10 +232,8 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="devito.ir.clusters.html" class="btn btn-neutral float-right" title="devito.ir.clusters package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
-      
-        <a href="devito.foreign.html" class="btn btn-neutral" title="devito.foreign package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="devito.symbolics.html" class="btn btn-neutral" title="devito.symbolics package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
