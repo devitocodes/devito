@@ -193,6 +193,9 @@ class sympy2yask(object):
                 return nfac.new_const_number_node(int(expr))
             elif expr.is_Float:
                 return nfac.new_const_number_node(float(expr))
+            elif expr.is_Rational:
+                a, b = expr.as_numer_denom()
+                return nfac.new_const_number_node(float(a)/float(b))
             elif expr.is_Symbol:
                 function = expr.base.function
                 if function.is_Constant:
@@ -224,9 +227,19 @@ class sympy2yask(object):
             elif expr.is_Mul:
                 return nary2binary(expr.args, nfac.new_multiply_node)
             elif expr.is_Pow:
-                num, den = expr.as_numer_denom()
-                if num == 1:
-                    return nfac.new_divide_node(run(num), run(den))
+                base, exp = expr.as_base_exp()
+                if not exp.is_integer:
+                    warning("non-integer powers unsupported in Devito-YASK translation")
+                    raise NotImplementedError
+
+                if int(exp) < 0:
+                   num, den = expr.as_numer_denom()
+                   return nfac.new_divide_node(run(num), run(den))
+                elif int(exp) >= 1:
+                   return nary2binary([base] * exp, nfac.new_multiply_node)
+                else:
+                   warning("zero power encountered in Devito-YASK translation? setting to 1")
+                   return nfac.new_const_number_node(1)
             elif expr.is_Equality:
                 if expr.lhs.is_Symbol:
                     function = expr.lhs.base.function
