@@ -340,13 +340,6 @@ class YaskKernel(object):
         """Create a new YASK grid."""
         return self.soln.new_grid(grid_name, dimensions)
 
-    def run_py(self, ntimesteps):
-        """Run the YaskKernel through the YASK Python API."""
-        self.soln.prepare_solution()
-        self.soln.run_solution(ntimesteps)
-        # Dump performance data
-        self.soln.get_stats()
-
     def run_c(self, cfunction, arguments):
         """
         Run the YaskKernel through a JIT-compiled function.

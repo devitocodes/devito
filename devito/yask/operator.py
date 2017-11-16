@@ -156,13 +156,8 @@ class Operator(OperatorRunnable):
             log("    %s%s, size=%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()),
                                                size, pad))
 
-        if configuration.yask['python-exec']:
-            log("Running YASK Operator through YASK...")
-            self.yk_soln.run_py(dim_sizes[self.context.time_dimension])
-        else:
-            log("Running YASK Operator through Devito...")
-            self.yk_soln.run_c(self.cfunction, list(arguments.values()))
-
+        log("Running YASK Operator through Devito...")
+        self.yk_soln.run_c(self.cfunction, list(arguments.values()))
         log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
