@@ -63,11 +63,8 @@ class Grid(object):
                  time_dimension=None, dtype=np.float32):
         self.shape = as_tuple(shape)
         self.extent = as_tuple(extent or tuple(1. for _ in shape))
-        self.origin = as_tuple(origin or tuple(0. for _ in shape))
         self.dtype = dtype
-
-        # TODO: Raise proper exceptions and logging
-        assert(self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
+        origin = as_tuple(origin or tuple(0. for _ in shape))
 
         if dimensions is None:
             # Create the spatial dimensions and constant spacing symbols
@@ -80,6 +77,10 @@ class Grid(object):
         else:
             self.dimensions = dimensions
 
+        self.origin = tuple(Constant(name='o_%s' % dim.name, value=val)
+                            for dim, val in zip(self.dimensions, origin))
+        # TODO: Raise proper exceptions and logging
+        assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
             self.time_dim = TimeDimension('time', spacing=Constant(name='dt'))

@@ -494,7 +494,7 @@ class SparseFunction(CompositeFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.nt = kwargs.get('nt')
+            self.nt = kwargs.get('nt', 0)
             self.npoint = kwargs.get('npoint')
             kwargs['shape'] = (self.nt, self.npoint)
             super(SparseFunction, self).__init__(self, *args, **kwargs)
@@ -506,7 +506,7 @@ class SparseFunction(CompositeFunction):
             # Allocate and copy coordinate data
             d = Dimension('d')
             self.coordinates = Function(name='%s_coords' % self.name,
-                                        dimensions=[self.indices[1], d],
+                                        dimensions=[self.indices[-1], d],
                                         shape=(self.npoint, self.grid.dim))
             self._children.append(self.coordinates)
             coordinates = kwargs.get('coordinates', None)
@@ -514,9 +514,9 @@ class SparseFunction(CompositeFunction):
                 self.coordinates.data[:] = coordinates[:]
 
     def __new__(cls, *args, **kwargs):
-        nt = kwargs.get('nt')
+        nt = kwargs.get('nt', 0)
         npoint = kwargs.get('npoint')
-        kwargs['shape'] = (nt, npoint)
+        kwargs['shape'] = (nt, npoint) if nt > 0 else (npoint, )
 
         return Function.__new__(cls, *args, **kwargs)
 
@@ -529,7 +529,9 @@ class SparseFunction(CompositeFunction):
         """
         dimensions = kwargs.get('dimensions', None)
         grid = kwargs.get('grid', None)
-        return dimensions or [grid.time_dim, Dimension('p')]
+        nt = kwargs.get('nt', 0)
+        indices = [grid.time_dim, Dimension('p')] if nt > 0 else [Dimension('p')]
+        return dimensions or indices
 
     @property
     def shape_data(self):
@@ -537,7 +539,7 @@ class SparseFunction(CompositeFunction):
         Full allocated shape of the data associated with this
         :class:`SparseFunction`.
         """
-        return (self.nt, self.npoint)
+        return (self.nt, self.npoint) if self.nt > 0 else (self.npoint, )
 
     @property
     def coefficients(self):
@@ -619,7 +621,7 @@ class SparseFunction(CompositeFunction):
     @property
     def coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension"""
-        p_dim = self.indices[1]
+        p_dim = self.indices[-1]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
@@ -627,9 +629,9 @@ class SparseFunction(CompositeFunction):
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
         indices = self.grid.dimensions
-        return tuple([INT(sympy.Function('floor')(c / i.spacing))
-                      for c, i in zip(self.coordinate_symbols,
-                                      indices[:self.grid.dim])])
+        return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
+                      for c, o, i in zip(self.coordinate_symbols, self.grid.origin,
+                                         indices[:self.grid.dim])])
 
     @property
     def coordinate_bases(self):
@@ -677,9 +679,12 @@ class SparseFunction(CompositeFunction):
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
-
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
+
+        cummulative = kwargs.get("cummulative", False)
+        rhs = rhs + lhs if cummulative else rhs
+
         return [Eq(lhs, rhs)]
 
     def inject(self, field, expr, offset=0, **kwargs):
