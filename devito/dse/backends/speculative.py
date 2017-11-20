@@ -1,4 +1,3 @@
-from devito.ir.clusters import optimize
 from devito.dse.backends import AdvancedRewriter, dse_pass
 from devito.symbolics import (estimate_cost, xreplace_constrained,
                               iq_timevarying, q_leaf, q_sum_of_product, q_terminalop)
@@ -31,11 +30,6 @@ class SpeculativeRewriter(AdvancedRewriter):
 
 
 class AggressiveRewriter(SpeculativeRewriter):
-
-    def run(self, cluster):
-        clusters = super(AggressiveRewriter, self).run(cluster)
-        clusters = optimize(clusters)
-        return clusters
 
     def _pipeline(self, state):
         """Three CSRE phases, progressively searching for less structure."""

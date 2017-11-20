@@ -5,7 +5,8 @@ from devito.tools import as_tuple
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
-           'q_affine', 'q_linear', 'q_identity', 'iq_timeinvariant', 'iq_timevarying']
+           'q_affine', 'q_linear', 'q_identity', 'q_inc',
+           'iq_timeinvariant', 'iq_timevarying']
 
 
 """
@@ -78,6 +79,13 @@ def q_indirect(expr):
 
 def q_timedimension(expr):
     return isinstance(expr, Dimension) and expr.is_Time
+
+
+def q_inc(expr):
+    try:
+        return expr.is_Increment
+    except AttributeError:
+        return False
 
 
 def q_affine(expr, vars):

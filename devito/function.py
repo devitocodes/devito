@@ -14,7 +14,7 @@ from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
-from devito.symbolics import Eq, indexify, retrieve_indexed
+from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'Forward', 'Backward']
@@ -725,6 +725,6 @@ class SparseFunction(CompositeFunction):
 
         # Substitute coordinate base symbols into the coefficients
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
-        return [Eq(field.subs(vsub),
-                   field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
+        return [Inc(field.subs(vsub),
+                    field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]

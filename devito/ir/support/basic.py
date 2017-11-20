@@ -3,7 +3,7 @@ from cached_property import cached_property
 from sympy import Basic, Eq
 
 from devito.dimension import Dimension
-from devito.symbolics import retrieve_indexed, q_affine
+from devito.symbolics import retrieve_indexed, q_affine, q_inc
 from devito.tools import as_tuple, is_integer, filter_sorted
 from devito.types import Indexed
 
@@ -253,7 +253,7 @@ class Access(IterationInstance):
 
     def __new__(cls, indexed, mode):
         assert isinstance(indexed, Indexed)
-        assert mode in ['R', 'W']
+        assert mode in ['R', 'W', 'RI', 'WI']
         obj = super(Access, cls).__new__(cls, indexed)
         obj.function = indexed.base.function
         obj.mode = mode
@@ -266,11 +266,23 @@ class Access(IterationInstance):
 
     @property
     def is_read(self):
-        return self.mode == 'R'
+        return self.mode in ['R', 'RI']
 
     @property
     def is_write(self):
-        return self.mode == 'W'
+        return self.mode in ['W', 'WI']
+
+    @property
+    def is_read_increment(self):
+        return self.mode == 'RI'
+
+    @property
+    def is_write_increment(self):
+        return self.mode == 'WI'
+
+    @property
+    def is_increment(self):
+        return self.is_read_increment or self.is_write_increment
 
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
@@ -359,7 +371,7 @@ class TimedAccess(Access):
             raise TypeError("Cannot compare due to mismatching `direction`")
         return super(TimedAccess, self).__lt__(other)
 
-    @cached_property
+    @property
     def index_mode(self):
         return ['regular' if (is_integer(i) or q_affine(i, fi)) else 'irregular'
                 for i, fi in zip(self, self.findices)]
@@ -416,7 +428,7 @@ class Dependence(object):
         self.function = source.function
         self.distance = source.distance(sink)
 
-    @cached_property
+    @property
     def cause(self):
         """Return the findex causing the dependence (if any -- return None if
         the dependence is between scalars)."""
@@ -428,7 +440,7 @@ class Dependence(object):
                 # Conservatively assume this is an offending dimension
                 return i
 
-    @cached_property
+    @property
     def is_indirect(self):
         """Return True if induced by an indirection array (e.g., A[B[i]]),
         False otherwise."""
@@ -437,11 +449,15 @@ class Dependence(object):
                 return True
         return False
 
-    @cached_property
+    @property
     def is_direct(self):
         """Return True if the dependence occurs through affine functions,
         False otherwise."""
         return not self.is_indirect
+
+    @property
+    def is_increment(self):
+        return self.source.is_increment and self.sink.is_increment
 
     def is_carried(self, dim=None):
         """Return True if a dimension-carried dependence, False otherwise."""
@@ -472,7 +488,7 @@ class Dependence(object):
 
 class DependenceGroup(list):
 
-    @cached_property
+    @property
     def cause(self):
         ret = [i.cause for i in self if i.cause is not None]
         return tuple(filter_sorted(ret, key=lambda i: i.name))
@@ -481,13 +497,20 @@ class DependenceGroup(list):
     def none(self):
         return len(self) == 0
 
+    @property
     def direct(self):
         """Return the dependences induced through affine index functions."""
         return DependenceGroup(i for i in self if i.is_direct)
 
+    @property
     def indirect(self):
         """Return the dependences induced through an indirection array."""
         return DependenceGroup(i for i in self if i.is_indirect)
+
+    @property
+    def increment(self):
+        """Return the increment-induced dependences."""
+        return DependenceGroup(i for i in self if i.is_increment)
 
     def carried(self, dim=None):
         """Return the dimension-carried dependences."""
@@ -527,11 +550,13 @@ class Scope(object):
             # reads
             for j in retrieve_indexed(e.rhs):
                 v = self.reads.setdefault(j.base.function, [])
-                v.append(TimedAccess(j, 'R', i))
+                mode = 'R' if not q_inc(e) else 'RI'
+                v.append(TimedAccess(j, mode, i))
             # write
             if e.lhs.is_Indexed:
                 v = self.writes.setdefault(e.lhs.base.function, [])
-                v.append(TimedAccess(e.lhs, 'W', i))
+                mode = 'W' if not q_inc(e) else 'WI'
+                v.append(TimedAccess(e.lhs, mode, i))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
