@@ -7,7 +7,7 @@ from devito.parameters import configuration
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.cgen_utils import INT, FLOAT
-from devito.dimension import Dimension
+from devito.dimension import Dimension, TimeDimension
 from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
 from devito.types import SymbolicFunction, AbstractSymbol
 from devito.finite_difference import (centered, cross_derivative,
@@ -326,9 +326,11 @@ class TimeFunction(Function):
     :param staggered: (Optional) tuple containing staggering offsets.
     :param dtype: (Optional) data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
-                 to `False`, indicating the use of alternating buffers.
-    :param time_dim: Size of the time dimension that dictates the leading
-                     dimension of the data buffer if :param save: is True.
+                 to `None`, indicating the use of alternating buffers. If
+                 intermediate results are required, the value of save must
+                 be set to the required size of the time dimension.
+    :param time_dim: The :class:`Dimension` object to use to represent time in this
+                     symbol. Defaults to the time dimension provided by the :class:`Grid`.
     :param time_order: Order of the time discretization which affects the
                        final size of the leading time dimension of the
                        data buffer.
@@ -362,22 +364,18 @@ class TimeFunction(Function):
         if not self._cached():
             super(TimeFunction, self).__init__(*args, **kwargs)
             self.time_dim = kwargs.get('time_dim', None)
+            if self.time_dim is not None and not isinstance(self.time_dim, TimeDimension):
+                raise ValueError("time_dim must be a TimeDimension, not %s" %
+                                 type(self.time_dim))
             self.time_order = kwargs.get('time_order', 1)
-            self.save = kwargs.get('save', False)
+            self.save = kwargs.get('save', None)
 
-            if not self.save:
-                if self.time_dim is not None:
-                    warning('Explicit time dimension size (time_dim) found for '
-                            'TimeFunction symbol %s, despite \nusing a stepping time '
-                            'dimension (save=False). This value will be ignored!'
-                            % self.name)
-                self.time_dim = self.time_order + 1
-                self.indices[0].modulo = self.time_dim
+            if self.save is not None:
+                assert(isinstance(self.save, int))
+                self.time_size = self.save
             else:
-                if self.time_dim is None:
-                    error('Time dimension (time_dim) is required'
-                          'to save intermediate data with save=True')
-                    raise ValueError("Unknown time dimensions")
+                self.time_size = self.time_order + 1
+                self.indices[0].modulo = self.time_size
 
     @property
     def shape_data(self):
@@ -385,7 +383,7 @@ class TimeFunction(Function):
         Full allocated shape of the data associated with this :class:`TimeFunction`.
         """
         if self.save:
-            tsize = self.time_dim - self.staggered[0]
+            tsize = self.time_size - self.staggered[0]
         else:
             tsize = self.time_order + 1
         shape_domain = tuple(i - s for i, s in zip(self.shape_domain,
@@ -406,12 +404,20 @@ class TimeFunction(Function):
         """
         save = kwargs.get('save', None)
         grid = kwargs.get('grid', None)
+        time_dim = kwargs.get('time_dim', None)
+
+        if time_dim is not None:
+            assert(isinstance(time_dim, TimeDimension))
 
         if grid is None:
             error('TimeFunction objects require a grid parameter.')
             raise ValueError('No grid provided for TimeFunction.')
 
-        tidx = grid.time_dim if save else grid.stepping_dim
+        if time_dim is not None:
+            tidx = time_dim
+        else:
+            tidx = grid.time_dim if save else grid.stepping_dim
+
         _indices = Function._indices(**kwargs)
         return tuple([tidx] + list(_indices))
 

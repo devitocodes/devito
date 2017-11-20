@@ -322,7 +322,7 @@ class TestArguments(object):
         """Test that the dimension sizes are being inferred correctly"""
         grid = Grid(shape=(3, 5, 7))
         a = Function(name='a', grid=grid)
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = TimeFunction(name='b', grid=grid, save=nt)
         op = Operator(Eq(b, a))
 
         time = b.indices[0]
@@ -336,7 +336,7 @@ class TestArguments(object):
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
         a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = TimeFunction(name='b', grid=grid, save=nt)
         time = b.indices[0]
         eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
                  + b.indexed[time, i, j, k] + a[i, j, k])
@@ -352,7 +352,7 @@ class TestArguments(object):
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
         a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = TimeFunction(name='b', grid=grid, save=nt)
         time = b.indices[0]
         eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
                  + b.indexed[time, i, j, k] + a[i, j, k])
@@ -442,10 +442,10 @@ class TestArguments(object):
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
         a = Function(name='a', grid=grid).indexed
-        b_function = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b_function = TimeFunction(name='b', grid=grid, save=nt)
         b = b_function.indexed
         time = b_function.indices[0]
-        b1 = TimeFunction(name='b1', grid=grid, save=True, time_dim=nt+1).indexed
+        b1 = TimeFunction(name='b1', grid=grid, save=nt+1).indexed
         eqn = Eq(b[time, i, j, k], a[i, j, k])
         op = Operator(eqn)
 
@@ -753,7 +753,7 @@ class TestLoopScheduler(object):
         """
         grid = Grid(shape=(3, 3, 3), dimensions=(x, y, z), time_dimension=time)
         a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=6).indexed
+        b = TimeFunction(name='b', grid=grid, save=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
@@ -845,7 +845,7 @@ class TestLoopScheduler(object):
         time = grid.time_dim
         t = grid.stepping_dim
         u1 = TimeFunction(name='u1', grid=grid)
-        u2 = TimeFunction(name='u2', grid=grid, save=True, time_dim=2)
+        u2 = TimeFunction(name='u2', grid=grid, save=2)
         eqn_1 = Eq(u1.indexed[t+1, x, y, z], u1.indexed[t, x, y, z] + 1.)
         eqn_2 = Eq(u2.indexed[time+1, x, y, z], u2.indexed[time, x, y, z] + 1.)
         op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
@@ -865,7 +865,7 @@ class TestForeign(object):
         time_dim = 6
         grid = Grid(shape=(11, 11))
         a = TimeFunction(name='a', grid=grid, time_order=1,
-                         time_dim=time_dim, save=True)
+                         save=time_dim)
         eqn = Eq(a.forward, a + 1.)
         op = Operator(eqn)
         assert isinstance(op, OperatorForeign)
