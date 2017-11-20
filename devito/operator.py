@@ -11,16 +11,16 @@ from devito.arguments import infer_dimension_values_tuple
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
-from devito.dle import compose_nodes, filter_iterations, transform
+from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.function import Forward, Backward, CompositeFunction
 from devito.logger import bar, error, info
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Element, Expression, Callable, Iteration, List,
-                           LocalExpression, FindScopes, ResolveTimeStepping,
+                           LocalExpression, MapExpressions, ResolveTimeStepping,
                            SubstituteExpression, Transformer, NestedTransformer,
-                           analyze_iterations)
+                           analyze_iterations, compose_nodes, filter_iterations)
 from devito.ir.support import Stencil
 from devito.parameters import configuration
 from devito.profiling import create_profile
@@ -363,11 +363,12 @@ class Operator(Callable):
 
         # Resolve function calls first
         scopes = []
-        for k, v in FindScopes().visit(nodes).items():
+        me = MapExpressions()
+        for k, v in me.visit(nodes).items():
             if k.is_Call:
                 func = self.func_table[k.name]
                 if func.local:
-                    scopes.extend(FindScopes().visit(func.root, queue=list(v)).items())
+                    scopes.extend(me.visit(func.root, queue=list(v)).items())
             else:
                 scopes.append((k, v))
 

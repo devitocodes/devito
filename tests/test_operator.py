@@ -10,8 +10,7 @@ import pytest
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
                     TimeFunction, SparseFunction, Dimension, configuration)
 from devito.foreign import Operator as OperatorForeign
-from devito.dle import retrieve_iteration_tree
-from devito.ir.iet import IsPerfectIteration
+from devito.ir.iet import IsPerfectIteration, retrieve_iteration_tree
 
 
 def dimify(dimensions):

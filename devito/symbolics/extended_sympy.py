@@ -10,7 +10,7 @@ from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from devito.tools import as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'FunctionFromPointer', 'ListInitializer',
-           'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
+           'Inc', 'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
@@ -49,10 +49,21 @@ class Eq(sympy.Eq, FrozenExpr):
     evaluation.
     """
 
+    is_Increment = False
+
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         return obj
+
+
+class Inc(Eq):
+    """
+    A special :class:`Eq` carrying the information that a linear increment is
+    performed.
+    """
+
+    is_Increment = True
 
 
 class Mul(sympy.Mul, FrozenExpr):
