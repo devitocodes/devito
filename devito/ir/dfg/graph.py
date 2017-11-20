@@ -6,7 +6,7 @@ from cached_property import cached_property
 from devito.dimension import Dimension
 from devito.exceptions import DSEException
 from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminals,
-                              q_indirect, q_timedimension)
+                              q_inc, q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
 
 __all__ = ['TemporariesGraph']
@@ -24,7 +24,9 @@ class Temporary(Eq):
     def __new__(cls, lhs, rhs, **kwargs):
         reads = kwargs.pop('reads', [])
         readby = kwargs.pop('readby', [])
+        inc = kwargs.pop('inc', False)
         obj = super(Temporary, cls).__new__(cls, lhs, rhs, **kwargs)
+        obj._is_Increment = inc
         obj._reads = set(reads)
         obj._readby = set(readby)
         return obj
@@ -32,6 +34,10 @@ class Temporary(Eq):
     @property
     def function(self):
         return self.lhs.base.function
+
+    @property
+    def is_Increment(self):
+        return self._is_Increment
 
     @property
     def reads(self):
@@ -86,7 +92,7 @@ class TemporariesGraph(OrderedDict):
 
     def __init__(self, exprs, **kwargs):
         # Check input legality
-        mapper = OrderedDict([i.args for i in exprs])
+        mapper = OrderedDict([(i.lhs, i) for i in exprs])
         if len(set(mapper)) != len(mapper):
             raise DSEException("Found redundant node, cannot build TemporariesGraph.")
 
@@ -97,7 +103,7 @@ class TemporariesGraph(OrderedDict):
         reads = DefaultOrderedDict(set)
         readby = DefaultOrderedDict(set)
         for k, v in mapper.items():
-            handle = retrieve_terminals(v)
+            handle = retrieve_terminals(v.rhs)
             for i in list(handle):
                 if i.is_Indexed:
                     for idx in i.indices:
@@ -121,7 +127,8 @@ class TemporariesGraph(OrderedDict):
                 queue.append(k)
 
         # Build up the TemporariesGraph
-        temporaries = [(i, Temporary(i, mapper[i], reads=reads[i], readby=readby[i]))
+        temporaries = [(i, Temporary(*mapper[i].args, inc=q_inc(mapper[i]),
+                                     reads=reads[i], readby=readby[i]))
                        for i in processed]
         super(TemporariesGraph, self).__init__(temporaries, **kwargs)
 
