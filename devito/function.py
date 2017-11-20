@@ -606,7 +606,7 @@ class TimeFunction(Function):
                         use on the two sides of the point of interest.
     :param initializer: (Optional) A callable to initialize the data
     :param save: Save the intermediate results to the data buffer. Defaults
-                 to ``None``, indicating the use of alternating buffers. If
+                 to `None`, indicating the use of alternating buffers. If
                  intermediate results are required, the value of save must
                  be set to the required size of the time dimension.
     :param time_dim: The :class:`Dimension` object to use to represent time in this
@@ -658,6 +658,9 @@ class TimeFunction(Function):
                         "than available on physical device, this will start swapping")
 
             self.time_dim = kwargs.get('time_dim')
+            if self.time_dim is not None and not isinstance(self.time_dim, TimeDimension):
+                raise ValueError("'time_dim' must be a TimeDimension")
+
             self.time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise ValueError("'time_order' must be int")
@@ -668,16 +671,16 @@ class TimeFunction(Function):
         grid = kwargs.get('grid')
         time_dim = kwargs.get('time_dim')
 
+        if time_dim is not None:
+            assert(isinstance(time_dim, Dimension))
+            assert(time_dim.is_Time)
+
         if grid is None:
             error('TimeFunction objects require a grid parameter.')
             raise ValueError('No grid provided for TimeFunction.')
 
         if time_dim is None:
             time_dim = grid.time_dim if save else grid.stepping_dim
-        elif not isinstance(time_dim, TimeDimension):
-            raise ValueError("time_dim must be a TimeDimension, not %s" % type(time_dim))
-
-        assert(isinstance(time_dim, Dimension) and time_dim.is_Time)
 
         return (time_dim,) + Function.__indices_setup__(**kwargs)
 

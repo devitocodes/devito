@@ -83,7 +83,7 @@ class Operator(Callable):
 
         # Set the direction of time acoording to the given TimeAxis
         for time in [d for d in self.dimensions if d.is_Time]:
-            if not time.is_Stepping:
+            if not time.is_Derived:
                 time.reverse = time_axis == Backward
 
         # Group expressions based on their iteration space and data dependences,

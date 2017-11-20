@@ -4,7 +4,8 @@ from cached_property import cached_property
 
 from devito.types import AbstractSymbol, Scalar, Symbol
 
-__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension']
+__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension',
+           'SubsampledDimension']
 
 
 class Dimension(AbstractSymbol):
@@ -17,6 +18,7 @@ class Dimension(AbstractSymbol):
     is_Sub = False
     is_Stepping = False
     is_Lowered = False
+    is_SubSampled = False
 
     """
     Index object that represents a problem dimension and thus defines a
@@ -170,7 +172,6 @@ class DerivedDimension(Dimension):
 
     """
     Dimension symbol derived from a ``parent`` Dimension.
-
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension from which the ``SubDimension`` is
                    created.
@@ -186,10 +187,6 @@ class DerivedDimension(Dimension):
         return newobj
 
     @property
-    def parent(self):
-        return self._parent
-
-    @property
     def reverse(self):
         return self.parent.reverse
 
@@ -197,8 +194,27 @@ class DerivedDimension(Dimension):
     def spacing(self):
         return self.parent.spacing
 
+
+class SubsampledDimension(DerivedDimension):
+
+    is_SubSampled = True
+
+    """
+    Dimension symbol that defines an iteration that proceeds with an increment
+    of more than 1.
+    """
+
+    def __new__(cls, name, parent, **kwargs):
+        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
+        newobj._factor = kwargs.get('factor', 4)
+        return newobj
+
+    @property
+    def factor(self):
+        return self._factor
+
     def _hashable_content(self):
-        return (self.parent._hashable_content(),)
+        return (self.parent._hashable_content(), self.factor)
 
 
 class SubDimension(DerivedDimension):
