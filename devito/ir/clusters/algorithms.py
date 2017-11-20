@@ -25,8 +25,8 @@ def groupby(clusters):
         for candidate in reversed(list(processed)):
             # Check all data dependences relevant for cluster fusion
             scope = Scope(exprs=candidate.exprs + c.exprs)
-            anti = scope.d_anti.carried() - scope.d_anti.indirect()
-            flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.indirect())
+            anti = scope.d_anti.carried() - scope.d_anti.increment
+            flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
             funcs = [i.function for i in anti]
             if candidate.stencil == c.stencil and\
                     all(is_local(i, candidate, c, clusters) for i in funcs):
