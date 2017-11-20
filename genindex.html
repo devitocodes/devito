@@ -349,7 +349,7 @@
 </li>
       <li><a href="devito.html#devito.operator.Operator.compile">compile (devito.operator.Operator attribute)</a>
 </li>
-      <li><a href="devito.dle.html#devito.dle.manipulation.compose_nodes">compose_nodes() (in module devito.dle.manipulation)</a>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.utils.compose_nodes">compose_nodes() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="devito.html#devito.parameters.configuration">configuration (in module devito.parameters)</a>
 </li>
@@ -371,7 +371,7 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.copy">copy() (devito.ir.support.stencil.Stencil method)</a>
 </li>
-      <li><a href="devito.dle.html#devito.dle.manipulation.copy_arrays">copy_arrays() (in module devito.dle.manipulation)</a>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.utils.copy_arrays">copy_arrays() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.inspection.count">count() (in module devito.symbolics.inspection)</a>
 </li>
@@ -448,6 +448,8 @@
 </li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.FunctionFromPointer.default_assumptions">(devito.symbolics.extended_sympy.FunctionFromPointer attribute)</a>
 </li>
+        <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Inc.default_assumptions">(devito.symbolics.extended_sympy.Inc attribute)</a>
+</li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.ListInitializer.default_assumptions">(devito.symbolics.extended_sympy.ListInitializer attribute)</a>
 </li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Mul.default_assumptions">(devito.symbolics.extended_sympy.Mul attribute)</a>
@@ -520,10 +522,6 @@
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.utils">devito.dle.backends.utils (module)</a>
 </li>
       <li><a href="devito.dle.html#module-devito.dle.blocking_utils">devito.dle.blocking_utils (module)</a>
-</li>
-      <li><a href="devito.dle.html#module-devito.dle.inspection">devito.dle.inspection (module)</a>
-</li>
-      <li><a href="devito.dle.html#module-devito.dle.manipulation">devito.dle.manipulation (module)</a>
 </li>
       <li><a href="devito.dle.html#module-devito.dle.transformer">devito.dle.transformer (module)</a>
 </li>
@@ -785,15 +783,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.memory.CMemory.fill">fill() (devito.memory.CMemory method)</a>
 </li>
-      <li><a href="devito.dle.html#devito.dle.inspection.filter_iterations">filter_iterations() (in module devito.dle.inspection)</a>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.utils.filter_iterations">filter_iterations() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="examples.cfd.html#examples.cfd.tools.fin_bump">fin_bump() (in module examples.cfd.tools)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindAdjacentIterations">FindAdjacentIterations (class in devito.ir.iet.visitors)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindNodes">FindNodes (class in devito.ir.iet.visitors)</a>
-</li>
-      <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindScopes">FindScopes (class in devito.ir.iet.visitors)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSections">FindSections (class in devito.ir.iet.visitors)</a>
 </li>
@@ -809,14 +805,14 @@
 </li>
       <li><a href="devito.html#devito.function.TimeFunction.forward">forward (devito.function.TimeFunction attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.forward">forward() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 
       <ul>
         <li><a href="examples.seismic.tti.html#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.forward">(examples.seismic.tti.wavesolver.AnisotropicWaveSolver method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.forward_field">forward_field (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
 </li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.forward_operator">forward_operator (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
@@ -923,6 +919,8 @@
 <h2 id="I">I</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Inc">Inc (class in devito.symbolics.extended_sympy)</a>
+</li>
       <li><a href="devito.html#devito.types.Indexed">Indexed (class in devito.types)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.indexify">indexify() (in module devito.symbolics.manipulation)</a>
@@ -1023,7 +1021,7 @@
       </ul></li>
       <li><a href="devito.html#devito.base.Operator.is_finite">is_finite (devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.dle.html#devito.dle.inspection.is_foldable">is_foldable() (in module devito.dle.inspection)</a>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.utils.is_foldable">is_foldable() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="devito.html#devito.function.Function.is_Function">is_Function (devito.function.Function attribute)</a>
 </li>
@@ -1031,16 +1029,22 @@
 </li>
       <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
 </li>
+      <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Eq.is_Increment">is_Increment (devito.symbolics.extended_sympy.Eq attribute)</a>
+
+      <ul>
+        <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Inc.is_Increment">(devito.symbolics.extended_sympy.Inc attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.is_index">is_index() (devito.ir.dfg.graph.TemporariesGraph method)</a>
 </li>
       <li><a href="devito.html#devito.base.Operator.is_infinite">is_infinite (devito.base.Operator attribute)</a>
 </li>
       <li><a href="devito.html#devito.base.Operator.is_integer">is_integer (devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_irrational">is_irrational (devito.base.Operator attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.base.Operator.is_irrational">is_irrational (devito.base.Operator attribute)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Iteration">is_Iteration (devito.ir.iet.nodes.Iteration attribute)</a>
 
       <ul>
@@ -1229,12 +1233,14 @@
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions">MapExpressions (class in devito.ir.iet.visitors)</a>
 </li>
-      <li><a href="devito.html#devito.tools.memoized">memoized (class in devito.tools)</a>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapIteration">MapIteration (class in devito.ir.iet.visitors)</a>
 </li>
-      <li><a href="devito.html#devito.profiling.Profile.memory">memory (devito.profiling.Profile attribute)</a>
+      <li><a href="devito.html#devito.tools.memoized">memoized (class in devito.tools)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.profiling.Profile.memory">memory (devito.profiling.Profile attribute)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations.merge">merge() (devito.ir.iet.visitors.MergeOuterIterations method)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations">MergeOuterIterations (class in devito.ir.iet.visitors)</a>
@@ -1381,16 +1387,18 @@
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_identity">q_identity() (in module devito.symbolics.queries)</a>
 </li>
+      <li><a href="devito.symbolics.html#devito.symbolics.queries.q_inc">q_inc() (in module devito.symbolics.queries)</a>
+</li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_indexed">q_indexed() (in module devito.symbolics.queries)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_indirect">q_indirect() (in module devito.symbolics.queries)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_leaf">q_leaf() (in module devito.symbolics.queries)</a>
 </li>
-      <li><a href="devito.symbolics.html#devito.symbolics.queries.q_linear">q_linear() (in module devito.symbolics.queries)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.symbolics.html#devito.symbolics.queries.q_linear">q_linear() (in module devito.symbolics.queries)</a>
+</li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_op">q_op() (in module devito.symbolics.queries)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.q_sum_of_product">q_sum_of_product() (in module devito.symbolics.queries)</a>
@@ -1431,7 +1439,7 @@
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.search.retrieve_indexed">retrieve_indexed() (in module devito.symbolics.search)</a>
 </li>
-      <li><a href="devito.dle.html#devito.dle.inspection.retrieve_iteration_tree">retrieve_iteration_tree() (in module devito.dle.inspection)</a>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.utils.retrieve_iteration_tree">retrieve_iteration_tree() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.search.retrieve_ops">retrieve_ops() (in module devito.symbolics.search)</a>
 </li>
@@ -1685,7 +1693,7 @@
 <h2 id="U">U</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.ir.iet.html#devito.ir.iet.utils.UnboundedIndex">UnboundedIndex (class in devito.ir.iet.utils)</a>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.UnboundedIndex">UnboundedIndex (class in devito.ir.iet.nodes)</a>
 </li>
       <li><a href="devito.dle.html#devito.dle.blocking_utils.unfold_blocked_tree">unfold_blocked_tree() (in module devito.dle.blocking_utils)</a>
 </li>
@@ -1748,11 +1756,11 @@
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Call">visit_Call() (devito.ir.iet.visitors.CGen method)</a>
 
       <ul>
-        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindScopes.visit_Call">(devito.ir.iet.visitors.FindScopes method)</a>
-</li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Call">(devito.ir.iet.visitors.FindSections method)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions.visit_Call">(devito.ir.iet.visitors.MapExpressions method)</a>
+</li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapIteration.visit_Call">(devito.ir.iet.visitors.MapIteration method)</a>
 </li>
       </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Callable">visit_Callable() (devito.ir.iet.visitors.CGen method)</a>
@@ -1760,23 +1768,23 @@
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Element">visit_Element() (devito.ir.iet.visitors.CGen method)</a>
 
       <ul>
-        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindScopes.visit_Element">(devito.ir.iet.visitors.FindScopes method)</a>
-</li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Element">(devito.ir.iet.visitors.FindSections method)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions.visit_Element">(devito.ir.iet.visitors.MapExpressions method)</a>
+</li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapIteration.visit_Element">(devito.ir.iet.visitors.MapIteration method)</a>
 </li>
       </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Expression">visit_Expression() (devito.ir.iet.visitors.CGen method)</a>
 
       <ul>
-        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindScopes.visit_Expression">(devito.ir.iet.visitors.FindScopes method)</a>
-</li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Expression">(devito.ir.iet.visitors.FindSections method)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols.visit_Expression">(devito.ir.iet.visitors.FindSymbols method)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions.visit_Expression">(devito.ir.iet.visitors.MapExpressions method)</a>
+</li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapIteration.visit_Expression">(devito.ir.iet.visitors.MapIteration method)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit_Expression">(devito.ir.iet.visitors.ResolveTimeStepping method)</a>
 </li>

@@ -161,17 +161,155 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.ir.iet.utils</h1><div class="highlight"><pre>
-<div class="viewcode-block" id="UnboundedIndex"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.UnboundedIndex">[docs]</a><span></span><span class="k">class</span> <span class="nc">UnboundedIndex</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span></span><span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">MergeOuterIterations</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A generic loop iteration index that can be used in a :class:`Iteration` to</span>
-<span class="sd">    add a non-linear traversal of the iteration space.</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;filter_iterations&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_iteration_tree&#39;</span><span class="p">,</span> <span class="s1">&#39;is_foldable&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;compose_nodes&#39;</span><span class="p">,</span> <span class="s1">&#39;copy_arrays&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="retrieve_iteration_tree"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.retrieve_iteration_tree">[docs]</a><span class="k">def</span> <span class="nf">retrieve_iteration_tree</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;normal&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a list of all :class:`Iteration` sub-trees rooted in ``node``.</span>
+<span class="sd">    For example, given the Iteration tree:</span>
+
+<span class="sd">        .. code-block:: c</span>
+
+<span class="sd">           Iteration i</span>
+<span class="sd">             expr0</span>
+<span class="sd">             Iteration j</span>
+<span class="sd">               Iteraion k</span>
+<span class="sd">                 expr1</span>
+<span class="sd">             Iteration p</span>
+<span class="sd">               expr2</span>
+
+<span class="sd">    Return the list: ::</span>
+
+<span class="sd">        [(Iteration i, Iteration j, Iteration k), (Iteration i, Iteration p)]</span>
+
+<span class="sd">    :param node: The searched Iteration/Expression tree.</span>
+<span class="sd">    :param mode: Accepted values are &#39;normal&#39; (default) and &#39;superset&#39;, in which</span>
+<span class="sd">                 case iteration trees that are subset of larger iteration trees</span>
+<span class="sd">                 are dropped.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;normal&#39;</span><span class="p">,</span> <span class="s1">&#39;superset&#39;</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">start</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">step</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">step</span></div>
+    <span class="n">trees</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSections</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;normal&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">trees</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">trees</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">j</span><span class="p">))</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">trees</span> <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">j</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">match</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">match</span></div>
+
+
+<div class="viewcode-block" id="filter_iterations"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.filter_iterations">[docs]</a><span class="k">def</span> <span class="nf">filter_iterations</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given an iterable of :class:`Iteration` objects, return a new list</span>
+<span class="sd">    containing all items such that ``key(o)`` is True.</span>
+
+<span class="sd">    This function accepts an optional argument ``stop``. This may be either a</span>
+<span class="sd">    lambda function, specifying a stop criterium, or any of the following</span>
+<span class="sd">    special keywords: ::</span>
+
+<span class="sd">        * &#39;any&#39;: Return as soon as ``key(o)`` is False and at least one</span>
+<span class="sd">                 item has been collected.</span>
+<span class="sd">        * &#39;asap&#39;: Return as soon as at least one item has been collected and</span>
+<span class="sd">                  all items for which ``key(o)`` is False have been encountered.</span>
+
+<span class="sd">    It is useful to specify a ``stop`` criterium when one is searching the</span>
+<span class="sd">    first Iteration in an Iteration/Expression tree for which a given property</span>
+<span class="sd">    does not hold.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">callable</span><span class="p">(</span><span class="n">stop</span><span class="p">)</span> <span class="ow">or</span> <span class="n">stop</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;any&#39;</span><span class="p">,</span> <span class="s1">&#39;asap&#39;</span><span class="p">]</span>
+
+    <span class="n">tree</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span>
+    <span class="n">filtered</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">off</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">stop</span> <span class="o">==</span> <span class="s1">&#39;any&#39;</span><span class="p">:</span>
+        <span class="n">stop</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="k">elif</span> <span class="n">stop</span> <span class="o">==</span> <span class="s1">&#39;asap&#39;</span><span class="p">:</span>
+        <span class="n">hits</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span>
+        <span class="n">stop</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">off</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">hits</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+            <span class="n">filtered</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">off</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">stop</span><span class="p">():</span>
+            <span class="k">break</span>
+
+    <span class="k">return</span> <span class="n">filtered</span></div>
+
+
+<div class="viewcode-block" id="is_foldable"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.is_foldable">[docs]</a><span class="k">def</span> <span class="nf">is_foldable</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if the iterable ``nodes`` consists of foldable :class:`Iteration`</span>
+<span class="sd">    objects, False otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Iteration</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">main</span> <span class="o">=</span> <span class="n">nodes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">dim</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">limits</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">limits</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">index</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">index</span>
+               <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">properties</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">properties</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="compose_nodes"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.compose_nodes">[docs]</a><span class="k">def</span> <span class="nf">compose_nodes</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">retrieve</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Build an Iteration/Expression tree by nesting the nodes in ``nodes``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">l</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+    <span class="n">tree</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Iteration</span><span class="p">):</span>
+        <span class="c1"># Nothing to compose</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">body</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">l</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">l</span><span class="p">:</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">l</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="o">**</span><span class="n">handle</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">)</span>
+            <span class="n">tree</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">retrieve</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">tree</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">tree</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">body</span><span class="p">,</span> <span class="n">tree</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">body</span></div>
+
+
+<div class="viewcode-block" id="copy_arrays"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.copy_arrays">[docs]</a><span class="k">def</span> <span class="nf">copy_arrays</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Build an Iteration/Expression tree performing the copy ``k = v``, or</span>
+<span class="sd">    ``v = k`` if reverse=True, for each (k, v) in mapper. (k, v) are expected</span>
+<span class="sd">    to be of type :class:`IndexedData`. The loop bounds are inferred from</span>
+<span class="sd">    the dimensions used in ``k``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">mapper</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="c1"># Build the Iteration tree for the copy</span>
+    <span class="n">iterations</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">indices</span><span class="p">):</span>
+            <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Iteration</span><span class="p">([],</span> <span class="n">dimension</span><span class="o">=</span><span class="n">j</span><span class="p">,</span> <span class="n">limits</span><span class="o">=</span><span class="n">i</span><span class="p">))</span>
+        <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span> <span class="o">=</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">if</span> <span class="n">reverse</span> <span class="k">else</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Expression</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">[</span><span class="n">indices</span><span class="p">],</span> <span class="n">rhs</span><span class="p">[</span><span class="n">indices</span><span class="p">]),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+        <span class="n">iterations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">compose_nodes</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+
+    <span class="c1"># Maybe some Iterations are mergeable</span>
+    <span class="n">iterations</span> <span class="o">=</span> <span class="n">MergeOuterIterations</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iterations</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">iterations</span></div>
 </pre></div>
 
            </div>

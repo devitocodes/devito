@@ -103,8 +103,6 @@
 <li class="toctree-l4"><a class="reference internal" href="#subpackages">Subpackages</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.dle.blocking_utils">devito.dle.blocking_utils module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.dle.inspection">devito.dle.inspection module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.dle.manipulation">devito.dle.manipulation module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.dle.transformer">devito.dle.transformer module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.dle">Module contents</a></li>
 </ul>
@@ -258,89 +256,6 @@
     <span class="n">foo2</span><span class="p">()</span>
 </pre></div>
 </div>
-</dd></dl>
-
-</div>
-<div class="section" id="module-devito.dle.inspection">
-<span id="devito-dle-inspection-module"></span><h2>devito.dle.inspection module<a class="headerlink" href="#module-devito.dle.inspection" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="devito.dle.inspection.filter_iterations">
-<code class="descclassname">devito.dle.inspection.</code><code class="descname">filter_iterations</code><span class="sig-paren">(</span><em>tree</em>, <em>key=&lt;function &lt;lambda&gt;&gt;</em>, <em>stop=&lt;function &lt;lambda&gt;&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/inspection.html#filter_iterations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.inspection.filter_iterations" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given an iterable of <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> objects, return a new list
-containing all items such that <code class="docutils literal"><span class="pre">key(o)</span></code> is True.</p>
-<p>This function accepts an optional argument <code class="docutils literal"><span class="pre">stop</span></code>. This may be either a
-lambda function, specifying a stop criterium, or any of the following
-special keywords:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span>* &#39;any&#39;: Return as soon as ``key(o)`` is False and at least one
-         item has been collected.
-* &#39;asap&#39;: Return as soon as at least one item has been collected and
-          all items for which ``key(o)`` is False have been encountered.
-</pre></div>
-</div>
-<p>It is useful to specify a <code class="docutils literal"><span class="pre">stop</span></code> criterium when one is searching the
-first Iteration in an Iteration/Expression tree for which a given property
-does not hold.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.dle.inspection.retrieve_iteration_tree">
-<code class="descclassname">devito.dle.inspection.</code><code class="descname">retrieve_iteration_tree</code><span class="sig-paren">(</span><em>node</em>, <em>mode='normal'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/inspection.html#retrieve_iteration_tree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.inspection.retrieve_iteration_tree" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a list of all <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> sub-trees rooted in <code class="docutils literal"><span class="pre">node</span></code>.
-For example, given the Iteration tree:</p>
-<blockquote>
-<div><div class="highlight-c"><div class="highlight"><pre><span></span><span class="n">Iteration</span> <span class="n">i</span>
-  <span class="n">expr0</span>
-  <span class="n">Iteration</span> <span class="n">j</span>
-    <span class="n">Iteraion</span> <span class="n">k</span>
-      <span class="n">expr1</span>
-  <span class="n">Iteration</span> <span class="n">p</span>
-    <span class="n">expr2</span>
-</pre></div>
-</div>
-</div></blockquote>
-<p>Return the list:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">[(</span><span class="n">Iteration</span> <span class="n">i</span><span class="p">,</span> <span class="n">Iteration</span> <span class="n">j</span><span class="p">,</span> <span class="n">Iteration</span> <span class="n">k</span><span class="p">),</span> <span class="p">(</span><span class="n">Iteration</span> <span class="n">i</span><span class="p">,</span> <span class="n">Iteration</span> <span class="n">p</span><span class="p">)]</span>
-</pre></div>
-</div>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>node</strong> – The searched Iteration/Expression tree.</li>
-<li><strong>mode</strong> – Accepted values are ‘normal’ (default) and ‘superset’, in which
-case iteration trees that are subset of larger iteration trees
-are dropped.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.dle.inspection.is_foldable">
-<code class="descclassname">devito.dle.inspection.</code><code class="descname">is_foldable</code><span class="sig-paren">(</span><em>nodes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/inspection.html#is_foldable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.inspection.is_foldable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return True if the iterable <code class="docutils literal"><span class="pre">nodes</span></code> consists of foldable <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code>
-objects, False otherwise.</p>
-</dd></dl>
-
-</div>
-<div class="section" id="module-devito.dle.manipulation">
-<span id="devito-dle-manipulation-module"></span><h2>devito.dle.manipulation module<a class="headerlink" href="#module-devito.dle.manipulation" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="devito.dle.manipulation.compose_nodes">
-<code class="descclassname">devito.dle.manipulation.</code><code class="descname">compose_nodes</code><span class="sig-paren">(</span><em>nodes</em>, <em>retrieve=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/manipulation.html#compose_nodes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.manipulation.compose_nodes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build an Iteration/Expression tree by nesting the nodes in <code class="docutils literal"><span class="pre">nodes</span></code>.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.dle.manipulation.copy_arrays">
-<code class="descclassname">devito.dle.manipulation.</code><code class="descname">copy_arrays</code><span class="sig-paren">(</span><em>mapper</em>, <em>reverse=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/manipulation.html#copy_arrays"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.manipulation.copy_arrays" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build an Iteration/Expression tree performing the copy <code class="docutils literal"><span class="pre">k</span> <span class="pre">=</span> <span class="pre">v</span></code>, or
-<code class="docutils literal"><span class="pre">v</span> <span class="pre">=</span> <span class="pre">k</span></code> if reverse=True, for each (k, v) in mapper. (k, v) are expected
-to be of type <code class="xref py py-class docutils literal"><span class="pre">IndexedData</span></code>. The loop bounds are inferred from
-the dimensions used in <code class="docutils literal"><span class="pre">k</span></code>.</p>
 </dd></dl>
 
 </div>

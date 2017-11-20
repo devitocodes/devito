@@ -169,7 +169,7 @@
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span><span class="p">,</span>
-                              <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span><span class="p">)</span>
+                              <span class="n">q_inc</span><span class="p">,</span> <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TemporariesGraph&#39;</span><span class="p">]</span>
@@ -187,7 +187,9 @@
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">reads</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;reads&#39;</span><span class="p">,</span> <span class="p">[])</span>
         <span class="n">readby</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;readby&#39;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">inc</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;inc&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Temporary</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_is_Increment</span> <span class="o">=</span> <span class="n">inc</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_readby</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">readby</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">obj</span>
@@ -195,6 +197,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_Increment</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">reads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -249,7 +255,7 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># Check input legality</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">args</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">DSEException</span><span class="p">(</span><span class="s2">&quot;Found redundant node, cannot build TemporariesGraph.&quot;</span><span class="p">)</span>
 
@@ -260,7 +266,7 @@
         <span class="n">reads</span> <span class="o">=</span> <span class="n">DefaultOrderedDict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
         <span class="n">readby</span> <span class="o">=</span> <span class="n">DefaultOrderedDict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">handle</span> <span class="o">=</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">handle</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
                     <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
@@ -284,7 +290,8 @@
                 <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
 
         <span class="c1"># Build up the TemporariesGraph</span>
-        <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">Temporary</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">reads</span><span class="o">=</span><span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">Temporary</span><span class="p">(</span><span class="o">*</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">inc</span><span class="o">=</span><span class="n">q_inc</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                                     <span class="n">reads</span><span class="o">=</span><span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">TemporariesGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">temporaries</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 

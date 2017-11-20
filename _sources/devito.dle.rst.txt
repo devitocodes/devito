@@ -19,22 +19,6 @@ devito\.dle\.blocking\_utils module
     :undoc-members:
     :show-inheritance:
 
-devito\.dle\.inspection module
-------------------------------
-
-.. automodule:: devito.dle.inspection
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.dle\.manipulation module
---------------------------------
-
-.. automodule:: devito.dle.manipulation
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 devito\.dle\.transformer module
 -------------------------------
 

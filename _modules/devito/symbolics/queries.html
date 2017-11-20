@@ -168,7 +168,8 @@
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;q_leaf&#39;</span><span class="p">,</span> <span class="s1">&#39;q_indexed&#39;</span><span class="p">,</span> <span class="s1">&#39;q_terminal&#39;</span><span class="p">,</span> <span class="s1">&#39;q_trigonometry&#39;</span><span class="p">,</span> <span class="s1">&#39;q_op&#39;</span><span class="p">,</span>
            <span class="s1">&#39;q_terminalop&#39;</span><span class="p">,</span> <span class="s1">&#39;q_sum_of_product&#39;</span><span class="p">,</span> <span class="s1">&#39;q_indirect&#39;</span><span class="p">,</span> <span class="s1">&#39;q_timedimension&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;q_affine&#39;</span><span class="p">,</span> <span class="s1">&#39;q_linear&#39;</span><span class="p">,</span> <span class="s1">&#39;q_identity&#39;</span><span class="p">,</span> <span class="s1">&#39;iq_timeinvariant&#39;</span><span class="p">,</span> <span class="s1">&#39;iq_timevarying&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;q_affine&#39;</span><span class="p">,</span> <span class="s1">&#39;q_linear&#39;</span><span class="p">,</span> <span class="s1">&#39;q_identity&#39;</span><span class="p">,</span> <span class="s1">&#39;q_inc&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;iq_timeinvariant&#39;</span><span class="p">,</span> <span class="s1">&#39;iq_timevarying&#39;</span><span class="p">]</span>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -241,6 +242,13 @@
 
 <div class="viewcode-block" id="q_timedimension"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_timedimension">[docs]</a><span class="k">def</span> <span class="nf">q_timedimension</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Time</span></div>
+
+
+<div class="viewcode-block" id="q_inc"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_inc">[docs]</a><span class="k">def</span> <span class="nf">q_inc</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
 
 
 <div class="viewcode-block" id="q_affine"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_affine">[docs]</a><span class="k">def</span> <span class="nf">q_affine</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">vars</span><span class="p">):</span>

@@ -647,6 +647,14 @@ represented as a NumPy data type.</p>
 
 </dd></dl>
 
+<dl class="class">
+<dt id="devito.ir.iet.nodes.UnboundedIndex">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">UnboundedIndex</code><span class="sig-paren">(</span><em>index</em>, <em>start=0</em>, <em>step=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#UnboundedIndex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.UnboundedIndex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A generic loop iteration index that can be used in a <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code></a> to
+add a non-linear traversal of the iteration space.</p>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.ir.iet.properties">
 <span id="devito-ir-iet-properties-module"></span><h2>devito.ir.iet.properties module<a class="headerlink" href="#module-devito.ir.iet.properties" title="Permalink to this headline">¶</a></h2>
@@ -707,12 +715,81 @@ u[t+1, …] = f(u[t, …], u[t-1, …]) –&gt; u[t-1, …] = f(u[t, …], u[t-1
 </div>
 <div class="section" id="module-devito.ir.iet.utils">
 <span id="devito-ir-iet-utils-module"></span><h2>devito.ir.iet.utils module<a class="headerlink" href="#module-devito.ir.iet.utils" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.ir.iet.utils.UnboundedIndex">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.utils.</code><code class="descname">UnboundedIndex</code><span class="sig-paren">(</span><em>index</em>, <em>start=0</em>, <em>step=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/utils.html#UnboundedIndex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.utils.UnboundedIndex" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
-<p>A generic loop iteration index that can be used in a <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> to
-add a non-linear traversal of the iteration space.</p>
+<dl class="function">
+<dt id="devito.ir.iet.utils.filter_iterations">
+<code class="descclassname">devito.ir.iet.utils.</code><code class="descname">filter_iterations</code><span class="sig-paren">(</span><em>tree</em>, <em>key=&lt;function &lt;lambda&gt;&gt;</em>, <em>stop=&lt;function &lt;lambda&gt;&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/utils.html#filter_iterations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.utils.filter_iterations" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given an iterable of <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> objects, return a new list
+containing all items such that <code class="docutils literal"><span class="pre">key(o)</span></code> is True.</p>
+<p>This function accepts an optional argument <code class="docutils literal"><span class="pre">stop</span></code>. This may be either a
+lambda function, specifying a stop criterium, or any of the following
+special keywords:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>* &#39;any&#39;: Return as soon as ``key(o)`` is False and at least one
+         item has been collected.
+* &#39;asap&#39;: Return as soon as at least one item has been collected and
+          all items for which ``key(o)`` is False have been encountered.
+</pre></div>
+</div>
+<p>It is useful to specify a <code class="docutils literal"><span class="pre">stop</span></code> criterium when one is searching the
+first Iteration in an Iteration/Expression tree for which a given property
+does not hold.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.iet.utils.retrieve_iteration_tree">
+<code class="descclassname">devito.ir.iet.utils.</code><code class="descname">retrieve_iteration_tree</code><span class="sig-paren">(</span><em>node</em>, <em>mode='normal'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/utils.html#retrieve_iteration_tree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.utils.retrieve_iteration_tree" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a list of all <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> sub-trees rooted in <code class="docutils literal"><span class="pre">node</span></code>.
+For example, given the Iteration tree:</p>
+<blockquote>
+<div><div class="highlight-c"><div class="highlight"><pre><span></span><span class="n">Iteration</span> <span class="n">i</span>
+  <span class="n">expr0</span>
+  <span class="n">Iteration</span> <span class="n">j</span>
+    <span class="n">Iteraion</span> <span class="n">k</span>
+      <span class="n">expr1</span>
+  <span class="n">Iteration</span> <span class="n">p</span>
+    <span class="n">expr2</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Return the list:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">[(</span><span class="n">Iteration</span> <span class="n">i</span><span class="p">,</span> <span class="n">Iteration</span> <span class="n">j</span><span class="p">,</span> <span class="n">Iteration</span> <span class="n">k</span><span class="p">),</span> <span class="p">(</span><span class="n">Iteration</span> <span class="n">i</span><span class="p">,</span> <span class="n">Iteration</span> <span class="n">p</span><span class="p">)]</span>
+</pre></div>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>node</strong> – The searched Iteration/Expression tree.</li>
+<li><strong>mode</strong> – Accepted values are ‘normal’ (default) and ‘superset’, in which
+case iteration trees that are subset of larger iteration trees
+are dropped.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.iet.utils.is_foldable">
+<code class="descclassname">devito.ir.iet.utils.</code><code class="descname">is_foldable</code><span class="sig-paren">(</span><em>nodes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/utils.html#is_foldable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.utils.is_foldable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if the iterable <code class="docutils literal"><span class="pre">nodes</span></code> consists of foldable <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code>
+objects, False otherwise.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.iet.utils.compose_nodes">
+<code class="descclassname">devito.ir.iet.utils.</code><code class="descname">compose_nodes</code><span class="sig-paren">(</span><em>nodes</em>, <em>retrieve=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/utils.html#compose_nodes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.utils.compose_nodes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build an Iteration/Expression tree by nesting the nodes in <code class="docutils literal"><span class="pre">nodes</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.iet.utils.copy_arrays">
+<code class="descclassname">devito.ir.iet.utils.</code><code class="descname">copy_arrays</code><span class="sig-paren">(</span><em>mapper</em>, <em>reverse=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/utils.html#copy_arrays"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.utils.copy_arrays" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build an Iteration/Expression tree performing the copy <code class="docutils literal"><span class="pre">k</span> <span class="pre">=</span> <span class="pre">v</span></code>, or
+<code class="docutils literal"><span class="pre">v</span> <span class="pre">=</span> <span class="pre">k</span></code> if reverse=True, for each (k, v) in mapper. (k, v) are expected
+to be of type <code class="xref py py-class docutils literal"><span class="pre">IndexedData</span></code>. The loop bounds are inferred from
+the dimensions used in <code class="docutils literal"><span class="pre">k</span></code>.</p>
 </dd></dl>
 
 </div>
@@ -824,24 +901,24 @@ add a non-linear traversal of the iteration space.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.ir.iet.visitors.FindScopes">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">FindScopes</code><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#FindScopes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.FindScopes" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.MapExpressions">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">MapExpressions</code><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MapExpressions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MapExpressions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.visitors.FindSections" title="devito.ir.iet.visitors.FindSections"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.visitors.FindSections</span></code></a></p>
 <p>Map <code class="xref py py-class docutils literal"><span class="pre">Expression</span></code> and <code class="xref py py-class docutils literal"><span class="pre">Call</span></code> objects in the Iteration/Expression
-tree to its section.</p>
+tree to their respective section.</p>
 <dl class="method">
-<dt id="devito.ir.iet.visitors.FindScopes.visit_Call">
-<code class="descname">visit_Call</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#FindScopes.visit_Call"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.FindScopes.visit_Call" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.MapExpressions.visit_Call">
+<code class="descname">visit_Call</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MapExpressions.visit_Call"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MapExpressions.visit_Call" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="devito.ir.iet.visitors.FindScopes.visit_Element">
-<code class="descname">visit_Element</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.FindScopes.visit_Element" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.MapExpressions.visit_Element">
+<code class="descname">visit_Element</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.MapExpressions.visit_Element" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="devito.ir.iet.visitors.FindScopes.visit_Expression">
-<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.FindScopes.visit_Expression" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.MapExpressions.visit_Expression">
+<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.MapExpressions.visit_Expression" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1137,24 +1214,24 @@ loops along the same dimension.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.ir.iet.visitors.MapExpressions">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">MapExpressions</code><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MapExpressions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MapExpressions" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.MapIteration">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">MapIteration</code><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MapIteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MapIteration" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.visitors.FindSections" title="devito.ir.iet.visitors.FindSections"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.visitors.FindSections</span></code></a></p>
 <p>Map each <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> object in the Iteration/Expression tree to the
 enclosed <code class="xref py py-class docutils literal"><span class="pre">Expression</span></code> and <code class="xref py py-class docutils literal"><span class="pre">Call</span></code> objects.</p>
 <dl class="method">
-<dt id="devito.ir.iet.visitors.MapExpressions.visit_Call">
-<code class="descname">visit_Call</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MapExpressions.visit_Call"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MapExpressions.visit_Call" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.MapIteration.visit_Call">
+<code class="descname">visit_Call</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MapIteration.visit_Call"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MapIteration.visit_Call" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="devito.ir.iet.visitors.MapExpressions.visit_Element">
-<code class="descname">visit_Element</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.MapExpressions.visit_Element" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.MapIteration.visit_Element">
+<code class="descname">visit_Element</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.MapIteration.visit_Element" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="devito.ir.iet.visitors.MapExpressions.visit_Expression">
-<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.MapExpressions.visit_Expression" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.MapIteration.visit_Expression">
+<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>ret=None</em>, <em>queue=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.MapIteration.visit_Expression" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
