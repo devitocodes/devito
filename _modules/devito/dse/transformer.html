@@ -163,6 +163,7 @@
   <h1>Source code for devito.dse.transformer</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
 
+<span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="k">import</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">groupby</span>
 <span class="kn">from</span> <span class="nn">devito.dse.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">AdvancedRewriter</span><span class="p">,</span> <span class="n">SpeculativeRewriter</span><span class="p">,</span>
                                  <span class="n">AggressiveRewriter</span><span class="p">,</span> <span class="n">CustomRewriter</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
@@ -213,7 +214,7 @@
     <span class="k">if</span> <span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;noop&#39;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">clusters</span>
 
-    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="n">ClusterGroup</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">cluster</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">cluster</span><span class="o">.</span><span class="n">is_dense</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">modes</span><span class="p">:</span>
@@ -229,7 +230,8 @@
             <span class="c1"># pointless to expose loop-redundancies when the iteration space</span>
             <span class="c1"># only consists of a few points</span>
             <span class="n">processed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cluster</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">processed</span></div>
+
+    <span class="k">return</span> <span class="n">groupby</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

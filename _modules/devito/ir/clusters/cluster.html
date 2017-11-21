@@ -161,34 +161,49 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.ir.clusters.cluster</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">devito.ir.dfg</span> <span class="k">import</span> <span class="n">TemporariesGraph</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+
+<span class="kn">from</span> <span class="nn">devito.ir.dfg</span> <span class="k">import</span> <span class="n">TemporariesGraph</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Cluster&quot;</span><span class="p">,</span> <span class="s2">&quot;ClusterGroup&quot;</span><span class="p">]</span>
 
-<div class="viewcode-block" id="Cluster"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster">[docs]</a><span class="k">class</span> <span class="nc">Cluster</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+<span class="k">class</span> <span class="nc">PartialCluster</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A Cluster is an ordered sequence of expressions that are necessary to</span>
-<span class="sd">    compute a tensor, plus the tensor expression itself.</span>
+<span class="sd">    A PartialCluster is an ordered sequence of expressions that result in the</span>
+<span class="sd">    computation of a tensor, plus the tensor expression itself.</span>
 
-<span class="sd">    A Cluster is associated with a stencil, which tracks what neighboring points</span>
-<span class="sd">    are required, along each dimension, to compute an entry in the tensor.</span>
-
-<span class="sd">    The parameter ``atomics`` allows to specify dimensions (a subset of those</span>
-<span class="sd">    appearing in ``stencil``) along which a Cluster cannot be fused with</span>
-<span class="sd">    other clusters. This is for example useful when a Cluster is evaluating</span>
-<span class="sd">    a tensor temporary, whose values must all be updated before being accessed</span>
-<span class="sd">    in the subsequent clusters.</span>
+<span class="sd">    PartialClusters are mutable -- in particular, their stencil as well as</span>
+<span class="sd">    the embedded sequence of expressions are subjected to modifications.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">stencil</span><span class="p">,</span> <span class="n">atomics</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="n">TemporariesGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">stencil</span> <span class="o">=</span> <span class="n">stencil</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">atomics</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">stencil</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize a PartialCluster.</span>
+
+<span class="sd">        :param exprs: The ordered sequence of expressions computing a tensor.</span>
+<span class="sd">        :param stencil: An object of type :class:`Stencil`, which provides</span>
+<span class="sd">                        information about the points accessed along each dimension</span>
+<span class="sd">                        to compute the output tensor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stencil</span> <span class="o">=</span> <span class="n">stencil</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stencil</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">TemporariesGraph</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">unknown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -197,6 +212,34 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">tensors</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">tensors</span>
+
+    <span class="nd">@exprs</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="nd">@stencil</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stencil</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="k">def</span> <span class="nf">squash</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Concatenate the expressions in ``other`` to those in ``self``.</span>
+<span class="sd">        ``self`` and ``other`` must have same ``stencil``. Duplicate</span>
+<span class="sd">        expressions are dropped.&quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencil</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">stencil</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">exprs</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="Cluster"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster">[docs]</a><span class="k">class</span> <span class="nc">Cluster</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A Cluster is an immutable PartialCluster.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">stencil</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stencil</span> <span class="o">=</span> <span class="n">stencil</span><span class="o">.</span><span class="n">frozen</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">TemporariesGraph</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_dense</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -210,7 +253,53 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Build a new cluster with expressions ``exprs`` having same stencil as ``self``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencil</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencil</span><span class="p">)</span></div>
+
+    <span class="nd">@PartialCluster</span><span class="o">.</span><span class="n">exprs</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span>
+
+    <span class="nd">@PartialCluster</span><span class="o">.</span><span class="n">stencil</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span>
+
+<div class="viewcode-block" id="Cluster.squash"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.squash">[docs]</a>    <span class="k">def</span> <span class="nf">squash</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span></div></div>
+
+
+<div class="viewcode-block" id="ClusterGroup"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup">[docs]</a><span class="k">class</span> <span class="nc">ClusterGroup</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">clusters</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        An iterable of Clusters, which also tracks the atomic dimensions</span>
+<span class="sd">        of each of its elements; that is, those dimensions that a Cluster</span>
+<span class="sd">        cannot share with an adjacent cluster, to honor data dependences.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ClusterGroup</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">clusters</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ClusterGroup.unfreeze"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup.unfreeze">[docs]</a>    <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a new ClusterGroup in which all of ``self``&#39;s Clusters have</span>
+<span class="sd">        been promoted to PartialClusters. The ``atomics`` information is lost.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">ClusterGroup</span><span class="p">([</span><span class="n">PartialCluster</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">stencil</span><span class="p">)</span>
+                             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Cluster</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="ClusterGroup.freeze"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup.freeze">[docs]</a>    <span class="k">def</span> <span class="nf">freeze</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a new ClusterGroup in which all of ``self``&#39;s PartialClusters</span>
+<span class="sd">        have been turned into actual Clusters.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">clusters</span> <span class="o">=</span> <span class="n">ClusterGroup</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">PartialCluster</span><span class="p">):</span>
+                <span class="n">cluster</span> <span class="o">=</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">stencil</span><span class="p">)</span>
+                <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cluster</span><span class="p">)</span>
+                <span class="n">clusters</span><span class="o">.</span><span class="n">atomics</span><span class="p">[</span><span class="n">cluster</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">clusters</span></div></div>
 </pre></div>
 
            </div>

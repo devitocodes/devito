@@ -318,7 +318,7 @@
             <span class="n">stencils</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
 
         <span class="c1"># Create the alias clusters</span>
-        <span class="n">alias_clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">stencils</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+        <span class="n">alias_clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">stencils</span><span class="p">)</span>
         <span class="n">alias_clusters</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">alias_clusters</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_dense</span><span class="p">)</span>
 
         <span class="c1"># Switch temporaries in the expression trees</span>
