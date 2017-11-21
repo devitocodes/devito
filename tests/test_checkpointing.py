@@ -5,6 +5,8 @@ from pyrevolve import Revolver
 import numpy as np
 from conftest import skipif_yask
 import pytest
+from devito import Grid, TimeFunction, Operator, Backward, Function
+from sympy import Eq
 
 
 @skipif_yask
@@ -60,3 +62,64 @@ def test_checkpointed_gradient_test(shape, time_order, space_order):
     m0, dm = example.initial_estimate()
     gradient, rec_data = example.gradient(m0)
     example.verify(m0, gradient, rec_data, dm)
+
+
+@skipif_yask
+def test_index_alignment(const):
+    nt = 10
+    grid = Grid(shape=(3, 5))
+    time = grid.time_dim
+    t = grid.stepping_dim
+    x, y = grid.dimensions
+    order_of_eqn = 1
+    modulo_factor = order_of_eqn + 1
+    last_time_step_u = nt - order_of_eqn
+    u = TimeFunction(name='u', grid=grid, save=True, time_dim=nt)
+    # Increment one in the forward pass 0 -> 1 -> 2 -> 3
+    fwd_eqn = Eq(u.indexed[time+1, x, y], u.indexed[time, x, y] + 1.*const)
+    fwd_op = Operator(fwd_eqn)
+    fwd_op(time=last_time_step_u, constant=1)
+    last_time_step_v = (last_time_step_u) % modulo_factor
+    # Last time step should be equal to the number of timesteps we ran
+    assert(np.allclose(u.data[last_time_step_u, :, :], nt - order_of_eqn))
+    v = TimeFunction(name='v', grid=grid, save=False)
+    v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
+    # Decrement one in the reverse pass 3 -> 2 -> 1 -> 0
+    adj_eqn = Eq(v.indexed[t-1, x, y], v.indexed[t, x, y] - 1.*const)
+    adj_op = Operator(adj_eqn, time_axis=Backward)
+    adj_op(t=(nt - order_of_eqn), constant=1)
+    # Last time step should be back to 0
+    assert(np.allclose(v.data[0, :, :], 0))
+
+    # Reset v to run the backward again
+    v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
+    prod = Function(name="prod", grid=grid)
+    # Multiply u and v and add them
+    # = 3*3 + 2*2 + 1*1 + 0*0
+    prod_eqn = Eq(prod, prod + u * v)
+    comb_op = Operator([adj_eqn, prod_eqn], time_axis=Backward)
+    comb_op(time=nt-order_of_eqn, constant=1)
+    final_value = sum([n**2 for n in range(nt)])
+    # Final value should be sum of squares of first nt natural numbers
+    assert(np.allclose(prod.data, final_value))
+
+    # Now reset to repeat all the above tests with checkpointing
+    prod.data[:] = 0
+    v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
+    # Checkpointed version doesn't require to save u
+    u_nosave = TimeFunction(name='u_n', grid=grid)
+    # change equations to use new symbols
+    fwd_eqn_2 = Eq(u_nosave.indexed[t+1, x, y], u_nosave.indexed[t, x, y] + 1.*const)
+    fwd_op_2 = Operator(fwd_eqn_2)
+    cp = DevitoCheckpoint([u_nosave])
+    wrap_fw = CheckpointOperator(fwd_op_2, time=nt, constant=1)
+
+    prod_eqn_2 = Eq(prod, prod + u_nosave * v)
+    comb_op_2 = Operator([adj_eqn, prod_eqn_2], time_axis=Backward)
+    wrap_rev = CheckpointOperator(comb_op_2, time=nt-order_of_eqn, constant=1)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt-order_of_eqn)
+    wrp.apply_forward()
+    assert(np.allclose(u_nosave.data[last_time_step_v, :, :], nt - order_of_eqn))
+    wrp.apply_reverse()
+    assert(np.allclose(v.data[0, :, :], 0))
+    assert(np.allclose(prod.data, final_value))
