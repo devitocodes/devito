@@ -7,10 +7,11 @@ from conftest import EVAL, dims, time, x, y, z, skipif_yask
 import numpy as np
 import pytest
 
-from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
-                    TimeFunction, SparseFunction, Dimension, configuration)
+from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, Backward,
+                    Forward, TimeFunction, SparseFunction, Dimension, configuration)
 from devito.foreign import Operator as OperatorForeign
-from devito.ir.iet import IsPerfectIteration, retrieve_iteration_tree
+from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
+                           retrieve_iteration_tree)
 
 
 def dimify(dimensions):
@@ -498,9 +499,7 @@ class TestDeclarator(object):
     def test_heap_perfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle=None)
         assert """\
-  float (*a);
   float (*c)[j_size];
-  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
@@ -508,14 +507,13 @@ class TestDeclarator(object):
   {
     for (int j = j_s; j < j_e; j += 1)
     {
-      a[i] = c[i][j];
-      c[i][j] = a[i]*c[i][j];
+      float s0 = c[i][j];
+      c[i][j] = s0*c[i][j];
     }
   }
   gettimeofday(&end_section_0, NULL);
   timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
 +(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
-  free(a);
   free(c);
   return 0;""" in str(operator.ccode)
 
@@ -612,21 +610,20 @@ class TestLoopScheduler(object):
         trees = [i[0] for i in trees]
         for tree in trees:
             assert IsPerfectIteration().visit(tree[0])
-            assert len(tree[-1].nodes) == 3
-        pivot = set([j.expr for j in trees[0][-1].nodes])
-        assert all(set([j.expr for j in i[-1].nodes]) == pivot for i in trees)
+            exprs = FindNodes(Expression).visit(tree[-1])
+            assert len(exprs) == 3
 
     @pytest.mark.parametrize('exprs', [
         ('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])', 'Eq(ti1[x,y,z], ti3[x,y,z])',
          'Eq(ti3[x,y,z], ti1[x,y,z] + 1.)'),
-        ('Eq(ti0[x,y,z], ti0[x,y,z-1] + ti1[x,y,z+1])', 'Eq(ti1[x,y,z], ti3[x,y,z+1])',
+        ('Eq(ti0[x,y,z], ti0[x,y,z-1] + ti1[x,y,z-1])', 'Eq(ti1[x,y,z], ti3[x,y,z-1])',
          'Eq(ti3[x,y,z], ti3[x,y,z-1] + ti0[x,y,z])'),
         ('Eq(ti0[x,y,z+2], ti0[x,y,z-1] + ti1[x,y,z+1])',
          'Eq(ti1[x,y,z+3], ti3[x,y,z+1])',
          'Eq(ti3[x,y,z+2], ti0[x,y,z+1]*ti3[x,y,z-1])'),
         ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x+2,y+3,z+1])',
-         'Eq(ti1[x,y,z], ti3[x+1,y-4,z+1])',
-         'Eq(ti3[x,y,z], ti3[x+5,y,z-1] - ti0[x+3,y-2,z+4])')
+         'Eq(ti1[x+4,y+5,z+3], ti3[x+1,y-4,z+1])',
+         'Eq(ti3[x+7,y,z+2], ti3[x+5,y,z-1] - ti0[x-3,y-2,z-4])')
     ])
     def test_consistency_coupled_w_ofs(self, exprs, ti0, ti1, ti3):
         """
@@ -646,9 +643,91 @@ class TestLoopScheduler(object):
         trees = [i[0] for i in trees]
         for tree in trees:
             assert IsPerfectIteration().visit(tree[0])
-            assert len(tree[-1].nodes) == 3
-        pivot = set([j.expr for j in trees[0][-1].nodes])
-        assert all(set([j.expr for j in i[-1].nodes]) == pivot for i in trees)
+            exprs = FindNodes(Expression).visit(tree[-1])
+            assert len(exprs) == 3
+
+    @pytest.mark.parametrize('exprs,axis,expected,visit', [
+        # WAR 2->3; expected=2
+        (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
+          'Eq(ti1[x,y,z], ti3[x,y,z])',
+          'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
+         Forward, ['xyz'], 'xyz'),
+        # WAR 1->2, 2->3; one may think it should be expected=3, but these are all
+        # Arrays, so ti0 gets optimized through index bumping and array contraction,
+        # which results in expected=2
+        (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
+          'Eq(ti1[x,y,z], ti0[x,y,z+1])',
+          'Eq(ti3[x,y,z], ti1[x,y,z+2] + 1.)'),
+         Forward, ['xyz', 'xyz'], 'xyzz'),
+        # WAR 1->3; expected=1
+        (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
+          'Eq(ti1[x,y,z], ti3[x,y,z])',
+          'Eq(ti3[x,y,z], ti0[x,y,z+1] + 1.)'),
+         Forward, ['xyz'], 'xyz'),
+        # WAR 1->2, 2->3; WAW 1->3; expected=2
+        # ti0 is an Array, so the observation made above still holds (expected=2
+        # rather than 3)
+        (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
+          'Eq(ti1[x,y,z], 3*ti0[x,y,z+2])',
+          'Eq(ti0[x,y,0], ti0[x,y,0] + 1.)'),
+         Forward, ['xyz', 'xy'], 'xyz'),
+        # WAR 1->2; WAW 1->3; expected=3
+        # Now tu, tv, tw are not Arrays, so they must end up in separate loops
+        (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
+          'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
+          'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
+         Forward, ['txyz', 'txyz', 'txy'], 'txyzz'),
+        # WAR 1->2; WAW 2->3; expected=3
+        (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
+          'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
+          'Eq(tw[t,x,y,z], tv[t,x,y,z+3] + 1.)'),
+         Forward, ['txyz', 'txyz', 'txyz'], 'txyzzz'),
+        # WAR 1->2; WAW 1->3; expected=3
+        (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
+          'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
+          'Eq(tu[t,3,y,0], tu[t,3,y,0] + 1.)'),
+         Forward, ['txyz', 'txyz', 'ty'], 'txyzxyzy'),
+        # WAR 1->2, WAW 2->3; expected=3
+        (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
+          'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
+          'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
+         Forward, ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
+        # WAR 1->2; WAW 1->3; expected=3
+        # Time Forward, anti dependence in time, end up in different loop nests
+        (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
+          'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
+          'Eq(tu[t-2,x,y,0], tu[t,x,y,0] + 1.)'),
+         Forward, ['txyz', 'txyz', 'txy'], 'txyztxyztxy'),
+        # Time Backward, so flow dependences in time
+        (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
+          'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
+          'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
+         Backward, ['txyz'], 'txyz'),
+        # Time Backward, so flow dependences in time, interleaved with independent Eq
+        (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
+          'Eq(ti0[x,y,z], ti1[x,y,z+2])',
+          'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
+         Backward, ['txyz', 'xyz'], 'txyzxyz'),
+        # Time Backward, so flow dependences in time, interleaved with dependent Eq
+        (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
+          'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
+          'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
+         Backward, ['xyz', 'txyz'], 'xyztxyz')
+    ])
+    def test_consistency_anti_dependences(self, exprs, axis, expected, visit,
+                                          ti0, ti1, ti3, tu, tv, tw):
+        """
+        Test that anti dependences end up generating multi loop nests, rather
+        than a single loop nest enclosing all of the equations.
+        """
+        eq1, eq2, eq3 = EVAL(exprs, ti0.base, ti1.base, ti3.base,
+                             tu.base, tv.base, tw.base)
+        op = Operator([eq1, eq2, eq3], dse='noop', dle='noop', time_axis=axis)
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == len(expected)
+        assert ["".join(i.dim.name for i in j) for j in trees] == expected
+        iters = FindNodes(Iteration).visit(op)
+        assert "".join(i.dim.name for i in iters) == visit
 
     def test_expressions_imperfect_loops(self, ti0, ti1, ti2, t0):
         """
@@ -672,9 +751,7 @@ class TestLoopScheduler(object):
         Test that bc-like equations get inserted into the same loop nest
         as the "main" equations.
         """
-        grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions
-        time = grid.time_dim
+        grid = Grid(shape=(3, 3, 3), dimensions=(x, y, z), time_dimension=time)
         a = Function(name='a', grid=grid).indexed
         b = TimeFunction(name='b', grid=grid, save=True, time_dim=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)

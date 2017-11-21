@@ -155,7 +155,7 @@ class AdvancedRewriter(BasicRewriter):
             stencils.append(stencil)
 
         # Create the alias clusters
-        alias_clusters = clusterize(expressions, stencils, indices)
+        alias_clusters = clusterize(expressions, stencils)
         alias_clusters = sorted(alias_clusters, key=lambda i: i.is_dense)
 
         # Switch temporaries in the expression trees
