@@ -203,6 +203,11 @@ class Operator(Callable):
 
         arguments = self._default_args()
 
+        none_args = dict([(k, v) for (k, v) in arguments.items() if v is None])
+        if len(none_args) > 0:
+            raise ValueError("Unknown value for arguments: " +
+                             ", ".join(none_args.keys()))
+
         if autotune:
             arguments = self._autotune(arguments)
 
