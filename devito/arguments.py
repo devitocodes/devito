@@ -4,7 +4,7 @@ import numpy as np
 from collections import OrderedDict
 from sympy import Symbol
 from cached_property import cached_property
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, OrderedDict
 from functools import reduce
 
 from devito.exceptions import InvalidArgument
@@ -184,7 +184,7 @@ class ArgumentEngine(object):
 
         assert(self._verify(values))
 
-        arguments = dict([(k.name, v) for k, v in values.items()])
+        arguments = OrderedDict([(k.name, v) for k, v in values.items()])
         log_args(arguments)
 
         return arguments, user_autotune and dle_autotune
@@ -271,7 +271,7 @@ class ArgumentEngine(object):
 
     def _derive_values(self, kwargs):
         # Use kwargs
-        values = {}
+        values = OrderedDict()
         for i in self.arguments:
             values[i] = get_value(i, kwargs.pop(i.name, None), values)
 
