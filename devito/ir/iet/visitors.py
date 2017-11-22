@@ -248,7 +248,6 @@ class CGen(Visitor):
     def _args_cast(self, args):
         """Build cgen type casts for an iterable of :class:`Argument`."""
         ret = []
-        print(args)
         for i in args:
             if not hasattr(i, "is_ScalarArgument"):
                 from devito.arguments import ArgumentVisitor
