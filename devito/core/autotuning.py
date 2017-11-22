@@ -30,23 +30,23 @@ def autotune(operator, arguments, tunable):
     iterations = FindNodes(Iteration).visit(operator.body)
     dim_mapper = {i.dim.name: i.dim for i in iterations}
 
-    # Shrink the iteration space of sequential dimensions so that auto-tuner
-    # runs take a negligible amount of time
-    sequentials = [i for i in iterations if i.is_Sequential]
-    if len(sequentials) == 0:
+    # Shrink the iteration space of time-stepping dimension so that auto-tuner
+    # runs will finish quickly
+    steppers = [i for i in iterations if i.dim.is_Time or i.dim.is_Stepping]
+    if len(steppers) == 0:
         timesteps = 1
-    elif len(sequentials) == 1:
-        sequential = sequentials[0]
-        start = sequential.dim.rtargs.start.default_value
-        timesteps = sequential.extent(start=start, finish=options['at_squeezer'])
+    elif len(steppers) == 1:
+        stepper = steppers[0]
+        start = stepper.dim.rtargs.start.default_value
+        timesteps = stepper.extent(start=start, finish=options['at_squeezer'])
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps + 1
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)
-        at_arguments[sequential.dim.symbolic_start.name] = start
-        at_arguments[sequential.dim.symbolic_end.name] = timesteps
-        if sequential.dim.is_Stepping:
-            at_arguments[sequential.dim.parent.symbolic_start.name] = start
-            at_arguments[sequential.dim.parent.symbolic_end.name] = timesteps
+        at_arguments[stepper.dim.symbolic_start.name] = start
+        at_arguments[stepper.dim.symbolic_end.name] = timesteps
+        if stepper.dim.is_Stepping:
+            at_arguments[stepper.dim.parent.symbolic_start.name] = start
+            at_arguments[stepper.dim.parent.symbolic_end.name] = timesteps
     else:
         info_at("Couldn't understand loop structure, giving up auto-tuning")
         return arguments
