@@ -81,9 +81,9 @@ class ScalarArgument(Argument):
 
     is_ScalarArgument = True
 
-    def __init__(self, name, dependencies):
+    def __init__(self, name, dependencies, dtype=np.int32):
         super(ScalarArgument, self).__init__(name, dependencies)
-        self.dtype = np.int32
+        self.dtype = dtype
 
 
 class TensorArgument(Argument):
@@ -386,11 +386,12 @@ class ArgumentVisitor(Visitor):
 
     def visit_Scalar(self, o):
         dependency = Dependency("gets_value_from", o)
-        return ScalarArgument(o.name, o)
+        return ScalarArgument(o.name, o, dtype=o.dtype)
 
-    def visit_ConstantFunction(self, o):
+    def visit_Constant(self, o):
         # TODO: Add option for delayed query of default value
-        return [ScalarArgument(o.name, o, default_value=o.data)]
+        dependency = Dependency("gets_value_from", o)
+        return ScalarArgument(o.name, [dependency], dtype=o.dtype)
 
     
 class ValueVisitor(Visitor):
@@ -401,8 +402,11 @@ class ValueVisitor(Visitor):
         self.known_values = known_values
         super(ValueVisitor, self).__init__()
         
-    def visit_SymbolicFunction(self, o, param=None):
+    def visit_Function(self, o, param=None):
         assert(isinstance(self.consumer, TensorArgument))
+        return o.data
+
+    def visit_Constant(self, o, param=None):
         return o.data
 
     def visit_Dependency(self, o):
@@ -410,6 +414,9 @@ class ValueVisitor(Visitor):
 
     def visit_function(self, o, param=None):
         return o(self.consumer, self.known_values, param)
+
+    def visit_Object(self, o, param=None):
+        return o.value
 
     def visit_object(self, o, param=None):
         return o
