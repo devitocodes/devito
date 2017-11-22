@@ -5,8 +5,7 @@ from pyrevolve import Revolver
 import numpy as np
 from conftest import skipif_yask
 import pytest
-from devito import Grid, TimeFunction, Operator, Backward, Function
-from sympy import Eq
+from devito import Grid, TimeFunction, Operator, Backward, Function, Eq
 
 
 @skipif_yask
