@@ -155,6 +155,10 @@ class Function(TensorFunction):
             # Dynamically add derivative short-cuts
             self._initialize_derivatives()
 
+    def __del__(self):
+        if self._data_object is not None:
+            self._data_object.__del__()
+
     def _initialize_derivatives(self):
         """
         Dynamically create notational shortcuts for space derivatives.
@@ -379,6 +383,10 @@ class TimeFunction(Function):
                           'to save intermediate data with save=True')
                     raise ValueError("Unknown time dimensions")
 
+    def __del__(self):
+        if self._data_object is not None:
+            self._data_object.__del__()
+
     @property
     def shape_data(self):
         """
@@ -512,6 +520,10 @@ class SparseFunction(CompositeFunction):
             coordinates = kwargs.get('coordinates', None)
             if coordinates is not None:
                 self.coordinates.data[:] = coordinates[:]
+
+    def __del__(self):
+        if self._data_object is not None:
+            self._data_object.__del__()
 
     def __new__(cls, *args, **kwargs):
         nt = kwargs.get('nt', 0)
