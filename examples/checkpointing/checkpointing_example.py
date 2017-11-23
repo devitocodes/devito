@@ -1,7 +1,7 @@
 from math import floor
 from cached_property import cached_property
 
-from devito import TimeFunction
+from devito import TimeFunction, silencio
 from examples.seismic.acoustic import GradientOperator
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.gradient_example import GradientExample
@@ -49,6 +49,7 @@ class CheckpointingExample(GradientExample):
         return self.grad.data, self.rec.data
 
 
+@silencio(log_level='WARNING')
 def run(shape=(150, 150), tn=None, spacing=None, time_order=2, space_order=4, nbpml=10,
         maxmem=None):
     example = CheckpointingExample(shape, spacing, tn, time_order, space_order, nbpml)
