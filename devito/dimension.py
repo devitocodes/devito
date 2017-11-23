@@ -172,6 +172,7 @@ class DerivedDimension(Dimension):
 
     """
     Dimension symbol derived from a ``parent`` Dimension.
+
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension from which the ``SubDimension`` is
                    created.
@@ -187,12 +188,19 @@ class DerivedDimension(Dimension):
         return newobj
 
     @property
+    def parent(self):
+        return self._parent
+
+    @property
     def reverse(self):
         return self.parent.reverse
 
     @property
     def spacing(self):
         return self.parent.spacing
+
+    def _hashable_content(self):
+        return (self.parent._hashable_content(),)
 
 
 class SubsampledDimension(DerivedDimension):

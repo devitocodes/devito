@@ -1,4 +1,5 @@
 from devito import SubsampledDimension, Grid, TimeFunction, Eq, Operator
+from devito.ir.support.stencil import Stencil
 from devito.tools import pprint
 
 
@@ -17,7 +18,8 @@ def test_subsampled_dimension():
     fwd_eqn = Eq(u.indexed[t+1, x, y], u.indexed[t, x, y] + 1.)
     fwd_eqn_2 = Eq(u2.indexed[time+1, x, y], u2.indexed[time, x, y] + 1.)
     save_eqn = Eq(u_s, u)
-    #fwd_op = Operator([fwd_eqn])
+    fwd_op = Operator([fwd_eqn, fwd_eqn_2])
     fwd_op = Operator([fwd_eqn, fwd_eqn_2, save_eqn])
     #pprint(fwd_op)
-    #print(fwd_op)
+    print(fwd_op)
+

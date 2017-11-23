@@ -10,7 +10,7 @@ from devito.parameters import configuration
 from devito.logger import debug, error, warning
 from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
-from devito.dimension import Dimension, TimeDimension
+from devito.dimension import Dimension
 from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.arguments import ArgumentMap
 from devito.finite_difference import (centered, cross_derivative,
@@ -658,9 +658,6 @@ class TimeFunction(Function):
                         "than available on physical device, this will start swapping")
 
             self.time_dim = kwargs.get('time_dim')
-            if self.time_dim is not None and not isinstance(self.time_dim, TimeDimension):
-                raise ValueError("'time_dim' must be a TimeDimension")
-
             self.time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise ValueError("'time_order' must be int")
@@ -671,16 +668,14 @@ class TimeFunction(Function):
         grid = kwargs.get('grid')
         time_dim = kwargs.get('time_dim')
 
-        if time_dim is not None:
-            assert(isinstance(time_dim, Dimension))
-            assert(time_dim.is_Time)
-
         if grid is None:
             error('TimeFunction objects require a grid parameter.')
             raise ValueError('No grid provided for TimeFunction.')
 
         if time_dim is None:
             time_dim = grid.time_dim if save else grid.stepping_dim
+        elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
+            raise ValueError("'time_dim' must be a time dimension")
 
         return (time_dim,) + Function.__indices_setup__(**kwargs)
 
