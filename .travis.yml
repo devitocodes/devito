@@ -8,7 +8,7 @@ env:
   global:
   - ENCRYPTION_LABEL: "1909213e8aea"
   - COMMIT_AUTHOR_EMAIL: "pandolfovince@gmail.com"
-  - DEVITO_LOGGING: "DEBUG"
+  - DEVITO_LOGGING: "WARNING"
 
 matrix:
   include:
