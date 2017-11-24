@@ -246,6 +246,16 @@ class Stencil(DefaultOrderedDict):
         """
         return Stencil(self.entries)
 
+    def replace(self, mapper):
+        """
+        Return a new Stencil in which a key ``k`` (dimension) appearing in
+        ``mapper``  is replaced by ``mapper[k]``. The original order is therefore
+        unchangend, but a new dictionary is produced with potentially different
+        keys.
+        """
+        return Stencil([(k if k not in mapper else mapper[k], set(v))
+                        for k, v in self.items()])
+
     def __eq__(self, other):
         return self.entries == other.entries
 
