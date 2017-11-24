@@ -835,6 +835,26 @@ class TestLoopScheduler(object):
             assert(np.allclose(b2.data[i, ...].reshape(-1) -
                                b.data[..., i].reshape(-1), 0.))
 
+    def test_equations_mixed_timedim_stepdim(self):
+        """"
+        Test that two equations one using a TimeDimension the other a derived
+        SteppingDimension end up in the same loop nest.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        time = grid.time_dim
+        t = grid.stepping_dim
+        u1 = TimeFunction(name='u1', grid=grid)
+        u2 = TimeFunction(name='u2', grid=grid, save=True, time_dim=2)
+        eqn_1 = Eq(u1.indexed[t+1, x, y, z], u1.indexed[t, x, y, z] + 1.)
+        eqn_2 = Eq(u2.indexed[time+1, x, y, z], u2.indexed[time, x, y, z] + 1.)
+        op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+        assert len(trees[0][-1].nodes) == 2
+        assert trees[0][-1].nodes[0].write == u1
+        assert trees[0][-1].nodes[1].write == u2
+
 
 @skipif_yask
 @pytest.mark.skipif(configuration['backend'] != 'foreign',
