@@ -378,6 +378,12 @@ class YaskKernel(object):
         # This, amongst other things, allocates storage for the temporary grids
         self.soln.prepare_solution()
 
+        # Set up auto-tuning
+        if configuration.yask['autotuning'] == 'off':
+            self.soln.reset_auto_tuner(False)
+        elif configuration.yask['autotuning'] == 'preemptive':
+            self.soln.run_auto_tuner_now()
+
         # Run the kernel
         cfunction(*list(arguments.values()))
 
