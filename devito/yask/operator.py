@@ -233,13 +233,13 @@ class sympy2yask(object):
                     raise NotImplementedError
 
                 if int(exp) < 0:
-                   num, den = expr.as_numer_denom()
-                   return nfac.new_divide_node(run(num), run(den))
+                    num, den = expr.as_numer_denom()
+                    return nfac.new_divide_node(run(num), run(den))
                 elif int(exp) >= 1:
-                   return nary2binary([base] * exp, nfac.new_multiply_node)
+                    return nary2binary([base] * exp, nfac.new_multiply_node)
                 else:
-                   warning("zero power encountered in Devito-YASK translation? setting to 1")
-                   return nfac.new_const_number_node(1)
+                    warning("0-power found in Devito-YASK translation? setting to 1")
+                    return nfac.new_const_number_node(1)
             elif expr.is_Equality:
                 if expr.lhs.is_Symbol:
                     function = expr.lhs.base.function
