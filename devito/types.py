@@ -375,7 +375,7 @@ class Array(SymbolicData, ArrayArgProvider):
             self._onstack = bool(kwargs.get('onstack', False))
             self._onheap = bool(kwargs.get('onheap', True))
 
-            # The memory scope of a TensorFunction must be well-defined
+            # The memory scope of an Array must be well-defined
             assert single_or([self._external, self._onstack, self._onheap])
 
     @classmethod
