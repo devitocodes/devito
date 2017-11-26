@@ -538,7 +538,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onstack&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onheap&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
 
-            <span class="c1"># The memory scope of a TensorFunction must be well-defined</span>
+            <span class="c1"># The memory scope of an Array must be well-defined</span>
             <span class="k">assert</span> <span class="n">single_or</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_external</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span><span class="p">])</span>
 
     <span class="nd">@classmethod</span>
