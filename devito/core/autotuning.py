@@ -32,7 +32,7 @@ def autotune(operator, arguments, tunable):
 
     # Shrink the iteration space of time-stepping dimension so that auto-tuner
     # runs will finish quickly
-    steppers = [i for i in iterations if i.dim.is_Time or i.dim.is_Stepping]
+    steppers = [i for i in iterations if i.dim.is_Time]
     if len(steppers) == 0:
         timesteps = 1
     elif len(steppers) == 1:
