@@ -83,12 +83,10 @@ class Operator(Callable):
         expressions = [s.xreplace(subs) for s in expressions]
 
         # Analysis
-        self.dtype = self._retrieve_dtype(expressions)
-        self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
-        stencils = self._retrieve_stencils(expressions)
-
-        # Extract argument offsets
-        self._store_argument_offsets(stencils)
+        self.dtype = retrieve_dtype(expressions)
+        self.input, self.output, self.dimensions = retrieve_symbols(expressions)
+        stencils = make_stencils(expressions)
+        self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
 
         # Set the direction of time acoording to the given TimeAxis
         for time in [d for d in self.dimensions if d.is_Time]:
@@ -171,13 +169,13 @@ class Operator(Callable):
             if user_provided_value is not None:
                 user_provided_value = infer_dimension_values_tuple(user_provided_value,
                                                                    d.rtargs,
-                                                                   self.argument_offsets)
+                                                                   self.offsets)
             d.verify(user_provided_value, enforce=True)
         for i in self.parameters:
             if i.is_ScalarArgument:
                 user_provided_value = kwargs.pop(i.name, None)
                 if user_provided_value is not None:
-                    user_provided_value += self.argument_offsets.get(i.name, 0)
+                    user_provided_value += self.offsets.get(i.name, 0)
                 i.verify(user_provided_value, enforce=True)
         dim_sizes = {}
         for d in self.dimensions:
@@ -245,12 +243,6 @@ class Operator(Callable):
     @property
     def elemental_functions(self):
         return tuple(i.root for i in self.func_table.values())
-
-    def _store_argument_offsets(self, stencils):
-        offs = Stencil.union(*stencils)
-        arg_offs = {d: v for d, v in offs.diameter.items()}
-        arg_offs.update({d.parent: v for d, v in arg_offs.items() if d.is_Stepping})
-        self.argument_offsets = {d.end_name: v for d, v in arg_offs.items()}
 
     @property
     def compile(self):
@@ -402,55 +394,6 @@ class Operator(Callable):
 
         return nodes
 
-    def _retrieve_dtype(self, expressions):
-        """
-        Retrieve the data type of a set of expressions. Raise an error if there
-        is no common data type (ie, if at least one expression differs in the
-        data type).
-        """
-        lhss = set([s.lhs.base.function.dtype for s in expressions])
-        if len(lhss) != 1:
-            raise RuntimeError("Expression types mismatch.")
-        return lhss.pop()
-
-    def _retrieve_stencils(self, expressions):
-        """Determine the :class:`Stencil` of each provided expression."""
-        stencils = [Stencil(i) for i in expressions]
-        dimensions = set.union(*[set(i.dimensions) for i in stencils])
-
-        # Filter out aliasing stepping dimensions
-        mapper = {d.parent: d for d in dimensions if d.is_Stepping}
-        return [i.replace(mapper) for i in stencils]
-
-    def _retrieve_symbols(self, expressions):
-        """
-        Retrieve the symbolic functions read or written by the Operator,
-        as well as all traversed dimensions.
-        """
-        terms = flatten(retrieve_terminals(i) for i in expressions)
-
-        input = []
-        for i in terms:
-            try:
-                input.append(i.base.function)
-            except AttributeError:
-                pass
-        input = filter_sorted(input, key=attrgetter('name'))
-
-        output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
-
-        indexeds = [i for i in terms if i.is_Indexed]
-        dimensions = []
-        for indexed in indexeds:
-            for i in indexed.indices:
-                dimensions.extend([k for k in i.free_symbols
-                                   if isinstance(k, Dimension)])
-            dimensions.extend(list(indexed.base.function.indices))
-        dimensions.extend([d.parent for d in dimensions if d.is_Stepping])
-        dimensions = filter_sorted(dimensions, key=attrgetter('name'))
-
-        return input, output, dimensions
-
 
 class OperatorRunnable(Operator):
     """
@@ -489,6 +432,76 @@ class OperatorRunnable(Operator):
         self._globals.append(profiler.cdef)
         parameters.append(Object(profiler.varname, profiler.dtype, profiler.setup()))
         return nodes, profiler
+
+
+# Functions collecting information from a bag of expressions
+
+def retrieve_dtype(expressions):
+    """
+    Retrieve the data type of a set of expressions. Raise an error if there
+    is no common data type (ie, if at least one expression differs in the
+    data type).
+    """
+    lhss = set([s.lhs.base.function.dtype for s in expressions])
+    if len(lhss) != 1:
+        raise RuntimeError("Expression types mismatch.")
+    return lhss.pop()
+
+
+def retrieve_symbols(expressions):
+    """
+    Return the :class:`Function` and :class:`Dimension` objects appearing
+    in ``expressions``.
+    """
+    terms = flatten(retrieve_terminals(i) for i in expressions)
+
+    input = []
+    for i in terms:
+        try:
+            input.append(i.base.function)
+        except AttributeError:
+            pass
+    input = filter_sorted(input, key=attrgetter('name'))
+
+    output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
+
+    indexeds = [i for i in terms if i.is_Indexed]
+    dimensions = []
+    for indexed in indexeds:
+        for i in indexed.indices:
+            dimensions.extend([k for k in i.free_symbols
+                               if isinstance(k, Dimension)])
+        dimensions.extend(list(indexed.base.function.indices))
+    dimensions.extend([d.parent for d in dimensions if d.is_Stepping])
+    dimensions = filter_sorted(dimensions, key=attrgetter('name'))
+
+    return input, output, dimensions
+
+
+def make_stencils(expressions):
+    """
+    Create a :class:`Stencil` for each of the provided expressions. The following
+    rules apply: ::
+
+        * A :class:`SteppingDimension` ``d`` is replaced by its parent ``d.parent``.
+    """
+    stencils = [Stencil(i) for i in expressions]
+    dimensions = set.union(*[set(i.dimensions) for i in stencils])
+
+    # Filter out aliasing stepping dimensions
+    mapper = {d.parent: d for d in dimensions if d.is_Stepping}
+    return [i.replace(mapper) for i in stencils]
+
+
+def retrieve_offsets(stencils):
+    """
+    Return a mapper from :class:`Dimension`s to the min/max integer offsets
+    within ``stencils``.
+    """
+    offs = Stencil.union(*stencils)
+    mapper = {d: v for d, v in offs.diameter.items()}
+    mapper.update({d.parent: v for d, v in mapper.items() if d.is_Stepping})
+    return mapper
 
 
 # Misc helpers
