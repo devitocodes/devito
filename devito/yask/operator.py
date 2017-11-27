@@ -55,8 +55,8 @@ class Operator(OperatorRunnable):
         if len(offloadable) == 0:
             log("No offloadable trees found")
         elif len(offloadable) == 1:
-            tree, dimensions, shape, dtype = offloadable[0]
-            self.context = contexts.fetch(dimensions, shape, dtype)
+            tree, grid, dtype = offloadable[0]
+            self.context = contexts.fetch(grid, dtype)
 
             # Create a YASK compiler solution for this Operator
             yc_soln = self.context.make_yc_solution(namespace['jit-yc-soln'])
@@ -120,49 +120,33 @@ class Operator(OperatorRunnable):
         # The user has the illusion to provide plain data objects to the
         # generated kernels, but what we actually need and thus going to
         # provide are pointers to the wrapped YASK grids.
+        toshare = {}
         for i in self.parameters:
             grid_arg = mapper.get(namespace['code-grid-name'](i.name))
             if grid_arg is not None:
                 assert i.provider.from_YASK is True
                 obj = kwargs.get(i.name, i.provider)
                 # Get the associated YaskGrid wrapper (scalars are a special case)
-                wrapper = obj.data if not np.isscalar(obj) else YaskGridConst(obj)
-                # Setup YASK grids ("sharing" user-provided or default data)
-                target = self.yk_soln.grids.get(i.name)
-                if target is not None:
-                    wrapper.give_storage(target)
+                if np.isscalar(obj):
+                    wrapper = YaskGridConst(obj)
+                    toshare[i.provider] = wrapper
+                else:
+                    wrapper = obj.data
+                    toshare[obj] = wrapper
                 # Add C-level pointer to the YASK grids
                 assert grid_arg.verify(wrapper.rawpointer)
             elif i.name in local_grids_mapper:
                 # Add C-level pointer to the temporary YASK grids
                 assert i.verify(rawpointer(local_grids_mapper[i.name]))
 
-        return super(Operator, self).arguments(**kwargs)
+        return super(Operator, self).arguments(**kwargs), toshare
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
-        arguments, dim_sizes = self.arguments(**kwargs)
+        (arguments, dim_sizes), toshare = self.arguments(**kwargs)
 
-        # Print some info about the solution.
-        log("Stencil-solution '%s':" % self.yk_soln.name)
-        log("  Step dimension: %s" % self.context.time_dimension)
-        log("  Domain dimensions: %s" % str(self.context.space_dimensions))
-        log("  Grids:")
-        for grid in self.yk_soln.grids.values():
-            space_dimensions = [i for i in grid.get_dim_names()
-                                if i in self.context.space_dimensions]
-            size = [grid.get_rank_domain_size(i) for i in space_dimensions]
-            pad = [grid.get_pad_size(i) for i in space_dimensions]
-            log("    %s%s, size=%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()),
-                                               size, pad))
-
-        if configuration.yask['python-exec']:
-            log("Running YASK Operator through YASK...")
-            self.yk_soln.run_py(dim_sizes[self.context.time_dimension])
-        else:
-            log("Running YASK Operator through Devito...")
-            self.yk_soln.run_c(self.cfunction, list(arguments.values()))
-
+        log("Running YASK Operator through Devito...")
+        self.yk_soln.run(self.cfunction, arguments, toshare)
         log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
@@ -209,6 +193,9 @@ class sympy2yask(object):
                 return nfac.new_const_number_node(int(expr))
             elif expr.is_Float:
                 return nfac.new_const_number_node(float(expr))
+            elif expr.is_Rational:
+                a, b = expr.as_numer_denom()
+                return nfac.new_const_number_node(float(a)/float(b))
             elif expr.is_Symbol:
                 function = expr.base.function
                 if function.is_Constant:
@@ -240,9 +227,19 @@ class sympy2yask(object):
             elif expr.is_Mul:
                 return nary2binary(expr.args, nfac.new_multiply_node)
             elif expr.is_Pow:
-                num, den = expr.as_numer_denom()
-                if num == 1:
+                base, exp = expr.as_base_exp()
+                if not exp.is_integer:
+                    warning("non-integer powers unsupported in Devito-YASK translation")
+                    raise NotImplementedError
+
+                if int(exp) < 0:
+                    num, den = expr.as_numer_denom()
                     return nfac.new_divide_node(run(num), run(den))
+                elif int(exp) >= 1:
+                    return nary2binary([base] * exp, nfac.new_multiply_node)
+                else:
+                    warning("0-power found in Devito-YASK translation? setting to 1")
+                    return nfac.new_const_number_node(1)
             elif expr.is_Equality:
                 if expr.lhs.is_Symbol:
                     function = expr.lhs.base.function
@@ -263,7 +260,7 @@ def find_offloadable_trees(nodes):
 
     A tree is "offloadable to YASK" if it is embedded in a time stepping loop
     *and* all of the grids accessed by the enclosed equations are homogeneous
-    (i.e., same dimensions, shape, data type).
+    (i.e., same dimensions and data type).
     """
     offloadable = []
     for tree in retrieve_iteration_tree(nodes):
@@ -276,15 +273,15 @@ def find_offloadable_trees(nodes):
             # Don't know how to offload this Iteration/Expression to YASK
             continue
         functions = flatten(i.functions for i in tree[-1].nodes)
-        keys = set((i.indices, i.shape, i.dtype) for i in functions if i.is_TimeFunction)
+        keys = set((i.grid, i.dtype) for i in functions if i.is_TimeFunction)
         if len(keys) == 0:
             continue
         elif len(keys) > 1:
             exit("Cannot handle Operators w/ heterogeneous grids")
-        dimensions, shape, dtype = keys.pop()
-        if len(dimensions) == len(tree) and\
-                all(i.dim == j for i, j in zip(tree, dimensions)):
-            # Detected a "full" Iteration/Expression tree (over both
-            # time and space dimensions)
-            offloadable.append((tree, dimensions, shape, dtype))
+        grid, dtype = keys.pop()
+        # Is this a "complete" tree iterating over the entire grid?
+        dims = [i.dim for i in tree]
+        if all(i in dims for i in grid.dimensions) and\
+                any(j in dims for j in [grid.time_dim, grid.stepping_dim]):
+            offloadable.append((tree, grid, dtype))
     return offloadable
