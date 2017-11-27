@@ -18,17 +18,6 @@ __all__ = ['analyze_iterations']
 
 class Analysis(object):
 
-    _cache = {}
-
-    def __new__(cls, iet):
-        if iet in Analysis._cache:
-            return Analysis._cache[iet]
-        else:
-            obj = super(Analysis, cls).__new__(cls)
-            obj.__init__(iet)
-            Analysis._cache[iet] = obj
-            return obj
-
     def __init__(self, iet):
         self.iet = iet
         self.properties = OrderedDict()
