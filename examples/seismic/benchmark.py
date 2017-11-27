@@ -105,7 +105,10 @@ if __name__ == "__main__":
     else:
         if args.benchmode == 'maxperf':
             parameters["autotune"] = [True]
-            parameters["dse"] = ["aggressive"]
+            if args.problem == 'tti':
+                parameters["dse"] = ["aggressive"]
+            else:
+                parameters["dse"] = ["advanced"]
             parameters["dle"] = ["advanced"]
         elif args.benchmode == 'dse':
             parameters["autotune"] = [True]
