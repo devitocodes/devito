@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Function, TimeFunction, Constant, clear_cache
+from devito import Grid, Function, TimeFunction, Constant, Operator, Eq, clear_cache
 from devito.types import _SymbolCache
 
 
@@ -163,3 +163,31 @@ def test_cache_after_indexification():
     for i in [u0, u1, u2]:
         assert i.indexify().base.function.space_order ==\
             (i.indexify() + 1.).args[1].base.function.space_order
+
+
+@skipif_yask
+def test_operator_leakage():
+    """
+    Test to ensure that :class:`Operator` creation does not cause
+    memory leaks.
+    """
+    grid = Grid(shape=(5, 6))
+    f = Function(name='f', grid=grid)
+    g = TimeFunction(name='g', grid=grid)
+
+    # Take weakrefs to test whether symbols are dead or alive
+    w_f = weakref.ref(f)
+    w_g = weakref.ref(g)
+
+    # Create operator and delete everything again
+    op = Operator(Eq(f, 2 * g))
+    w_op = weakref.ref(op)
+    del op
+    del f
+    del g
+    clear_cache()
+
+    # Test whether things are still hanging around
+    assert w_f() is None
+    assert w_g() is None
+    assert w_op() is None
