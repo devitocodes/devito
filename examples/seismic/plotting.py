@@ -41,8 +41,6 @@ def plot_perturbation(model, model1, colorbar=True):
         cbar = plt.colorbar(plot, cax=cax)
         cbar.set_label('Velocity perturbation (km/s)')
 
-    plt.show()
-
 
 def plot_velocity(model, source=None, receiver=None, colorbar=True):
     """
@@ -84,8 +82,6 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
         cbar = plt.colorbar(plot, cax=cax)
         cbar.set_label('Velocity (km/s)')
 
-    plt.show()
-
 
 def plot_shotrecord(rec, model, t0, tn, colorbar=True):
     """
@@ -111,8 +107,6 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
         cax = divider.append_axes("right", size="5%", pad=0.05)
         plt.colorbar(plot, cax=cax)
 
-    plt.show()
-
 
 def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
     """
@@ -133,5 +127,3 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         plt.colorbar(plot, cax=cax)
-
-    plt.show()
