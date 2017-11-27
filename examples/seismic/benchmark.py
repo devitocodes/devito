@@ -53,14 +53,55 @@ def option_simulation(f):
     return f
 
 
+def option_performance(f):
+    """Defines options for all aspects of performance tuning"""
+
+    _preset = {'maxperf': {
+        'autotune': [True],
+        'dse': ['advanced'],
+        'dle': ['advanced']
+    }, 'dse': {
+        'autotune': [True],
+        'dse': ['basic', 'advanced', 'speculative', 'aggressive'],
+        'dle': ['advanced'],
+    }, 'dle': {
+        'autotune': [True],
+        'dse': ['advanced'],
+        'dle': ['basic', 'advanced'],
+    }
+    }
+
+    def from_preset(ctx, param, value):
+        """Set all performance options according to bench-mode preset"""
+        ctx.params.update(_preset[value])
+        return value
+
+    def from_value(ctx, param, value):
+        """Prefer preset values and warn for competing values."""
+        return ctx.params[param.name] or value
+
+    options = [
+        click.option('-bm', '--bench-mode', is_eager=True,
+                     callback=from_preset, expose_value=False,
+                     type=click.Choice(['maxperf', 'dse', 'dle']), default='maxperf',
+                     help='Choose what to benchmark; ignored if execmode=run'),
+        click.option('--dse', callback=from_value,
+                     type=click.Choice(['noop'] + configuration._accepted['dse']),
+                     help='Devito symbolic engine (DSE) mode'),
+        click.option('--dle', callback=from_value,
+                     type=click.Choice(['noop'] + configuration._accepted['dle']),
+                     help='Devito loop engine (DLE) mode'),
+        click.option('-a', '--autotune', is_flag=True, callback=from_value,
+                     help='Switch auto tuning on/off'),
+    ]
+    for option in reversed(options):
+        f = option(f)
+    return f
+
+
 @benchmark.command()
 @option_simulation
-@click.option('--dse', default='noop', help='Devito symbolic engine (DSE) mode',
-              type=click.Choice(['noop'] + configuration._accepted['dse']))
-@click.option('--dle', default='noop', help='Devito loop engine (DLE) mode',
-              type=click.Choice(['noop'] + configuration._accepted['dle']))
-@click.option('-a', '--autotune', default=False, is_flag=True,
-              help='Switch auto tuning on/off; ignored if execmode=bench')
+@option_performance
 def run(problem, **kwargs):
     run = tti_run if problem == 'tti' else acoustic_run
     time_order = kwargs.pop('time_order')[0]
@@ -70,17 +111,12 @@ def run(problem, **kwargs):
 
 @benchmark.command()
 @option_simulation
-@click.option('--dse', default='noop', help='Devito symbolic engine (DSE) mode',
-              type=click.Choice(['noop'] + configuration._accepted['dse']))
-@click.option('--dle', default='noop', help='Devito loop engine (DLE) mode',
-              type=click.Choice(['noop'] + configuration._accepted['dle']))
-@click.option('-a', '--autotune', default=False, is_flag=True,
-              help='Switch auto tuning on/off; ignored if execmode=bench')
+@option_performance
 def test(problem, **kwargs):
     run = tti_run if problem == 'tti' else acoustic_run
 
     # Create a parameter sweep over space and time orders
-    sweep_options = ('space_order', 'time_order')
+    sweep_options = ('space_order', 'time_order', 'dse', 'dle', 'autotune')
     sweep_values = [kwargs[option] for option in sweep_options]
     param_sweep = [dict(zip(sweep_options, v)) for v in product(*sweep_values)]
 
