@@ -4,7 +4,7 @@ from itertools import product
 import numpy as np
 import click
 
-from devito import clear_cache, configuration
+from devito import clear_cache, configuration, sweep
 from devito.logger import warning
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run
 from examples.seismic.tti.tti_example import run as tti_run
@@ -57,19 +57,18 @@ def option_performance(f):
     """Defines options for all aspects of performance tuning"""
 
     _preset = {'maxperf': {
-        'autotune': [True],
-        'dse': ['advanced'],
-        'dle': ['advanced']
+        'autotune': True,
+        'dse': 'advanced',
+        'dle': 'advanced'
     }, 'dse': {
-        'autotune': [True],
+        'autotune': True,
         'dse': ['basic', 'advanced', 'speculative', 'aggressive'],
-        'dle': ['advanced'],
+        'dle': 'advanced',
     }, 'dle': {
-        'autotune': [True],
-        'dse': ['advanced'],
+        'autotune': True,
+        'dse': 'advanced',
         'dle': ['basic', 'advanced'],
-    }
-    }
+    }}
 
     def from_preset(ctx, param, value):
         """Set all performance options according to bench-mode preset"""
@@ -113,24 +112,23 @@ def run(problem, **kwargs):
 @option_simulation
 @option_performance
 def test(problem, **kwargs):
+    """
+    Sweep across a set of parameters and verify results between
+    individual runs.
+    """
     run = tti_run if problem == 'tti' else acoustic_run
-
-    # Create a parameter sweep over space and time orders
     sweep_options = ('space_order', 'time_order', 'dse', 'dle', 'autotune')
-    sweep_values = [kwargs[option] for option in sweep_options]
-    param_sweep = [dict(zip(sweep_options, v)) for v in product(*sweep_values)]
 
     last_res = None
-    parameters = kwargs.copy()
-    for params in param_sweep:
-        parameters.update(params)
-        _, _, _, res = run(**parameters)
+    for params in sweep(kwargs, keys=sweep_options):
+        kwargs.update(params)
+        _, _, _, res = run(**kwargs)
 
         if last_res is None:
             last_res = res
         else:
             for i in range(len(res)):
-                np.isclose(res[i], last_res[i])
+                assert np.isclose(res[i], last_res[i])
 
 
 if __name__ == "__main__":
