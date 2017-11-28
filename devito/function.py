@@ -371,7 +371,10 @@ class TimeFunction(Function):
             self.save = kwargs.get('save', None)
 
             if self.save is not None:
-                assert(isinstance(self.save, int))
+                if not isinstance(self.save, int):
+                    raise ValueError("save must be an int indicating the number of " +
+                                     "timesteps to be saved (is %s)" % type(self.save))
+                
                 self.time_size = self.save
             else:
                 self.time_size = self.time_order + 1
