@@ -1,5 +1,4 @@
 import sys
-from itertools import product
 import numpy as np
 import click
 
@@ -216,8 +215,6 @@ def plot(problem, **kwargs):
         (problem_styles[problem], list(kwargs['shape']), kwargs['time_order'],
          kwargs['tn'], arch)
 
-    dse_runs = ["basic", "advanced", "speculative", "aggressive"]
-    dle_runs = ["basic", "advanced", "speculative"]
     styles = {  # (marker, color)
         # DLE basic
         ('basic', 'basic'): ('D', 'r'),
