@@ -13,11 +13,12 @@ from conftest import skipif_yask
 
 import numpy as np
 
-from devito import Grid, Function, TimeFunction, Eq, Operator, configuration
-from devito.logger import logger, logging, set_log_level
+from devito import Grid, Function, TimeFunction, Eq, Operator, configuration, silencio
+from devito.logger import logger, logging
 from devito.core.autotuning import options
 
 
+@silencio(log_level='DEBUG')
 @skipif_yask
 @pytest.mark.parametrize("shape,expected", [
     ((30, 30), 17),
@@ -33,7 +34,6 @@ def test_at_is_actually_working(shape, expected):
     buffer = StringIO()
     temporary_handler = logging.StreamHandler(buffer)
     logger.addHandler(temporary_handler)
-    set_log_level('DEBUG')
 
     infield = Function(name='infield', grid=grid)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
@@ -59,9 +59,9 @@ def test_at_is_actually_working(shape, expected):
     temporary_handler.close()
     buffer.flush()
     buffer.close()
-    set_log_level('INFO')
 
 
+@silencio(log_level='DEBUG')
 @skipif_yask
 def test_timesteps_per_at_run():
     """
@@ -74,7 +74,6 @@ def test_timesteps_per_at_run():
     buffer = StringIO()
     temporary_handler = logging.StreamHandler(buffer)
     logger.addHandler(temporary_handler)
-    set_log_level('DEBUG')
 
     shape = (30, 30, 30)
     grid = Grid(shape=shape)
@@ -115,4 +114,3 @@ def test_timesteps_per_at_run():
     temporary_handler.close()
     buffer.flush()
     buffer.close()
-    set_log_level('INFO')
