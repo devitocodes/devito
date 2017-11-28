@@ -35,7 +35,7 @@ class Function(function.Function):
         # This is exactly how Devito will work too once the Grid abstraction lands
 
         # Fetch the appropriate context
-        context = contexts.fetch(self.indices, self.shape, self.dtype)
+        context = contexts.fetch(self.grid, self.dtype)
 
         # TODO : the following will fail if not using a SteppingDimension,
         # eg with save=True one gets /time/ instead /t/

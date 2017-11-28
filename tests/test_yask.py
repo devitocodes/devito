@@ -383,6 +383,31 @@ class TestOperatorSimple(object):
         assert np.all(u.data[0] == 30.)
         assert p.data[0][0] == 6.
 
+    def test_repeated_op_calls(self):
+        """
+        Tests that calling the same Operator with different input data
+        produces the expected results.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        u = TimeFunction(name='yu4D', grid=grid, space_order=0)
+        u.data[:] = 0.
+        op = Operator(Eq(u.forward, u + 1.))
+        # First run
+        op()
+        assert np.all(u.data[1] == 1.)
+        assert u.data[:].sum() == np.prod(grid.shape)
+        # Nothing should have changed at this point
+        op(yu4D=u)
+        assert np.all(u.data[1] == 1.)
+        assert u.data[:].sum() == np.prod(grid.shape)
+        # Now try with a different grid
+        grid = Grid(shape=(3, 3, 3))
+        u = TimeFunction(name='yu4D', grid=grid, space_order=0)
+        u.data[:] = 0.
+        op(yu4D=u)
+        assert np.all(u.data[1] == 1.)
+        assert u.data[:].sum() == np.prod(grid.shape)
+
 
 class TestOperatorAcoustic(object):
 
