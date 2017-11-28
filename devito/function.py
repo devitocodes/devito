@@ -2,6 +2,7 @@ import numpy as np
 import sympy
 from collections import OrderedDict
 from functools import partial
+from psutil import virtual_memory
 
 from devito.parameters import configuration
 from devito.logger import debug, error, warning
@@ -374,7 +375,11 @@ class TimeFunction(Function):
                 if not isinstance(self.save, int):
                     raise ValueError("save must be an int indicating the number of " +
                                      "timesteps to be saved (is %s)" % type(self.save))
-                
+                available_mem = virtual_memory().available
+
+                if np.dtype(self.dtype).itemsize * self.save > available_mem:
+                    warning("Trying to allocate more memory for symbol %s " % self.name +
+                            "than available on physical device, this will start swapping")
                 self.time_size = self.save
             else:
                 self.time_size = self.time_order + 1
