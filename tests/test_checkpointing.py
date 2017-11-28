@@ -5,9 +5,10 @@ from pyrevolve import Revolver
 import numpy as np
 from conftest import skipif_yask
 import pytest
-from devito import Grid, TimeFunction, Operator, Backward, Function, Eq
+from devito import Grid, TimeFunction, Operator, Backward, Function, Eq, silencio
 
 
+@silencio(log_level='WARNING')
 @skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
@@ -38,6 +39,7 @@ def test_forward_with_breaks(shape, time_order, space_order):
     assert(np.allclose(rec_temp, example.rec.data))
 
 
+@silencio(log_level='WARNING')
 @skipif_yask
 def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
                                   time_order=2, space_order=4, nbpml=10):
@@ -56,6 +58,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     assert(np.allclose(rec.data, rec_bk))
 
 
+@silencio(log_level='WARNING')
 @skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
