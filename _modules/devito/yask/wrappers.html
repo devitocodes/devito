@@ -1,0 +1,838 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.yask.wrappers &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito.yask" href="../yask.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+          <li><a href="../yask.html">devito.yask</a> &raquo;</li>
+        
+      <li>devito.yask.wrappers</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.yask.wrappers</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">importlib</span>
+<span class="kn">from</span> <span class="nn">glob</span> <span class="k">import</span> <span class="n">glob</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">call</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">ctypes</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">make</span>
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">CompilationError</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">yask</span> <span class="k">as</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">numpy_to_ctypes</span>
+
+<span class="kn">from</span> <span class="nn">devito.yask</span> <span class="k">import</span> <span class="n">cfac</span><span class="p">,</span> <span class="n">nfac</span><span class="p">,</span> <span class="n">ofac</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">exit</span><span class="p">,</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.yask.utils</span> <span class="k">import</span> <span class="n">convert_multislice</span><span class="p">,</span> <span class="n">rawpointer</span>
+
+
+<div class="viewcode-block" id="YaskGrid"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskGrid">[docs]</a><span class="k">class</span> <span class="nc">YaskGrid</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A ``YaskGrid`` wraps a YASK grid.</span>
+
+<span class="sd">    An implementation of an array that behaves similarly to a ``numpy.ndarray``,</span>
+<span class="sd">    suitable for the YASK storage layout.</span>
+
+<span class="sd">    Subclassing ``numpy.ndarray`` would have led to shadow data copies, because</span>
+<span class="sd">    of the different storage layout.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency</span>
+    <span class="n">__array_priority__</span> <span class="o">=</span> <span class="mi">1000</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize a new :class:`YaskGrid`, a wrapper for a YASK grid.</span>
+
+<span class="sd">        The storage layout of a YASK grid is as follows: ::</span>
+
+<span class="sd">            --------------------------------------------------------------</span>
+<span class="sd">            | extra_padding | halo |              | halo | extra_padding |</span>
+<span class="sd">            ------------------------    domain    ------------------------</span>
+<span class="sd">            |       padding        |              |       padding        |</span>
+<span class="sd">            --------------------------------------------------------------</span>
+<span class="sd">            |                         allocation                         |</span>
+<span class="sd">            --------------------------------------------------------------</span>
+
+<span class="sd">        :param grid: The YASK yk::grid that will be wrapped. Data storage will be</span>
+<span class="sd">                     allocated if not yet allocated.</span>
+<span class="sd">        :param shape: The &quot;visibility region&quot; of the YaskGrid. The shape should be</span>
+<span class="sd">                      at least as big as the domain (in each dimension). If larger,</span>
+<span class="sd">                      then users will be allowed to access more data entries,</span>
+<span class="sd">                      such as those lying on the halo region.</span>
+<span class="sd">        :param radius: The extent of the halo region.</span>
+<span class="sd">        :param dtype: The type of the raw data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="o">=</span> <span class="n">grid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_storage_allocated</span><span class="p">():</span>
+            <span class="c1"># Allocate memory in YASK-land and initialize it to 0</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;time-dim&#39;</span><span class="p">]:</span>
+                    <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">is_dim_used</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                    <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">get_alloc_size</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="n">j</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Note, from the YASK docs:</span>
+                    <span class="c1"># &quot;If the halo is set to a value larger than the padding size,</span>
+                    <span class="c1"># the padding size will be automatically increase to accomodate it.&quot;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">set_halo_size</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">radius</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">alloc_storage</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_reset</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">shape</span> <span class="o">=</span> <span class="n">convert_multislice</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offsets</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">shape</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YaskGrid: Getting single entry </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
+            <span class="k">assert</span> <span class="n">start</span> <span class="o">==</span> <span class="n">stop</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">get_element</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YaskGrid: Getting full-array/block via index [</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">index</span><span class="p">))</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="s1">&#39;C&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">get_elements_in_slice</span><span class="p">(</span><span class="n">out</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">shape</span> <span class="o">=</span> <span class="n">convert_multislice</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offsets</span><span class="p">,</span> <span class="s1">&#39;set&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">):</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YaskGrid: Setting single entry </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
+            <span class="k">assert</span> <span class="n">start</span> <span class="o">==</span> <span class="n">stop</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">set_element</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">start</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YaskGrid: Setting full-array/block via index [</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">index</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">set_elements_in_slice</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="n">j</span><span class="o">-</span><span class="mi">1</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)):</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YaskGrid: Setting full-array to given scalar via single grid sweep&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">set_all_elements_same</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YaskGrid: Setting block to given scalar via index [</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">index</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">set_elements_in_slice_same</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getslice__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">stop</span> <span class="o">==</span> <span class="n">sys</span><span class="o">.</span><span class="n">maxint</span><span class="p">:</span>
+            <span class="c1"># Emulate default NumPy behaviour</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__setslice__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">stop</span> <span class="o">==</span> <span class="n">sys</span><span class="o">.</span><span class="n">maxint</span><span class="p">:</span>
+            <span class="c1"># Emulate default NumPy behaviour</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">),</span> <span class="n">val</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Proxy to yk::grid methods.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="p">[:])</span>
+
+    <span class="k">def</span> <span class="nf">__meta_binop</span><span class="p">(</span><span class="n">op</span><span class="p">):</span>
+        <span class="c1"># Used to build all binary operations such as __eq__, __add__, etc.</span>
+        <span class="c1"># These all boil down to calling the numpy equivalents</span>
+        <span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">[:],</span> <span class="n">op</span><span class="p">)(</span><span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">f</span>
+    <span class="fm">__eq__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__eq__&#39;</span><span class="p">)</span>
+    <span class="fm">__ne__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__ne__&#39;</span><span class="p">)</span>
+    <span class="fm">__le__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__le__&#39;</span><span class="p">)</span>
+    <span class="fm">__lt__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__lt__&#39;</span><span class="p">)</span>
+    <span class="fm">__ge__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__ge__&#39;</span><span class="p">)</span>
+    <span class="fm">__gt__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__gt__&#39;</span><span class="p">)</span>
+    <span class="fm">__add__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__add__&#39;</span><span class="p">)</span>
+    <span class="fm">__radd__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__add__&#39;</span><span class="p">)</span>
+    <span class="fm">__sub__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__sub__&#39;</span><span class="p">)</span>
+    <span class="fm">__rsub__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__sub__&#39;</span><span class="p">)</span>
+    <span class="fm">__mul__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__mul__&#39;</span><span class="p">)</span>
+    <span class="fm">__rmul__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__mul__&#39;</span><span class="p">)</span>
+    <span class="n">__div__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__div__&#39;</span><span class="p">)</span>
+    <span class="n">__rdiv__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__div__&#39;</span><span class="p">)</span>
+    <span class="fm">__truediv__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__truediv__&#39;</span><span class="p">)</span>
+    <span class="fm">__rtruediv__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__truediv__&#39;</span><span class="p">)</span>
+    <span class="fm">__mod__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__mod__&#39;</span><span class="p">)</span>
+    <span class="fm">__rmod__</span> <span class="o">=</span> <span class="n">__meta_binop</span><span class="p">(</span><span class="s1">&#39;__mod__&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reset grid value to 0.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="p">[:]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="mi">0</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;time-dim&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_halo_size</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_padding</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="mi">0</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;time-dim&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pad_size</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_offsets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">offsets</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">):</span>
+            <span class="n">ofs</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;time-dim&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_first_rank_alloc_index</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">offsets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ofs</span> <span class="o">+</span> <span class="n">j</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">offsets</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a new wrapper to self&#39;s YASK grid in which the halo has been</span>
+<span class="sd">        unmasked. This allows the caller to write/read the halo region as well as</span>
+<span class="sd">        the domain.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">YaskGridWithHalo</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">get_name</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">get_dim_names</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ndpointer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a :class:`numpy.ndarray` view of the grid content.&quot;&quot;&quot;</span>
+        <span class="n">ctype</span> <span class="o">=</span> <span class="n">numpy_to_ctypes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">cpointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">get_raw_storage_buffer</span><span class="p">()),</span>
+                               <span class="n">ctypes</span><span class="o">.</span><span class="n">POINTER</span><span class="p">(</span><span class="n">ctype</span><span class="p">))</span>
+        <span class="n">ndpointer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">casted</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">cpointer</span><span class="p">,</span> <span class="n">ndpointer</span><span class="p">)</span>
+        <span class="n">ndarray</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">as_array</span><span class="p">(</span><span class="n">casted</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ndarray</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rawpointer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">rawpointer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+
+<div class="viewcode-block" id="YaskGrid.give_storage"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskGrid.give_storage">[docs]</a>    <span class="k">def</span> <span class="nf">give_storage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Share self&#39;s storage with ``target``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;time-dim&#39;</span><span class="p">]:</span>
+                <span class="n">target</span><span class="o">.</span><span class="n">set_alloc_size</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_alloc_size</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">target</span><span class="o">.</span><span class="n">set_halo_size</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_halo_size</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+        <span class="n">target</span><span class="o">.</span><span class="n">share_storage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="YaskGrid.view"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskGrid.view">[docs]</a>    <span class="k">def</span> <span class="nf">view</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        View of the YASK grid in standard (i.e., Devito) row-major layout.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[:]</span></div></div>
+
+
+<div class="viewcode-block" id="YaskGridWithHalo"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskGridWithHalo">[docs]</a><span class="k">class</span> <span class="nc">YaskGridWithHalo</span><span class="p">(</span><span class="n">YaskGrid</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A helper class for YaskGrid wrappers providing access to the halo region.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">YaskGridWithHalo</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_offsets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">offsets</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">YaskGridWithHalo</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_offsets</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">offsets</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">)]</span></div>
+
+
+<div class="viewcode-block" id="YaskKernel"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskKernel">[docs]</a><span class="k">class</span> <span class="nc">YaskKernel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A ``YaskKernel`` wraps a YASK kernel solution.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">yc_soln</span><span class="p">,</span> <span class="n">local_grids</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Write out a YASK kernel, build it using YASK&#39;s Makefiles,</span>
+<span class="sd">        import the corresponding SWIG-generated Python module, and finally</span>
+<span class="sd">        create a YASK kernel solution object.</span>
+
+<span class="sd">        :param name: Unique name of this YaskKernel.</span>
+<span class="sd">        :param yc_soln: YaskCompiler solution.</span>
+<span class="sd">        :param local_grids: A local grid is necessary to run the YaskKernel,</span>
+<span class="sd">                            but its final content can be ditched. Indeed, local</span>
+<span class="sd">                            grids are hidden to users -- for example, they could</span>
+<span class="sd">                            represent temporary arrays introduced by the DSE.</span>
+<span class="sd">                            This parameter tells which of the ``yc_soln``&#39;s grids</span>
+<span class="sd">                            are local.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+        <span class="c1"># Shared object name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soname</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">yc_soln</span><span class="o">.</span><span class="n">get_name</span><span class="p">(),</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">])</span>
+
+        <span class="c1"># It&#39;s necessary to `clean` the YASK kernel directory *before*</span>
+        <span class="c1"># writing out the first `yask_stencil_code.hpp`</span>
+        <span class="n">make</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">],</span> <span class="p">[</span><span class="s1">&#39;-C&#39;</span><span class="p">,</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;kernel-path&#39;</span><span class="p">],</span> <span class="s1">&#39;clean&#39;</span><span class="p">])</span>
+
+        <span class="c1"># Write out the stencil file</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;kernel-path-gen&#39;</span><span class="p">]):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;kernel-path-gen&#39;</span><span class="p">])</span>
+        <span class="n">yc_soln</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">],</span>
+                       <span class="n">ofac</span><span class="o">.</span><span class="n">new_file_output</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;kernel-output&#39;</span><span class="p">]))</span>
+
+        <span class="c1"># JIT-compile it</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">compiler</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
+            <span class="n">opt_level</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;develop-mode&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="mi">3</span>
+            <span class="n">make</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">],</span> <span class="p">[</span><span class="s1">&#39;-j3&#39;</span><span class="p">,</span> <span class="s1">&#39;YK_CXX=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">compiler</span><span class="o">.</span><span class="n">cc</span><span class="p">,</span>
+                                     <span class="s1">&#39;YK_CXXOPT=-O</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">opt_level</span><span class="p">,</span>
+                                     <span class="s1">&#39;mpi=0&#39;</span><span class="p">,</span>  <span class="c1"># Disable MPI for now</span>
+                                     <span class="c1"># &quot;EXTRA_MACROS=TRACE&quot;,</span>
+                                     <span class="s1">&#39;YK_BASE=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">),</span>
+                                     <span class="s1">&#39;stencil=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">yc_soln</span><span class="o">.</span><span class="n">get_name</span><span class="p">(),</span>
+                                     <span class="s1">&#39;arch=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">],</span>
+                                     <span class="s1">&#39;-C&#39;</span><span class="p">,</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;kernel-path&#39;</span><span class="p">],</span> <span class="s1">&#39;api&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="n">CompilationError</span><span class="p">:</span>
+            <span class="n">exit</span><span class="p">(</span><span class="s2">&quot;Kernel solution compilation&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Import the corresponding Python (SWIG-generated) module</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">yk</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">__import__</span><span class="p">(</span><span class="s1">&#39;yask&#39;</span><span class="p">,</span> <span class="n">fromlist</span><span class="o">=</span><span class="p">[</span><span class="n">name</span><span class="p">]),</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="n">exit</span><span class="p">(</span><span class="s2">&quot;Python YASK kernel bindings&quot;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">yk</span> <span class="o">=</span> <span class="n">reload</span><span class="p">(</span><span class="n">yk</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+            <span class="c1"># Python 3.5 compatibility</span>
+            <span class="n">yk</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">yk</span><span class="p">)</span>
+
+        <span class="c1"># Create the YASK solution object</span>
+        <span class="n">kfac</span> <span class="o">=</span> <span class="n">yk</span><span class="o">.</span><span class="n">yk_factory</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">kfac</span><span class="o">.</span><span class="n">new_env</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soln</span> <span class="o">=</span> <span class="n">kfac</span><span class="o">.</span><span class="n">new_solution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">)</span>
+
+        <span class="c1"># MPI setup: simple rank configuration in 1st dim only.</span>
+        <span class="c1"># TODO: in production runs, the ranks would be distributed along all</span>
+        <span class="c1"># domain dimensions.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">set_num_ranks</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_num_ranks</span><span class="p">())</span>
+
+        <span class="c1"># Redirect stdout/strerr to a string or file</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;dump&#39;</span><span class="p">]:</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;yk_dump.</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">.txt&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                                 <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">],</span>
+                                                 <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">])</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;dump&#39;</span><span class="p">],</span> <span class="n">filename</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">yk</span><span class="o">.</span><span class="n">yask_output_factory</span><span class="p">()</span><span class="o">.</span><span class="n">new_file_output</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">yk</span><span class="o">.</span><span class="n">yask_output_factory</span><span class="p">()</span><span class="o">.</span><span class="n">new_string_output</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">set_debug_output</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+
+        <span class="c1"># Users may want to run the same Operator (same domain etc.) with</span>
+        <span class="c1"># different grids.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grids</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">get_name</span><span class="p">():</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">get_grids</span><span class="p">()}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_grids</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">grids</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">local_grids</span> <span class="ow">or</span> <span class="p">[])}</span>
+
+<div class="viewcode-block" id="YaskKernel.new_grid"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskKernel.new_grid">[docs]</a>    <span class="k">def</span> <span class="nf">new_grid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new YASK grid.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">new_fixed_size_grid</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">indices</span><span class="p">],</span>
+                                             <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">shape</span><span class="p">])</span>  <span class="c1"># cast np.int</span></div>
+
+<div class="viewcode-block" id="YaskKernel.run"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskKernel.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfunction</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">toshare</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the YaskKernel through a JIT-compiled function.</span>
+
+<span class="sd">        :param cfunction: The JIT-compiler function, of type :class:`ctypes.FuncPtr`</span>
+<span class="sd">        :param arguments: Mapper from function/dimension/... names to run-time values</span>
+<span class="sd">               to be passed to ``cfunction``.</span>
+<span class="sd">        :param toshare: Mapper from functions to :class:`YaskGrid`s for sharing</span>
+<span class="sd">                        grid storage.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Sanity check</span>
+        <span class="n">grids</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">grid</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">toshare</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">}</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">grids</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="n">grids</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+        <span class="c1"># Set the domain size, apply grid sharing, more sanity checks</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">set_rank_domain_size</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">toshare</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grids</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">target</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">v</span><span class="o">.</span><span class="n">give_storage</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_storage_allocated</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_grids</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">is_storage_allocated</span><span class="p">()</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grids</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                   <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_grids</span><span class="p">)</span>
+
+        <span class="c1"># Debug info</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&lt;</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_dimension</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grids</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_grids</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">get_num_dims</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;    Scalar: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">get_name</span><span class="p">())</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_storage_allocated</span><span class="p">():</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">get_rank_domain_size</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">]</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;    LocalGrid: </span><span class="si">%s%s</span><span class="s2">, size=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
+                      <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">get_name</span><span class="p">(),</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">get_dim_names</span><span class="p">()),</span> <span class="n">size</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">get_rank_domain_size</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">]</span>
+                <span class="n">pad</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">get_pad_size</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">]</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;    Grid: </span><span class="si">%s%s</span><span class="s2">, size=</span><span class="si">%s</span><span class="s2">, pad=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
+                      <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">get_name</span><span class="p">(),</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">get_dim_names</span><span class="p">()),</span> <span class="n">size</span><span class="p">,</span> <span class="n">pad</span><span class="p">))</span>
+
+        <span class="c1"># Apply any user-provided option, if any</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">apply_command_line_options</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="c1"># Set up the block shape for loop blocking</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">,</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;blockshape&#39;</span><span class="p">]):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">set_block_size</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
+
+        <span class="c1"># This, amongst other things, allocates storage for the temporary grids</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">prepare_solution</span><span class="p">()</span>
+
+        <span class="c1"># Set up auto-tuning</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;off&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">reset_auto_tuner</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;preemptive&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">run_auto_tuner_now</span><span class="p">()</span>
+
+        <span class="c1"># Run the kernel</span>
+        <span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+
+        <span class="c1"># Release grid storage. Note: this *will not* cause deallocation, as these</span>
+        <span class="c1"># grids are actually shared with the hook solution</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grids</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">release_storage</span><span class="p">()</span>
+        <span class="c1"># Release local grid storage. This *will* cause deallocation</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_grids</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">release_storage</span><span class="p">()</span>
+        <span class="c1"># Dump performance data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">get_stats</span><span class="p">()</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">get_domain_dim_names</span><span class="p">())</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">time_dimension</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="o">.</span><span class="n">get_step_dim_name</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rawpointer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">rawpointer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">soln</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;YaskKernel [</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
+
+
+<div class="viewcode-block" id="YaskContext"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskContext">[docs]</a><span class="k">class</span> <span class="nc">YaskContext</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy between Devito and YASK.</span>
+
+<span class="sd">        A YaskContext contains N YaskKernel and M YaskGrids, which have space</span>
+<span class="sd">        and time dimensions in common.</span>
+
+<span class="sd">        :param name: Unique name of the context.</span>
+<span class="sd">        :param grid: A :class:`Grid` carrying the context dimensions.</span>
+<span class="sd">        :param dtype: The data type used in kernels, as a NumPy dtype.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_dimension</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+
+        <span class="c1"># All known solutions and grids in this context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solutions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grids</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Build the hook kernel solution (wrapper) to create grids</span>
+        <span class="n">yc_hook</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_yc_solution</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;jit-yc-hook&#39;</span><span class="p">])</span>
+        <span class="c1"># Need to add dummy grids to make YASK happy</span>
+        <span class="c1"># TODO: improve me</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">nfac</span><span class="o">.</span><span class="n">new_domain_index</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">]</span>
+        <span class="n">yc_hook</span><span class="o">.</span><span class="n">new_grid</span><span class="p">(</span><span class="s1">&#39;dummy_wo_time&#39;</span><span class="p">,</span> <span class="n">handle</span><span class="p">)</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">nfac</span><span class="o">.</span><span class="n">new_step_index</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dimension</span><span class="p">))]</span> <span class="o">+</span> <span class="n">handle</span>
+        <span class="n">yc_hook</span><span class="o">.</span><span class="n">new_grid</span><span class="p">(</span><span class="s1">&#39;dummy_w_time&#39;</span><span class="p">,</span> <span class="n">handle</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">yk_hook</span> <span class="o">=</span> <span class="n">YaskKernel</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;jit-yk-hook&#39;</span><span class="p">](</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">yc_hook</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dimension</span><span class="p">,)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">nsolutions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">solutions</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ngrids</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grids</span><span class="p">)</span>
+
+<div class="viewcode-block" id="YaskContext.make_grid"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskContext.make_grid">[docs]</a>    <span class="k">def</span> <span class="nf">make_grid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create and return a new :class:`YaskGrid`, a YASK grid wrapper. Memory</span>
+<span class="sd">        is allocated.</span>
+
+<span class="sd">        :param obj: The symbolic data object for which a YASK grid is allocated.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">):</span>
+            <span class="n">exit</span><span class="p">(</span><span class="s2">&quot;Need a Function[x,y,z] to create a YASK grid.&quot;</span><span class="p">)</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;devito_</span><span class="si">%s</span><span class="s1">_</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">contexts</span><span class="o">.</span><span class="n">ngrids</span><span class="p">)</span>
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Allocating YaskGrid for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">yk_hook</span><span class="o">.</span><span class="n">new_grid</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+        <span class="n">wrapper</span> <span class="o">=</span> <span class="n">YaskGrid</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grids</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">wrapper</span>
+        <span class="k">return</span> <span class="n">wrapper</span></div>
+
+<div class="viewcode-block" id="YaskContext.make_yc_solution"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskContext.make_yc_solution">[docs]</a>    <span class="k">def</span> <span class="nf">make_yc_solution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">namer</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create and return a YASK compiler solution object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">namer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nsolutions</span><span class="p">)</span>
+
+        <span class="n">yc_soln</span> <span class="o">=</span> <span class="n">cfac</span><span class="o">.</span><span class="n">new_solution</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="c1"># Redirect stdout/strerr to a string or file</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;dump&#39;</span><span class="p">]:</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;yc_dump.</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">.txt&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">],</span>
+                                                 <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">])</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;dump&#39;</span><span class="p">],</span> <span class="n">filename</span><span class="p">)</span>
+            <span class="n">yc_soln</span><span class="o">.</span><span class="n">set_debug_output</span><span class="p">(</span><span class="n">ofac</span><span class="o">.</span><span class="n">new_file_output</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">yc_soln</span><span class="o">.</span><span class="n">set_debug_output</span><span class="p">(</span><span class="n">ofac</span><span class="o">.</span><span class="n">new_null_output</span><span class="p">())</span>
+
+        <span class="c1"># Set data type size</span>
+        <span class="n">yc_soln</span><span class="o">.</span><span class="n">set_element_bytes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span><span class="p">)</span>
+
+        <span class="c1"># Apply compile-time optimizations</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;cpp&#39;</span><span class="p">:</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="p">[</span><span class="n">nfac</span><span class="o">.</span><span class="n">new_domain_index</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">]</span>
+            <span class="c1"># Vector folding</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;folding&#39;</span><span class="p">]):</span>
+                <span class="n">yc_soln</span><span class="o">.</span><span class="n">set_fold_len</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
+            <span class="c1"># Unrolling</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;clustering&#39;</span><span class="p">]):</span>
+                <span class="n">yc_soln</span><span class="o">.</span><span class="n">set_cluster_mult</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">yc_soln</span></div>
+
+<div class="viewcode-block" id="YaskContext.make_yk_solution"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskContext.make_yk_solution">[docs]</a>    <span class="k">def</span> <span class="nf">make_yk_solution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">namer</span><span class="p">,</span> <span class="n">yc_soln</span><span class="p">,</span> <span class="n">local_grids</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create and return a new :class:`YaskKernel` using ``self`` as context</span>
+<span class="sd">        and ``yc_soln`` as YASK compiler (&quot;stencil&quot;) solution.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">soln</span> <span class="o">=</span> <span class="n">YaskKernel</span><span class="p">(</span><span class="n">namer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nsolutions</span><span class="p">),</span> <span class="n">yc_soln</span><span class="p">,</span> <span class="n">local_grids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solutions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">soln</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">soln</span></div>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;YaskContext: </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;- domain: </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;- grids: [</span><span class="si">%s</span><span class="s2">]</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;- solns: [</span><span class="si">%s</span><span class="s2">]</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">),</span>
+                                      <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grids</span><span class="p">)]),</span>
+                                      <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">solutions</span><span class="p">]))</span></div>
+
+
+<div class="viewcode-block" id="ContextManager"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.ContextManager">[docs]</a><span class="k">class</span> <span class="nc">ContextManager</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ContextManager</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ncontexts</span> <span class="o">=</span> <span class="mi">0</span>
+
+<div class="viewcode-block" id="ContextManager.dump"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.ContextManager.dump">[docs]</a>    <span class="k">def</span> <span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Drop all known contexts and clean up the relevant YASK directories.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="n">call</span><span class="p">([</span><span class="s1">&#39;rm&#39;</span><span class="p">,</span> <span class="s1">&#39;-f&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">],</span> <span class="s1">&#39;yask&#39;</span><span class="p">,</span> <span class="s1">&#39;*devito*&#39;</span><span class="p">)))</span>
+        <span class="n">call</span><span class="p">([</span><span class="s1">&#39;rm&#39;</span><span class="p">,</span> <span class="s1">&#39;-f&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">],</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;*devito*&#39;</span><span class="p">)))</span>
+        <span class="n">call</span><span class="p">([</span><span class="s1">&#39;rm&#39;</span><span class="p">,</span> <span class="s1">&#39;-f&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">],</span> <span class="s1">&#39;lib&#39;</span><span class="p">,</span> <span class="s1">&#39;*hook*&#39;</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="ContextManager.fetch"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.ContextManager.fetch">[docs]</a>    <span class="k">def</span> <span class="nf">fetch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Fetch the :class:`YaskContext` in ``self`` uniquely identified by</span>
+<span class="sd">        ``grid`` and ``dtype``. Create a new (empty) :class:`YaskContext` on miss.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># A unique key for this context.</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span>
+               <span class="n">grid</span><span class="o">.</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span><span class="p">)</span>
+
+        <span class="c1"># Fetch or create a YaskContext</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Fetched existing context from cache&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">YaskContext</span><span class="p">(</span><span class="s1">&#39;ctx</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">ncontexts</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ncontexts</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Context successfully created!&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ngrids</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">ngrids</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">())</span></div>
+
+
+<span class="n">contexts</span> <span class="o">=</span> <span class="n">ContextManager</span><span class="p">()</span>
+<span class="sd">&quot;&quot;&quot;All known YASK contexts.&quot;&quot;&quot;</span>
+
+
+<span class="c1"># Helpers</span>
+
+<div class="viewcode-block" id="YaskGridConst"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskGridConst">[docs]</a><span class="k">class</span> <span class="nc">YaskGridConst</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A YASK grid wrapper for scalar values.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="YaskGridConst.give_storage"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskGridConst.give_storage">[docs]</a>    <span class="k">def</span> <span class="nf">give_storage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">target</span><span class="o">.</span><span class="n">is_storage_allocated</span><span class="p">():</span>
+            <span class="n">target</span><span class="o">.</span><span class="n">alloc_storage</span><span class="p">()</span>
+        <span class="n">target</span><span class="o">.</span><span class="n">set_element</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">real</span><span class="p">),</span> <span class="p">[])</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rawpointer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="YaskNullKernel"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskNullKernel">[docs]</a><span class="k">class</span> <span class="nc">YaskNullKernel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Used when an Operator doesn&#39;t actually have a YASK-offloadable tree.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;null solution&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grids</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_grids</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="YaskNullKernel.run"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskNullKernel.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfunction</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">toshare</span><span class="p">):</span>
+        <span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span></div></div>
+
+
+<div class="viewcode-block" id="YaskNullContext"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.wrappers.YaskNullContext">[docs]</a><span class="k">class</span> <span class="nc">YaskNullContext</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Used when an Operator doesn&#39;t actually have a YASK-offloadable tree.&quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;?&#39;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">time_dimension</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;?&#39;</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

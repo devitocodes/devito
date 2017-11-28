@@ -105,11 +105,11 @@
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">devito.yask package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#devito-yask-function-module">devito.yask.function module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#devito-yask-operator-module">devito.yask.operator module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#devito-yask-utils-module">devito.yask.utils module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#devito-yask-wrappers-module">devito.yask.wrappers module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-contents">Module contents</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.yask.function">devito.yask.function module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.yask.operator">devito.yask.operator module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.yask.utils">devito.yask.utils module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.yask.wrappers">devito.yask.wrappers module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.yask">Module contents</a></li>
 </ul>
 </li>
 </ul>
@@ -205,20 +205,447 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="devito-yask-function-module">
-<h2>devito.yask.function module<a class="headerlink" href="#devito-yask-function-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.yask.function">
+<span id="devito-yask-function-module"></span><h2>devito.yask.function module<a class="headerlink" href="#module-devito.yask.function" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.yask.function.Constant">
+<em class="property">class </em><code class="descclassname">devito.yask.function.</code><code class="descname">Constant</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/function.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.function.Constant" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.function.Constant" title="devito.function.Constant"><code class="xref py py-class docutils literal"><span class="pre">devito.function.Constant</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.yask.function.Constant.data">
+<code class="descname">data</code><a class="headerlink" href="#devito.yask.function.Constant.data" title="Permalink to this definition">¶</a></dt>
+<dd><p>The value of the data object, as a scalar (int, float, …).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.function.Constant.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.yask.function.Constant.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.function.Constant.from_YASK">
+<code class="descname">from_YASK</code><em class="property"> = True</em><a class="headerlink" href="#devito.yask.function.Constant.from_YASK" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.function.Function">
+<em class="property">class </em><code class="descclassname">devito.yask.function.</code><code class="descname">Function</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/function.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.function.Function" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">devito.function.Function</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.yask.function.Function.data">
+<code class="descname">data</code><a class="headerlink" href="#devito.yask.function.Function.data" title="Permalink to this definition">¶</a></dt>
+<dd><p>The value of the data object, as a <code class="xref py py-class docutils literal"><span class="pre">YaskGrid</span></code>.</p>
+<p>The returned object, which behaves as a <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code>, provides
+a <em>view</em> of the actual data, in row-major format. Internally, the data is
+stored in whatever layout adopted by YASK.</p>
+<p>Any read/write from/to the returned <code class="xref py py-class docutils literal"><span class="pre">YaskGrid</span></code> should be performed
+assuming a row-major storage layout; behind the scenes, these accesses
+are automatically translated into whatever YASK expects, in order to pick
+the intended values.</p>
+<p>Abstracting away the internal storage layout adopted by YASK guarantees
+that user code works independently of the chosen Devito backend. This may
+introduce a little performance penalty when accessing data w.r.t. the
+default Devito backend. Such penalty should however be easily amortizable,
+as the time spent in running Operators is expected to be vastly greater
+than any user-level data manipulation.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.function.Function.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.yask.function.Function.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.function.Function.from_YASK">
+<code class="descname">from_YASK</code><em class="property"> = True</em><a class="headerlink" href="#devito.yask.function.Function.from_YASK" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.function.Function.initialize">
+<code class="descname">initialize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/function.html#Function.initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.function.Function.initialize" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.function.TimeFunction">
+<em class="property">class </em><code class="descclassname">devito.yask.function.</code><code class="descname">TimeFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/function.html#TimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.function.TimeFunction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal"><span class="pre">devito.function.TimeFunction</span></code></a>, <a class="reference internal" href="#devito.yask.function.Function" title="devito.yask.function.Function"><code class="xref py py-class docutils literal"><span class="pre">devito.yask.function.Function</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.yask.function.TimeFunction.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.yask.function.TimeFunction.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.function.TimeFunction.from_YASK">
+<code class="descname">from_YASK</code><em class="property"> = True</em><a class="headerlink" href="#devito.yask.function.TimeFunction.from_YASK" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="devito-yask-operator-module">
-<h2>devito.yask.operator module<a class="headerlink" href="#devito-yask-operator-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.yask.operator">
+<span id="devito-yask-operator-module"></span><h2>devito.yask.operator module<a class="headerlink" href="#module-devito.yask.operator" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.yask.operator.Operator">
+<em class="property">class </em><code class="descclassname">devito.yask.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.operator.OperatorRunnable" title="devito.operator.OperatorRunnable"><code class="xref py py-class docutils literal"><span class="pre">devito.operator.OperatorRunnable</span></code></a></p>
+<p>A special <code class="xref py py-class docutils literal"><span class="pre">OperatorCore</span></code> to JIT-compile and run operators through YASK.</p>
+<dl class="method">
+<dt id="devito.yask.operator.Operator.apply">
+<code class="descname">apply</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/operator.html#Operator.apply"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.operator.Operator.apply" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.operator.Operator.arguments">
+<code class="descname">arguments</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.operator.Operator.compile">
+<code class="descname">compile</code><a class="headerlink" href="#devito.yask.operator.Operator.compile" title="Permalink to this definition">¶</a></dt>
+<dd><p>JIT-compile the C code generated by the Operator.</p>
+<p>It is ensured that JIT compilation will only be performed once per
+<a class="reference internal" href="#devito.yask.operator.Operator" title="devito.yask.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">Operator</span></code></a>, reagardless of how many times this method is invoked.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The file name of the JIT-compiled function.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="devito-yask-utils-module">
-<h2>devito.yask.utils module<a class="headerlink" href="#devito-yask-utils-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.yask.utils">
+<span id="devito-yask-utils-module"></span><h2>devito.yask.utils module<a class="headerlink" href="#module-devito.yask.utils" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.yask.utils.INT">
+<em class="property">class </em><code class="descclassname">devito.yask.utils.</code><code class="descname">INT</code><a class="headerlink" href="#devito.yask.utils.INT" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.function.AppliedUndef</span></code></p>
+<dl class="attribute">
+<dt id="devito.yask.utils.INT.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.yask.utils.INT.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.yask.utils.convert_multislice">
+<code class="descclassname">devito.yask.utils.</code><code class="descname">convert_multislice</code><span class="sig-paren">(</span><em>multislice</em>, <em>shape</em>, <em>offsets</em>, <em>mode='get'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/utils.html#convert_multislice"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.utils.convert_multislice" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert a multislice into a format suitable to YASK’s get_elements_{…}
+and set_elements_{…} grid routines.</p>
+<p>A multislice is the typical object received by NumPy ndarray’s __getitem__
+and __setitem__ methods; this function, therefore, converts NumPy indices
+into YASK indices.</p>
+<p>In particular, a multislice is either a single element or an iterable of
+elements. An element can be a slice object, an integer index, or a tuple
+of integer indices.</p>
+<p>In the general case in which <code class="docutils literal"><span class="pre">multislice</span></code> is an iterable, each element in
+the iterable corresponds to a dimension in <code class="docutils literal"><span class="pre">shape</span></code>. In this case, an element
+can be either a slice or an integer index, but not a tuple of integers.</p>
+<p>If <code class="docutils literal"><span class="pre">multislice</span></code> is a single element,  then it is interpreted as follows:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>* slice object: the slice spans the whole shape;
+* single (integer) index: shape is one-dimensional, and the index
+  represents a specific entry;
+* a tuple of (integer) indices: it must be ``len(multislice) == len(shape)``,
+  and each entry in ``multislice`` corresponds to a specific entry in a
+  dimension in ``shape``.
+</pre></div>
 </div>
-<div class="section" id="devito-yask-wrappers-module">
-<h2>devito.yask.wrappers module<a class="headerlink" href="#devito-yask-wrappers-module" title="Permalink to this headline">¶</a></h2>
+<p>The returned value is a 3-tuple <code class="docutils literal"><span class="pre">(starts,</span> <span class="pre">ends,</span> <span class="pre">shapes)</span></code>, where <code class="docutils literal"><span class="pre">starts,</span>
+<span class="pre">ends,</span> <span class="pre">shapes</span></code> are lists of length <code class="docutils literal"><span class="pre">len(shape)</span></code>. By taking <code class="docutils literal"><span class="pre">starts[i]</span></code> and
+`` ends[i]``, one gets the start and end points of the section of elements to
+be accessed along dimension <code class="docutils literal"><span class="pre">i</span></code>; <code class="docutils literal"><span class="pre">shapes[i]</span></code> gives the size of the section.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.yask.utils.make_grid_accesses">
+<code class="descclassname">devito.yask.utils.</code><code class="descname">make_grid_accesses</code><span class="sig-paren">(</span><em>node</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/utils.html#make_grid_accesses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.utils.make_grid_accesses" title="Permalink to this definition">¶</a></dt>
+<dd><p>Construct a new Iteration/Expression based on <code class="docutils literal"><span class="pre">node</span></code>, in which all
+<code class="xref py py-class docutils literal"><span class="pre">types.Indexed</span></code> accesses have been converted into YASK grid
+accesses.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.yask.utils.make_sharedptr_funcall">
+<code class="descclassname">devito.yask.utils.</code><code class="descname">make_sharedptr_funcall</code><span class="sig-paren">(</span><em>call</em>, <em>params</em>, <em>sharedptr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/utils.html#make_sharedptr_funcall"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.utils.make_sharedptr_funcall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.yask.utils.rawpointer">
+<code class="descclassname">devito.yask.utils.</code><code class="descname">rawpointer</code><span class="sig-paren">(</span><em>obj</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/utils.html#rawpointer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.utils.rawpointer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a <code class="xref py py-class docutils literal"><span class="pre">ctypes.c_void_p</span></code> pointing to <code class="docutils literal"><span class="pre">obj</span></code>.</p>
+</dd></dl>
+
 </div>
-<div class="section" id="module-contents">
-<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.yask.wrappers">
+<span id="devito-yask-wrappers-module"></span><h2>devito.yask.wrappers module<a class="headerlink" href="#module-devito.yask.wrappers" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.yask.wrappers.ContextManager">
+<em class="property">class </em><code class="descclassname">devito.yask.wrappers.</code><code class="descname">ContextManager</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#ContextManager"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.ContextManager" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">collections.OrderedDict</span></code></p>
+<dl class="method">
+<dt id="devito.yask.wrappers.ContextManager.dump">
+<code class="descname">dump</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#ContextManager.dump"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.ContextManager.dump" title="Permalink to this definition">¶</a></dt>
+<dd><p>Drop all known contexts and clean up the relevant YASK directories.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.wrappers.ContextManager.fetch">
+<code class="descname">fetch</code><span class="sig-paren">(</span><em>grid</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#ContextManager.fetch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.ContextManager.fetch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fetch the <a class="reference internal" href="#devito.yask.wrappers.YaskContext" title="devito.yask.wrappers.YaskContext"><code class="xref py py-class docutils literal"><span class="pre">YaskContext</span></code></a> in <code class="docutils literal"><span class="pre">self</span></code> uniquely identified by
+<code class="docutils literal"><span class="pre">grid</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code>. Create a new (empty) <a class="reference internal" href="#devito.yask.wrappers.YaskContext" title="devito.yask.wrappers.YaskContext"><code class="xref py py-class docutils literal"><span class="pre">YaskContext</span></code></a> on miss.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.ContextManager.ngrids">
+<code class="descname">ngrids</code><a class="headerlink" href="#devito.yask.wrappers.ContextManager.ngrids" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.wrappers.YaskContext">
+<em class="property">class </em><code class="descclassname">devito.yask.wrappers.</code><code class="descname">YaskContext</code><span class="sig-paren">(</span><em>name</em>, <em>grid</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskContext"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskContext" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskContext.dimensions">
+<code class="descname">dimensions</code><a class="headerlink" href="#devito.yask.wrappers.YaskContext.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskContext.make_grid">
+<code class="descname">make_grid</code><span class="sig-paren">(</span><em>obj</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskContext.make_grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskContext.make_grid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create and return a new <a class="reference internal" href="#devito.yask.wrappers.YaskGrid" title="devito.yask.wrappers.YaskGrid"><code class="xref py py-class docutils literal"><span class="pre">YaskGrid</span></code></a>, a YASK grid wrapper. Memory
+is allocated.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>obj</strong> – The symbolic data object for which a YASK grid is allocated.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskContext.make_yc_solution">
+<code class="descname">make_yc_solution</code><span class="sig-paren">(</span><em>namer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskContext.make_yc_solution"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskContext.make_yc_solution" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create and return a YASK compiler solution object.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskContext.make_yk_solution">
+<code class="descname">make_yk_solution</code><span class="sig-paren">(</span><em>namer</em>, <em>yc_soln</em>, <em>local_grids</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskContext.make_yk_solution"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskContext.make_yk_solution" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create and return a new <a class="reference internal" href="#devito.yask.wrappers.YaskKernel" title="devito.yask.wrappers.YaskKernel"><code class="xref py py-class docutils literal"><span class="pre">YaskKernel</span></code></a> using <code class="docutils literal"><span class="pre">self</span></code> as context
+and <code class="docutils literal"><span class="pre">yc_soln</span></code> as YASK compiler (“stencil”) solution.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskContext.ngrids">
+<code class="descname">ngrids</code><a class="headerlink" href="#devito.yask.wrappers.YaskContext.ngrids" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskContext.nsolutions">
+<code class="descname">nsolutions</code><a class="headerlink" href="#devito.yask.wrappers.YaskContext.nsolutions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.wrappers.YaskGrid">
+<em class="property">class </em><code class="descclassname">devito.yask.wrappers.</code><code class="descname">YaskGrid</code><span class="sig-paren">(</span><em>grid</em>, <em>shape</em>, <em>radius</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskGrid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskGrid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A <code class="docutils literal"><span class="pre">YaskGrid</span></code> wraps a YASK grid.</p>
+<p>An implementation of an array that behaves similarly to a <code class="docutils literal"><span class="pre">numpy.ndarray</span></code>,
+suitable for the YASK storage layout.</p>
+<p>Subclassing <code class="docutils literal"><span class="pre">numpy.ndarray</span></code> would have led to shadow data copies, because
+of the different storage layout.</p>
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskGrid.dimensions">
+<code class="descname">dimensions</code><a class="headerlink" href="#devito.yask.wrappers.YaskGrid.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskGrid.give_storage">
+<code class="descname">give_storage</code><span class="sig-paren">(</span><em>target</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskGrid.give_storage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskGrid.give_storage" title="Permalink to this definition">¶</a></dt>
+<dd><p>Share self’s storage with <code class="docutils literal"><span class="pre">target</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskGrid.name">
+<code class="descname">name</code><a class="headerlink" href="#devito.yask.wrappers.YaskGrid.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskGrid.ndpointer">
+<code class="descname">ndpointer</code><a class="headerlink" href="#devito.yask.wrappers.YaskGrid.ndpointer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> view of the grid content.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskGrid.rawpointer">
+<code class="descname">rawpointer</code><a class="headerlink" href="#devito.yask.wrappers.YaskGrid.rawpointer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskGrid.view">
+<code class="descname">view</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskGrid.view"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskGrid.view" title="Permalink to this definition">¶</a></dt>
+<dd><p>View of the YASK grid in standard (i.e., Devito) row-major layout.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskGrid.with_halo">
+<code class="descname">with_halo</code><a class="headerlink" href="#devito.yask.wrappers.YaskGrid.with_halo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a new wrapper to self’s YASK grid in which the halo has been
+unmasked. This allows the caller to write/read the halo region as well as
+the domain.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.wrappers.YaskGridConst">
+<em class="property">class </em><code class="descclassname">devito.yask.wrappers.</code><code class="descname">YaskGridConst</code><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskGridConst"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskGridConst" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">numpy.float64</span></code></p>
+<p>A YASK grid wrapper for scalar values.</p>
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskGridConst.give_storage">
+<code class="descname">give_storage</code><span class="sig-paren">(</span><em>target</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskGridConst.give_storage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskGridConst.give_storage" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskGridConst.rawpointer">
+<code class="descname">rawpointer</code><a class="headerlink" href="#devito.yask.wrappers.YaskGridConst.rawpointer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.wrappers.YaskGridWithHalo">
+<em class="property">class </em><code class="descclassname">devito.yask.wrappers.</code><code class="descname">YaskGridWithHalo</code><span class="sig-paren">(</span><em>grid</em>, <em>shape</em>, <em>radius</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskGridWithHalo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskGridWithHalo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.yask.wrappers.YaskGrid" title="devito.yask.wrappers.YaskGrid"><code class="xref py py-class docutils literal"><span class="pre">devito.yask.wrappers.YaskGrid</span></code></a></p>
+<p>A helper class for YaskGrid wrappers providing access to the halo region.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.wrappers.YaskKernel">
+<em class="property">class </em><code class="descclassname">devito.yask.wrappers.</code><code class="descname">YaskKernel</code><span class="sig-paren">(</span><em>name</em>, <em>yc_soln</em>, <em>local_grids=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskKernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskKernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A <code class="docutils literal"><span class="pre">YaskKernel</span></code> wraps a YASK kernel solution.</p>
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskKernel.new_grid">
+<code class="descname">new_grid</code><span class="sig-paren">(</span><em>name</em>, <em>obj</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskKernel.new_grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskKernel.new_grid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a new YASK grid.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskKernel.rawpointer">
+<code class="descname">rawpointer</code><a class="headerlink" href="#devito.yask.wrappers.YaskKernel.rawpointer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskKernel.run">
+<code class="descname">run</code><span class="sig-paren">(</span><em>cfunction</em>, <em>arguments</em>, <em>toshare</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskKernel.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskKernel.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the YaskKernel through a JIT-compiled function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>cfunction</strong> – The JIT-compiler function, of type <code class="xref py py-class docutils literal"><span class="pre">ctypes.FuncPtr</span></code></li>
+<li><strong>arguments</strong> – Mapper from function/dimension/… names to run-time values
+to be passed to <code class="docutils literal"><span class="pre">cfunction</span></code>.</li>
+<li><strong>toshare</strong> – Mapper from functions to :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>YaskGrid`s for sharing
+grid storage.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskKernel.space_dimensions">
+<code class="descname">space_dimensions</code><a class="headerlink" href="#devito.yask.wrappers.YaskKernel.space_dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskKernel.time_dimension">
+<code class="descname">time_dimension</code><a class="headerlink" href="#devito.yask.wrappers.YaskKernel.time_dimension" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.wrappers.YaskNullContext">
+<em class="property">class </em><code class="descclassname">devito.yask.wrappers.</code><code class="descname">YaskNullContext</code><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskNullContext"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskNullContext" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>Used when an Operator doesn’t actually have a YASK-offloadable tree.</p>
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskNullContext.space_dimensions">
+<code class="descname">space_dimensions</code><a class="headerlink" href="#devito.yask.wrappers.YaskNullContext.space_dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.yask.wrappers.YaskNullContext.time_dimension">
+<code class="descname">time_dimension</code><a class="headerlink" href="#devito.yask.wrappers.YaskNullContext.time_dimension" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.yask.wrappers.YaskNullKernel">
+<em class="property">class </em><code class="descclassname">devito.yask.wrappers.</code><code class="descname">YaskNullKernel</code><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskNullKernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskNullKernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>Used when an Operator doesn’t actually have a YASK-offloadable tree.</p>
+<dl class="method">
+<dt id="devito.yask.wrappers.YaskNullKernel.run">
+<code class="descname">run</code><span class="sig-paren">(</span><em>cfunction</em>, <em>arguments</em>, <em>toshare</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask/wrappers.html#YaskNullKernel.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.wrappers.YaskNullKernel.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="data">
+<dt id="devito.yask.wrappers.contexts">
+<code class="descclassname">devito.yask.wrappers.</code><code class="descname">contexts</code><em class="property"> = ContextManager()</em><a class="headerlink" href="#devito.yask.wrappers.contexts" title="Permalink to this definition">¶</a></dt>
+<dd><p>All known YASK contexts.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.yask">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.yask" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal"><span class="pre">yask</span></code> Devito backend uses the YASK stencil optimizer to generate,
+JIT-compile, and run kernels.</p>
+<dl class="class">
+<dt id="devito.yask.YaskCompiler">
+<em class="property">class </em><code class="descclassname">devito.yask.</code><code class="descname">YaskCompiler</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask.html#YaskCompiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.YaskCompiler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.compiler.GNUCompiler" title="devito.compiler.GNUCompiler"><code class="xref py py-class docutils literal"><span class="pre">devito.compiler.GNUCompiler</span></code></a></p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.yask.callback">
+<code class="descclassname">devito.yask.</code><code class="descname">callback</code><span class="sig-paren">(</span><em>i</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.yask.callback" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.yask.exit">
+<code class="descclassname">devito.yask.</code><code class="descname">exit</code><span class="sig-paren">(</span><em>emsg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask.html#exit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.exit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Handle fatal errors.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.yask.switch_cpu">
+<code class="descclassname">devito.yask.</code><code class="descname">switch_cpu</code><span class="sig-paren">(</span><em>develop_mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/yask.html#switch_cpu"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.yask.switch_cpu" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </div>
 </div>
 

@@ -184,6 +184,7 @@
  | <a href="#V"><strong>V</strong></a>
  | <a href="#W"><strong>W</strong></a>
  | <a href="#X"><strong>X</strong></a>
+ | <a href="#Y"><strong>Y</strong></a>
  
 </div>
 <h2 id="A">A</h2>
@@ -221,16 +222,20 @@
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.analysis.analyze_iterations">analyze_iterations() (in module devito.ir.iet.analysis)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.cfd.html#examples.cfd.example_diffusion.animate">animate() (in module examples.cfd.example_diffusion)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.tti.html#examples.seismic.tti.wavesolver.AnisotropicWaveSolver">AnisotropicWaveSolver (class in examples.seismic.tti.wavesolver)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.anti">anti() (devito.ir.support.stencil.Stencil method)</a>
 </li>
       <li><a href="devito.html#devito.operator.OperatorRunnable.apply">apply() (devito.operator.OperatorRunnable method)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.operator.Operator.apply">(devito.yask.operator.Operator method)</a>
 </li>
+      </ul></li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.Arg">Arg (class in devito.dle.backends.common)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.args">args (devito.ir.iet.nodes.Node attribute)</a>
@@ -245,6 +250,8 @@
 
       <ul>
         <li><a href="devito.html#devito.operator.Operator.arguments">(devito.operator.Operator method)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.operator.Operator.arguments">(devito.yask.operator.Operator method)</a>
 </li>
       </ul></li>
       <li><a href="devito.html#devito.base.Array">Array (class in devito.base)</a>
@@ -303,6 +310,8 @@
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Callable">Callable (class in devito.ir.iet.nodes)</a>
 </li>
+      <li><a href="devito.yask.html#devito.yask.callback">callback() (in module devito.yask)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.ccode">ccode (devito.ir.iet.nodes.Node attribute)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.ccode">ccode() (in module devito.cgen_utils)</a>
@@ -341,16 +350,20 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.manipulation.collect_nested">collect_nested() (in module devito.dse.manipulation)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.html#devito.dse.manipulation.common_subexprs_elimination">common_subexprs_elimination() (in module devito.dse.manipulation)</a>
 </li>
       <li><a href="devito.dse.html#devito.dse.manipulation.compact_temporaries">compact_temporaries() (in module devito.dse.manipulation)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.exceptions.CompilationError">CompilationError</a>
 </li>
       <li><a href="devito.html#devito.operator.Operator.compile">compile (devito.operator.Operator attribute)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.operator.Operator.compile">(devito.yask.operator.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.utils.compose_nodes">compose_nodes() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="devito.html#devito.parameters.configuration">configuration (in module devito.parameters)</a>
@@ -360,10 +373,18 @@
       <ul>
         <li><a href="devito.html#devito.function.Constant">(class in devito.function)</a>
 </li>
+        <li><a href="devito.yask.html#devito.yask.function.Constant">(class in devito.yask.function)</a>
+</li>
       </ul></li>
       <li><a href="devito.html#devito.arguments.ConstantArgProvider">ConstantArgProvider (class in devito.arguments)</a>
 </li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.ContextManager">ContextManager (class in devito.yask.wrappers)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.contexts">contexts (in module devito.yask.wrappers)</a>
+</li>
       <li><a href="devito.dse.backends.html#devito.dse.backends.common.AbstractRewriter.conventions">conventions (devito.dse.backends.common.AbstractRewriter attribute)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.utils.convert_multislice">convert_multislice() (in module devito.yask.utils)</a>
 </li>
       <li><a href="devito.html#devito.function.SparseFunction.coordinate_bases">coordinate_bases (devito.function.SparseFunction attribute)</a>
 </li>
@@ -405,6 +426,10 @@
 
       <ul>
         <li><a href="devito.html#devito.function.Function.data">(devito.function.Function attribute)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.function.Constant.data">(devito.yask.function.Constant attribute)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.function.Function.data">(devito.yask.function.Function attribute)</a>
 </li>
       </ul></li>
       <li><a href="devito.html#devito.base.Array.default_assumptions">default_assumptions (devito.base.Array attribute)</a>
@@ -467,6 +492,14 @@
         <li><a href="devito.html#devito.types.Indexed.default_assumptions">(devito.types.Indexed attribute)</a>
 </li>
         <li><a href="devito.html#devito.types.Symbol.default_assumptions">(devito.types.Symbol attribute)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.function.Constant.default_assumptions">(devito.yask.function.Constant attribute)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.function.Function.default_assumptions">(devito.yask.function.Function attribute)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.function.TimeFunction.default_assumptions">(devito.yask.function.TimeFunction attribute)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.utils.INT.default_assumptions">(devito.yask.utils.INT attribute)</a>
 </li>
         <li><a href="examples.seismic.html#examples.seismic.source.GaborSource.default_assumptions">(examples.seismic.source.GaborSource attribute)</a>
 </li>
@@ -533,10 +566,10 @@
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends">devito.dse.backends (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.advanced">devito.dse.backends.advanced (module)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.basic">devito.dse.backends.basic (module)</a>
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.common">devito.dse.backends.common (module)</a>
@@ -615,6 +648,16 @@
 </li>
       <li><a href="devito.html#module-devito.types">devito.types (module)</a>
 </li>
+      <li><a href="devito.yask.html#module-devito.yask">devito.yask (module)</a>
+</li>
+      <li><a href="devito.yask.html#module-devito.yask.function">devito.yask.function (module)</a>
+</li>
+      <li><a href="devito.yask.html#module-devito.yask.operator">devito.yask.operator (module)</a>
+</li>
+      <li><a href="devito.yask.html#module-devito.yask.utils">devito.yask.utils (module)</a>
+</li>
+      <li><a href="devito.yask.html#module-devito.yask.wrappers">devito.yask.wrappers (module)</a>
+</li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.advanced.DevitoCustomRewriter">DevitoCustomRewriter (class in devito.dle.backends.advanced)</a>
 </li>
       <li><a href="devito.html#devito.exceptions.DevitoError">DevitoError</a>
@@ -642,7 +685,13 @@
       <li><a href="devito.html#devito.arguments.DimensionArgProvider">DimensionArgProvider (class in devito.arguments)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.dimensions">dimensions (devito.ir.support.stencil.Stencil attribute)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskContext.dimensions">(devito.yask.wrappers.YaskContext attribute)</a>
 </li>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskGrid.dimensions">(devito.yask.wrappers.YaskGrid attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.html#devito.logger.dle">dle() (in module devito.logger)</a>
 </li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.dle_pass">dle_pass() (in module devito.dle.backends.common)</a>
@@ -677,6 +726,8 @@
         <li><a href="examples.seismic.html#examples.seismic.model.Model.dtype">(examples.seismic.model.Model attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.ContextManager.dump">dump() (devito.yask.wrappers.ContextManager method)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -763,6 +814,8 @@
 </li>
       <li><a href="examples.cfd.html#examples.cfd.example_diffusion.execute_python">execute_python() (in module examples.cfd.example_diffusion)</a>
 </li>
+      <li><a href="devito.yask.html#devito.yask.exit">exit() (in module devito.yask)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression">Expression (class in devito.ir.iet.nodes)</a>
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.exprs">exprs (devito.ir.clusters.cluster.Cluster attribute)</a>
@@ -783,6 +836,8 @@
 <h2 id="F">F</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.yask.html#devito.yask.wrappers.ContextManager.fetch">fetch() (devito.yask.wrappers.ContextManager method)</a>
+</li>
       <li><a href="devito.html#devito.memory.CMemory.fill">fill() (devito.memory.CMemory method)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.utils.filter_iterations">filter_iterations() (in module devito.ir.iet.utils)</a>
@@ -813,10 +868,10 @@
         <li><a href="examples.seismic.tti.html#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.forward">(examples.seismic.tti.wavesolver.AnisotropicWaveSolver method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.forward_field">forward_field (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.forward_operator">forward_operator (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
 </li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.ForwardOperator">ForwardOperator() (in module examples.seismic.acoustic.operators)</a>
@@ -831,6 +886,14 @@
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.freeze_expression">freeze_expression() (in module devito.symbolics.manipulation)</a>
 </li>
+      <li><a href="devito.yask.html#devito.yask.function.Constant.from_YASK">from_YASK (devito.yask.function.Constant attribute)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.function.Function.from_YASK">(devito.yask.function.Function attribute)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.function.TimeFunction.from_YASK">(devito.yask.function.TimeFunction attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.frozen">frozen (devito.ir.support.stencil.Stencil attribute)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr">FrozenExpr (class in devito.symbolics.extended_sympy)</a>
@@ -839,6 +902,8 @@
 
       <ul>
         <li><a href="devito.html#devito.function.Function">(class in devito.function)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.function.Function">(class in devito.yask.function)</a>
 </li>
       </ul></li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.FunctionFromPointer">FunctionFromPointer (class in devito.symbolics.extended_sympy)</a>
@@ -869,6 +934,12 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.Scope.getwrites">getwrites() (devito.ir.support.basic.Scope method)</a>
 </li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskGrid.give_storage">give_storage() (devito.yask.wrappers.YaskGrid method)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskGridConst.give_storage">(devito.yask.wrappers.YaskGridConst method)</a>
+</li>
+      </ul></li>
       <li><a href="devito.html#devito.compiler.GNUCompiler">GNUCompiler (class in devito.compiler)</a>
 </li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.gradient">gradient() (examples.seismic.acoustic.gradient_example.GradientExample method)</a>
@@ -877,10 +948,10 @@
         <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.gradient">(examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 </li>
       </ul></li>
-      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.gradient_operator">gradient_operator (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.gradient_operator">gradient_operator (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
+</li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample">GradientExample (class in examples.seismic.acoustic.gradient_example)</a>
 </li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.GradientOperator">GradientOperator() (in module examples.seismic.acoustic.operators)</a>
@@ -954,11 +1025,17 @@
       <ul>
         <li><a href="devito.html#devito.function.TimeFunction.initialize">(devito.function.TimeFunction method)</a>
 </li>
+        <li><a href="devito.yask.html#devito.yask.function.Function.initialize">(devito.yask.function.Function method)</a>
+</li>
       </ul></li>
       <li><a href="devito.html#devito.function.SparseFunction.inject">inject() (devito.function.SparseFunction method)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.INT">INT (class in devito.cgen_utils)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.utils.INT">(class in devito.yask.utils)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.function.SparseFunction.interpolate">interpolate() (devito.function.SparseFunction method)</a>
 </li>
       <li><a href="devito.html#devito.exceptions.InvalidArgument">InvalidArgument</a>
@@ -1045,10 +1122,10 @@
 </li>
       <li><a href="devito.html#devito.base.Operator.is_infinite">is_infinite (devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_integer">is_integer (devito.base.Operator attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.base.Operator.is_integer">is_integer (devito.base.Operator attribute)</a>
+</li>
       <li><a href="devito.html#devito.base.Operator.is_irrational">is_irrational (devito.base.Operator attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Iteration">is_Iteration (devito.ir.iet.nodes.Iteration attribute)</a>
@@ -1235,16 +1312,26 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.compiler.make">make() (in module devito.compiler)</a>
 </li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskContext.make_grid">make_grid() (devito.yask.wrappers.YaskContext method)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.utils.make_grid_accesses">make_grid_accesses() (in module devito.yask.utils)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.utils.make_sharedptr_funcall">make_sharedptr_funcall() (in module devito.yask.utils)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskContext.make_yc_solution">make_yc_solution() (devito.yask.wrappers.YaskContext method)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskContext.make_yk_solution">make_yk_solution() (devito.yask.wrappers.YaskContext method)</a>
+</li>
       <li><a href="devito.html#devito.memory.malloc_aligned">malloc_aligned() (in module devito.memory)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions">MapExpressions (class in devito.ir.iet.visitors)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapIteration">MapIteration (class in devito.ir.iet.visitors)</a>
 </li>
       <li><a href="devito.html#devito.tools.memoized">memoized (class in devito.tools)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.profiling.Profile.memory">memory (devito.profiling.Profile attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations.merge">merge() (devito.ir.iet.visitors.MergeOuterIterations method)</a>
@@ -1268,12 +1355,26 @@
       <ul>
         <li><a href="devito.html#devito.profiling.Profile.name">(devito.profiling.Profile attribute)</a>
 </li>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskGrid.name">(devito.yask.wrappers.YaskGrid attribute)</a>
+</li>
       </ul></li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskGrid.ndpointer">ndpointer (devito.yask.wrappers.YaskGrid attribute)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.NestedTransformer">NestedTransformer (class in devito.ir.iet.visitors)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskKernel.new_grid">new_grid() (devito.yask.wrappers.YaskKernel method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.yask.html#devito.yask.wrappers.ContextManager.ngrids">ngrids (devito.yask.wrappers.ContextManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskContext.ngrids">(devito.yask.wrappers.YaskContext attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node">Node (class in devito.ir.iet.nodes)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskContext.nsolutions">nsolutions (devito.yask.wrappers.YaskContext attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.properties.ntags">ntags() (in module devito.ir.iet.properties)</a>
 </li>
@@ -1317,6 +1418,8 @@
         <li><a href="devito.foreign.html#devito.foreign.operator.Operator">(class in devito.foreign.operator)</a>
 </li>
         <li><a href="devito.html#devito.operator.Operator">(class in devito.operator)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.operator.Operator">(class in devito.yask.operator)</a>
 </li>
       </ul></li>
       <li><a href="devito.html#devito.operator.OperatorRunnable">OperatorRunnable (class in devito.operator)</a>
@@ -1421,6 +1524,16 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskGrid.rawpointer">rawpointer (devito.yask.wrappers.YaskGrid attribute)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskGridConst.rawpointer">(devito.yask.wrappers.YaskGridConst attribute)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskKernel.rawpointer">(devito.yask.wrappers.YaskKernel attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="devito.yask.html#devito.yask.utils.rawpointer">rawpointer() (in module devito.yask.utils)</a>
+</li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.rebuild">rebuild() (devito.ir.clusters.cluster.Cluster method)</a>
 </li>
       <li><a href="examples.seismic.html#examples.seismic.source.Receiver">Receiver (in module examples.seismic.source)</a>
@@ -1455,10 +1568,10 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.transformer.rewrite">rewrite() (in module devito.dse.transformer)</a>
 </li>
-      <li><a href="examples.seismic.html#examples.seismic.source.RickerSource">RickerSource (class in examples.seismic.source)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="examples.seismic.html#examples.seismic.source.RickerSource">RickerSource (class in examples.seismic.source)</a>
+</li>
       <li><a href="examples.cfd.html#examples.cfd.example_diffusion.ring_initial">ring_initial() (in module examples.cfd.example_diffusion)</a>
 </li>
       <li><a href="devito.html#devito.operator.FunMeta.root">root (devito.operator.FunMeta attribute)</a>
@@ -1491,6 +1604,10 @@
 
       <ul>
         <li><a href="devito.dse.backends.html#devito.dse.backends.common.AbstractRewriter.run">(devito.dse.backends.common.AbstractRewriter method)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskKernel.run">(devito.yask.wrappers.YaskKernel method)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskNullKernel.run">(devito.yask.wrappers.YaskNullKernel method)</a>
 </li>
         <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.acoustic_example.run">(in module examples.seismic.acoustic.acoustic_example)</a>
 </li>
@@ -1560,7 +1677,13 @@
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.acoustic_example.smooth10">smooth10() (in module examples.seismic.acoustic.acoustic_example)</a>
 </li>
       <li><a href="devito.html#devito.function.Function.space_dimensions">space_dimensions (devito.function.Function attribute)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskKernel.space_dimensions">(devito.yask.wrappers.YaskKernel attribute)</a>
 </li>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskNullContext.space_dimensions">(devito.yask.wrappers.YaskNullContext attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.html#devito.dimension.SpaceDimension">SpaceDimension (class in devito.dimension)</a>
 </li>
       <li><a href="devito.html#devito.dimension.SteppingDimension.spacing">spacing (devito.dimension.SteppingDimension attribute)</a>
@@ -1625,6 +1748,8 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.subtract">subtract() (devito.ir.support.stencil.Stencil method)</a>
 </li>
+      <li><a href="devito.yask.html#devito.yask.switch_cpu">switch_cpu() (in module devito.yask)</a>
+</li>
       <li><a href="devito.html#devito.types.Symbol">Symbol (class in devito.types)</a>
 </li>
       <li><a href="devito.html#devito.dimension.Dimension.symbolic_end">symbolic_end (devito.dimension.Dimension attribute)</a>
@@ -1671,6 +1796,12 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskKernel.time_dimension">time_dimension (devito.yask.wrappers.YaskKernel attribute)</a>
+
+      <ul>
+        <li><a href="devito.yask.html#devito.yask.wrappers.YaskNullContext.time_dimension">(devito.yask.wrappers.YaskNullContext attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.time_invariant">time_invariant() (devito.ir.dfg.graph.TemporariesGraph method)</a>
 </li>
       <li><a href="devito.html#devito.dimension.TimeDimension">TimeDimension (class in devito.dimension)</a>
@@ -1681,6 +1812,8 @@
 
       <ul>
         <li><a href="devito.html#devito.function.TimeFunction">(class in devito.function)</a>
+</li>
+        <li><a href="devito.yask.html#devito.yask.function.TimeFunction">(class in devito.yask.function)</a>
 </li>
       </ul></li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.trace">trace (devito.ir.clusters.cluster.Cluster attribute)</a>
@@ -1748,6 +1881,8 @@
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.GradientExample.verify_operator">verify_operator (examples.seismic.acoustic.gradient_example.GradientExample attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.view">view (devito.ir.iet.nodes.Node attribute)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskGrid.view">view() (devito.yask.wrappers.YaskGrid method)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit">visit() (devito.ir.iet.visitors.ResolveTimeStepping method)</a>
 
@@ -1897,6 +2032,8 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskGrid.with_halo">with_halo (devito.yask.wrappers.YaskGrid attribute)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.properties.WRAPPABLE">WRAPPABLE (in module devito.ir.iet.properties)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.write">write (devito.ir.iet.nodes.Expression attribute)</a>
@@ -1914,6 +2051,30 @@
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.xreplace_constrained">xreplace_constrained() (in module devito.symbolics.manipulation)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.xreplace_indices">xreplace_indices() (in module devito.symbolics.manipulation)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="Y">Y</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.yask.html#devito.yask.YaskCompiler">YaskCompiler (class in devito.yask)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskContext">YaskContext (class in devito.yask.wrappers)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskGrid">YaskGrid (class in devito.yask.wrappers)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskGridConst">YaskGridConst (class in devito.yask.wrappers)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskGridWithHalo">YaskGridWithHalo (class in devito.yask.wrappers)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskKernel">YaskKernel (class in devito.yask.wrappers)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskNullContext">YaskNullContext (class in devito.yask.wrappers)</a>
+</li>
+      <li><a href="devito.yask.html#devito.yask.wrappers.YaskNullKernel">YaskNullKernel (class in devito.yask.wrappers)</a>
 </li>
   </ul></td>
 </tr></table>

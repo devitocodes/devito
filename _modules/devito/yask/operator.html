@@ -1,0 +1,518 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.yask.operator &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito.yask" href="../yask.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+          <li><a href="../yask.html">devito.yask</a> &raquo;</li>
+        
+      <li>devito.yask.operator</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.yask.operator</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span>
+
+<span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">LoweredDimension</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Object</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">yask</span> <span class="k">as</span> <span class="n">log</span><span class="p">,</span> <span class="n">yask_warning</span> <span class="k">as</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Element</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
+                           <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.operator</span> <span class="k">import</span> <span class="n">OperatorRunnable</span><span class="p">,</span> <span class="n">FunMeta</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
+
+<span class="kn">from</span> <span class="nn">devito.yask</span> <span class="k">import</span> <span class="n">nfac</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">exit</span><span class="p">,</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.yask.utils</span> <span class="k">import</span> <span class="n">make_grid_accesses</span><span class="p">,</span> <span class="n">make_sharedptr_funcall</span><span class="p">,</span> <span class="n">rawpointer</span>
+<span class="kn">from</span> <span class="nn">devito.yask.wrappers</span> <span class="k">import</span> <span class="n">YaskGridConst</span><span class="p">,</span> <span class="n">YaskNullContext</span><span class="p">,</span> <span class="n">YaskNullKernel</span><span class="p">,</span> <span class="n">contexts</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Operator&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">OperatorRunnable</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A special :class:`OperatorCore` to JIT-compile and run operators through YASK.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_default_headers</span> <span class="o">=</span> <span class="n">OperatorRunnable</span><span class="o">.</span><span class="n">_default_headers</span>
+    <span class="n">_default_headers</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;#define restrict __restrict&#39;</span><span class="p">]</span>
+    <span class="n">_default_includes</span> <span class="o">=</span> <span class="n">OperatorRunnable</span><span class="o">.</span><span class="n">_default_includes</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;yask_kernel_api.hpp&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;denormals&#39;</span><span class="p">,)</span> <span class="o">+</span> <span class="p">((</span><span class="s1">&#39;openmp&#39;</span><span class="p">,)</span> <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="p">())</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Operator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># Each YASK Operator needs to have its own compiler (hence the copy()</span>
+        <span class="c1"># below) because Operator-specific shared object will be added to the</span>
+        <span class="c1"># list of linked libraries</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_specialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">parameters</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a YASK representation of this Iteration/Expression tree.</span>
+
+<span class="sd">        ``parameters`` is modified in-place adding YASK-related arguments.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Specializing a Devito Operator for YASK...&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="o">=</span> <span class="n">YaskNullContext</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">yk_soln</span> <span class="o">=</span> <span class="n">YaskNullKernel</span><span class="p">()</span>
+        <span class="n">local_grids</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">offloadable</span> <span class="o">=</span> <span class="n">find_offloadable_trees</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">offloadable</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;No offloadable trees found&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">offloadable</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">tree</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">offloadable</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="o">=</span> <span class="n">contexts</span><span class="o">.</span><span class="n">fetch</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+
+            <span class="c1"># Create a YASK compiler solution for this Operator</span>
+            <span class="n">yc_soln</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">make_yc_solution</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;jit-yc-soln&#39;</span><span class="p">])</span>
+
+            <span class="n">transform</span> <span class="o">=</span> <span class="n">sympy2yask</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">,</span> <span class="n">yc_soln</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+                    <span class="n">transform</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
+
+                <span class="n">funcall</span> <span class="o">=</span> <span class="n">make_sharedptr_funcall</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;code-soln-run&#39;</span><span class="p">],</span> <span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">],</span>
+                                                 <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;code-soln-name&#39;</span><span class="p">])</span>
+                <span class="n">funcall</span> <span class="o">=</span> <span class="n">Element</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">funcall</span><span class="p">)))</span>
+                <span class="n">nodes</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">({</span><span class="n">tree</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span> <span class="n">funcall</span><span class="p">})</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+
+                <span class="c1"># Track /funcall/ as an external function call</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="p">[</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;code-soln-run&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">FunMeta</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+                <span class="c1"># JIT-compile the newly-created YASK kernel</span>
+                <span class="n">local_grids</span> <span class="o">+=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">transform</span><span class="o">.</span><span class="n">mapper</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">yk_soln</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">make_yk_solution</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;jit-yk-soln&#39;</span><span class="p">],</span>
+                                                             <span class="n">yc_soln</span><span class="p">,</span> <span class="n">local_grids</span><span class="p">)</span>
+
+                <span class="c1"># Now we must drop a pointer to the YASK solution down to C-land</span>
+                <span class="n">parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Object</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;code-soln-name&#39;</span><span class="p">],</span>
+                                         <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;type-solution&#39;</span><span class="p">],</span>
+                                         <span class="bp">self</span><span class="o">.</span><span class="n">yk_soln</span><span class="o">.</span><span class="n">rawpointer</span><span class="p">))</span>
+
+                <span class="c1"># Print some useful information about the newly constructed solution</span>
+                <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Solution &#39;</span><span class="si">%s</span><span class="s2">&#39; contains </span><span class="si">%d</span><span class="s2"> grid(s) and </span><span class="si">%d</span><span class="s2"> equation(s).&quot;</span> <span class="o">%</span>
+                    <span class="p">(</span><span class="n">yc_soln</span><span class="o">.</span><span class="n">get_name</span><span class="p">(),</span> <span class="n">yc_soln</span><span class="o">.</span><span class="n">get_num_grids</span><span class="p">(),</span>
+                     <span class="n">yc_soln</span><span class="o">.</span><span class="n">get_num_equations</span><span class="p">()))</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Unable to offload a candidate tree.&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">exit</span><span class="p">(</span><span class="s2">&quot;Found more than one offloadable trees in a single Operator&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Some Iteration/Expression trees are not offloaded to YASK and may</span>
+        <span class="c1"># require further processing to be executed in YASK, due to the differences</span>
+        <span class="c1"># in storage layout employed by Devito and YASK</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="n">make_grid_accesses</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+
+        <span class="c1"># Update the parameters list adding all necessary YASK grids</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span> <span class="o">+</span> <span class="n">local_grids</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">from_YASK</span><span class="p">:</span>
+                    <span class="n">parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Object</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;code-grid-name&#39;</span><span class="p">](</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
+                                             <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;type-grid&#39;</span><span class="p">]))</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="c1"># Ignore e.g. Dimensions</span>
+                <span class="k">pass</span>
+
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Specialization successfully performed!&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">nodes</span>
+
+<div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">}</span>
+        <span class="n">local_grids_mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;code-grid-name&#39;</span><span class="p">](</span><span class="n">k</span><span class="p">):</span> <span class="n">v</span>
+                              <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">yk_soln</span><span class="o">.</span><span class="n">local_grids</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+        <span class="c1"># The user has the illusion to provide plain data objects to the</span>
+        <span class="c1"># generated kernels, but what we actually need and thus going to</span>
+        <span class="c1"># provide are pointers to the wrapped YASK grids.</span>
+        <span class="n">toshare</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+            <span class="n">grid_arg</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;code-grid-name&#39;</span><span class="p">](</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">grid_arg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">i</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">from_YASK</span> <span class="ow">is</span> <span class="kc">True</span>
+                <span class="n">obj</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">provider</span><span class="p">)</span>
+                <span class="c1"># Get the associated YaskGrid wrapper (scalars are a special case)</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+                    <span class="n">wrapper</span> <span class="o">=</span> <span class="n">YaskGridConst</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+                    <span class="n">toshare</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">provider</span><span class="p">]</span> <span class="o">=</span> <span class="n">wrapper</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">wrapper</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">data</span>
+                    <span class="n">toshare</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="n">wrapper</span>
+                <span class="c1"># Add C-level pointer to the YASK grids</span>
+                <span class="k">assert</span> <span class="n">grid_arg</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">wrapper</span><span class="o">.</span><span class="n">rawpointer</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">local_grids_mapper</span><span class="p">:</span>
+                <span class="c1"># Add C-level pointer to the temporary YASK grids</span>
+                <span class="k">assert</span> <span class="n">i</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">rawpointer</span><span class="p">(</span><span class="n">local_grids_mapper</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">]))</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Operator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">),</span> <span class="n">toshare</span></div>
+
+<div class="viewcode-block" id="Operator.apply"><a class="viewcode-back" href="../../../devito.yask.html#devito.yask.operator.Operator.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Build the arguments list to invoke the kernel function</span>
+        <span class="p">(</span><span class="n">arguments</span><span class="p">,</span> <span class="n">dim_sizes</span><span class="p">),</span> <span class="n">toshare</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Running YASK Operator through Devito...&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">yk_soln</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">toshare</span><span class="p">)</span>
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YASK Operator successfully run!&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Output summary of performance achieved</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_output</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">compile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        JIT-compile the C code generated by the Operator.</span>
+
+<span class="sd">        It is ensured that JIT compilation will only be performed once per</span>
+<span class="sd">        :class:`Operator`, reagardless of how many times this method is invoked.</span>
+
+<span class="sd">        :returns: The file name of the JIT-compiled function.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># No need to recompile if a shared object has already been loaded.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">yk_soln</span><span class="p">,</span> <span class="n">YaskNullKernel</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">libraries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">yk_soln</span><span class="o">.</span><span class="n">soname</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">jit_compile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">name</span></div>
+
+
+<span class="k">class</span> <span class="nc">sympy2yask</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert a SymPy expression into a YASK abstract syntax tree and create any</span>
+<span class="sd">    necessay YASK grids.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">yc_soln</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="o">=</span> <span class="n">context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">yc_soln</span> <span class="o">=</span> <span class="n">yc_soln</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+
+        <span class="k">def</span> <span class="nf">nary2binary</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">op</span><span class="p">):</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">r</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">op</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">nary2binary</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">op</span><span class="p">))</span>
+
+        <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_const_number_node</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Float</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_const_number_node</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+                <span class="k">return</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_const_number_node</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">b</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
+                <span class="n">function</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+                <span class="k">if</span> <span class="n">function</span><span class="o">.</span><span class="n">is_Constant</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">function</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">[</span><span class="n">function</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">yc_soln</span><span class="o">.</span><span class="n">new_grid</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="p">[])</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">[</span><span class="n">function</span><span class="p">]</span><span class="o">.</span><span class="n">new_relative_grid_point</span><span class="p">([])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># A DSE-generated temporary, which must have already been</span>
+                    <span class="c1"># encountered as a LHS of a previous expression</span>
+                    <span class="k">assert</span> <span class="n">function</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">[</span><span class="n">function</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+                <span class="n">function</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+                <span class="k">if</span> <span class="n">function</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">function</span><span class="o">.</span><span class="n">is_TimeFunction</span><span class="p">:</span>
+                        <span class="n">dimensions</span> <span class="o">=</span> <span class="p">[</span><span class="n">nfac</span><span class="o">.</span><span class="n">new_step_index</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">)]</span>
+                        <span class="n">dimensions</span> <span class="o">+=</span> <span class="p">[</span><span class="n">nfac</span><span class="o">.</span><span class="n">new_domain_index</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                                       <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">dimensions</span> <span class="o">=</span> <span class="p">[</span><span class="n">nfac</span><span class="o">.</span><span class="n">new_domain_index</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                                      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">[</span><span class="n">function</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">yc_soln</span><span class="o">.</span><span class="n">new_grid</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                                                  <span class="n">dimensions</span><span class="p">)</span>
+                <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">((</span><span class="n">i</span><span class="o">.</span><span class="n">origin</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">LoweredDimension</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span><span class="p">)</span> <span class="o">-</span> <span class="n">j</span><span class="p">)</span>
+                           <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)]</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">[</span><span class="n">function</span><span class="p">]</span><span class="o">.</span><span class="n">new_relative_grid_point</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">nary2binary</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_add_node</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">nary2binary</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_multiply_node</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+                <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
+                    <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;non-integer powers unsupported in Devito-YASK translation&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+                <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">exp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">num</span><span class="p">,</span> <span class="n">den</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+                    <span class="k">return</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_divide_node</span><span class="p">(</span><span class="n">run</span><span class="p">(</span><span class="n">num</span><span class="p">),</span> <span class="n">run</span><span class="p">(</span><span class="n">den</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="nb">int</span><span class="p">(</span><span class="n">exp</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">nary2binary</span><span class="p">([</span><span class="n">base</span><span class="p">]</span> <span class="o">*</span> <span class="n">exp</span><span class="p">,</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_multiply_node</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;0-power found in Devito-YASK translation? setting to 1&quot;</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_const_number_node</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
+                    <span class="n">function</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+                    <span class="k">assert</span> <span class="n">function</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">[</span><span class="n">function</span><span class="p">]</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">nfac</span><span class="o">.</span><span class="n">new_equation_node</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">run</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Missing handler in Devito-YASK translation&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+        <span class="k">return</span> <span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">find_offloadable_trees</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return the trees within ``nodes`` that can be computed by YASK.</span>
+
+<span class="sd">    A tree is &quot;offloadable to YASK&quot; if it is embedded in a time stepping loop</span>
+<span class="sd">    *and* all of the grids accessed by the enclosed equations are homogeneous</span>
+<span class="sd">    (i.e., same dimensions and data type).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">offloadable</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
+        <span class="n">parallel</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">parallel</span><span class="p">:</span>
+            <span class="c1"># Cannot offload non-parallel loops</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">IsPerfectIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_Expression</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">nodes</span><span class="p">)):</span>
+            <span class="c1"># Don&#39;t know how to offload this Iteration/Expression to YASK</span>
+            <span class="k">continue</span>
+        <span class="n">functions</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">functions</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">((</span><span class="n">i</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TimeFunction</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">exit</span><span class="p">(</span><span class="s2">&quot;Cannot handle Operators w/ heterogeneous grids&quot;</span><span class="p">)</span>
+        <span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">keys</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="c1"># Is this a &quot;complete&quot; tree iterating over the entire grid?</span>
+        <span class="n">dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">dims</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span> <span class="ow">and</span>\
+                <span class="nb">any</span><span class="p">(</span><span class="n">j</span> <span class="ow">in</span> <span class="n">dims</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="p">[</span><span class="n">grid</span><span class="o">.</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span><span class="p">]):</span>
+            <span class="n">offloadable</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">tree</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">offloadable</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
