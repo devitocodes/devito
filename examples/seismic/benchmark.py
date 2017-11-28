@@ -29,8 +29,8 @@ def benchmark():
 
 
 def option_simulation(f):
-    def default(ctx, param, value):
-        return value if len(value) > 0 else (2, )
+    def default_list(ctx, param, value):
+        return list(value if len(value) > 0 else (2, ))
 
     options = [
         click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti']),
@@ -42,9 +42,9 @@ def option_simulation(f):
         click.option('-n', '--nbpml', default=10,
                      help='Number of PML layers'),
         click.option('-so', '--space-order', type=int, multiple=True,
-                     callback=default, help='Space order of the simulation'),
+                     callback=default_list, help='Space order of the simulation'),
         click.option('-to', '--time-order', type=int, multiple=True,
-                     callback=default, help='Time order of the simulation'),
+                     callback=default_list, help='Time order of the simulation'),
         click.option('-t', '--tn', default=250,
                      help='End time of the simulation in ms'),
     ]
@@ -129,6 +129,42 @@ def test(problem, **kwargs):
         else:
             for i in range(len(res)):
                 assert np.isclose(res[i], last_res[i])
+
+
+@benchmark.command()
+@option_simulation
+@option_performance
+@click.option('-r', '--resultsdir', default='results',
+              help='Directory containing results')
+@click.option('-x', '--repeats', default=3,
+              help='Number of test case repetitions')
+def bench(problem, **kwargs):
+    try:
+        from opescibench import Benchmark, Executor
+    except:
+        raise ImportError('Could not import opescibench utility package.\n'
+                          'Please install https://github.com/opesci/opescibench')
+
+    run = tti_run if problem == 'tti' else acoustic_run
+    resultsdir = kwargs.pop('resultsdir')
+    repeats = kwargs.pop('repeats')
+
+    class BenchExecutor(Executor):
+        """Executor class that defines how to run the benchmark"""
+
+        def run(self, *args, **kwargs):
+            gflopss, oi, timings, _ = run(*args, **kwargs)
+
+            for key in timings.keys():
+                self.register(gflopss[key], measure="gflopss", event=key)
+                self.register(oi[key], measure="oi", event=key)
+                self.register(timings[key], measure="timings", event=key)
+
+            clear_cache()
+
+    bench = Benchmark(name=problem, resultsdir=resultsdir, parameters=kwargs)
+    bench.execute(BenchExecutor(), warmups=0, repeats=repeats)
+    bench.save()
 
 
 if __name__ == "__main__":
