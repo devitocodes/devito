@@ -93,4 +93,4 @@ script:
   # Docs generation and deployment
   - sphinx-apidoc -f -o docs/ examples
   - sphinx-apidoc -f -o docs/ devito
-  - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then ./docs/deploy.sh; fi
+  - if [[ $DEVITO_BACKEND == 'yask' ]]; then ./docs/deploy.sh; fi
