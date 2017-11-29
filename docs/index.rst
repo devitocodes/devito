@@ -6,16 +6,14 @@
 Devito - Fast Finite Difference Computation
 ===========================================
 
-Devito is a new tool for performing optimised Finite Difference (FD)
-computation from high-level symbolic problem definitions. Devito performs
-automated code generation and Just-In-time (JIT) compilation based on symbolic
-equations defined in `SymPy <http://www.sympy.org/en/index.html>`_ to create
-and execute highly optimised Finite Difference kernels on multiple computer
-platforms.
-
-Devito is also intended to provide the driving operator kernels for a prototype
-Full Waveform Inversion (FWI) code that can be found 
-`here <https://github.com/opesci/inversion>`_.
+`Devito <http://www.opesci.org/devito-public>`_ is a tool to
+perform optimised finite difference (FD) computation from
+high-level symbolic problem definitions. Starting from symbolic
+equations defined in `SymPy <http://www.sympy.org/en/index.html>`_,
+Devito employs automated code generation and just-in-time (JIT)
+compilation to execute FD kernels on multiple computer platforms.
+Devito is part of the `OPESCI <http://www.opesci.org>`_ seismic imaging
+project.
 
 Getting started
 ---------------
