@@ -13,7 +13,7 @@ from devito.symbolics import estimate_cost, estimate_memory
 __all__ = ['Profile', 'create_profile']
 
 
-def create_profile(node):
+def create_profile(name, node):
     """
     Create a :class:`Profiler` for the Iteration/Expression tree ``node``.
     The following code sections are profiled: ::
@@ -31,7 +31,7 @@ def create_profile(node):
           section, though their extent is different.
         * Any perfectly nested loops.
     """
-    profiler = Profiler()
+    profiler = Profiler(name)
 
     # Group by root Iteration
     mapper = OrderedDict()
@@ -58,7 +58,7 @@ def create_profile(node):
     # Create and track C-level timers
     mapper = OrderedDict()
     for i, group in enumerate(found):
-        name = 'section_%d' % i
+        lname = 'section_%d' % i
 
         # We time at the single timestep level
         for i in zip(*group):
@@ -69,7 +69,7 @@ def create_profile(node):
 
         # Prepare to transform the Iteration/Expression tree
         body = (root,) + remainder
-        mapper[root] = TimedList(gname=profiler.varname, lname=name, body=body)
+        mapper[root] = TimedList(gname=name, lname=lname, body=body)
         mapper.update(OrderedDict([(j, None) for j in remainder]))
 
         # Estimate computational properties of the profiled section
@@ -78,7 +78,7 @@ def create_profile(node):
         memory = estimate_memory([e.expr for e in expressions])
 
         # Keep track of the new profiled section
-        profiler.add(name, group[0], ops, memory)
+        profiler.add(lname, group[0], ops, memory)
 
     # Transform the Iteration/Expression tree introducing the C-level timers
     processed = Transformer(mapper).visit(node)
@@ -92,13 +92,11 @@ class Profiler(object):
     A Profiler is used to manage profiling information for Devito generated C code.
     """
 
-    varname = "timings"
     structname = "profile"
 
-    def __init__(self):
-        # To be populated as new sections are tracked
+    def __init__(self, name):
+        self.name = name
         self._sections = OrderedDict()
-        self._C_timings = None
 
     def add(self, name, section, ops, memory):
         """
@@ -111,21 +109,20 @@ class Profiler(object):
         """
         self._sections[section] = Profile(name, ops, memory)
 
-    def setup(self):
+    def new(self):
         """
-        Allocate and return a pointer to the timers C-level Struct, which includes
-        all timers added to ``self`` through ``self.add(...)``.
+        Allocate and return a pointer to a new C-level Struct capable of storing
+        all timers added through ``self.add(...)``.
         """
-        self._C_timings = self.dtype()
-        return byref(self._C_timings)
+        return byref(self.dtype())
 
     def summary(self, arguments, dtype):
         """
-        Return a summary of the performance numbers measured.
+        Return a :class:`PerformanceSummary` of the tracked sections.
 
-        :param dim_sizes: The run-time extent of each :class:`Iteration` tracked
-                          by this Profiler. Used to compute the operational intensity
-                          and the perfomance achieved in GFlops/s.
+        :param arguments: A mapper from argument names to run-time values from which
+                          the Profiler infers iteration space and execution times
+                          of a run.
         :param dtype: The data type of the objects in the profiled sections. Used
                       to compute the operational intensity.
         """
@@ -135,7 +132,7 @@ class Profiler(object):
             dims = {i: i.dim.parent if i.dim.is_Stepping else i.dim for i in itspace}
 
             # Time
-            time = self.timings[profile.name]
+            time = max(getattr(arguments[self.name]._obj, profile.name), 10e-7)
 
             # Flops
             itershape = [i.extent(finish=arguments[dims[i].end_name],
@@ -150,6 +147,7 @@ class Profiler(object):
                          for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = float(profile.memory*dataspace*dtype().itemsize)
+
             # Derived metrics
             oi = flops/traffic
             gflopss = gflops/time
@@ -164,16 +162,6 @@ class Profiler(object):
             summary['main'] = summary.pop(max(summary, key=summary.get))
 
         return summary
-
-    @property
-    def timings(self):
-        """
-        Return the timings, up to microseconds, as a dictionary.
-        """
-        if self._C_timings is None:
-            raise RuntimeError("Cannot extract timings with non-finalized Profiler.")
-        return {field: max(getattr(self._C_timings, field), 10**-6)
-                for field, _ in self._C_timings._fields_}
 
     @property
     def dtype(self):

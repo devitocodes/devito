@@ -12,7 +12,7 @@ class Operator(operator.Operator):
     """
 
     def arguments(self, *args, **kwargs):
-        arguments, _ = super(Operator, self).arguments(*args, **kwargs)
+        arguments = super(Operator, self).arguments(*args, **kwargs)
         return arguments.items()
 
     def _default_args(self):

@@ -35,7 +35,8 @@ class Argument(object):
     def __init__(self, name, provider, default_value=None):
         self.name = name
         self.provider = provider
-        self._value = self.default_value = default_value
+        self.default_value = default_value
+        self.reset()
 
     @property
     def value(self):
@@ -77,7 +78,6 @@ class ScalarArgument(Argument):
     def __init__(self, name, provider, reducer=lambda old, new: new, default_value=None):
         super(ScalarArgument, self).__init__(name, provider, default_value)
         self.reducer = reducer
-        self._frozen = False
 
     def reset(self):
         super(ScalarArgument, self).reset()
@@ -164,6 +164,12 @@ class PtrArgument(Argument):
     def verify(self, value):
         self._value = value or self._value
         return True
+
+    def reset(self):
+        if callable(self.default_value):
+            self._value = self.default_value()
+        else:
+            self._value = self.default_value
 
 
 class ArgumentProvider(object):
