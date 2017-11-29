@@ -108,7 +108,7 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         plt.colorbar(plot, cax=cax)
-        plt.show()
+    plt.show()
 
 
 def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
