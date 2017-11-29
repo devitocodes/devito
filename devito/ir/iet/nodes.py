@@ -465,7 +465,8 @@ class Callable(Node):
         self.parameters = as_tuple(args)
 
     def __repr__(self):
-        parameters = ",".join([c.dtype_to_ctype(i.dtype) for i in self.parameters])
+        parameters = ",".join(['void*' if i.is_PtrArgument else c.dtype_to_ctype(i.dtype)
+                               for i in self.parameters])
         body = "\n\t".join([str(s) for s in self.body])
         return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
 

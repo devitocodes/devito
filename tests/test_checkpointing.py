@@ -99,7 +99,7 @@ def test_index_alignment(const):
     order_of_eqn = 1
     modulo_factor = order_of_eqn + 1
     last_time_step_u = nt - order_of_eqn
-    u = TimeFunction(name='u', grid=grid, save=True, time_dim=nt)
+    u = TimeFunction(name='u', grid=grid, save=nt)
     # Increment one in the forward pass 0 -> 1 -> 2 -> 3
     fwd_eqn = Eq(u.indexed[time+1, x, y], u.indexed[time, x, y] + 1.*const)
     fwd_op = Operator(fwd_eqn)
@@ -107,7 +107,7 @@ def test_index_alignment(const):
     last_time_step_v = (last_time_step_u) % modulo_factor
     # Last time step should be equal to the number of timesteps we ran
     assert(np.allclose(u.data[last_time_step_u, :, :], nt - order_of_eqn))
-    v = TimeFunction(name='v', grid=grid, save=False)
+    v = TimeFunction(name='v', grid=grid, save=None)
     v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
     # Decrement one in the reverse pass 3 -> 2 -> 1 -> 0
     adj_eqn = Eq(v.indexed[t-1, x, y], v.indexed[t, x, y] - 1.*const)

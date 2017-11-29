@@ -420,12 +420,7 @@ class Operator(Callable):
 
         # Filter out aliasing stepping dimensions
         mapper = {d.parent: d for d in dimensions if d.is_Stepping}
-        for i in list(stencils):
-            for d in i.dimensions:
-                if d in mapper:
-                    i[mapper[d]] = i.pop(d).union(i.get(mapper[d], set()))
-
-        return stencils
+        return [i.replace(mapper) for i in stencils]
 
     def _retrieve_symbols(self, expressions):
         """

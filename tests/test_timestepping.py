@@ -14,29 +14,25 @@ def grid(shape=(11, 11)):
 @pytest.fixture
 def a(grid):
     """Forward time data object, unrolled (save=True)"""
-    return TimeFunction(name='a', grid=grid, time_order=1,
-                        time_dim=6, save=True)
+    return TimeFunction(name='a', grid=grid, time_order=1, save=6)
 
 
 @pytest.fixture
 def b(grid):
     """Backward time data object, unrolled (save=True)"""
-    return TimeFunction(name='b', grid=grid, time_order=1,
-                        time_dim=6, save=True)
+    return TimeFunction(name='b', grid=grid, time_order=1, save=6)
 
 
 @pytest.fixture
 def c(grid):
     """Forward time data object, buffered (save=False)"""
-    return TimeFunction(name='c', grid=grid, time_order=1,
-                        save=False, time_axis=Forward)
+    return TimeFunction(name='c', grid=grid, time_order=1, save=None, time_axis=Forward)
 
 
 @pytest.fixture
 def d(grid):
     """Forward time data object, unrolled (save=True), end order"""
-    return TimeFunction(name='d', grid=grid, time_order=2,
-                        time_dim=6, save=True)
+    return TimeFunction(name='d', grid=grid, time_order=2, save=6)
 
 
 @skipif_yask

@@ -27,14 +27,14 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
 
     grid = Grid(shape=(nx, ny))
     u = TimeFunction(
-        name='u', grid=grid, time_dim=timesteps, initializer=initializer,
-        time_order=1, space_order=2, save=save
+        name='u', grid=grid, save=timesteps, initializer=initializer,
+        time_order=1, space_order=2
     )
 
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
     op = Operator(Eq(u.forward, stencil), time_axis=Forward)
-    op.apply(time=timesteps, dt=dt)
+    op.apply(time=timesteps-1, dt=dt)
 
     if save:
         return u.data[timesteps - 1, :]
