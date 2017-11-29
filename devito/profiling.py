@@ -40,7 +40,7 @@ def create_profile(name, node):
 
     # Group sections if their iteration spaces overlap
     key = lambda itspace: set([i.dim for i in itspace])
-    found = []
+    groups = []
     for v in mapper.values():
         queue = list(v)
         handle = []
@@ -50,25 +50,26 @@ def create_profile(name, node):
                 handle.append(item)
             else:
                 # Found a timing section
-                found.append(tuple(handle))
+                groups.append(tuple(handle))
                 handle = [item]
         if handle:
-            found.append(tuple(handle))
+            groups.append(tuple(handle))
 
     # Create and track C-level timers
     mapper = OrderedDict()
-    for i, group in enumerate(found):
-        lname = 'section_%d' % i
-
+    for group in groups:
         # We time at the single timestep level
         for i in zip(*group):
             root = i[0]
             remainder = tuple(j for j in i if j is not root)
-            if not (root.dim.is_Time or root.dim.is_Stepping):
+            if not root.dim.is_Time:
                 break
+        if root in mapper:
+            continue
 
         # Prepare to transform the Iteration/Expression tree
         body = (root,) + remainder
+        lname = 'section_%d' % len(mapper)
         mapper[root] = TimedList(gname=name, lname=lname, body=body)
         mapper.update(OrderedDict([(j, None) for j in remainder]))
 
