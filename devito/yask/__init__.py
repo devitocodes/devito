@@ -75,8 +75,8 @@ class YaskCompiler(configuration['compiler'].__class__):
 
 yask_configuration = Parameters('yask')
 yask_configuration.add('compiler', YaskCompiler())
-yask_configuration.add('python-exec', False, [False, True])
 callback = lambda i: eval(i) if i else ()
+yask_configuration.add('autotuning', 'runtime', ['off', 'runtime', 'preemptive'])
 yask_configuration.add('folding', (), callback=callback)
 yask_configuration.add('blockshape', (), callback=callback)
 yask_configuration.add('clustering', (), callback=callback)
@@ -110,6 +110,7 @@ yask_configuration.add('develop-mode', True, [False, True], switch_cpu)  # noqa
 
 env_vars_mapper = {
     'DEVITO_YASK_DEVELOP': 'develop-mode',
+    'DEVITO_YASK_AUTOTUNING': 'autotuning',
     'DEVITO_YASK_FOLDING': 'folding',
     'DEVITO_YASK_BLOCKING': 'blockshape',
     'DEVITO_YASK_CLUSTERING': 'clustering',

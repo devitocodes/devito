@@ -97,6 +97,7 @@ if __name__ == "__main__":
     # Make sure that with YASK we run in performance mode
     if configuration['backend'] == 'yask':
         configuration.yask['develop-mode'] = False
+        configuration.yask['autotuning'] = 'preemptive'
 
     if args.execmode == "run":
         parameters["space_order"] = parameters["space_order"][0]
