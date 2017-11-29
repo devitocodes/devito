@@ -936,9 +936,11 @@ and <code class="xref py py-class docutils literal"><span class="pre">Dimension<
 <li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
-to <cite>False</cite>, indicating the use of alternating buffers.</li>
-<li><strong>time_dim</strong> – Size of the time dimension that dictates the leading
-dimension of the data buffer if :param save: is True.</li>
+to <code class="docutils literal"><span class="pre">None</span></code>, indicating the use of alternating buffers. If
+intermediate results are required, the value of save must
+be set to the required size of the time dimension.</li>
+<li><strong>time_dim</strong> – The <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> object to use to represent time in this
+symbol. Defaults to the time dimension provided by the <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code>.</li>
 <li><strong>time_order</strong> – Order of the time discretization which affects the
 final size of the leading time dimension of the
 data buffer.</li>
@@ -1704,9 +1706,11 @@ and <code class="xref py py-class docutils literal"><span class="pre">Dimension<
 <li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
-to <cite>False</cite>, indicating the use of alternating buffers.</li>
-<li><strong>time_dim</strong> – Size of the time dimension that dictates the leading
-dimension of the data buffer if :param save: is True.</li>
+to <code class="docutils literal"><span class="pre">None</span></code>, indicating the use of alternating buffers. If
+intermediate results are required, the value of save must
+be set to the required size of the time dimension.</li>
+<li><strong>time_dim</strong> – The <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> object to use to represent time in this
+symbol. Defaults to the time dimension provided by the <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code>.</li>
 <li><strong>time_order</strong> – Order of the time discretization which affects the
 final size of the leading time dimension of the
 data buffer.</li>

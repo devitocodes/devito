@@ -345,6 +345,15 @@ self.null() &gt;&gt; {i: {0}, j: {0}}</p>
 </dd></dl>
 
 <dl class="method">
+<dt id="devito.ir.support.stencil.Stencil.replace">
+<code class="descname">replace</code><span class="sig-paren">(</span><em>mapper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/stencil.html#Stencil.replace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.stencil.Stencil.replace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a new Stencil in which a key <code class="docutils literal"><span class="pre">k</span></code> (dimension) appearing in
+<code class="docutils literal"><span class="pre">mapper</span></code>  is replaced by <code class="docutils literal"><span class="pre">mapper[k]</span></code>. The original order is therefore
+unchangend, but a new dictionary is produced with potentially different
+keys.</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.ir.support.stencil.Stencil.rshift">
 <code class="descname">rshift</code><span class="sig-paren">(</span><em>m</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/stencil.html#Stencil.rshift"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.stencil.Stencil.rshift" title="Permalink to this definition">¶</a></dt>
 <dd><p>Right-shift the Dimensions <code class="docutils literal"><span class="pre">d</span></code> of <code class="docutils literal"><span class="pre">self</span></code> appearing in the mapper <code class="docutils literal"><span class="pre">m</span></code>

@@ -409,6 +409,16 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Stencil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="p">)</span></div>
 
+<div class="viewcode-block" id="Stencil.replace"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.replace">[docs]</a>    <span class="k">def</span> <span class="nf">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mapper</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a new Stencil in which a key ``k`` (dimension) appearing in</span>
+<span class="sd">        ``mapper``  is replaced by ``mapper[k]``. The original order is therefore</span>
+<span class="sd">        unchangend, but a new dictionary is produced with potentially different</span>
+<span class="sd">        keys.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Stencil</span><span class="p">([(</span><span class="n">k</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span> <span class="k">else</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+                        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span></div>
+
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">entries</span>
 
