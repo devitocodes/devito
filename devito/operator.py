@@ -208,7 +208,7 @@ class Operator(Callable):
         # into the OrderedDict object above
         self._reset_args()
 
-        return arguments, dim_sizes
+        return arguments
 
     def _default_args(self):
         return OrderedDict([(x.name, x.value) for x in self.parameters])
@@ -407,7 +407,7 @@ class OperatorRunnable(Operator):
     def apply(self, **kwargs):
         """Apply the stencil kernel to a set of data objects"""
         # Build the arguments list to invoke the kernel function
-        arguments, dim_sizes = self.arguments(**kwargs)
+        arguments = self.arguments(**kwargs)
 
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))

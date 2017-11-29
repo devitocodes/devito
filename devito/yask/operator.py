@@ -143,7 +143,7 @@ class Operator(OperatorRunnable):
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
-        (arguments, dim_sizes), toshare = self.arguments(**kwargs)
+        arguments, toshare = self.arguments(**kwargs)
 
         log("Running YASK Operator through Devito...")
         self.yk_soln.run(self.cfunction, arguments, toshare)
