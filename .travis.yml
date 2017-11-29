@@ -91,12 +91,12 @@ script:
   # Docs generation
   - sphinx-apidoc -f -o docs/ examples
   - sphinx-apidoc -f -o docs/ devito devito/yask/*
+  - cd docs
+  - make html
+  - cd ..
   # Docs deployment only once from a single build
   - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
       set -e;
       pip install doctr;
-      cd docs;
-      make html;
-      cd ..;
       doctr deploy . --built-docs docs --key-path .deploy_key.enc;
     fi
