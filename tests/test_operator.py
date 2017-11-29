@@ -864,8 +864,7 @@ class TestForeign(object):
     def test_explicit_run(self):
         time_dim = 6
         grid = Grid(shape=(11, 11))
-        a = TimeFunction(name='a', grid=grid, time_order=1,
-                         save=time_dim)
+        a = TimeFunction(name='a', grid=grid, time_order=1, save=time_dim)
         eqn = Eq(a.forward, a + 1.)
         op = Operator(eqn)
         assert isinstance(op, OperatorForeign)

@@ -327,7 +327,7 @@ class TimeFunction(Function):
     :param staggered: (Optional) tuple containing staggering offsets.
     :param dtype: (Optional) data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
-                 to `None`, indicating the use of alternating buffers. If
+                 to ``None``, indicating the use of alternating buffers. If
                  intermediate results are required, the value of save must
                  be set to the required size of the time dimension.
     :param time_dim: The :class:`Dimension` object to use to represent time in this
@@ -414,20 +414,17 @@ class TimeFunction(Function):
         grid = kwargs.get('grid', None)
         time_dim = kwargs.get('time_dim', None)
 
-        if time_dim is not None:
-            assert(isinstance(time_dim, TimeDimension))
-
         if grid is None:
             error('TimeFunction objects require a grid parameter.')
             raise ValueError('No grid provided for TimeFunction.')
 
-        if time_dim is not None:
-            tidx = time_dim
-        else:
-            tidx = grid.time_dim if save else grid.stepping_dim
+        if time_dim is None:
+            time_dim = grid.time_dim if save else grid.stepping_dim
+
+        assert(isinstance(time_dim, Dimension) and time_dim.is_Time)
 
         _indices = Function._indices(**kwargs)
-        return tuple([tidx] + list(_indices))
+        return tuple([time_dim] + list(_indices))
 
     @property
     def dim(self):
