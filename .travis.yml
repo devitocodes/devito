@@ -2,13 +2,11 @@ sudo: false
 
 language: python
 
-# Environment variable for documentation deployment
-# Change author email when website author changes
 env:
   global:
-  - ENCRYPTION_LABEL: "1909213e8aea"
-  - COMMIT_AUTHOR_EMAIL: "pandolfovince@gmail.com"
-  - DEVITO_LOGGING: "INFO"
+    # Doctr deploy key for opesci/devito
+    - secure: "A6t8XTNLC7HS3Wip3Qnn93ZlHM8Y6JEQ1jFv9eLbQx+tGIvpCNXoM4QGaL2tphqHcVQDQGO6rVX9hjm8Cz2bRwOdCNTqbukChnd2tcCuF/2u+Ua0ev+/2o8/N1IaQxM62XI73PEgX+NTaYHpcTmFHfkfHnxpAlGpycW0aiNxzrGM400Wq6ap8zmq1SdFxWms7w1+li1P3zoGd7In+Gg8Kxd6Ty5qsy/qsl3rDQExT8Li8P0NWcthmTvMokUpb3ocLRfrpdobk9x3YTtwoRXaZFyp80nD2pVzjZSI3oiqHMNJF9lWbLVTInNvoK4nCR4gB8gYg34RcE50JoBsqFFN/qQMJtsEUc00/8Y9SLAsxMve0JtZnBBjmR+LWy89DHpAy8MlPhc40JVh53LSyzYglXlSkMwfDhWnollOQjyhC5ndV8tpuHW/9c+SqaG9SwVktAot+OGKogn1FT6bIxgMslRJpBhUROM9KO7qDssT+iC26wAUagsUtEpSFz4CqiYThyGcvnKFnlxAIOG/yWFF6GcfI/swsEixHjQdeMx7ICV2bWm+jAoS/ojjtDdPzgoxnsWnIChMvGCDCChNoAl3IlAJNKR5VsVr7bwr4eHSR9DBWJCZSfg1lyzU2nOQz4q8y/C0gfP1N0zv5kKWn8HKTr7FjLfofMWVCguwUS7hIVU="
+    - DEVITO_LOGGING: "INFO"
 
 matrix:
   include:
@@ -90,7 +88,15 @@ script:
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/cfd; fi
 
-  # Docs generation and deployment
+  # Docs generation
   - sphinx-apidoc -f -o docs/ examples
   - sphinx-apidoc -f -o docs/ devito devito/yask/*
-  - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then ./docs/deploy.sh; fi
+  # Docs deployment only once from a single build
+  - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
+      set -e;
+      pip install doctr;
+      cd docs;
+      make html;
+      cd ..;
+      doctr deploy . --built-docs docs --key-path .deploy_key.enc;
+    fi
