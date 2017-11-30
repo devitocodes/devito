@@ -376,11 +376,14 @@ class TimeFunction(Function):
                     raise ValueError("save must be an int indicating the number of " +
                                      "timesteps to be saved (is %s)" % type(self.save))
                 available_mem = virtual_memory().available
-
-                if np.dtype(self.dtype).itemsize * self.save > available_mem:
+                # TODO: We are allocating more memory here than the user might expect.
+                # This hack should be removed as soon as we can catch OOB accesses
+                # in arguments.
+                time_size = self.save + self.time_order + 1
+                if np.dtype(self.dtype).itemsize * time_size > available_mem:
                     warning("Trying to allocate more memory for symbol %s " % self.name +
                             "than available on physical device, this will start swapping")
-                self.time_size = self.save
+                self.time_size = time_size
             else:
                 self.time_size = self.time_order + 1
                 self.indices[0].modulo = self.time_size
