@@ -96,9 +96,13 @@ def option_performance(f):
     return f
 
 
-@benchmark.command()
+@benchmark.command(name='run')
 @option_simulation
 @option_performance
+def cli_run(problem, **kwargs):
+    run(problem, **kwargs)
+
+
 def run(problem, **kwargs):
     run = tti_run if problem == 'tti' else acoustic_run
     time_order = kwargs.pop('time_order')[0]
@@ -106,9 +110,17 @@ def run(problem, **kwargs):
     run(space_order=space_order, time_order=time_order, **kwargs)
 
 
-@benchmark.command()
+@benchmark.command(name='test')
 @option_simulation
 @option_performance
+def cli_test(problem, **kwargs):
+    """
+    Sweep across a set of parameters and verify results between
+    individual runs.
+    """
+    test(problem, **kwargs)
+
+
 def test(problem, **kwargs):
     """
     Sweep across a set of parameters and verify results between
@@ -129,13 +141,17 @@ def test(problem, **kwargs):
                 assert np.isclose(res[i], last_res[i])
 
 
-@benchmark.command()
+@benchmark.command(name='bench')
 @option_simulation
 @option_performance
 @click.option('-r', '--resultsdir', default='results',
               help='Directory containing results')
 @click.option('-x', '--repeats', default=3,
               help='Number of test case repetitions')
+def cli_bench(problem, **kwargs):
+    bench(problem, **kwargs)
+
+
 def bench(problem, **kwargs):
     try:
         from opescibench import Benchmark, Executor
@@ -165,7 +181,7 @@ def bench(problem, **kwargs):
     bench.save()
 
 
-@benchmark.command()
+@benchmark.command(name='plot')
 @option_simulation
 @option_performance
 @click.option('-r', '--resultsdir', default='results',
@@ -180,6 +196,10 @@ def bench(problem, **kwargs):
               help='Max GFLOPS/s of the CPU')
 @click.option('--point_runtime', is_flag=True,
               help='Annotate points with runtime values')
+def cli_plot(problem, **kwargs):
+    plot(problem, **kwargs)
+
+
 def plot(problem, **kwargs):
     try:
         from opescibench import Benchmark, RooflinePlotter
