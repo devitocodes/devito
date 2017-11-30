@@ -100,10 +100,16 @@ def option_performance(f):
 @option_simulation
 @option_performance
 def cli_run(problem, **kwargs):
+    """
+    A single run with a specific set of performance parameters.
+    """
     run(problem, **kwargs)
 
 
 def run(problem, **kwargs):
+    """
+    A single run with a specific set of performance parameters.
+    """
     run = tti_run if problem == 'tti' else acoustic_run
     time_order = kwargs.pop('time_order')[0]
     space_order = kwargs.pop('space_order')[0]
@@ -115,16 +121,14 @@ def run(problem, **kwargs):
 @option_performance
 def cli_test(problem, **kwargs):
     """
-    Sweep across a set of parameters and verify results between
-    individual runs.
+    Test numerical correctness with different parameters.
     """
     test(problem, **kwargs)
 
 
 def test(problem, **kwargs):
     """
-    Sweep across a set of parameters and verify results between
-    individual runs.
+    Test numerical correctness with different parameters.
     """
     run = tti_run if problem == 'tti' else acoustic_run
     sweep_options = ('space_order', 'time_order', 'dse', 'dle', 'autotune')
@@ -149,10 +153,16 @@ def test(problem, **kwargs):
 @click.option('-x', '--repeats', default=3,
               help='Number of test case repetitions')
 def cli_bench(problem, **kwargs):
+    """
+    Complete benchmark with multiple simulation and performance parameters.
+    """
     bench(problem, **kwargs)
 
 
 def bench(problem, **kwargs):
+    """
+    Complete benchmark with multiple simulation and performance parameters.
+    """
     try:
         from opescibench import Benchmark, Executor
     except:
@@ -197,10 +207,16 @@ def bench(problem, **kwargs):
 @click.option('--point_runtime', is_flag=True,
               help='Annotate points with runtime values')
 def cli_plot(problem, **kwargs):
+    """
+    Plotting mode to generate plots for performance analysis.
+    """
     plot(problem, **kwargs)
 
 
 def plot(problem, **kwargs):
+    """
+    Plotting mode to generate plots for performance analysis.
+    """
     try:
         from opescibench import Benchmark, RooflinePlotter
     except:
