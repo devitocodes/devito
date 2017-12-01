@@ -278,7 +278,7 @@ class Function(TensorFunction):
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-        self._data_object = CMemory(self.shape, dtype=self.dtype)
+        self._data_object = CMemory(self.shape, self.indices, dtype=self.dtype)
         if self._first_touch:
             first_touch(self)
         else:
