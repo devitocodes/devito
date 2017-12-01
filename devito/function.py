@@ -365,9 +365,6 @@ class TimeFunction(Function):
         if not self._cached():
             super(TimeFunction, self).__init__(*args, **kwargs)
             self.time_dim = kwargs.get('time_dim', None)
-            if self.time_dim is not None and not isinstance(self.time_dim, TimeDimension):
-                raise ValueError("time_dim must be a TimeDimension, not %s" %
-                                 type(self.time_dim))
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', None)
 
@@ -420,6 +417,8 @@ class TimeFunction(Function):
 
         if time_dim is None:
             time_dim = grid.time_dim if save else grid.stepping_dim
+        elif not isinstance(time_dim, TimeDimension):
+            raise ValueError("time_dim must be a TimeDimension, not %s" % type(time_dim))
 
         assert(isinstance(time_dim, Dimension) and time_dim.is_Time)
 
