@@ -498,17 +498,15 @@
 <span class="sd">        default to 0.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">size_arg</span><span class="p">,</span> <span class="n">start_arg</span><span class="p">,</span> <span class="n">end_arg</span> <span class="o">=</span> <span class="n">rtargs</span>
-    <span class="n">start_offset</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">offsets</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">offsets</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">start_arg</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="n">end_offset</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">offsets</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">offsets</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">end_arg</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
         <span class="c1"># scalar</span>
-        <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">start_arg</span><span class="o">.</span><span class="n">default_value</span> <span class="o">+</span> <span class="n">start_offset</span><span class="p">,</span> <span class="n">value</span> <span class="o">+</span> <span class="n">end_offset</span><span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">start_arg</span><span class="o">.</span><span class="n">default_value</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
             <span class="c1"># 2-tuple</span>
             <span class="c1"># Assume we&#39;ve been passed a (start, end) tuple</span>
             <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="n">value</span>
-            <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">end</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="n">start_offset</span><span class="p">,</span> <span class="n">end</span> <span class="o">+</span> <span class="n">end_offset</span><span class="p">)</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">end</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Expected either a scalar value or a tuple(2/3)&quot;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">value</span></div>
