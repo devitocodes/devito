@@ -35,7 +35,8 @@ class Argument(object):
     def __init__(self, name, provider, default_value=None):
         self.name = name
         self.provider = provider
-        self._value = self.default_value = default_value
+        self.default_value = default_value
+        self.reset()
 
     @property
     def value(self):
@@ -77,7 +78,6 @@ class ScalarArgument(Argument):
     def __init__(self, name, provider, reducer=lambda old, new: new, default_value=None):
         super(ScalarArgument, self).__init__(name, provider, default_value)
         self.reducer = reducer
-        self._frozen = False
 
     def reset(self):
         super(ScalarArgument, self).reset()
@@ -164,6 +164,12 @@ class PtrArgument(Argument):
     def verify(self, value):
         self._value = value or self._value
         return True
+
+    def reset(self):
+        if callable(self.default_value):
+            self._value = self.default_value()
+        else:
+            self._value = self.default_value
 
 
 class ArgumentProvider(object):
@@ -335,17 +341,15 @@ def infer_dimension_values_tuple(value, rtargs, offsets=None):
         default to 0.
     """
     size_arg, start_arg, end_arg = rtargs
-    start_offset = 0 if offsets is None else offsets.get(start_arg.name, 0)
-    end_offset = 0 if offsets is None else offsets.get(end_arg.name, 0)
     if not isinstance(value, tuple):
         # scalar
-        value = (value, start_arg.default_value + start_offset, value + end_offset)
+        value = (value, start_arg.default_value, value)
     else:
         if len(value) == 2:
             # 2-tuple
             # Assume we've been passed a (start, end) tuple
             start, end = value
-            value = (end, start + start_offset, end + end_offset)
+            value = (end, start, end)
         elif len(value) != 3:
             raise InvalidArgument("Expected either a scalar value or a tuple(2/3)")
     return value

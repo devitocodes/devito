@@ -2,7 +2,8 @@ import numpy as np
 import os
 import ctypes
 from collections import Callable, Iterable, OrderedDict, Hashable
-from functools import partial
+from functools import partial, wraps
+from itertools import product
 from subprocess import PIPE, Popen
 import cpuinfo
 try:
@@ -13,7 +14,7 @@ except ImportError:
 
 from devito.parameters import configuration
 
-__all__ = ['memoized', 'infer_cpu']
+__all__ = ['memoized', 'infer_cpu', 'sweep', 'silencio']
 
 
 def as_tuple(item, type=None, length=None):
@@ -307,3 +308,36 @@ def infer_cpu():
     if platform not in configuration._accepted['platform']:
         platform = default_platform
     return isa, platform
+
+
+class silencio(object):
+    """
+    Decorator to temporarily change log levels.
+    """
+
+    def __init__(self, log_level='WARNING'):
+        self.log_level = log_level
+
+    def __call__(self, func, *args, **kwargs):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            previous = configuration['log_level']
+            configuration['log_level'] = self.log_level
+            result = func(*args, **kwargs)
+            configuration['log_level'] = previous
+            return result
+        return wrapper
+
+
+def sweep(parameters, keys=None):
+    """
+    Generator to create a parameter sweep from a dictionary of values
+    or value lists.
+    """
+    keys = keys or parameters.keys()
+    sweep_values = [parameters[key] for key in keys]
+    # Ensure all values are iterables to make sweeping safe
+    sweep_values = [[v] if isinstance(v, str) or not isinstance(v, Iterable) else v
+                    for v in sweep_values]
+    for vals in product(*sweep_values):
+        yield dict(zip(keys, vals))

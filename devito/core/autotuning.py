@@ -32,7 +32,7 @@ def autotune(operator, arguments, tunable):
 
     # Shrink the iteration space of time-stepping dimension so that auto-tuner
     # runs will finish quickly
-    steppers = [i for i in iterations if i.dim.is_Time or i.dim.is_Stepping]
+    steppers = [i for i in iterations if i.dim.is_Time]
     if len(steppers) == 0:
         timesteps = 1
     elif len(steppers) == 1:
@@ -110,10 +110,11 @@ def autotune(operator, arguments, tunable):
             continue
 
         # Use AT-specific profiler structs
-        at_arguments[operator.profiler.varname] = operator.profiler.setup()
+        timer = operator.profiler.new()
+        at_arguments[operator.profiler.name] = timer
 
         operator.cfunction(*list(at_arguments.values()))
-        elapsed = sum(operator.profiler.timings.values())
+        elapsed = sum(getattr(timer._obj, i) for i, _ in timer._obj._fields_)
         timings[tuple(bs.items())] = elapsed
         info_at("Block shape <%s> took %f (s) in %d time steps" %
                 (','.join('%d' % i for i in bs.values()), elapsed, timesteps))
@@ -131,8 +132,8 @@ def autotune(operator, arguments, tunable):
         tuned[k] = best[k] if k in mapper else v
 
     # Reset the profiling struct
-    assert operator.profiler.varname in tuned
-    tuned[operator.profiler.varname] = operator.profiler.setup()
+    assert operator.profiler.name in tuned
+    tuned[operator.profiler.name] = operator.profiler.new()
 
     return tuned
 
