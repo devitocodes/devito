@@ -145,7 +145,7 @@ class AbstractSymbol(sympy.Symbol, CachedSymbol):
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
         if cls in _SymbolCache:
-            newobj = sympy.Function.__new__(cls, *args, **options)
+            newobj = sympy.Symbol.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
             name = kwargs.get('name')
