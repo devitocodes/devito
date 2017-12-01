@@ -359,7 +359,7 @@ class TestArguments(object):
         op = Operator(eqn)
         op_arguments, _ = op.arguments(time=nt-10)
         assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt - 8)
+        assert(op_arguments[time.end_name] == nt - 10)
 
     def test_dimension_size_override(self):
         """Test explicit overrides for the leading time dimension"""
