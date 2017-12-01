@@ -176,7 +176,7 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Profile&#39;</span><span class="p">,</span> <span class="s1">&#39;create_profile&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="create_profile"><a class="viewcode-back" href="../../devito.html#devito.profiling.create_profile">[docs]</a><span class="k">def</span> <span class="nf">create_profile</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+<div class="viewcode-block" id="create_profile"><a class="viewcode-back" href="../../devito.html#devito.profiling.create_profile">[docs]</a><span class="k">def</span> <span class="nf">create_profile</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create a :class:`Profiler` for the Iteration/Expression tree ``node``.</span>
 <span class="sd">    The following code sections are profiled: ::</span>
@@ -194,7 +194,7 @@
 <span class="sd">          section, though their extent is different.</span>
 <span class="sd">        * Any perfectly nested loops.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">()</span>
+    <span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
 
     <span class="c1"># Group by root Iteration</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
@@ -203,7 +203,7 @@
 
     <span class="c1"># Group sections if their iteration spaces overlap</span>
     <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">itspace</span><span class="p">:</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">])</span>
-    <span class="n">found</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">groups</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
         <span class="n">queue</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
         <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
@@ -213,26 +213,27 @@
                 <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Found a timing section</span>
-                <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+                <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
                 <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">handle</span><span class="p">:</span>
-            <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+            <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
 
     <span class="c1"># Create and track C-level timers</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">found</span><span class="p">):</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;section_</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span>
-
+    <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
         <span class="c1"># We time at the single timestep level</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">group</span><span class="p">):</span>
             <span class="n">root</span> <span class="o">=</span> <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
             <span class="n">remainder</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span> <span class="k">if</span> <span class="n">j</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">root</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span> <span class="ow">or</span> <span class="n">root</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">:</span>
                 <span class="k">break</span>
+        <span class="k">if</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">:</span>
+            <span class="k">continue</span>
 
         <span class="c1"># Prepare to transform the Iteration/Expression tree</span>
         <span class="n">body</span> <span class="o">=</span> <span class="p">(</span><span class="n">root</span><span class="p">,)</span> <span class="o">+</span> <span class="n">remainder</span>
-        <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">TimedList</span><span class="p">(</span><span class="n">gname</span><span class="o">=</span><span class="n">profiler</span><span class="o">.</span><span class="n">varname</span><span class="p">,</span> <span class="n">lname</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">lname</span> <span class="o">=</span> <span class="s1">&#39;section_</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">TimedList</span><span class="p">(</span><span class="n">gname</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">lname</span><span class="o">=</span><span class="n">lname</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
         <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">j</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">remainder</span><span class="p">]))</span>
 
         <span class="c1"># Estimate computational properties of the profiled section</span>
@@ -241,7 +242,7 @@
         <span class="n">memory</span> <span class="o">=</span> <span class="n">estimate_memory</span><span class="p">([</span><span class="n">e</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">])</span>
 
         <span class="c1"># Keep track of the new profiled section</span>
-        <span class="n">profiler</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">group</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ops</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
+        <span class="n">profiler</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">lname</span><span class="p">,</span> <span class="n">group</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ops</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
 
     <span class="c1"># Transform the Iteration/Expression tree introducing the C-level timers</span>
     <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
@@ -255,13 +256,11 @@
 <span class="sd">    A Profiler is used to manage profiling information for Devito generated C code.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">varname</span> <span class="o">=</span> <span class="s2">&quot;timings&quot;</span>
     <span class="n">structname</span> <span class="o">=</span> <span class="s2">&quot;profile&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># To be populated as new sections are tracked</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">section</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">memory</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -274,21 +273,20 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">[</span><span class="n">section</span><span class="p">]</span> <span class="o">=</span> <span class="n">Profile</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">new</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Allocate and return a pointer to the timers C-level Struct, which includes</span>
-<span class="sd">        all timers added to ``self`` through ``self.add(...)``.</span>
+<span class="sd">        Allocate and return a pointer to a new C-level Struct capable of storing</span>
+<span class="sd">        all timers added through ``self.add(...)``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">byref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">byref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">())</span>
 
     <span class="k">def</span> <span class="nf">summary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a summary of the performance numbers measured.</span>
+<span class="sd">        Return a :class:`PerformanceSummary` of the tracked sections.</span>
 
-<span class="sd">        :param dim_sizes: The run-time extent of each :class:`Iteration` tracked</span>
-<span class="sd">                          by this Profiler. Used to compute the operational intensity</span>
-<span class="sd">                          and the perfomance achieved in GFlops/s.</span>
+<span class="sd">        :param arguments: A mapper from argument names to run-time values from which</span>
+<span class="sd">                          the Profiler infers iteration space and execution times</span>
+<span class="sd">                          of a run.</span>
 <span class="sd">        :param dtype: The data type of the objects in the profiled sections. Used</span>
 <span class="sd">                      to compute the operational intensity.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -298,7 +296,7 @@
             <span class="n">dims</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="k">else</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">}</span>
 
             <span class="c1"># Time</span>
-            <span class="n">time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="n">profile</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="n">time</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">arguments</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="mf">10e-7</span><span class="p">)</span>
 
             <span class="c1"># Flops</span>
             <span class="n">itershape</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">finish</span><span class="o">=</span><span class="n">arguments</span><span class="p">[</span><span class="n">dims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">end_name</span><span class="p">],</span>
@@ -313,6 +311,7 @@
                          <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">]</span>
             <span class="n">dataspace</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)</span>
             <span class="n">traffic</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">memory</span><span class="o">*</span><span class="n">dataspace</span><span class="o">*</span><span class="n">dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span><span class="p">)</span>
+
             <span class="c1"># Derived metrics</span>
             <span class="n">oi</span> <span class="o">=</span> <span class="n">flops</span><span class="o">/</span><span class="n">traffic</span>
             <span class="n">gflopss</span> <span class="o">=</span> <span class="n">gflops</span><span class="o">/</span><span class="n">time</span>
@@ -327,16 +326,6 @@
             <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;main&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">summary</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">summary</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">timings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the timings, up to microseconds, as a dictionary.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Cannot extract timings with non-finalized Profiler.&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">field</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span><span class="p">,</span> <span class="n">field</span><span class="p">),</span> <span class="mi">10</span><span class="o">**-</span><span class="mi">6</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span><span class="o">.</span><span class="n">_fields_</span><span class="p">}</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

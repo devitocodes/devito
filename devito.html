@@ -459,6 +459,11 @@ actual type.</p>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="devito.arguments.PtrArgument.reset">
+<code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#PtrArgument.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.PtrArgument.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
 <dt id="devito.arguments.PtrArgument.verify">
 <code class="descname">verify</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#PtrArgument.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.PtrArgument.verify" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -2238,6 +2243,38 @@ C code evaluating stencil expressions, can also execute the computation.</p>
 </dd></dl>
 
 <dl class="function">
+<dt id="devito.operator.make_stencils">
+<code class="descclassname">devito.operator.</code><code class="descname">make_stencils</code><span class="sig-paren">(</span><em>expressions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#make_stencils"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.make_stencils" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a <code class="xref py py-class docutils literal"><span class="pre">Stencil</span></code> for each of the provided expressions. The following
+rules apply:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>* A :class:`SteppingDimension` ``d`` is replaced by its parent ``d.parent``.
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.operator.retrieve_dtype">
+<code class="descclassname">devito.operator.</code><code class="descname">retrieve_dtype</code><span class="sig-paren">(</span><em>expressions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#retrieve_dtype"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.retrieve_dtype" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve the data type of a set of expressions. Raise an error if there
+is no common data type (ie, if at least one expression differs in the
+data type).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.operator.retrieve_offsets">
+<code class="descclassname">devito.operator.</code><code class="descname">retrieve_offsets</code><span class="sig-paren">(</span><em>stencils</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#retrieve_offsets"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.retrieve_offsets" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a mapper from <code class="xref py py-class docutils literal"><span class="pre">Dimension`s</span> <span class="pre">to</span> <span class="pre">the</span> <span class="pre">min/max</span> <span class="pre">integer</span> <span class="pre">offsets</span>
+<span class="pre">within</span> <span class="pre">``stencils`</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.operator.retrieve_symbols">
+<code class="descclassname">devito.operator.</code><code class="descname">retrieve_symbols</code><span class="sig-paren">(</span><em>expressions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#retrieve_symbols"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.retrieve_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> objects appearing
+in <code class="docutils literal"><span class="pre">expressions</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
 <dt id="devito.operator.set_dle_mode">
 <code class="descclassname">devito.operator.</code><code class="descname">set_dle_mode</code><span class="sig-paren">(</span><em>mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#set_dle_mode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.set_dle_mode" title="Permalink to this definition">¶</a></dt>
 <dd><p>Transform <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">Operator</span></code></a> input in a format understandable by the DLE.</p>
@@ -2312,7 +2349,7 @@ as well as all of the accepted values.</p>
 
 <dl class="function">
 <dt id="devito.profiling.create_profile">
-<code class="descclassname">devito.profiling.</code><code class="descname">create_profile</code><span class="sig-paren">(</span><em>node</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#create_profile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.create_profile" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.profiling.</code><code class="descname">create_profile</code><span class="sig-paren">(</span><em>name</em>, <em>node</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#create_profile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.create_profile" title="Permalink to this definition">¶</a></dt>
 <dd><p>Create a <code class="xref py py-class docutils literal"><span class="pre">Profiler</span></code> for the Iteration/Expression tree <code class="docutils literal"><span class="pre">node</span></code>.
 The following code sections are profiled:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span>* The whole ``node``;
