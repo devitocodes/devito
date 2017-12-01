@@ -53,7 +53,7 @@ class TestAPI(object):
         assert op.parameters[3].is_ScalarArgument
         assert op.parameters[4].name == 'i_e'
         assert op.parameters[4].is_ScalarArgument
-        assert op.parameters[5].name == 'timings'
+        assert op.parameters[5].name == 'timers'
         assert op.parameters[5].is_PtrArgument
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
@@ -246,7 +246,6 @@ class TestAllocation(object):
         """
         grid = Grid(shape=tuple(11 for _ in staggered[1:]))
         f = TimeFunction(name='f', grid=grid, staggered=staggered)
-        # from IPython import embed; embed()
         assert f.data.shape[1:] == tuple(11-i for i in staggered[1:])
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
@@ -322,11 +321,11 @@ class TestArguments(object):
         """Test that the dimension sizes are being inferred correctly"""
         grid = Grid(shape=(3, 5, 7))
         a = Function(name='a', grid=grid)
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = TimeFunction(name='b', grid=grid, save=nt)
         op = Operator(Eq(b, a))
 
         time = b.indices[0]
-        op_arguments, _ = op.arguments()
+        op_arguments = op.arguments()
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
 
@@ -336,13 +335,13 @@ class TestArguments(object):
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
         a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = TimeFunction(name='b', grid=grid, save=nt)
         time = b.indices[0]
         eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
                  + b.indexed[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
         args = {time.end_name: nt-10}
-        op_arguments, _ = op.arguments(**args)
+        op_arguments = op.arguments(**args)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 8)
 
@@ -352,14 +351,14 @@ class TestArguments(object):
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
         a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = TimeFunction(name='b', grid=grid, save=nt)
         time = b.indices[0]
         eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
                  + b.indexed[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
-        op_arguments, _ = op.arguments(time=nt-10)
+        op_arguments = op.arguments(time=nt-10)
         assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt - 8)
+        assert(op_arguments[time.end_name] == nt - 10)
 
     def test_dimension_size_override(self):
         """Test explicit overrides for the leading time dimension"""
@@ -396,7 +395,7 @@ class TestArguments(object):
         # whether the override picks up the original coordinates or the changed ones
 
         # Operator.arguments() returns a tuple of (data, dimension_sizes)
-        args = op.arguments(src1=src2)[0]
+        args = op.arguments(src1=src2)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
@@ -442,32 +441,32 @@ class TestArguments(object):
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
         a = Function(name='a', grid=grid).indexed
-        b_function = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b_function = TimeFunction(name='b', grid=grid, save=nt)
         b = b_function.indexed
         time = b_function.indices[0]
-        b1 = TimeFunction(name='b1', grid=grid, save=True, time_dim=nt+1).indexed
+        b1 = TimeFunction(name='b1', grid=grid, save=nt+1).indexed
         eqn = Eq(b[time, i, j, k], a[i, j, k])
         op = Operator(eqn)
 
         # Simple case, same as that tested above.
         # Repeated here for clarity of further tests.
-        op_arguments, _ = op.arguments()
+        op_arguments = op.arguments()
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
 
         # Providing a tensor argument should infer the dimension size from its shape
-        op_arguments, _ = op.arguments(b=b1)
+        op_arguments = op.arguments(b=b1)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt + 1)
 
         # Providing a dimension size explicitly should override the automatically inferred
-        op_arguments, _ = op.arguments(b=b1, time=nt - 1)
+        op_arguments = op.arguments(b=b1, time=nt - 1)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 1)
 
         # Providing a scalar argument explicitly should override the automatically\
         # inferred
-        op_arguments, _ = op.arguments(b=b1, time=nt - 1, time_e=nt - 2)
+        op_arguments = op.arguments(b=b1, time=nt - 1, time_e=nt - 2)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 2)
 
@@ -491,7 +490,7 @@ class TestDeclarator(object):
     a[i] = a[i] + b[i] + 5.0F;
   }
   gettimeofday(&end_section_0, NULL);
-  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
+  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
 +(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
@@ -512,7 +511,7 @@ class TestDeclarator(object):
     }
   }
   gettimeofday(&end_section_0, NULL);
-  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
+  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
 +(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   free(c);
   return 0;""" in str(operator.ccode)
@@ -524,8 +523,8 @@ class TestDeclarator(object):
   float (*c)[j_size];
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section_1, end_section_1;
-  gettimeofday(&start_section_1, NULL);
+  struct timeval start_section_0, end_section_0;
+  gettimeofday(&start_section_0, NULL);
   for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = 0.0F;
@@ -534,9 +533,9 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
-  gettimeofday(&end_section_1, NULL);
-  timings->section_1 += (double)(end_section_1.tv_sec-start_section_1.tv_sec)\
-+(double)(end_section_1.tv_usec-start_section_1.tv_usec)/1000000;
+  gettimeofday(&end_section_0, NULL);
+  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
++(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
@@ -556,7 +555,7 @@ class TestDeclarator(object):
     a[i] = 3.0F*t0*t1;
   }
   gettimeofday(&end_section_0, NULL);
-  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
+  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
 +(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
@@ -584,7 +583,7 @@ class TestDeclarator(object):
     }
   }
   gettimeofday(&end_section_0, NULL);
-  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
+  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
 +(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   return 0;""" in str(operator.ccode)
 
@@ -753,7 +752,7 @@ class TestLoopScheduler(object):
         """
         grid = Grid(shape=(3, 3, 3), dimensions=(x, y, z), time_dimension=time)
         a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=6).indexed
+        b = TimeFunction(name='b', grid=grid, save=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
@@ -835,6 +834,26 @@ class TestLoopScheduler(object):
             assert(np.allclose(b2.data[i, ...].reshape(-1) -
                                b.data[..., i].reshape(-1), 0.))
 
+    def test_equations_mixed_timedim_stepdim(self):
+        """"
+        Test that two equations one using a TimeDimension the other a derived
+        SteppingDimension end up in the same loop nest.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        time = grid.time_dim
+        t = grid.stepping_dim
+        u1 = TimeFunction(name='u1', grid=grid)
+        u2 = TimeFunction(name='u2', grid=grid, save=2)
+        eqn_1 = Eq(u1.indexed[t+1, x, y, z], u1.indexed[t, x, y, z] + 1.)
+        eqn_2 = Eq(u2.indexed[time+1, x, y, z], u2.indexed[time, x, y, z] + 1.)
+        op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+        assert len(trees[0][-1].nodes) == 2
+        assert trees[0][-1].nodes[0].write == u1
+        assert trees[0][-1].nodes[1].write == u2
+
 
 @skipif_yask
 @pytest.mark.skipif(configuration['backend'] != 'foreign',
@@ -844,8 +863,7 @@ class TestForeign(object):
     def test_explicit_run(self):
         time_dim = 6
         grid = Grid(shape=(11, 11))
-        a = TimeFunction(name='a', grid=grid, time_order=1,
-                         time_dim=time_dim, save=True)
+        a = TimeFunction(name='a', grid=grid, time_order=1, save=time_dim)
         eqn = Eq(a.forward, a + 1.)
         op = Operator(eqn)
         assert isinstance(op, OperatorForeign)

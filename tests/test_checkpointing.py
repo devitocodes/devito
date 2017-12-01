@@ -5,9 +5,10 @@ from pyrevolve import Revolver
 import numpy as np
 from conftest import skipif_yask
 import pytest
-from devito import Grid, TimeFunction, Operator, Backward, Function, Eq
+from devito import Grid, TimeFunction, Operator, Backward, Function, Eq, silencio
 
 
+@silencio(log_level='WARNING')
 @skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
@@ -38,6 +39,7 @@ def test_forward_with_breaks(shape, time_order, space_order):
     assert(np.allclose(rec_temp, example.rec.data))
 
 
+@silencio(log_level='WARNING')
 @skipif_yask
 def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
                                   time_order=2, space_order=4, nbpml=10):
@@ -56,6 +58,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     assert(np.allclose(rec.data, rec_bk))
 
 
+@silencio(log_level='WARNING')
 @skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
@@ -90,26 +93,22 @@ def test_index_alignment(const):
     """
     nt = 10
     grid = Grid(shape=(3, 5))
-    time = grid.time_dim
-    t = grid.stepping_dim
-    x, y = grid.dimensions
     order_of_eqn = 1
     modulo_factor = order_of_eqn + 1
     last_time_step_u = nt - order_of_eqn
-    u = TimeFunction(name='u', grid=grid, save=True, time_dim=nt)
+    u = TimeFunction(name='u', grid=grid, save=nt)
     # Increment one in the forward pass 0 -> 1 -> 2 -> 3
-    fwd_eqn = Eq(u.indexed[time+1, x, y], u.indexed[time, x, y] + 1.*const)
-    fwd_op = Operator(fwd_eqn)
-    fwd_op(time=last_time_step_u, constant=1)
+    fwd_op = Operator(Eq(u.forward, u + 1.*const))
+    fwd_op(time=nt, constant=1)
     last_time_step_v = (last_time_step_u) % modulo_factor
     # Last time step should be equal to the number of timesteps we ran
     assert(np.allclose(u.data[last_time_step_u, :, :], nt - order_of_eqn))
-    v = TimeFunction(name='v', grid=grid, save=False)
+    v = TimeFunction(name='v', grid=grid, save=None)
     v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
     # Decrement one in the reverse pass 3 -> 2 -> 1 -> 0
-    adj_eqn = Eq(v.indexed[t-1, x, y], v.indexed[t, x, y] - 1.*const)
+    adj_eqn = Eq(v.backward, v - 1.*const)
     adj_op = Operator(adj_eqn, time_axis=Backward)
-    adj_op(t=(nt - order_of_eqn), constant=1)
+    adj_op(t=nt, constant=1)
     # Last time step should be back to 0
     assert(np.allclose(v.data[0, :, :], 0))
 
@@ -131,7 +130,7 @@ def test_index_alignment(const):
     # Checkpointed version doesn't require to save u
     u_nosave = TimeFunction(name='u_n', grid=grid)
     # change equations to use new symbols
-    fwd_eqn_2 = Eq(u_nosave.indexed[t+1, x, y], u_nosave.indexed[t, x, y] + 1.*const)
+    fwd_eqn_2 = Eq(u_nosave.forward, u_nosave + 1.*const)
     fwd_op_2 = Operator(fwd_eqn_2)
     cp = DevitoCheckpoint([u_nosave])
     wrap_fw = CheckpointOperator(fwd_op_2, time=nt, constant=1)

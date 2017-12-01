@@ -83,13 +83,12 @@ class GradientExample(object):
     @property
     def temp_field(self):
         return TimeFunction(name="u", grid=self.model.grid, time_order=self.time_order,
-                            space_order=self.space_order, save=False)
+                            space_order=self.space_order, save=None)
 
     @cached_property
     def forward_field(self):
-        return TimeFunction(name="u", grid=self.model.grid, time_dim=self.nt,
-                            time_order=self.time_order, space_order=self.space_order,
-                            save=True)
+        return TimeFunction(name="u", grid=self.model.grid, save=self.nt,
+                            time_order=self.time_order, space_order=self.space_order)
 
     @cached_property
     def adjoint_field(self):
