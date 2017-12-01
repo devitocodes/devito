@@ -6,6 +6,7 @@ import pytest
 from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito import Eq  # noqa
+from devito.operator import make_stencils
 from devito.ir import Stencil, clusterize, TemporariesGraph
 from devito.dse import rewrite, common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
@@ -109,7 +110,7 @@ def test_tti_clusters_to_graph():
     subs = solver.op_fwd('centered').args['subs']
     expressions = [indexify(s) for s in expressions]
     expressions = [s.xreplace(subs) for s in expressions]
-    stencils = solver.op_fwd('centered')._retrieve_stencils(expressions)
+    stencils = make_stencils(expressions)
     clusters = clusterize(expressions, stencils)
     assert len(clusters) == 3
 
