@@ -1,0 +1,396 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dimension &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="devito" href="../devito.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dimension</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dimension</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">DimensionArgProvider</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Symbol</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">DimensionArgProvider</span><span class="p">):</span>
+
+    <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="sd">&quot;&quot;&quot;Index object that represents a problem dimension and thus</span>
+<span class="sd">    defines a potential iteration space.</span>
+
+<span class="sd">    :param name: Name of the dimension symbol.</span>
+<span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
+<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">reverse</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;reverse&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">spacing</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The symbolic size of this dimension.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">symbolic_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">symbolic_end</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">symbolic_extent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the extent of the loop over this dimension.</span>
+<span class="sd">        Would be the same as size if using default values &quot;&quot;&quot;</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symbolic_end</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_start</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">limits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symbolic_start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_end</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">size_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_size&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">start_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_s&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">end_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_e&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
+
+
+<div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+
+    <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol to represent a space dimension that defines the</span>
+<span class="sd">    extent of physical grid. :class:`SpaceDimensions` create dedicated</span>
+<span class="sd">    shortcut notations for spatial derivatives on :class:`Function`</span>
+<span class="sd">    symbols.</span>
+
+<span class="sd">    :param name: Name of the dimension symbol.</span>
+<span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
+<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="TimeDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.TimeDimension">[docs]</a><span class="k">class</span> <span class="nc">TimeDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+
+    <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol to represent a dimension that defines the extent</span>
+<span class="sd">    of time. As time might be used in different contexts, all derived</span>
+<span class="sd">    time dimensions should inherit from :class:`TimeDimension`.</span>
+
+<span class="sd">    :param name: Name of the dimension symbol.</span>
+<span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
+<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+
+    <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol that defines the stepping direction of an</span>
+<span class="sd">    :class:`Operator` and implies modulo buffered iteration. This is most</span>
+<span class="sd">    commonly use to represent a timestepping dimension.</span>
+
+<span class="sd">    :param parent: Parent dimension over which to loop in modulo fashion.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">parent</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;modulo&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># Inherit time/space identifiers</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">is_Time</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">is_Time</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">is_Space</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">is_Space</span>
+
+        <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">reverse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">reverse</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">spacing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">spacing</span></div>
+
+
+<span class="k">class</span> <span class="nc">LoweredDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+
+    <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol representing a modulo iteration created when</span>
+<span class="sd">    resolving a :class:`SteppingDimension`.</span>
+
+<span class="sd">    :param stepping: :class:`SteppingDimension` from which this</span>
+<span class="sd">                     :class:`Dimension` originated.</span>
+<span class="sd">    :param offset: Offset value used in the modulo iteration.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">stepping</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stepping</span><span class="p">,</span> <span class="n">SteppingDimension</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">stepping</span> <span class="o">=</span> <span class="n">stepping</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">offset</span> <span class="o">=</span> <span class="n">offset</span>
+        <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">origin</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stepping</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stepping</span><span class="o">.</span><span class="n">size</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">reverse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stepping</span><span class="o">.</span><span class="n">reverse</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

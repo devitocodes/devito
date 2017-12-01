@@ -1,0 +1,413 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.cgen_utils &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="devito" href="../devito.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.cgen_utils</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.cgen_utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
+<span class="kn">from</span> <span class="nn">mpmath.libmp</span> <span class="k">import</span> <span class="n">prec_to_dps</span><span class="p">,</span> <span class="n">to_str</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span>
+<span class="kn">from</span> <span class="nn">sympy.printing.ccode</span> <span class="k">import</span> <span class="n">C99CodePrinter</span>
+
+
+<div class="viewcode-block" id="Allocator"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.Allocator">[docs]</a><span class="k">class</span> <span class="nc">Allocator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate C strings to declare pointers, allocate and free memory.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">heap</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stack</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Allocator.push_stack"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.Allocator.push_stack">[docs]</a>    <span class="k">def</span> <span class="nf">push_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scope</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a cgen statement that allocates ``obj`` on the stack.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">)</span>
+        <span class="n">alignment</span> <span class="o">=</span> <span class="s2">&quot;__attribute__((aligned(64)))&quot;</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stack</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())</span>
+        <span class="n">handle</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">alignment</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Allocator.push_heap"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.Allocator.push_heap">[docs]</a>    <span class="k">def</span> <span class="nf">push_heap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate cgen objects to declare, allocate memory, and free memory for</span>
+<span class="sd">        ``obj``, of type :class:`SymbolicData`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">obj</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">heap</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">decl</span> <span class="o">=</span> <span class="s2">&quot;(*</span><span class="si">%s</span><span class="s2">)</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                            <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+        <span class="n">decl</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span> <span class="n">decl</span><span class="p">)</span>
+
+        <span class="n">shape</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">alloc</span> <span class="o">=</span> <span class="s2">&quot;posix_memalign((void**)&amp;</span><span class="si">%s</span><span class="s2">, 64, sizeof(</span><span class="si">%s%s</span><span class="s2">))&quot;</span>
+        <span class="n">alloc</span> <span class="o">=</span> <span class="n">alloc</span> <span class="o">%</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span> <span class="n">shape</span><span class="p">)</span>
+        <span class="n">alloc</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="n">alloc</span><span class="p">)</span>
+
+        <span class="n">free</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;free(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">heap</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">decl</span><span class="p">,</span> <span class="n">alloc</span><span class="p">,</span> <span class="n">free</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">onstack</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stack</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">onheap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">heap</span><span class="o">.</span><span class="n">values</span><span class="p">()</span></div>
+
+
+<span class="c1"># Utils to print C strings</span>
+
+<div class="viewcode-block" id="CodePrinter"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CodePrinter</span><span class="p">(</span><span class="n">C99CodePrinter</span><span class="p">):</span>
+
+    <span class="n">custom_functions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;INT&#39;</span><span class="p">:</span> <span class="s1">&#39;(int)&#39;</span><span class="p">,</span> <span class="s1">&#39;FLOAT&#39;</span><span class="p">:</span> <span class="s1">&#39;(float)&#39;</span><span class="p">}</span>
+
+    <span class="sd">&quot;&quot;&quot;Decorator for sympy.printing.ccode.CCodePrinter.</span>
+
+<span class="sd">    :param settings: A dictionary containing relevant settings</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="n">C99CodePrinter</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">custom_functions</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Print field as C style multidimensional array</span>
+
+<span class="sd">        :param expr: An indexed expression</span>
+
+<span class="sd">        e.g. U[t,x,y,z] -&gt; U[t][x][y][z]</span>
+
+<span class="sd">        :returns: The resulting string</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)</span> \
+            <span class="o">+</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;[&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;]&#39;</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+
+    <span class="k">def</span> <span class="nf">_print_Rational</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Print fractional number as float/float</span>
+
+<span class="sd">        :param expr: A rational number</span>
+
+<span class="sd">        (default was long double/long double)</span>
+
+<span class="sd">        :returns: The resulting code as a string</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># This method and _print_Float below forcefully add a F to any</span>
+        <span class="c1"># literals generated in code. This forces all float literals</span>
+        <span class="c1"># to be 32-bit floats.</span>
+        <span class="c1"># http://en.cppreference.com/w/cpp/language/floating_literal</span>
+        <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">p</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">q</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">.0F/</span><span class="si">%d</span><span class="s1">.0F&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>  <span class="c1"># float precision by default</span>
+
+    <span class="k">def</span> <span class="nf">_print_Mod</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Print mod using % operator in C++</span>
+
+<span class="sd">        :param expr: The expression in which a C++ % operator is inserted</span>
+<span class="sd">        :returns: The resulting code as a string</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">ccode</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;(&#39;</span><span class="o">+</span><span class="n">x</span><span class="o">+</span><span class="s1">&#39;)&#39;</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="s1">&#39;%&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">_print_Float</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Always printing floating point numbers in scientific notation</span>
+
+<span class="sd">        :param expr: A floating point number</span>
+<span class="sd">        :returns: The resulting code as a string</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">prec</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">_prec</span>
+
+        <span class="k">if</span> <span class="n">prec</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="n">dps</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dps</span> <span class="o">=</span> <span class="n">prec_to_dps</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">_prec</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;full_prec&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">strip</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;full_prec&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="n">strip</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;full_prec&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;auto&quot;</span><span class="p">:</span>
+            <span class="n">strip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_level</span> <span class="o">&gt;</span> <span class="mi">1</span>
+
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">to_str</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">_mpf_</span><span class="p">,</span> <span class="n">dps</span><span class="p">,</span> <span class="n">strip_zeros</span><span class="o">=</span><span class="n">strip</span><span class="p">,</span> <span class="n">max_fixed</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">min_fixed</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;-.0&#39;</span><span class="p">):</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="s1">&#39;-0.&#39;</span> <span class="o">+</span> <span class="n">rv</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span>
+        <span class="k">elif</span> <span class="n">rv</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;.0&#39;</span><span class="p">):</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="s1">&#39;0.&#39;</span> <span class="o">+</span> <span class="n">rv</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+
+        <span class="k">return</span> <span class="n">rv</span> <span class="o">+</span> <span class="s1">&#39;F&#39;</span>
+
+    <span class="k">def</span> <span class="nf">_print_FrozenExpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_print_FunctionFromPointer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">params</span><span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">-&gt;</span><span class="si">%s</span><span class="s2">(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">pointer</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">indices</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_print_ListInitializer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;{</span><span class="si">%s</span><span class="s2">}&quot;</span> <span class="o">%</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">params</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="ccode"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.ccode">[docs]</a><span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Generate C++ code from an expression calling CodePrinter class</span>
+
+<span class="sd">    :param expr: The expression</span>
+<span class="sd">    :param settings: A dictionary of settings for code printing</span>
+<span class="sd">    :returns: The resulting code as a string. If it fails, then it returns the expr</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Eq</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ccode_eq</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">CodePrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span></div>
+
+
+<div class="viewcode-block" id="ccode_eq"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.ccode_eq">[docs]</a><span class="k">def</span> <span class="nf">ccode_eq</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Generate C++ assignment from an equation assigning RHS to LHS</span>
+
+<span class="sd">    :param eq: The equation</span>
+<span class="sd">    :param settings: A dictionary of settings for code printing</span>
+<span class="sd">    :returns: The resulting code as a string</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">CodePrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> \
+        <span class="o">+</span> <span class="s1">&#39; = &#39;</span> <span class="o">+</span> <span class="n">CodePrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+
+<span class="n">blankline</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+<span class="n">printmark</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="s1">&#39;printf(&quot;Here: </span><span class="si">%s</span><span class="se">\\</span><span class="s1">n&quot;); fflush(stdout);&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span>
+<span class="n">printvar</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;printf(&quot;</span><span class="si">%s</span><span class="s1">=</span><span class="si">%%</span><span class="s1">s</span><span class="se">\\</span><span class="s1">n&quot;, </span><span class="si">%s</span><span class="s1">); fflush(stdout);&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+<span class="n">INT</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;INT&#39;</span><span class="p">)</span>
+<span class="n">FLOAT</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;FLOAT&#39;</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

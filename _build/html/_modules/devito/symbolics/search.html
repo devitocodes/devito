@@ -1,0 +1,358 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.symbolics.search &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.symbolics.search</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.symbolics.search</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">devito.symbolics.queries</span> <span class="k">import</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">q_terminal</span><span class="p">,</span> <span class="n">q_leaf</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_trigonometry</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;retrieve_indexed&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_terminals&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_ops&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;retrieve_trigonometry&#39;</span><span class="p">,</span> <span class="s1">&#39;search&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">Search</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="k">class</span> <span class="nc">Set</span><span class="p">(</span><span class="nb">set</span><span class="p">):</span>
+
+        <span class="nd">@staticmethod</span>
+        <span class="k">def</span> <span class="nf">wrap</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span><span class="n">obj</span><span class="p">}</span>
+
+    <span class="k">class</span> <span class="nc">List</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
+
+        <span class="nd">@staticmethod</span>
+        <span class="k">def</span> <span class="nf">wrap</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">obj</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+    <span class="n">modes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;unique&#39;</span><span class="p">:</span> <span class="n">Set</span><span class="p">,</span>
+        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="n">List</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Search objects in an expression. This is much quicker than the more</span>
+<span class="sd">        general SymPy&#39;s find.</span>
+
+<span class="sd">        :param query: Any query from the ``queries`` module.</span>
+<span class="sd">        :param mode: Either &#39;unique&#39; or &#39;all&#39; (catch all instances).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query</span> <span class="o">=</span> <span class="n">query</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">modes</span><span class="p">[</span><span class="n">mode</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_next</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">q_leaf</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="k">else</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+
+    <span class="k">def</span> <span class="nf">dfs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Perform a DFS search.</span>
+
+<span class="sd">        :param expr: The searched expression</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dfs</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">found</span>
+
+    <span class="k">def</span> <span class="nf">bfs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Perform a BFS search.</span>
+
+<span class="sd">        :param expr: The searched expression</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bfs</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">found</span>
+
+    <span class="k">def</span> <span class="nf">bfs_first_hit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Perform a BFS search, returning immediately when a node matches the query.</span>
+
+<span class="sd">        :param expr: The searched expression</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">found</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bfs_first_hit</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">found</span>
+
+
+<div class="viewcode-block" id="search"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.search">[docs]</a><span class="k">def</span> <span class="nf">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;unique&#39;</span><span class="p">,</span> <span class="n">visit</span><span class="o">=</span><span class="s1">&#39;dfs&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Interface to Search.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">assert</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">Search</span><span class="o">.</span><span class="n">modes</span><span class="p">,</span> <span class="s2">&quot;Unknown mode&quot;</span>
+    <span class="k">assert</span> <span class="n">visit</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;dfs&#39;</span><span class="p">,</span> <span class="s1">&#39;bfs&#39;</span><span class="p">,</span> <span class="s1">&#39;bfs_first_hit&#39;</span><span class="p">],</span> <span class="s2">&quot;Unknown visit type&quot;</span>
+
+    <span class="n">searcher</span> <span class="o">=</span> <span class="n">Search</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">visit</span> <span class="o">==</span> <span class="s1">&#39;dfs&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">searcher</span><span class="o">.</span><span class="n">dfs</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">visit</span> <span class="o">==</span> <span class="s1">&#39;bfs&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">searcher</span><span class="o">.</span><span class="n">bfs</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">searcher</span><span class="o">.</span><span class="n">bfs_first_hit</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span></div>
+
+
+<span class="c1"># Shorthands</span>
+
+
+<div class="viewcode-block" id="retrieve_indexed"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.retrieve_indexed">[docs]</a><span class="k">def</span> <span class="nf">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;unique&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shorthand to retrieve :class:`Indexed` objects in ``expr``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="retrieve_terminals"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.retrieve_terminals">[docs]</a><span class="k">def</span> <span class="nf">retrieve_terminals</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;unique&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shorthand to retrieve :class:`Indexed` and :class:`Symbol` objects in ``expr``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">q_terminal</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="retrieve_trigonometry"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.retrieve_trigonometry">[docs]</a><span class="k">def</span> <span class="nf">retrieve_trigonometry</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shorthand to retrieve trigonometric function objects in ``expr``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">q_trigonometry</span><span class="p">,</span> <span class="s1">&#39;unique&#39;</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="retrieve_ops"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.retrieve_ops">[docs]</a><span class="k">def</span> <span class="nf">retrieve_ops</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shorthand to retrieve arithmetic operations rooted in ``expr``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

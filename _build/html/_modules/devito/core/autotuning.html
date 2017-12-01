@@ -1,0 +1,404 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.core.autotuning &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.core.autotuning</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.core.autotuning</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">combinations</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
+<span class="kn">import</span> <span class="nn">resource</span>
+
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">info_at</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="autotune"><a class="viewcode-back" href="../../../devito.core.html#devito.core.autotuning.autotune">[docs]</a><span class="k">def</span> <span class="nf">autotune</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">tunable</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Acting as a high-order function, take as input an operator and a list of</span>
+<span class="sd">    operator arguments to perform empirical autotuning. Some of the operator</span>
+<span class="sd">    arguments are marked as tunable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">at_arguments</span> <span class="o">=</span> <span class="n">arguments</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># User-provided output data must not be altered</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">operator</span><span class="o">.</span><span class="n">output</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">output</span><span class="p">:</span>
+            <span class="n">at_arguments</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="n">iterations</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Iteration</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+    <span class="n">dim_mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span><span class="p">}</span>
+
+    <span class="c1"># Shrink the iteration space of time-stepping dimension so that auto-tuner</span>
+    <span class="c1"># runs will finish quickly</span>
+    <span class="n">steppers</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">steppers</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">timesteps</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">steppers</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">stepper</span> <span class="o">=</span> <span class="n">steppers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">rtargs</span><span class="o">.</span><span class="n">start</span><span class="o">.</span><span class="n">default_value</span>
+        <span class="n">timesteps</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="o">=</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">timesteps</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">timesteps</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">timesteps</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Adjusted auto-tuning timestep to </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">timesteps</span><span class="p">)</span>
+        <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_start</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">start</span>
+        <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_end</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timesteps</span>
+        <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+            <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">start</span>
+            <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timesteps</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t understand loop structure, giving up auto-tuning&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">arguments</span>
+
+    <span class="c1"># Attempted block sizes ...</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tunable</span><span class="p">])</span>
+    <span class="c1"># ... Defaults (basic mode)</span>
+    <span class="n">blocksizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">])</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_blocksize&#39;</span><span class="p">]]</span>
+    <span class="c1"># ... Always try the entire iteration space (degenerate block)</span>
+    <span class="n">datashape</span> <span class="o">=</span> <span class="p">[</span><span class="n">at_arguments</span><span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_end</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">-</span>
+                 <span class="n">at_arguments</span><span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_start</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">]</span>
+    <span class="n">blocksizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+                      <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)]))</span>
+    <span class="c1"># ... More attempts if auto-tuning in aggressive mode</span>
+    <span class="k">if</span> <span class="n">configuration</span><span class="o">.</span><span class="n">core</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span>
+        <span class="n">blocksizes</span> <span class="o">=</span> <span class="n">more_heuristic_attempts</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">)</span>
+
+    <span class="c1"># How many temporaries are allocated on the stack?</span>
+    <span class="c1"># Will drop block sizes that might lead to a stack overflow</span>
+    <span class="n">functions</span> <span class="o">=</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">body</span> <span class="o">+</span>
+                                               <span class="n">operator</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">)</span>
+    <span class="n">stack_shapes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">]</span>
+    <span class="n">stack_space</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">stack_shapes</span><span class="p">)</span><span class="o">*</span><span class="n">operator</span><span class="o">.</span><span class="n">dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span>
+
+    <span class="c1"># Note: there is only a single loop over &#39;blocksize&#39; because only</span>
+    <span class="c1"># square blocks are tested</span>
+    <span class="n">timings</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">:</span>
+        <span class="n">illegal</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">bs</span><span class="p">:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">bs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="n">at_arguments</span><span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_start</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+                <span class="n">end</span> <span class="o">=</span> <span class="n">at_arguments</span><span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_end</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+                    <span class="n">at_arguments</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Block size cannot be larger than actual dimension</span>
+                    <span class="n">illegal</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+        <span class="k">if</span> <span class="n">illegal</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Make sure we remain within stack bounds, otherwise skip block size</span>
+        <span class="n">dim_sizes</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">bs</span><span class="p">:</span>
+                <span class="n">dim_sizes</span><span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">symbolic_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">bs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">dim_mapper</span><span class="p">:</span>
+                <span class="n">dim_sizes</span><span class="p">[</span><span class="n">dim_mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">symbolic_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">bs_stack_space</span> <span class="o">=</span> <span class="n">stack_space</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">dim_sizes</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="n">bs_stack_space</span> <span class="o">=</span> <span class="n">stack_space</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">bs_stack_space</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_stack_limit&#39;</span><span class="p">]:</span>
+                <span class="k">continue</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="c1"># We should never get here</span>
+            <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t determine stack size, skipping block size </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">bs</span><span class="p">))</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Use AT-specific profiler structs</span>
+        <span class="n">timer</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">()</span>
+        <span class="n">at_arguments</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timer</span>
+
+        <span class="n">operator</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">at_arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+        <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">_fields_</span><span class="p">)</span>
+        <span class="n">timings</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">bs</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span> <span class="o">=</span> <span class="n">elapsed</span>
+        <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Block shape &lt;</span><span class="si">%s</span><span class="s2">&gt; took </span><span class="si">%f</span><span class="s2"> (s) in </span><span class="si">%d</span><span class="s2"> time steps&quot;</span> <span class="o">%</span>
+                <span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bs</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">elapsed</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">))</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">timings</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">timings</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>
+        <span class="n">info</span><span class="p">(</span><span class="s2">&quot;Auto-tuned block shape: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">best</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="n">info</span><span class="p">(</span><span class="s2">&quot;Auto-tuning request, but couldn&#39;t find legal block sizes&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">arguments</span>
+
+    <span class="c1"># Build the new argument list</span>
+    <span class="n">tuned</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">tuned</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">best</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">mapper</span> <span class="k">else</span> <span class="n">v</span>
+
+    <span class="c1"># Reset the profiling struct</span>
+    <span class="k">assert</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">tuned</span>
+    <span class="n">tuned</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">tuned</span></div>
+
+
+<span class="k">def</span> <span class="nf">more_heuristic_attempts</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">):</span>
+    <span class="c1"># Ramp up to higher block sizes</span>
+    <span class="n">handle</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_blocksize&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">new_bs</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">*</span><span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">handle</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+        <span class="n">blocksizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">blocksizes</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">new_bs</span><span class="p">)</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">new_bs</span>
+
+    <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># Extended shuffling for the smaller block sizes</span>
+    <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">[:</span><span class="mi">4</span><span class="p">]:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">:</span>
+            <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">bs</span><span class="o">.</span><span class="n">items</span><span class="p">())[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">items</span><span class="p">())[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]))</span>
+    <span class="c1"># Some more shuffling for all block sizes</span>
+    <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">):</span>
+        <span class="n">ncombs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">bs</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ncombs</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">(</span><span class="n">bs</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">item</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">bs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="mi">2</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">j</span> <span class="k">else</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">bs</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">(</span><span class="n">item</span><span class="p">))</span>
+
+    <span class="n">unique</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">blocksizes</span> <span class="o">+</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">unique</span><span class="p">:</span>
+            <span class="n">unique</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">unique</span>
+
+
+<span class="n">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;at_squeezer&#39;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="s1">&#39;at_blocksize&#39;</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">({</span><span class="mi">8</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">}),</span>
+    <span class="s1">&#39;at_stack_limit&#39;</span><span class="p">:</span> <span class="n">resource</span><span class="o">.</span><span class="n">getrlimit</span><span class="p">(</span><span class="n">resource</span><span class="o">.</span><span class="n">RLIMIT_STACK</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mi">4</span>
+<span class="p">}</span>
+<span class="sd">&quot;&quot;&quot;Autotuning options.&quot;&quot;&quot;</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

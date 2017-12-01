@@ -1,0 +1,441 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.profiling &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="devito" href="../devito.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.profiling</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.profiling</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">operator</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+
+<span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">byref</span><span class="p">,</span> <span class="n">c_double</span>
+<span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">Value</span>
+
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">TimedList</span><span class="p">,</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">estimate_memory</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Profile&#39;</span><span class="p">,</span> <span class="s1">&#39;create_profile&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="create_profile"><a class="viewcode-back" href="../../devito.html#devito.profiling.create_profile">[docs]</a><span class="k">def</span> <span class="nf">create_profile</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a :class:`Profiler` for the Iteration/Expression tree ``node``.</span>
+<span class="sd">    The following code sections are profiled: ::</span>
+
+<span class="sd">        * The whole ``node``;</span>
+<span class="sd">        * A sequence of perfectly nested loops that have common :class:`Iteration`</span>
+<span class="sd">          dimensions, but possibly different extent. For example: ::</span>
+
+<span class="sd">            for x = 0 to N</span>
+<span class="sd">              ..</span>
+<span class="sd">            for x = 1 to N-1</span>
+<span class="sd">              ..</span>
+
+<span class="sd">          Both Iterations have dimension ``x``, and will be profiled as a single</span>
+<span class="sd">          section, though their extent is different.</span>
+<span class="sd">        * Any perfectly nested loops.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="c1"># Group by root Iteration</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">itspace</span> <span class="ow">in</span> <span class="n">FindSections</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">itspace</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">itspace</span><span class="p">)</span>
+
+    <span class="c1"># Group sections if their iteration spaces overlap</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">itspace</span><span class="p">:</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">])</span>
+    <span class="n">groups</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="n">queue</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">handle</span> <span class="ow">or</span> <span class="n">key</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="o">==</span> <span class="n">key</span><span class="p">(</span><span class="n">handle</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Found a timing section</span>
+                <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+                <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">handle</span><span class="p">:</span>
+            <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+
+    <span class="c1"># Create and track C-level timers</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
+        <span class="c1"># We time at the single timestep level</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">group</span><span class="p">):</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">remainder</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span> <span class="k">if</span> <span class="n">j</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">root</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="k">if</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Prepare to transform the Iteration/Expression tree</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="p">(</span><span class="n">root</span><span class="p">,)</span> <span class="o">+</span> <span class="n">remainder</span>
+        <span class="n">lname</span> <span class="o">=</span> <span class="s1">&#39;section_</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">TimedList</span><span class="p">(</span><span class="n">gname</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">lname</span><span class="o">=</span><span class="n">lname</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">j</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">remainder</span><span class="p">]))</span>
+
+        <span class="c1"># Estimate computational properties of the profiled section</span>
+        <span class="n">expressions</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">ops</span> <span class="o">=</span> <span class="n">estimate_cost</span><span class="p">([</span><span class="n">e</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">])</span>
+        <span class="n">memory</span> <span class="o">=</span> <span class="n">estimate_memory</span><span class="p">([</span><span class="n">e</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">])</span>
+
+        <span class="c1"># Keep track of the new profiled section</span>
+        <span class="n">profiler</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">lname</span><span class="p">,</span> <span class="n">group</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ops</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
+
+    <span class="c1"># Transform the Iteration/Expression tree introducing the C-level timers</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="n">profiler</span></div>
+
+
+<span class="k">class</span> <span class="nc">Profiler</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A Profiler is used to manage profiling information for Devito generated C code.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">structname</span> <span class="o">=</span> <span class="s2">&quot;profile&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">section</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">memory</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add a profiling section.</span>
+
+<span class="sd">        :param name: The name which uniquely identifies the profiled code section.</span>
+<span class="sd">        :param section: The code section, represented as a tuple of :class:`Iteration`s.</span>
+<span class="sd">        :param ops: The number of floating-point operations in the section.</span>
+<span class="sd">        :param memory: The memory traffic in the section, as bytes moved from/to memory.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">[</span><span class="n">section</span><span class="p">]</span> <span class="o">=</span> <span class="n">Profile</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">memory</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">new</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Allocate and return a pointer to a new C-level Struct capable of storing</span>
+<span class="sd">        all timers added through ``self.add(...)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">byref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">summary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a :class:`PerformanceSummary` of the tracked sections.</span>
+
+<span class="sd">        :param arguments: A mapper from argument names to run-time values from which</span>
+<span class="sd">                          the Profiler infers iteration space and execution times</span>
+<span class="sd">                          of a run.</span>
+<span class="sd">        :param dtype: The data type of the objects in the profiled sections. Used</span>
+<span class="sd">                      to compute the operational intensity.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">summary</span> <span class="o">=</span> <span class="n">PerformanceSummary</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">itspace</span><span class="p">,</span> <span class="n">profile</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">dims</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="k">else</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">}</span>
+
+            <span class="c1"># Time</span>
+            <span class="n">time</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">arguments</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="mf">10e-7</span><span class="p">)</span>
+
+            <span class="c1"># Flops</span>
+            <span class="n">itershape</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">finish</span><span class="o">=</span><span class="n">arguments</span><span class="p">[</span><span class="n">dims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">end_name</span><span class="p">],</span>
+                                  <span class="n">start</span><span class="o">=</span><span class="n">arguments</span><span class="p">[</span><span class="n">dims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">start_name</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">]</span>
+            <span class="n">iterspace</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">,</span> <span class="n">itershape</span><span class="p">)</span>
+            <span class="n">flops</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">ops</span><span class="o">*</span><span class="n">iterspace</span><span class="p">)</span>
+            <span class="n">gflops</span> <span class="o">=</span> <span class="n">flops</span><span class="o">/</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span>
+            <span class="n">gpoints</span> <span class="o">=</span> <span class="n">iterspace</span><span class="o">/</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span>
+
+            <span class="c1"># Compulsory traffic</span>
+            <span class="n">datashape</span> <span class="o">=</span> <span class="p">[(</span><span class="n">arguments</span><span class="p">[</span><span class="n">dims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">-</span> <span class="n">arguments</span><span class="p">[</span><span class="n">dims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">start_name</span><span class="p">])</span>
+                         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">]</span>
+            <span class="n">dataspace</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)</span>
+            <span class="n">traffic</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">memory</span><span class="o">*</span><span class="n">dataspace</span><span class="o">*</span><span class="n">dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span><span class="p">)</span>
+
+            <span class="c1"># Derived metrics</span>
+            <span class="n">oi</span> <span class="o">=</span> <span class="n">flops</span><span class="o">/</span><span class="n">traffic</span>
+            <span class="n">gflopss</span> <span class="o">=</span> <span class="n">gflops</span><span class="o">/</span><span class="n">time</span>
+            <span class="n">gpointss</span> <span class="o">=</span> <span class="n">gpoints</span><span class="o">/</span><span class="n">time</span>
+
+            <span class="c1"># Keep track of performance achieved</span>
+            <span class="n">summary</span><span class="o">.</span><span class="n">setsection</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">ops</span><span class="p">,</span>
+                               <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)</span>
+
+        <span class="c1"># Rename the most time consuming section as &#39;main&#39;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;main&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">summary</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">summary</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the profiler C type in ctypes format.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">structname</span><span class="p">,</span> <span class="p">(</span><span class="n">Structure</span><span class="p">,),</span>
+                    <span class="p">{</span><span class="s2">&quot;_fields_&quot;</span><span class="p">:</span> <span class="p">[(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">c_double</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="o">.</span><span class="n">values</span><span class="p">()]})</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cdef</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a :class:`cgen.Struct` representing the profiler data structure in C</span>
+<span class="sd">        (a ``struct``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">structname</span><span class="p">,</span>
+                      <span class="p">[</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;double&#39;</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
+
+
+<span class="k">class</span> <span class="nc">PerformanceSummary</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A special dictionary to track and quickly access performance data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">setsection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">):</span>
+        <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">PerfEntry</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">gflopss</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">oi</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">timings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+
+
+<span class="n">Profile</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Profile&#39;</span><span class="p">,</span> <span class="s1">&#39;name ops memory&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Metadata for a profiled code section.&quot;&quot;&quot;</span>
+
+
+<span class="n">PerfEntry</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;PerfEntry&#39;</span><span class="p">,</span> <span class="s1">&#39;time gflopss gpointss oi ops itershape datashape&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Structured performance data.&quot;&quot;&quot;</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

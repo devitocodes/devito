@@ -1,0 +1,362 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dse.backends.common &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="devito" href="../../../devito.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dse.backends.common</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dse.backends.common</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">abc</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
+
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">freeze_expression</span><span class="p">,</span> <span class="n">pow_to_mul</span>
+
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dse</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;AbstractRewriter&#39;</span><span class="p">,</span> <span class="s1">&#39;State&#39;</span><span class="p">,</span> <span class="s1">&#39;dse_pass&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="dse_pass"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.common.dse_pass">[docs]</a><span class="k">def</span> <span class="nf">dse_pass</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># A template to construct temporaries</span>
+        <span class="n">tempname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">conventions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tempname</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;start&#39;</span><span class="p">)</span>
+            <span class="n">tempname</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="k">if</span> <span class="n">start</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">((</span><span class="s1">&#39;_</span><span class="si">%d</span><span class="s1">_&#39;</span> <span class="o">%</span> <span class="n">start</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">template</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">tempname</span> <span class="o">%</span> <span class="n">i</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">template</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Invoke the DSE pass</span>
+        <span class="n">tic</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">template</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                              <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">clusters</span><span class="p">]))</span>
+        <span class="n">toc</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+
+        <span class="c1"># Profiling</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">toc</span> <span class="o">-</span> <span class="n">tic</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">exprs</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">clusters</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">is_dense</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ops</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">candidates</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">wrapper</span></div>
+
+
+<div class="viewcode-block" id="State"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.common.State">[docs]</a><span class="k">class</span> <span class="nc">State</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span> <span class="o">=</span> <span class="p">[</span><span class="n">cluster</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_has_changed</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="State.update"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.common.State.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">clusters</span><span class="p">):</span>
+        <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusters</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_has_changed</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">clusters</span><span class="p">)</span> <span class="ow">or</span>\
+            <span class="nb">any</span><span class="p">(</span><span class="n">c1</span><span class="o">.</span><span class="n">exprs</span> <span class="o">!=</span> <span class="n">c2</span><span class="o">.</span><span class="n">exprs</span> <span class="k">for</span> <span class="n">c1</span><span class="p">,</span> <span class="n">c2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span> <span class="o">=</span> <span class="n">clusters</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">has_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_changed</span></div>
+
+
+<div class="viewcode-block" id="AbstractRewriter"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.common.AbstractRewriter">[docs]</a><span class="k">class</span> <span class="nc">AbstractRewriter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transform a cluster of SymPy expressions into one or more clusters, overall</span>
+<span class="sd">    performing fewer arithmetic operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Name conventions for new temporaries.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">conventions</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;_extract_sum_of_products&#39;</span><span class="p">:</span> <span class="s1">&#39;sop&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;_extract_time_invariants&#39;</span><span class="p">:</span> <span class="s1">&#39;ti&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;_extract_time_varying&#39;</span><span class="p">:</span> <span class="s1">&#39;td&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;_eliminate_intra_stencil_redundancies&#39;</span><span class="p">:</span> <span class="s1">&#39;tcse&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;_eliminate_inter_stencil_redundancies&#39;</span><span class="p">:</span> <span class="s1">&#39;r&#39;</span>
+    <span class="p">}</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bag of thresholds, to be used to trigger or prevent certain transformations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">thresholds</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;min-cost-alias&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+        <span class="s1">&#39;min-cost-factorize&#39;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+        <span class="s1">&#39;max-operands&#39;</span><span class="p">:</span> <span class="mi">40</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ops</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timings</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+
+<div class="viewcode-block" id="AbstractRewriter.run"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.common.AbstractRewriter.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">):</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="n">State</span><span class="p">(</span><span class="n">cluster</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pipeline</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_finalize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_summary</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">state</span><span class="o">.</span><span class="n">clusters</span></div>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="k">return</span>
+
+    <span class="nd">@dse_pass</span>
+    <span class="k">def</span> <span class="nf">_finalize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finalize the DSE output: ::</span>
+
+<span class="sd">            * Pow--&gt;Mul. Convert integer powers in an expression to Muls,</span>
+<span class="sd">              like a**2 =&gt; a*a.</span>
+<span class="sd">            * Freezing. Make sure that subsequent SymPy operations applied to</span>
+<span class="sd">              the expressions in ``cluster.exprs`` will not alter the effect of</span>
+<span class="sd">              the DSE passes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">pow_to_mul</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">rebuild</span><span class="p">([</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_summary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Print a summary of the DSE transformations</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="n">row</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> [flops: </span><span class="si">%s</span><span class="s2">, elapsed: </span><span class="si">%.2f</span><span class="s2">]&quot;</span>
+            <span class="n">summary</span> <span class="o">=</span> <span class="s2">&quot; &gt;&gt;</span><span class="se">\n</span><span class="s2">     &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">row</span> <span class="o">%</span> <span class="p">(</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="ow">not</span> <span class="n">c</span><span class="o">.</span><span class="n">isdigit</span><span class="p">(),</span>
+                                                              <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">:])),</span>
+                                               <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="s2">&quot;?&quot;</span><span class="p">)),</span> <span class="n">v</span><span class="p">)</span>
+                                        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+            <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+            <span class="n">dse</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="se">\n</span><span class="s2">     [Total elapsed: </span><span class="si">%.2f</span><span class="s2"> s]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">elapsed</span><span class="p">))</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,341 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.symbolics.inspection &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.symbolics.inspection</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.symbolics.inspection</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span>
+
+<span class="kn">from</span> <span class="nn">devito.symbolics.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_ops</span><span class="p">,</span> <span class="n">search</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics.queries</span> <span class="k">import</span> <span class="n">q_timedimension</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
+
+
+<div class="viewcode-block" id="count"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.count">[docs]</a><span class="k">def</span> <span class="nf">count</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``</span>
+<span class="sd">    matching ``query`` and ``v`` is the number of its occurrences.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;bfs&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
+            <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">mapper</span></div>
+
+
+<div class="viewcode-block" id="estimate_cost"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.estimate_cost">[docs]</a><span class="k">def</span> <span class="nf">estimate_cost</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">estimate_functions</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Estimate the operation count of ``handle``.</span>
+
+<span class="sd">    :param handle: a SymPy expression or an iterator of SymPy expressions.</span>
+<span class="sd">    :param estimate_functions: approximate the operation count of known</span>
+<span class="sd">                               functions (eg, sin, cos).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">external_functions</span> <span class="o">=</span> <span class="p">{</span><span class="n">sin</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="n">cos</span><span class="p">:</span> <span class="mi">50</span><span class="p">}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Is it a plain SymPy object ?</span>
+        <span class="nb">iter</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">handle</span><span class="p">]</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Is it a dict ?</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Must be a list of dicts then</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># At this point it must be a list of SymPy objects</span>
+        <span class="c1"># We don&#39;t use SymPy&#39;s count_ops because we do not count integer arithmetic</span>
+        <span class="c1"># (e.g., array index functions such as i+1 in A[i+1])</span>
+        <span class="c1"># Also, the routine below is *much* faster than count_ops</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">rhs</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Equality</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]</span>
+        <span class="n">operations</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">retrieve_ops</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">)</span>
+        <span class="n">flops</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">operations</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">op</span><span class="o">.</span><span class="n">is_Function</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">estimate_functions</span><span class="p">:</span>
+                    <span class="n">flops</span> <span class="o">+=</span> <span class="n">external_functions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">op</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">flops</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">flops</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">op</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="kc">True</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">op</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">flops</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Cannot estimate cost of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="estimate_memory"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.estimate_memory">[docs]</a><span class="k">def</span> <span class="nf">estimate_memory</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;realistic&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Estimate the number of memory reads and writes.</span>
+
+<span class="sd">    :param handle: a SymPy expression or an iterator of SymPy expressions.</span>
+<span class="sd">    :param mode: Mode for computing the estimate:</span>
+
+<span class="sd">    Estimate ``mode`` might be any of: ::</span>
+
+<span class="sd">        * ideal: Also known as &quot;compulsory traffic&quot;, which is the minimum</span>
+<span class="sd">                 number of read/writes to be performed (ie, models an infinite cache).</span>
+<span class="sd">        * ideal_with_stores: Like ideal, but a data item which is both read.</span>
+<span class="sd">                             and written is counted twice (ie both load an</span>
+<span class="sd">                             store are counted).</span>
+<span class="sd">        * realistic: Assume that all datasets, even the time-independent ones,</span>
+<span class="sd">                     need to be re-read at each time iteration.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ideal&#39;</span><span class="p">,</span> <span class="s1">&#39;ideal_with_stores&#39;</span><span class="p">,</span> <span class="s1">&#39;realistic&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">access</span><span class="p">(</span><span class="n">symbol</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span>
+        <span class="c1"># Irregular accesses (eg A[B[i]]) are counted as compulsory traffic</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Indexed</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">symbol</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">symbol</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">symbol</span><span class="o">.</span><span class="n">base</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Is it a plain SymPy object ?</span>
+        <span class="nb">iter</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">handle</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ideal&#39;</span><span class="p">,</span> <span class="s1">&#39;ideal_with_stores&#39;</span><span class="p">]:</span>
+        <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="nb">any</span><span class="p">(</span><span class="n">q_timedimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">atoms</span><span class="p">())</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span>
+    <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]))</span>
+    <span class="n">writes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]))</span>
+    <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">access</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">reads</span> <span class="k">if</span> <span class="nb">filter</span><span class="p">(</span><span class="n">s</span><span class="p">)])</span>
+    <span class="n">writes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">access</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">writes</span> <span class="k">if</span> <span class="nb">filter</span><span class="p">(</span><span class="n">s</span><span class="p">)])</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;ideal&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">writes</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

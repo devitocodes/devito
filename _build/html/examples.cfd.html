@@ -1,0 +1,376 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>examples.cfd package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="index.html"/>
+        <link rel="up" title="examples package" href="examples.html"/>
+        <link rel="next" title="examples.seismic package" href="examples.seismic.html"/>
+        <link rel="prev" title="examples package" href="examples.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="examples.html">Example Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="examples.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">examples.cfd package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-examples.cfd.example_diffusion">examples.cfd.example_diffusion module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-examples.cfd.tools">examples.cfd.tools module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-examples.cfd">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="examples.seismic.html">examples.seismic package</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#module-examples">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="examples.html">examples package</a> &raquo;</li>
+        
+      <li>examples.cfd package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/examples.cfd.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="examples-cfd-package">
+<h1>examples.cfd package<a class="headerlink" href="#examples-cfd-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-examples.cfd.example_diffusion">
+<span id="examples-cfd-example-diffusion-module"></span><h2>examples.cfd.example_diffusion module<a class="headerlink" href="#module-examples.cfd.example_diffusion" title="Permalink to this headline">¶</a></h2>
+<p>NOTE: This is a legacy example. For more up-to-date examples
+please see the tutorials under <cite>examples/cfd/</cite>.</p>
+<p>This example encodes multiple ways to solve the 2D diffusion equations
+using an explicit finite difference scheme with fixed boundary values
+and a given initial value for the density. The example also includes
+demo implementations using more traditional methods, including pure
+Python, vectorized NumPy and a vectorized symbolic implementation
+using SymPy’s <cite>lambdify()</cite> functionality. For a visual demonstration
+and comparison between pure Python and NumPy, for example, run:</p>
+<p>python example_diffusion.py run -m python numpy –show</p>
+<dl class="function">
+<dt id="examples.cfd.example_diffusion.animate">
+<code class="descclassname">examples.cfd.example_diffusion.</code><code class="descname">animate</code><span class="sig-paren">(</span><em>field</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/example_diffusion.html#animate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.example_diffusion.animate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Animate solution field</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.example_diffusion.execute_devito">
+<code class="descclassname">examples.cfd.example_diffusion.</code><code class="descname">execute_devito</code><span class="sig-paren">(</span><em>ui</em>, <em>spacing=0.01</em>, <em>a=0.5</em>, <em>timesteps=500</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/example_diffusion.html#execute_devito"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.example_diffusion.execute_devito" title="Permalink to this definition">¶</a></dt>
+<dd><p>Execute diffusion stencil using the devito Operator API.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.example_diffusion.execute_lambdify">
+<code class="descclassname">examples.cfd.example_diffusion.</code><code class="descname">execute_lambdify</code><span class="sig-paren">(</span><em>ui</em>, <em>spacing=0.01</em>, <em>a=0.5</em>, <em>timesteps=500</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/example_diffusion.html#execute_lambdify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.example_diffusion.execute_lambdify" title="Permalink to this definition">¶</a></dt>
+<dd><p>Execute diffusion stencil using vectorised numpy array accesses.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.example_diffusion.execute_numpy">
+<code class="descclassname">examples.cfd.example_diffusion.</code><code class="descname">execute_numpy</code><span class="sig-paren">(</span><em>ui</em>, <em>spacing=0.01</em>, <em>a=0.5</em>, <em>timesteps=500</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/example_diffusion.html#execute_numpy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.example_diffusion.execute_numpy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Execute diffusion stencil using vectorised numpy array accesses.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.example_diffusion.execute_python">
+<code class="descclassname">examples.cfd.example_diffusion.</code><code class="descname">execute_python</code><span class="sig-paren">(</span><em>ui</em>, <em>spacing=0.01</em>, <em>a=0.5</em>, <em>timesteps=500</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/example_diffusion.html#execute_python"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.example_diffusion.execute_python" title="Permalink to this definition">¶</a></dt>
+<dd><p>Execute diffusion stencil using pure Python list indexing.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.example_diffusion.ring_initial">
+<code class="descclassname">examples.cfd.example_diffusion.</code><code class="descname">ring_initial</code><span class="sig-paren">(</span><em>spacing=0.01</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/example_diffusion.html#ring_initial"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.example_diffusion.ring_initial" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialise grid with initial condition (“ring”)</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.example_diffusion.test_diffusion2d">
+<code class="descclassname">examples.cfd.example_diffusion.</code><code class="descname">test_diffusion2d</code><span class="sig-paren">(</span><em>spacing=0.01</em>, <em>timesteps=1000</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/example_diffusion.html#test_diffusion2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.example_diffusion.test_diffusion2d" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-examples.cfd.tools">
+<span id="examples-cfd-tools-module"></span><h2>examples.cfd.tools module<a class="headerlink" href="#module-examples.cfd.tools" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="examples.cfd.tools.fin_bump">
+<code class="descclassname">examples.cfd.tools.</code><code class="descname">fin_bump</code><span class="sig-paren">(</span><em>x</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/tools.html#fin_bump"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.tools.fin_bump" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.tools.gaussian">
+<code class="descclassname">examples.cfd.tools.</code><code class="descname">gaussian</code><span class="sig-paren">(</span><em>x</em>, <em>mu</em>, <em>sig</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/tools.html#gaussian"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.tools.gaussian" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.tools.init_hat">
+<code class="descclassname">examples.cfd.tools.</code><code class="descname">init_hat</code><span class="sig-paren">(</span><em>field</em>, <em>dx</em>, <em>dy</em>, <em>value=2.0</em>, <em>bgvalue=1.0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/tools.html#init_hat"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.tools.init_hat" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set “hat function” initial condition on an array:</p>
+<p>u(.5&lt;=x&lt;=1 &amp;&amp; .5&lt;=y&lt;=1 ) is 2</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>field</strong> – Numpy array with field data to plot</li>
+<li><strong>dx</strong> – Spacing in the x-dimension</li>
+<li><strong>dy</strong> – Spacing in the y-dimension</li>
+<li><strong>value</strong> – Value of the top part of the function, default=2.</li>
+<li><strong>bgvalue</strong> – Background value for the bottom of the function, default=1.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.tools.init_smooth">
+<code class="descclassname">examples.cfd.tools.</code><code class="descname">init_smooth</code><span class="sig-paren">(</span><em>field</em>, <em>dx</em>, <em>dy</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/tools.html#init_smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.tools.init_smooth" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="examples.cfd.tools.plot_field">
+<code class="descclassname">examples.cfd.tools.</code><code class="descname">plot_field</code><span class="sig-paren">(</span><em>field</em>, <em>xmax=2.0</em>, <em>ymax=2.0</em>, <em>zmax=None</em>, <em>view=None</em>, <em>linewidth=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/cfd/tools.html#plot_field"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.cfd.tools.plot_field" title="Permalink to this definition">¶</a></dt>
+<dd><p>Utility plotting routine for 2D data</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>field</strong> – Numpy array with field data to plot</li>
+<li><strong>xmax</strong> – (Optional) Length of the x-axis</li>
+<li><strong>ymax</strong> – (Optional) Length of the y-axis</li>
+<li><strong>view</strong> – (Optional) View point to intialise</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-examples.cfd">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-examples.cfd" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="examples.seismic.html" class="btn btn-neutral float-right" title="examples.seismic package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="examples.html" class="btn btn-neutral" title="examples package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

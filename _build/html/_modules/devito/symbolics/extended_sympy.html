@@ -1,0 +1,410 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.symbolics.extended_sympy &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.symbolics.extended_sympy</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.symbolics.extended_sympy</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Extended SymPy hierarchy.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Float</span>
+<span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">_aresame</span>
+<span class="kn">from</span> <span class="nn">sympy.functions.elementary.trigonometric</span> <span class="k">import</span> <span class="n">TrigonometricFunction</span>
+
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FrozenExpr&#39;</span><span class="p">,</span> <span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Mul&#39;</span><span class="p">,</span> <span class="s1">&#39;Add&#39;</span><span class="p">,</span> <span class="s1">&#39;FunctionFromPointer&#39;</span><span class="p">,</span> <span class="s1">&#39;ListInitializer&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_cos&#39;</span><span class="p">,</span> <span class="s1">&#39;bhaskara_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;bhaskara_cos&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="FrozenExpr"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr">[docs]</a><span class="k">class</span> <span class="nc">FrozenExpr</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use :class:`FrozenExpr` in place of :class:`sympy.Expr` to make sure than</span>
+<span class="sd">    an expression is no longer transformable; that is, standard manipulations</span>
+<span class="sd">    such as xreplace, collect, expand, ... have no effect, thus building a</span>
+<span class="sd">    new expression identical to self.</span>
+
+<span class="sd">    :Notes:</span>
+
+<span class="sd">    At the moment, only xreplace is overridded (to prevent unpicking factorizations)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="FrozenExpr.xreplace"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span> <span class="ow">in</span> <span class="n">rule</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">rule</span><span class="p">[</span><span class="bp">self</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">rule</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rule</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_aresame</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div></div>
+
+
+<div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A customized version of :class:`sympy.Eq` which suppresses</span>
+<span class="sd">    evaluation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;evaluate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span></div>
+
+
+<div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A special :class:`Eq` carrying the information that a linear increment is</span>
+<span class="sd">    performed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="Mul"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Mul">[docs]</a><span class="k">class</span> <span class="nc">Mul</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Mul</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="Add"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Add">[docs]</a><span class="k">class</span> <span class="nc">Add</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="FunctionFromPointer"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.FunctionFromPointer">[docs]</a><span class="k">class</span> <span class="nc">FunctionFromPointer</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic representation of the C notation ``pointer-&gt;function(params)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">pointer</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">flatten_name</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">-&gt;</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">pointer</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span>
+                                       <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">params</span><span class="p">)))</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">flatten_name</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">function</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">pointer</span> <span class="o">=</span> <span class="n">pointer</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span></div>
+
+
+<div class="viewcode-block" id="ListInitializer"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.ListInitializer">[docs]</a><span class="k">class</span> <span class="nc">ListInitializer</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic representation of the C++ list initializer notation ``{a, b, ...}``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">params</span><span class="p">))</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span> <span class="ow">or</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;{</span><span class="si">%s</span><span class="s2">}&quot;</span> <span class="o">%</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+
+
+<div class="viewcode-block" id="taylor_sin"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_sin">[docs]</a><span class="k">class</span> <span class="nc">taylor_sin</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Approximation of the sine function using a Taylor polynomial.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="taylor_sin.eval"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_sin.eval">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">eval_taylor_sin</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="taylor_cos"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_cos">[docs]</a><span class="k">class</span> <span class="nc">taylor_cos</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Approximation of the cosine function using a Taylor polynomial.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="taylor_cos.eval"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_cos.eval">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="n">eval_taylor_cos</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="bhaskara_sin"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_sin">[docs]</a><span class="k">class</span> <span class="nc">bhaskara_sin</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Approximation of the sine function using a Bhaskara polynomial.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="bhaskara_sin.eval"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_sin.eval">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">eval_bhaskara_sin</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="bhaskara_cos"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_cos">[docs]</a><span class="k">class</span> <span class="nc">bhaskara_cos</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Approximation of the cosine function using a Bhaskara polynomial.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="bhaskara_cos.eval"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_cos.eval">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="n">eval_bhaskara_sin</span><span class="p">(</span><span class="n">arg</span> <span class="o">+</span> <span class="mf">1.5708</span><span class="p">)</span></div></div>
+
+
+<span class="c1"># Utils</span>
+
+<span class="k">def</span> <span class="nf">eval_bhaskara_sin</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mf">16.0</span><span class="o">*</span><span class="n">expr</span><span class="o">*</span><span class="p">(</span><span class="mf">3.1416</span><span class="o">-</span><span class="nb">abs</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="mf">49.3483</span><span class="o">-</span><span class="mf">4.0</span><span class="o">*</span><span class="nb">abs</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mf">3.1416</span><span class="o">-</span><span class="nb">abs</span><span class="p">(</span><span class="n">expr</span><span class="p">)))</span>
+
+
+<span class="k">def</span> <span class="nf">eval_taylor_sin</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">expr</span> <span class="o">+</span> <span class="n">Mul</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mf">6.0</span><span class="p">,</span>
+                   <span class="n">Mul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+                   <span class="mf">1.0</span> <span class="o">+</span> <span class="n">Mul</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="o">-</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+                   <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">Float</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">v</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">v</span>
+
+
+<span class="k">def</span> <span class="nf">eval_taylor_cos</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="n">Mul</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>
+                  <span class="n">Mul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+                  <span class="mf">1.0</span> <span class="o">+</span> <span class="n">Mul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="mf">12.0</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+                  <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">Float</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">v</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">v</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

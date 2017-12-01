@@ -1,0 +1,502 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dse.aliases &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dse.aliases</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dse.aliases</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span>
+
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Stencil</span>
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">q_indirect</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;collect&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="collect"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.aliases.collect">[docs]</a><span class="k">def</span> <span class="nf">collect</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determine groups of aliasing expressions in ``exprs``.</span>
+
+<span class="sd">    An expression A aliases an expression B if both A and B apply the same</span>
+<span class="sd">    operations to the same input operands, with the possibility for indexed objects</span>
+<span class="sd">    to index into locations at a fixed constant offset in each dimension.</span>
+
+<span class="sd">    For example: ::</span>
+
+<span class="sd">        exprs = (a[i+1] + b[i+1], a[i+1] + b[j+1], a[i] + c[i],</span>
+<span class="sd">                 a[i+2] - b[i+2], a[i+2] + b[i], a[i-1] + b[i-1])</span>
+
+<span class="sd">    The following expressions in ``exprs`` alias to ``a[i] + b[i]``: ::</span>
+
+<span class="sd">        a[i+1] + b[i+1] : same operands and operations, distance along i = 1</span>
+<span class="sd">        a[i-1] + b[i-1] : same operands and operations, distance along i = -1</span>
+
+<span class="sd">    Whereas the following do not: ::</span>
+
+<span class="sd">        a[i+1] + b[j+1] : because at least one index differs</span>
+<span class="sd">        a[i] + c[i] : because at least one of the operands differs</span>
+<span class="sd">        a[i+2] - b[i+2] : because at least one operation differs</span>
+<span class="sd">        a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ExprData</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;ExprData&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions offsets&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Discard expressions:</span>
+    <span class="c1"># - that surely won&#39;t alias to anything</span>
+    <span class="c1"># - that are non-scalar</span>
+    <span class="n">candidates</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">indexeds</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">indexeds</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">q_indirect</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">):</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">calculate_offsets</span><span class="p">(</span><span class="n">indexeds</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="n">candidates</span><span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">ExprData</span><span class="p">(</span><span class="o">*</span><span class="n">handle</span><span class="p">)</span>
+
+    <span class="n">aliases</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="n">unseen</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">unseen</span><span class="p">:</span>
+        <span class="c1"># Find aliasing expressions</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">unseen</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">group</span> <span class="o">=</span> <span class="p">[</span><span class="n">handle</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">unseen</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">compare</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="ow">and</span>\
+                    <span class="n">is_translated</span><span class="p">(</span><span class="n">candidates</span><span class="p">[</span><span class="n">handle</span><span class="p">]</span><span class="o">.</span><span class="n">offsets</span><span class="p">,</span> <span class="n">candidates</span><span class="p">[</span><span class="n">e</span><span class="p">]</span><span class="o">.</span><span class="n">offsets</span><span class="p">):</span>
+                <span class="n">group</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+                <span class="n">unseen</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">])</span>
+
+        <span class="c1"># Try creating a basis for the aliasing expressions&#39; offsets</span>
+        <span class="n">offsets</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">candidates</span><span class="p">[</span><span class="n">e</span><span class="p">]</span><span class="o">.</span><span class="n">offsets</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">COM</span><span class="p">,</span> <span class="n">distances</span> <span class="o">=</span> <span class="n">calculate_COM</span><span class="p">(</span><span class="n">offsets</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">DSEException</span><span class="p">:</span>
+            <span class="c1"># Ignore these potential aliases and move on</span>
+            <span class="k">continue</span>
+
+        <span class="n">alias</span> <span class="o">=</span> <span class="n">create_alias</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">COM</span><span class="p">)</span>
+        <span class="c1"># In circumstances in which an expression has repeated coefficients, e.g.</span>
+        <span class="c1"># ... + 0.025*a[...] + 0.025*b[...],</span>
+        <span class="c1"># We may have found a common basis (i.e., same COM, same alias) at this point</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">aliases</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">alias</span><span class="p">,</span> <span class="n">Alias</span><span class="p">(</span><span class="n">alias</span><span class="p">,</span> <span class="n">candidates</span><span class="p">[</span><span class="n">handle</span><span class="p">]</span><span class="o">.</span><span class="n">dimensions</span><span class="p">))</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">group</span><span class="p">,</span> <span class="n">distances</span><span class="p">)</span>
+
+    <span class="c1"># Heuristically attempt to relax the aliases offsets</span>
+    <span class="c1"># to maximize the likelyhood of loop fusion</span>
+    <span class="n">grouped</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">aliases</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="n">grouped</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">grouped</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">ideal_anti_stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">anti_stencil</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">anti_stencil</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">ideal_anti_stencil</span><span class="p">)</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+                <span class="n">aliases</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">alias</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">relax</span><span class="p">(</span><span class="n">ideal_anti_stencil</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">aliases</span></div>
+
+
+<span class="c1"># Helpers</span>
+
+<span class="k">def</span> <span class="nf">create_alias</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">offsets</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create an aliasing expression of ``expr`` by replacing the offsets of each</span>
+<span class="sd">    indexed object in ``expr`` with the new values in ``offsets``. ``offsets``</span>
+<span class="sd">    is an ordered sequence of tuples with as many elements as the number of</span>
+<span class="sd">    indexed objects in ``expr``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">indexeds</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">indexeds</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">offsets</span><span class="p">)</span>
+
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">ofs</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indexeds</span><span class="p">,</span> <span class="n">offsets</span><span class="p">):</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">base</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">dimensions</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">ofs</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="p">[</span><span class="n">indexed</span><span class="p">]</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="o">*</span><span class="p">[</span><span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">ofs</span><span class="p">)])</span>
+
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">calculate_COM</span><span class="p">(</span><span class="n">offsets</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determine the centre of mass (COM) in a collection of offsets.</span>
+
+<span class="sd">    The COM is a basis to span the vectors in ``offsets``.</span>
+
+<span class="sd">    Also return the distance of each element E in ``offsets`` from the COM (i.e.,</span>
+<span class="sd">    the coefficients that when multiplied by the COM give exactly E).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">COM</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ofs</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">offsets</span><span class="p">):</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">ofs</span><span class="p">):</span>
+            <span class="n">strides</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+            <span class="c1"># Heuristic:</span>
+            <span class="c1"># - middle point if odd number of values, or</span>
+            <span class="c1"># - strides average otherwise</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">strides</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">strides</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">strides</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">strides</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)))</span>
+        <span class="n">COM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+
+    <span class="n">distances</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ofs</span> <span class="ow">in</span> <span class="n">offsets</span><span class="p">:</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">COM</span><span class="p">,</span> <span class="n">ofs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">DSEException</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> cannot be represented by the COM </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
+                               <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ofs</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">COM</span><span class="p">)))</span>
+        <span class="n">distances</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">handle</span><span class="o">.</span><span class="n">pop</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">COM</span><span class="p">,</span> <span class="n">distances</span>
+
+
+<span class="k">def</span> <span class="nf">calculate_offsets</span><span class="p">(</span><span class="n">indexeds</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a list of tuples, with one tuple for each indexed object appearing</span>
+<span class="sd">    in ``indexeds``. A tuple represents the offsets from the origin (0, 0, ..., 0)</span>
+<span class="sd">    along each dimension. All objects must use the same dimensions, in the same</span>
+<span class="sd">    order; otherwise, ``None`` is returned.</span>
+
+<span class="sd">    For example, given: ::</span>
+
+<span class="sd">        indexeds = [A[i,j,k], B[i,j+2,k+3]]</span>
+
+<span class="sd">    Return: ::</span>
+
+<span class="sd">        [(0, 0, 0), (0, 2, 3)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">reference</span> <span class="o">=</span> <span class="n">indexeds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span>
+    <span class="k">for</span> <span class="n">indexed</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">:</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span>
+        <span class="k">if</span> <span class="n">dimensions</span> <span class="o">!=</span> <span class="n">reference</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="n">d</span>
+            <span class="k">if</span> <span class="n">offset</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
+                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">offset</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">reference</span><span class="p">),</span> <span class="n">processed</span>
+
+
+<span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="n">ofs1</span><span class="p">,</span> <span class="n">ofs2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determine the distance of ``ofs2`` from ``ofs1``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">ofs1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">ofs2</span><span class="p">)</span>
+    <span class="n">handle</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">o1</span><span class="p">,</span> <span class="n">o2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ofs1</span><span class="p">,</span> <span class="n">ofs2</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">o1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">o2</span><span class="p">)</span>
+        <span class="n">handle</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">i2</span> <span class="o">-</span> <span class="n">i1</span> <span class="k">for</span> <span class="n">i1</span><span class="p">,</span> <span class="n">i2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">o1</span><span class="p">,</span> <span class="n">o2</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">handle</span>
+
+
+<span class="k">def</span> <span class="nf">is_translated</span><span class="p">(</span><span class="n">ofs1</span><span class="p">,</span> <span class="n">ofs2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if ``ofs2`` is translated w.r.t. to ``ofs1``, False otherwise.</span>
+
+<span class="sd">    For example: ::</span>
+
+<span class="sd">        e1 = A[i,j] + A[i,j+1]</span>
+<span class="sd">        e2 = A[i+1,j] + A[i+1,j+1]</span>
+
+<span class="sd">    ``ofs1`` would be [(0, 0), (0, 1)], while ``ofs2`` would be [(1, 0), (1,1)], so</span>
+<span class="sd">    ``e2`` is translated w.r.t. ``e1`` by ``(1, 0)``, and True is returned.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">distance</span><span class="p">(</span><span class="n">ofs1</span><span class="p">,</span> <span class="n">ofs2</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">compare</span><span class="p">(</span><span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if the two expressions e1 and e2 alias each other, False otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">e1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">type</span><span class="p">(</span><span class="n">e2</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">e1</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">e2</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">e1</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">e1</span> <span class="o">==</span> <span class="n">e2</span> <span class="k">else</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e1</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e2</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">e1</span><span class="o">.</span><span class="n">base</span> <span class="o">==</span> <span class="n">e2</span><span class="o">.</span><span class="n">base</span> <span class="k">else</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">a1</span><span class="p">,</span> <span class="n">a2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">e1</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">e2</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">compare</span><span class="p">(</span><span class="n">a1</span><span class="p">,</span> <span class="n">a2</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+
+<span class="k">class</span> <span class="nc">Alias</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Map an expression (the so called &quot;alias&quot;) to a set of aliasing expressions.</span>
+<span class="sd">    For each aliasing expression, the distance from the alias along each dimension</span>
+<span class="sd">    is tracked.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">aliased</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">distances</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">ghost_offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alias</span> <span class="o">=</span> <span class="n">alias</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">dimensions</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">aliased</span> <span class="o">=</span> <span class="n">aliased</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">distances</span> <span class="o">=</span> <span class="n">distances</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ghost_offsets</span> <span class="o">=</span> <span class="n">ghost_offsets</span> <span class="ow">or</span> <span class="p">[]</span>
+
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aliased</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">dimensions</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">anti_stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">)):</span>
+            <span class="n">handle</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_ghost_offsets</span><span class="p">)):</span>
+            <span class="n">handle</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">handle</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">with_distance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">j</span><span class="p">)))</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aliased</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">extend</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aliased</span><span class="p">,</span> <span class="n">distances</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">aliased</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">distances</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">distances</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">aliased</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">aliased</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">distances</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">relax</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">distances</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Alias</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alias</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">aliased</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">,</span>
+                     <span class="bp">self</span><span class="o">.</span><span class="n">_ghost_offsets</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="o">*</span><span class="n">distances</span><span class="o">.</span><span class="n">values</span><span class="p">())))</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

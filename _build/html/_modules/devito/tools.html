@@ -1,0 +1,572 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.tools &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="devito" href="../devito.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.tools</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.tools</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">ctypes</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">Hashable</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span><span class="p">,</span> <span class="n">wraps</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">PIPE</span><span class="p">,</span> <span class="n">Popen</span>
+<span class="kn">import</span> <span class="nn">cpuinfo</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">izip_longest</span> <span class="k">as</span> <span class="n">zip_longest</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="c1"># Python3.5 compatibility</span>
+    <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">zip_longest</span>
+
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;memoized&#39;</span><span class="p">,</span> <span class="s1">&#39;infer_cpu&#39;</span><span class="p">,</span> <span class="s1">&#39;sweep&#39;</span><span class="p">,</span> <span class="s1">&#39;silencio&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">as_tuple</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Force item to a tuple.</span>
+
+<span class="sd">    Partly extracted from: https://github.com/OP2/PyOP2/.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Empty list if we get passed None</span>
+    <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="p">(</span><span class="n">item</span><span class="p">,)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Convert iterable to list...</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="c1"># ... or create a list of a single item</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">NotImplementedError</span><span class="p">):</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="p">(</span><span class="n">item</span><span class="p">,)</span> <span class="o">*</span> <span class="p">(</span><span class="n">length</span> <span class="ow">or</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">length</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">==</span> <span class="n">length</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Tuple needs to be of length </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">length</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">t</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Items need to be of type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">t</span>
+
+
+<span class="k">def</span> <span class="nf">is_integer</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A thorough instance comparison for all integer types.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">grouper</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Split an interable into groups of size n, plus a reminder&quot;&quot;&quot;</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="nb">iter</span><span class="p">(</span><span class="n">iterable</span><span class="p">)]</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="k">return</span> <span class="p">([</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">t</span> <span class="k">if</span> <span class="n">e</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">zip_longest</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">roundm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return x rounded up to the closest multiple of y.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="k">if</span> <span class="n">x</span> <span class="o">%</span> <span class="n">y</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">-</span> <span class="n">x</span> <span class="o">%</span> <span class="n">y</span>
+
+
+<span class="k">def</span> <span class="nf">invert</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Invert a dict of lists preserving the order.&quot;&quot;&quot;</span>
+    <span class="n">inverse</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+            <span class="n">inverse</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+    <span class="k">return</span> <span class="n">inverse</span>
+
+
+<span class="k">def</span> <span class="nf">flatten</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Flatten a hierarchy of nested lists into a plain list.&quot;&quot;&quot;</span>
+    <span class="n">newlist</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">el</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">el</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">el</span><span class="p">):</span>
+                <span class="n">newlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">newlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">el</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">newlist</span>
+
+
+<span class="k">def</span> <span class="nf">single_or</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return True iff only one item is different than ``None``, False otherwise.</span>
+<span class="sd">    Note that this is not a XOR function, according to the truth table of the XOR</span>
+<span class="sd">    boolean function with n &gt; 2 inputs. Hence the name ``single_or``.&quot;&quot;&quot;</span>
+    <span class="c1"># No</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">filter_ordered</span><span class="p">(</span><span class="n">elements</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Filter elements in a list while preserving order.</span>
+
+<span class="sd">    :param key: Optional conversion key used during equality comparison.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">elements</span> <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">key</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="ow">in</span> <span class="n">seen</span> <span class="ow">or</span> <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">(</span><span class="n">e</span><span class="p">)))]</span>
+
+
+<span class="k">def</span> <span class="nf">filter_sorted</span><span class="p">(</span><span class="n">elements</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Filter elements in a list and sort them by key&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">elements</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">partial_order</span><span class="p">(</span><span class="n">elements</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Compute a partial order for the items in ``elements``. If a partial order</span>
+<span class="sd">    cannot be established, return the empty list. If multiple partial orderings are</span>
+<span class="sd">    possible, determinism in ensured.&quot;&quot;&quot;</span>
+    <span class="n">elements</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">elements</span> <span class="k">if</span> <span class="n">i</span><span class="p">]</span>
+
+    <span class="c1"># Compute items dependencies</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">elements</span><span class="p">:</span>
+        <span class="n">shifted</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="n">shifted</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">shifted</span><span class="p">,</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">last</span><span class="p">,</span> <span class="p">[])</span>
+
+    <span class="c1"># In a partially ordered set, there can be no cyclic dependencies amongst</span>
+    <span class="c1"># items, so there must always be at least one root.</span>
+    <span class="n">roots</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                         <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">())])</span>
+
+    <span class="c1"># Start by queuing up roots</span>
+    <span class="n">ordering</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">queue</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">roots</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">ordering</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">queue</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">]</span>
+
+    <span class="c1"># Compute the partial orders from roots</span>
+    <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
+        <span class="n">item</span><span class="p">,</span> <span class="n">prev</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">item</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ordering</span><span class="p">:</span>
+            <span class="n">ordering</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="n">queue</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">[</span><span class="n">item</span><span class="p">]]</span> <span class="o">+</span> <span class="n">queue</span>
+
+    <span class="k">return</span> <span class="n">ordering</span>
+
+
+<span class="k">def</span> <span class="nf">numpy_to_ctypes</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Map numpy types to ctypes types.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_float</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int64</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_double</span><span class="p">}[</span><span class="n">dtype</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">ctypes_to_C</span><span class="p">(</span><span class="n">ctype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Map ctypes types to C types.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">Structure</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;struct </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span>
+    <span class="k">elif</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">Union</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;union </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span>
+    <span class="k">elif</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;c_&#39;</span><span class="p">):</span>
+        <span class="c1"># FIXME: Is there a better way of extracting the C typename ?</span>
+        <span class="c1"># Here, we&#39;re following the ctypes convention that each basic type has</span>
+        <span class="c1"># the format c_X_p, where X is the C typename, for instance `int` or `float`.</span>
+        <span class="k">return</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Unrecognised </span><span class="si">%s</span><span class="s1"> during converstion to C type&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">ctype</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">ctypes_pointer</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create a ctypes type representing a C pointer to a custom data type ``name``.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="s2">&quot;c_</span><span class="si">%s</span><span class="s2">_p&quot;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
+
+
+<span class="k">def</span> <span class="nf">pprint</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shortcut to pretty print Iteration/Expression trees.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">printAST</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">printAST</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">verbose</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">DefaultOrderedDict</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
+    <span class="c1"># Source: http://stackoverflow.com/a/6190500/562769</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="n">a</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">default_factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+           <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default_factory</span><span class="p">,</span> <span class="n">Callable</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;first argument must be callable&#39;</span><span class="p">)</span>
+        <span class="n">OrderedDict</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">a</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default_factory</span> <span class="o">=</span> <span class="n">default_factory</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">OrderedDict</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__missing__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__missing__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_factory</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_factory</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__reduce__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_factory</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_factory</span><span class="p">,</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">args</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__copy__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__copy__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)(</span><span class="bp">self</span><span class="o">.</span><span class="n">default_factory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">change_directory</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Context manager for changing the current working directory.</span>
+
+<span class="sd">    Adapted from: ::</span>
+
+<span class="sd">        https://stackoverflow.com/questions/431684/how-do-i-cd-in-python/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">newPath</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">newPath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">newPath</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">savedPath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">newPath</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">etype</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">savedPath</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="memoized"><a class="viewcode-back" href="../../devito.html#devito.tools.memoized">[docs]</a><span class="k">class</span> <span class="nc">memoized</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decorator. Caches a function&#39;s return value each time it is called.</span>
+<span class="sd">    If called later with the same arguments, the cached value is returned</span>
+<span class="sd">    (not reevaluated).</span>
+
+<span class="sd">    Adapted from: ::</span>
+
+<span class="sd">        https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">func</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">Hashable</span><span class="p">):</span>
+            <span class="c1"># Uncacheable, a list, for instance.</span>
+            <span class="c1"># Better to not cache than blow up.</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">args</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">args</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">args</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the function&#39;s docstring.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__doc__</span>
+
+    <span class="k">def</span> <span class="nf">__get__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">objtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Support instance methods.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">partial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="fm">__call__</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span></div>
+
+
+<span class="n">default_isa</span> <span class="o">=</span> <span class="s1">&#39;cpp&#39;</span>
+<span class="n">default_platform</span> <span class="o">=</span> <span class="s1">&#39;intel64&#39;</span>
+
+
+<div class="viewcode-block" id="infer_cpu"><a class="viewcode-back" href="../../devito.html#devito.tools.infer_cpu">[docs]</a><span class="k">def</span> <span class="nf">infer_cpu</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Detect the highest Instruction Set Architecture and the platform</span>
+<span class="sd">    codename using cpu flags and/or leveraging other tools. Return default</span>
+<span class="sd">    values if the detection procedure was unsuccesful.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">cpuinfo</span><span class="o">.</span><span class="n">get_cpu_info</span><span class="p">()</span>
+    <span class="c1"># ISA</span>
+    <span class="n">isa</span> <span class="o">=</span> <span class="n">default_isa</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;flags&#39;</span><span class="p">]:</span>
+            <span class="n">isa</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="k">break</span>
+    <span class="c1"># Platform</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># First, try leveraging `gcc`</span>
+        <span class="n">p1</span> <span class="o">=</span> <span class="n">Popen</span><span class="p">([</span><span class="s1">&#39;gcc&#39;</span><span class="p">,</span> <span class="s1">&#39;-march=native&#39;</span><span class="p">,</span> <span class="s1">&#39;-Q&#39;</span><span class="p">,</span> <span class="s1">&#39;--help=target&#39;</span><span class="p">],</span> <span class="n">stdout</span><span class="o">=</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="n">p2</span> <span class="o">=</span> <span class="n">Popen</span><span class="p">([</span><span class="s1">&#39;grep&#39;</span><span class="p">,</span> <span class="s1">&#39;march&#39;</span><span class="p">],</span> <span class="n">stdin</span><span class="o">=</span><span class="n">p1</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="n">p1</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>  <span class="c1"># Allow p1 to receive a SIGPIPE if p2 exits.</span>
+        <span class="n">output</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">p2</span><span class="o">.</span><span class="n">communicate</span><span class="p">()</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="c1"># Then, try infer from the brand name, otherwise fallback to default</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;v3&#39;</span><span class="p">:</span> <span class="s1">&#39;haswell&#39;</span><span class="p">,</span> <span class="s1">&#39;v4&#39;</span><span class="p">:</span> <span class="s1">&#39;broadwell&#39;</span><span class="p">,</span> <span class="s1">&#39;v5&#39;</span><span class="p">:</span> <span class="s1">&#39;skylake&#39;</span><span class="p">}</span>
+            <span class="n">cpu_iteration</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;brand&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">4</span><span class="p">]</span>
+            <span class="n">platform</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">cpu_iteration</span><span class="p">]</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">platform</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># Is it a known platform?</span>
+    <span class="k">if</span> <span class="n">platform</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]:</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">default_platform</span>
+    <span class="k">return</span> <span class="n">isa</span><span class="p">,</span> <span class="n">platform</span></div>
+
+
+<div class="viewcode-block" id="silencio"><a class="viewcode-back" href="../../devito.html#devito.tools.silencio">[docs]</a><span class="k">class</span> <span class="nc">silencio</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decorator to temporarily change log levels.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">log_level</span><span class="o">=</span><span class="s1">&#39;WARNING&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_level</span> <span class="o">=</span> <span class="n">log_level</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">previous</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;log_level&#39;</span><span class="p">]</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;log_level&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_level</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;log_level&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">previous</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">return</span> <span class="n">wrapper</span></div>
+
+
+<div class="viewcode-block" id="sweep"><a class="viewcode-back" href="../../devito.html#devito.tools.sweep">[docs]</a><span class="k">def</span> <span class="nf">sweep</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generator to create a parameter sweep from a dictionary of values</span>
+<span class="sd">    or value lists.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">keys</span> <span class="ow">or</span> <span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+    <span class="n">sweep_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">parameters</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+    <span class="c1"># Ensure all values are iterables to make sweeping safe</span>
+    <span class="n">sweep_values</span> <span class="o">=</span> <span class="p">[[</span><span class="n">v</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="k">else</span> <span class="n">v</span>
+                    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">sweep_values</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="o">*</span><span class="n">sweep_values</span><span class="p">):</span>
+        <span class="k">yield</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">vals</span><span class="p">))</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,419 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dse package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="index.html"/>
+        <link rel="up" title="devito package" href="devito.html"/>
+        <link rel="next" title="devito.dse.backends package" href="devito.dse.backends.html"/>
+        <link rel="prev" title="devito.dle.backends package" href="devito.dle.backends.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.dse package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#subpackages">Subpackages</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.dse.aliases">devito.dse.aliases module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.dse.manipulation">devito.dse.manipulation module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.dse.transformer">devito.dse.transformer module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.dse">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="devito.foreign.html">devito.foreign package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.arguments">devito.arguments module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.grid">devito.grid module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.logger">devito.logger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.memory">devito.memory module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="devito.html">devito package</a> &raquo;</li>
+        
+      <li>devito.dse package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/devito.dse.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="devito-dse-package">
+<h1>devito.dse package<a class="headerlink" href="#devito-dse-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="devito.dse.backends.html">devito.dse.backends package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="devito.dse.backends.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.dse.backends.html#module-devito.dse.backends.advanced">devito.dse.backends.advanced module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.dse.backends.html#module-devito.dse.backends.basic">devito.dse.backends.basic module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.dse.backends.html#module-devito.dse.backends.common">devito.dse.backends.common module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.dse.backends.html#module-devito.dse.backends.speculative">devito.dse.backends.speculative module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.dse.backends.html#module-devito.dse.backends">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-devito.dse.aliases">
+<span id="devito-dse-aliases-module"></span><h2>devito.dse.aliases module<a class="headerlink" href="#module-devito.dse.aliases" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.dse.aliases.collect">
+<code class="descclassname">devito.dse.aliases.</code><code class="descname">collect</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/aliases.html#collect"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.aliases.collect" title="Permalink to this definition">¶</a></dt>
+<dd><p>Determine groups of aliasing expressions in <code class="docutils literal"><span class="pre">exprs</span></code>.</p>
+<p>An expression A aliases an expression B if both A and B apply the same
+operations to the same input operands, with the possibility for indexed objects
+to index into locations at a fixed constant offset in each dimension.</p>
+<p>For example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">exprs</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">b</span><span class="p">[</span><span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+         <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>The following expressions in <code class="docutils literal"><span class="pre">exprs</span></code> alias to <code class="docutils literal"><span class="pre">a[i]</span> <span class="pre">+</span> <span class="pre">b[i]</span></code>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="p">:</span> <span class="n">same</span> <span class="n">operands</span> <span class="ow">and</span> <span class="n">operations</span><span class="p">,</span> <span class="n">distance</span> <span class="n">along</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="p">:</span> <span class="n">same</span> <span class="n">operands</span> <span class="ow">and</span> <span class="n">operations</span><span class="p">,</span> <span class="n">distance</span> <span class="n">along</span> <span class="n">i</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+</pre></div>
+</div>
+<p>Whereas the following do not:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>a[i+1] + b[j+1] : because at least one index differs
+a[i] + c[i] : because at least one of the operands differs
+a[i+2] - b[i+2] : because at least one operation differs
+a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.dse.manipulation">
+<span id="devito-dse-manipulation-module"></span><h2>devito.dse.manipulation module<a class="headerlink" href="#module-devito.dse.manipulation" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.dse.manipulation.promote_scalar_expressions">
+<code class="descclassname">devito.dse.manipulation.</code><code class="descname">promote_scalar_expressions</code><span class="sig-paren">(</span><em>exprs</em>, <em>shape</em>, <em>indices</em>, <em>onstack</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#promote_scalar_expressions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.promote_scalar_expressions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Transform a collection of scalar expressions into tensor expressions.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.dse.manipulation.collect_nested">
+<code class="descclassname">devito.dse.manipulation.</code><code class="descname">collect_nested</code><span class="sig-paren">(</span><em>expr</em>, <em>aggressive=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#collect_nested"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.collect_nested" title="Permalink to this definition">¶</a></dt>
+<dd><p>Collect terms appearing in expr, checking all levels of the expression tree.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>expr</strong> – the expression to be factorized.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.dse.manipulation.common_subexprs_elimination">
+<code class="descclassname">devito.dse.manipulation.</code><code class="descname">common_subexprs_elimination</code><span class="sig-paren">(</span><em>exprs</em>, <em>make</em>, <em>mode='default'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#common_subexprs_elimination"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.common_subexprs_elimination" title="Permalink to this definition">¶</a></dt>
+<dd><p>Perform common subexpressions elimination.</p>
+<p>Note: the output is not guranteed to be topologically sorted.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>exprs</strong> – The target SymPy expression, or a collection of SymPy expressions.</li>
+<li><strong>make</strong> – A function to construct symbols used for replacement.
+The function takes as input an integer ID; ID is computed internally
+and used as a unique identifier for the constructed symbols.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.dse.manipulation.compact_temporaries">
+<code class="descclassname">devito.dse.manipulation.</code><code class="descname">compact_temporaries</code><span class="sig-paren">(</span><em>temporaries</em>, <em>leaves</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#compact_temporaries"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.compact_temporaries" title="Permalink to this definition">¶</a></dt>
+<dd><p>Drop temporaries consisting of single symbols.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.dse.transformer">
+<span id="devito-dse-transformer-module"></span><h2>devito.dse.transformer module<a class="headerlink" href="#module-devito.dse.transformer" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.dse.transformer.rewrite">
+<code class="descclassname">devito.dse.transformer.</code><code class="descname">rewrite</code><span class="sig-paren">(</span><em>clusters</em>, <em>mode='advanced'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/transformer.html#rewrite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.transformer.rewrite" title="Permalink to this definition">¶</a></dt>
+<dd><p>Transform N <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects of SymPy expressions into M
+<code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects of SymPy expressions with reduced
+operation count, with M &gt;= N.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>clusters</strong> – The clusters to be transformed.</li>
+<li><strong>mode</strong> – drive the expression transformation</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>The <code class="docutils literal"><span class="pre">mode</span></code> parameter recognises the following values:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="s1">&#39;noop&#39;</span><span class="p">:</span> <span class="n">Do</span> <span class="n">nothing</span><span class="o">.</span>
+<span class="o">*</span> <span class="s1">&#39;basic&#39;</span><span class="p">:</span> <span class="n">Apply</span> <span class="n">common</span> <span class="n">sub</span><span class="o">-</span><span class="n">expressions</span> <span class="n">elimination</span><span class="o">.</span>
+<span class="o">*</span> <span class="s1">&#39;advanced&#39;</span><span class="p">:</span> <span class="n">Apply</span> <span class="nb">all</span> <span class="n">transformations</span> <span class="n">that</span> <span class="n">will</span> <span class="n">reduce</span> <span class="n">the</span>
+              <span class="n">operation</span> <span class="n">count</span> <span class="n">w</span><span class="o">/</span> <span class="n">minimum</span> <span class="n">increase</span> <span class="n">to</span> <span class="n">the</span> <span class="n">memory</span> <span class="n">pressure</span><span class="p">,</span>
+              <span class="n">namely</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="n">factorization</span><span class="p">,</span> <span class="n">CSRE</span> <span class="k">for</span> <span class="n">time</span><span class="o">-</span><span class="n">invariants</span> <span class="n">only</span><span class="o">.</span>
+<span class="o">*</span> <span class="s1">&#39;speculative&#39;</span><span class="p">:</span> <span class="n">Like</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="n">but</span> <span class="n">apply</span> <span class="n">CSRE</span> <span class="n">also</span> <span class="n">to</span> <span class="n">time</span><span class="o">-</span><span class="n">varying</span>
+                 <span class="n">sub</span><span class="o">-</span><span class="n">expressions</span><span class="p">,</span> <span class="n">which</span> <span class="n">might</span> <span class="n">further</span> <span class="n">increase</span> <span class="n">the</span> <span class="n">memory</span>
+                 <span class="n">pressure</span><span class="o">.</span>
+<span class="o">*</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span> <span class="n">Like</span> <span class="s1">&#39;speculative&#39;</span><span class="p">,</span> <span class="n">but</span> <span class="n">apply</span> <span class="n">CSRE</span> <span class="n">to</span> <span class="nb">any</span> <span class="n">non</span><span class="o">-</span><span class="n">trivial</span>
+                <span class="n">sub</span><span class="o">-</span><span class="n">expression</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">e</span><span class="o">.</span><span class="p">,</span> <span class="n">anything</span> <span class="n">that</span> <span class="ow">is</span> <span class="n">at</span> <span class="n">least</span> <span class="ow">in</span> <span class="n">a</span>
+                <span class="nb">sum</span><span class="o">-</span><span class="n">of</span><span class="o">-</span><span class="n">products</span> <span class="n">form</span><span class="p">)</span><span class="o">.</span> <span class="n">This</span> <span class="n">may</span> <span class="n">substantially</span> <span class="n">increase</span>
+                <span class="n">the</span> <span class="n">memory</span> <span class="n">pressure</span><span class="o">.</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.dse">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.dse" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="devito.dse.backends.html" class="btn btn-neutral float-right" title="devito.dse.backends package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="devito.dle.backends.html" class="btn btn-neutral" title="devito.dle.backends package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

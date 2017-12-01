@@ -1,0 +1,618 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>examples.seismic.acoustic package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="index.html"/>
+        <link rel="up" title="examples.seismic package" href="examples.seismic.html"/>
+        <link rel="next" title="examples.seismic.tti package" href="examples.seismic.tti.html"/>
+        <link rel="prev" title="examples.seismic package" href="examples.seismic.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="examples.html">Example Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="examples.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="examples.cfd.html">examples.cfd package</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="examples.seismic.html">examples.seismic package</a><ul class="current">
+<li class="toctree-l4 current"><a class="reference internal" href="examples.seismic.html#subpackages">Subpackages</a></li>
+<li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic.benchmark">examples.seismic.benchmark module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic.model">examples.seismic.model module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic.plotting">examples.seismic.plotting module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic.source">examples.seismic.source module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#module-examples">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="examples.html">examples package</a> &raquo;</li>
+        
+          <li><a href="examples.seismic.html">examples.seismic package</a> &raquo;</li>
+        
+      <li>examples.seismic.acoustic package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/examples.seismic.acoustic.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="examples-seismic-acoustic-package">
+<h1>examples.seismic.acoustic package<a class="headerlink" href="#examples-seismic-acoustic-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-examples.seismic.acoustic.acoustic_example">
+<span id="examples-seismic-acoustic-acoustic-example-module"></span><h2>examples.seismic.acoustic.acoustic_example module<a class="headerlink" href="#module-examples.seismic.acoustic.acoustic_example" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="examples.seismic.acoustic.acoustic_example.acoustic_setup">
+<code class="descclassname">examples.seismic.acoustic.acoustic_example.</code><code class="descname">acoustic_setup</code><span class="sig-paren">(</span><em>shape=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(15.0</em>, <em>15.0</em>, <em>15.0)</em>, <em>tn=500.0</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=10</em>, <em>constant=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/acoustic_example.html#acoustic_setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.acoustic_example.acoustic_setup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.acoustic.acoustic_example.run">
+<code class="descclassname">examples.seismic.acoustic.acoustic_example.</code><code class="descname">run</code><span class="sig-paren">(</span><em>shape=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(20.0</em>, <em>20.0</em>, <em>20.0)</em>, <em>tn=1000.0</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=40</em>, <em>full_run=False</em>, <em>autotune=False</em>, <em>constant=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/acoustic_example.html#run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.acoustic_example.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.acoustic.acoustic_example.smooth10">
+<code class="descclassname">examples.seismic.acoustic.acoustic_example.</code><code class="descname">smooth10</code><span class="sig-paren">(</span><em>vel</em>, <em>shape</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/acoustic_example.html#smooth10"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.acoustic_example.smooth10" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-examples.seismic.acoustic.gradient_example">
+<span id="examples-seismic-acoustic-gradient-example-module"></span><h2>examples.seismic.acoustic.gradient_example module<a class="headerlink" href="#module-examples.seismic.acoustic.gradient_example" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample">
+<em class="property">class </em><code class="descclassname">examples.seismic.acoustic.gradient_example.</code><code class="descname">GradientExample</code><span class="sig-paren">(</span><em>shape=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(15.0</em>, <em>15.0</em>, <em>15.0)</em>, <em>tn=500.0</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=10</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/gradient_example.html#GradientExample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.adjoint_field">
+<code class="descname">adjoint_field</code><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.adjoint_field" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.dt">
+<code class="descname">dt</code><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.dt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.forward_field">
+<code class="descname">forward_field</code><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.forward_field" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.forward_operator">
+<code class="descname">forward_operator</code><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.forward_operator" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.gradient">
+<code class="descname">gradient</code><span class="sig-paren">(</span><em>m0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/gradient_example.html#GradientExample.gradient"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.gradient" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.gradient_operator">
+<code class="descname">gradient_operator</code><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.gradient_operator" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.initial_estimate">
+<code class="descname">initial_estimate</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/gradient_example.html#GradientExample.initial_estimate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.initial_estimate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.temp_field">
+<code class="descname">temp_field</code><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.temp_field" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.verify">
+<code class="descname">verify</code><span class="sig-paren">(</span><em>m0</em>, <em>gradient</em>, <em>rec_data</em>, <em>dm</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/gradient_example.html#GradientExample.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.verify" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.gradient_example.GradientExample.verify_operator">
+<code class="descname">verify_operator</code><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.verify_operator" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.acoustic.gradient_example.run">
+<code class="descclassname">examples.seismic.acoustic.gradient_example.</code><code class="descname">run</code><span class="sig-paren">(</span><em>shape=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(15.0</em>, <em>15.0</em>, <em>15.0)</em>, <em>tn=500.0</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=10</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/gradient_example.html#run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-examples.seismic.acoustic.operators">
+<span id="examples-seismic-acoustic-operators-module"></span><h2>examples.seismic.acoustic.operators module<a class="headerlink" href="#module-examples.seismic.acoustic.operators" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="examples.seismic.acoustic.operators.AdjointOperator">
+<code class="descclassname">examples.seismic.acoustic.operators.</code><code class="descname">AdjointOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/operators.html#AdjointOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.operators.AdjointOperator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor method for the adjoint modelling operator in an acoustic media</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object containing the physical parameters</li>
+<li><strong>source</strong> – <code class="xref py py-class docutils literal"><span class="pre">PointData</span></code> object containing the source geometry</li>
+<li><strong>receiver</strong> – <code class="xref py py-class docutils literal"><span class="pre">PointData</span></code> object containing the acquisition geometry</li>
+<li><strong>time_order</strong> – Time discretization order</li>
+<li><strong>space_order</strong> – Space discretization order</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.acoustic.operators.BornOperator">
+<code class="descclassname">examples.seismic.acoustic.operators.</code><code class="descname">BornOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/operators.html#BornOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.operators.BornOperator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor method for the Linearized Born operator in an acoustic media</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object containing the physical parameters</li>
+<li><strong>source</strong> – <code class="xref py py-class docutils literal"><span class="pre">PointData</span></code> object containing the source geometry</li>
+<li><strong>receiver</strong> – <code class="xref py py-class docutils literal"><span class="pre">PointData</span></code> object containing the acquisition geometry</li>
+<li><strong>time_order</strong> – Time discretization order</li>
+<li><strong>space_order</strong> – Space discretization order</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.acoustic.operators.ForwardOperator">
+<code class="descclassname">examples.seismic.acoustic.operators.</code><code class="descname">ForwardOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>save=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/operators.html#ForwardOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.operators.ForwardOperator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor method for the forward modelling operator in an acoustic media</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object containing the physical parameters</li>
+<li><strong>source</strong> – <code class="xref py py-class docutils literal"><span class="pre">PointData</span></code> object containing the source geometry</li>
+<li><strong>receiver</strong> – <code class="xref py py-class docutils literal"><span class="pre">PointData</span></code> object containing the acquisition geometry</li>
+<li><strong>time_order</strong> – Time discretization order</li>
+<li><strong>space_order</strong> – Space discretization order</li>
+<li><strong>save</strong> – Saving flag, True saves all time steps, False only the three</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.acoustic.operators.GradientOperator">
+<code class="descclassname">examples.seismic.acoustic.operators.</code><code class="descname">GradientOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>save=True</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/operators.html#GradientOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.operators.GradientOperator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor method for the gradient operator in an acoustic media</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object containing the physical parameters</li>
+<li><strong>source</strong> – <code class="xref py py-class docutils literal"><span class="pre">PointData</span></code> object containing the source geometry</li>
+<li><strong>receiver</strong> – <code class="xref py py-class docutils literal"><span class="pre">PointData</span></code> object containing the acquisition geometry</li>
+<li><strong>time_order</strong> – Time discretization order</li>
+<li><strong>space_order</strong> – Space discretization order</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.acoustic.operators.iso_stencil">
+<code class="descclassname">examples.seismic.acoustic.operators.</code><code class="descname">iso_stencil</code><span class="sig-paren">(</span><em>field</em>, <em>time_order</em>, <em>m</em>, <em>s</em>, <em>damp</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/operators.html#iso_stencil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.operators.iso_stencil" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stencil for the acoustic isotropic wave-equation:
+u.dt2 - H + damp*u.dt = 0
+:param field: Symbolic TimeFunction object, solution to be computed
+:param time_order: time order
+:param m: square slowness
+:param s: symbol for the time-step
+:param damp: ABC dampening field (Function)
+:param kwargs: forwad/backward wave equation (sign of u.dt will change accordingly
+as well as the updated time-step (u.forwad or u.backward)
+:return: Stencil for the wave-equation</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.acoustic.operators.laplacian">
+<code class="descclassname">examples.seismic.acoustic.operators.</code><code class="descname">laplacian</code><span class="sig-paren">(</span><em>field</em>, <em>time_order</em>, <em>m</em>, <em>s</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/operators.html#laplacian"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.operators.laplacian" title="Permalink to this definition">¶</a></dt>
+<dd><p>Spacial discretization for the isotropic acoustic wave equation. For a 4th
+order in time formulation, the 4th order time derivative is replaced by a
+double laplacian:
+H = (laplacian + s**2/12 laplacian(1/m*laplacian))
+:param field: Symbolic TimeFunction object, solution to be computed
+:param time_order: time order
+:param m: square slowness
+:param s: symbol for the time-step
+:return: H</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-examples.seismic.acoustic.wavesolver">
+<span id="examples-seismic-acoustic-wavesolver-module"></span><h2>examples.seismic.acoustic.wavesolver module<a class="headerlink" href="#module-examples.seismic.acoustic.wavesolver" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver">
+<em class="property">class </em><code class="descclassname">examples.seismic.acoustic.wavesolver.</code><code class="descname">AcousticWaveSolver</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=2</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/wavesolver.html#AcousticWaveSolver"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>Solver object that provides operators for seismic inversion problems
+and encapsulates the time and space discretization for a given problem
+setup.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>model</strong> – Physical model with domain parameters</li>
+<li><strong>source</strong> – Sparse point symbol providing the injected wave</li>
+<li><strong>receiver</strong> – Sparse point symbol describing an array of receivers</li>
+<li><strong>time_order</strong> – Order of the time-stepping scheme (default: 2, choices: 2,4)
+time_order=4 will not implement a 4th order FD discretization
+of the time-derivative as it is unstable. It implements instead
+a 4th order accurate wave-equation with only second order
+time derivative. Full derivation and explanation of the 4th order
+in time can be found at:
+<a class="reference external" href="http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf">http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf</a></li>
+<li><strong>space_order</strong> – Order of the spatial stencil discretisation (default: 4)</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Note: space_order must always be greater than time_order</p>
+<dl class="method">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver.adjoint">
+<code class="descname">adjoint</code><span class="sig-paren">(</span><em>rec</em>, <em>srca=None</em>, <em>v=None</em>, <em>m=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/wavesolver.html#AcousticWaveSolver.adjoint"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.adjoint" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adjoint modelling function that creates the necessary
+data objects for running an adjoint modelling operator.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>rec</strong> – Symbol with stored receiver data. Please note that
+these act as the source term in the adjoint run.</li>
+<li><strong>srca</strong> – Symbol to store the resulting data for the
+interpolated at the original source location.</li>
+<li><strong>v</strong> – (Optional) Symbol to store the computed wavefield</li>
+<li><strong>m</strong> – (Optional) Symbol for the time-constant square slowness</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Adjoint source, wavefield and performance summary</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver.born">
+<code class="descname">born</code><span class="sig-paren">(</span><em>dmin</em>, <em>src=None</em>, <em>rec=None</em>, <em>u=None</em>, <em>U=None</em>, <em>m=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/wavesolver.html#AcousticWaveSolver.born"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.born" title="Permalink to this definition">¶</a></dt>
+<dd><p>Linearized Born modelling function that creates the necessary
+data objects for running an adjoint modelling operator.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>src</strong> – Symbol with time series data for the injected source term</li>
+<li><strong>rec</strong> – Symbol to store interpolated receiver data</li>
+<li><strong>u</strong> – (Optional) Symbol to store the computed wavefield</li>
+<li><strong>U</strong> – (Optional) Symbol to store the computed wavefield</li>
+<li><strong>m</strong> – (Optional) Symbol for the time-constant square slowness</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>src=None</em>, <em>rec=None</em>, <em>u=None</em>, <em>m=None</em>, <em>save=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/wavesolver.html#AcousticWaveSolver.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Forward modelling function that creates the necessary
+data objects for running a forward modelling operator.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>src</strong> – Symbol with time series data for the injected source term</li>
+<li><strong>rec</strong> – Symbol to store interpolated receiver data</li>
+<li><strong>u</strong> – (Optional) Symbol to store the computed wavefield</li>
+<li><strong>m</strong> – (Optional) Symbol for the time-constant square slowness</li>
+<li><strong>save</strong> – Option to store the entire (unrolled) wavefield</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Receiver, wavefield and performance summary</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver.gradient">
+<code class="descname">gradient</code><span class="sig-paren">(</span><em>rec</em>, <em>u</em>, <em>v=None</em>, <em>grad=None</em>, <em>m=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/wavesolver.html#AcousticWaveSolver.gradient"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.gradient" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gradient modelling function for computing the adjoint of the
+Linearized Born modelling function, ie. the action of the
+Jacobian adjoint on an input data.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>recin</strong> – Receiver data as a numpy array</li>
+<li><strong>u</strong> – Symbol for full wavefield <cite>u</cite> (created with save=True)</li>
+<li><strong>v</strong> – (Optional) Symbol to store the computed wavefield</li>
+<li><strong>grad</strong> – (Optional) Symbol to store the gradient field</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Gradient field and performance summary</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_adj">
+<code class="descname">op_adj</code><em class="property"> = functools.partial(&lt;bound method memoized.__call__ of Cached operator for adjoint runs&gt;, None)</em><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_adj" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_born">
+<code class="descname">op_born</code><em class="property"> = functools.partial(&lt;bound method memoized.__call__ of Cached operator for born runs&gt;, None)</em><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_born" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_fwd">
+<code class="descname">op_fwd</code><em class="property"> = functools.partial(&lt;bound method memoized.__call__ of Cached operator for forward runs with buffered wavefield&gt;, None)</em><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_fwd" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_grad">
+<code class="descname">op_grad</code><em class="property"> = functools.partial(&lt;bound method memoized.__call__ of Cached operator for gradient runs&gt;, None)</em><a class="headerlink" href="#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_grad" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-examples.seismic.acoustic">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-examples.seismic.acoustic" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="examples.seismic.tti.html" class="btn btn-neutral float-right" title="examples.seismic.tti package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="examples.seismic.html" class="btn btn-neutral" title="examples.seismic package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

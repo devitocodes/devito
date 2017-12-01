@@ -1,0 +1,1039 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.ir.iet.visitors &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="devito" href="../../../devito.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.ir.iet.visitors</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.ir.iet.visitors</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Visitor hierarchy to inspect and/or create IETs.</span>
+
+<span class="sd">The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span>
+
+<span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">blankline</span><span class="p">,</span> <span class="n">ccode</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">LoweredDimension</span>
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">VisitorException</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet.nodes</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">Node</span><span class="p">,</span> <span class="n">UnboundedIndex</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">ctypes_to_C</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FindNodes&#39;</span><span class="p">,</span> <span class="s1">&#39;FindSections&#39;</span><span class="p">,</span> <span class="s1">&#39;FindSymbols&#39;</span><span class="p">,</span> <span class="s1">&#39;MapExpressions&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;IsPerfectIteration&#39;</span><span class="p">,</span> <span class="s1">&#39;SubstituteExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;printAST&#39;</span><span class="p">,</span> <span class="s1">&#39;CGen&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ResolveTimeStepping&#39;</span><span class="p">,</span> <span class="s1">&#39;Transformer&#39;</span><span class="p">,</span> <span class="s1">&#39;NestedTransformer&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;FindAdjacentIterations&#39;</span><span class="p">,</span> <span class="s1">&#39;MergeOuterIterations&#39;</span><span class="p">,</span> <span class="s1">&#39;MapIteration&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">Visitor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A generic visitor for an Expression/Iteration tree.</span>
+
+<span class="sd">    To define handlers, subclasses should define :data:`visit_Foo`</span>
+<span class="sd">    methods for each class :data:`Foo` they want to handle.</span>
+<span class="sd">    If a specific method for a class :data:`Foo` is not found, the MRO</span>
+<span class="sd">    of the class is walked in order until a matching method is found.</span>
+
+<span class="sd">    The method signature is:</span>
+
+<span class="sd">        .. code-block::</span>
+<span class="sd">           def visit_Foo(self, o, [*args, **kwargs]):</span>
+<span class="sd">               pass</span>
+
+<span class="sd">    The handler is responsible for visiting the children (if any) of</span>
+<span class="sd">    the node :data:`o`.  :data:`*args` and :data:`**kwargs` may be</span>
+<span class="sd">    used to pass information up and down the call stack.  You can also</span>
+<span class="sd">    pass named keyword arguments, e.g.:</span>
+
+<span class="sd">        .. code-block::</span>
+<span class="sd">           def visit_Foo(self, o, parent=None, *args, **kwargs):</span>
+<span class="sd">               pass</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">handlers</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># visit methods are spelt visit_Foo.</span>
+        <span class="n">prefix</span> <span class="o">=</span> <span class="s2">&quot;visit_&quot;</span>
+        <span class="c1"># Inspect the methods on this instance to find out which</span>
+        <span class="c1"># handlers are defined.</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">meth</span><span class="p">)</span> <span class="ow">in</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmembers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">prefix</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="c1"># Check the argument specification</span>
+            <span class="c1"># Valid options are:</span>
+            <span class="c1">#    visit_Foo(self, o, [*args, **kwargs])</span>
+            <span class="n">argspec</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">meth</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">argspec</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Visit method signature must be &quot;</span>
+                                   <span class="s2">&quot;visit_Foo(self, o, [*args, **kwargs])&quot;</span><span class="p">)</span>
+            <span class="n">handlers</span><span class="p">[</span><span class="n">name</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">prefix</span><span class="p">):]]</span> <span class="o">=</span> <span class="n">meth</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span> <span class="o">=</span> <span class="n">handlers</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :attr:`default_args`. A dict of default keyword arguments for the visitor.</span>
+<span class="sd">    These are not used by default in :meth:`visit`, however, a caller may pass</span>
+<span class="sd">    them explicitly to :meth:`visit` by accessing :attr:`default_args`.</span>
+<span class="sd">    For example::</span>
+
+<span class="sd">        .. code-block::</span>
+<span class="sd">           v = FooVisitor()</span>
+<span class="sd">           v.visit(node, **v.default_args)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">default_args</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_retval</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A method that returns an object to use to populate return values.</span>
+
+<span class="sd">        If your visitor combines values in a tree-walk, it may be useful to</span>
+<span class="sd">        provide a object to combine the results into. :meth:`default_retval`</span>
+<span class="sd">        may be defined by the visitor to be called to provide an empty object</span>
+<span class="sd">        of appropriate type.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">lookup_method</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Look up a handler method for a visitee.</span>
+
+<span class="sd">        :param instance: The instance to look up a method for.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">cls</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="vm">__class__</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Do we have a method handler defined for this type name</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="c1"># No, walk the MRO.</span>
+            <span class="k">for</span> <span class="n">klass</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">mro</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]:</span>
+                <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">klass</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">entry</span><span class="p">:</span>
+                    <span class="c1"># Save it on this type name for faster lookup next time</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry</span>
+                    <span class="k">return</span> <span class="n">entry</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No handler found for class </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Apply this :class:`Visitor` to an AST.</span>
+
+<span class="sd">            :param o: The :class:`Node` to visit.</span>
+<span class="sd">            :param args: Optional arguments to pass to the visit methods.</span>
+<span class="sd">            :param kwargs: Optional keyword arguments to pass to the visit methods.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">meth</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_method</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">meth</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">visit_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">reuse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A visit method to reuse a node, ignoring children.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">o</span>
+
+    <span class="k">def</span> <span class="nf">maybe_rebuild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A visit method that rebuilds nodes if their children have changed.&quot;&quot;&quot;</span>
+        <span class="n">ops</span><span class="p">,</span> <span class="n">okwargs</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">operands</span><span class="p">()</span>
+        <span class="n">new_ops</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">ops</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span> <span class="ow">is</span> <span class="n">b</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ops</span><span class="p">,</span> <span class="n">new_ops</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">o</span>
+        <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">new_ops</span><span class="p">,</span> <span class="o">**</span><span class="n">okwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">always_rebuild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A visit method that always rebuilds nodes.&quot;&quot;&quot;</span>
+        <span class="n">ops</span><span class="p">,</span> <span class="n">okwargs</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">operands</span><span class="p">()</span>
+        <span class="n">new_ops</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">ops</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">new_ops</span><span class="p">,</span> <span class="o">**</span><span class="n">okwargs</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">PrintAST</span><span class="p">(</span><span class="n">Visitor</span><span class="p">):</span>
+
+    <span class="n">_depth</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a representation of the Iteration/Expression tree as a string,</span>
+<span class="sd">    highlighting tree structure and node properties while dropping non-essential</span>
+<span class="sd">    information.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">PrintAST</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_retval</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;&gt;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">indent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;  &#39;</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span>
+
+    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s1">&#39;&lt;</span><span class="si">%s</span><span class="s1">&gt;&#39;</span> <span class="o">%</span> <span class="n">o</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+
+    <span class="k">def</span> <span class="nf">visit_Generable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="s1">&#39; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">o</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s1">&#39;&lt;C.</span><span class="si">%s%s</span><span class="s1">&gt;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">visit_Element</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="s1">&#39; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">element</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s1">&#39;&lt;Element</span><span class="si">%s</span><span class="s1">&gt;&#39;</span> <span class="o">%</span> <span class="n">body</span>
+
+    <span class="k">def</span> <span class="nf">visit_Callable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s1">&#39;&lt;Callable </span><span class="si">%s</span><span class="s1">&gt;</span><span class="se">\n</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">visit_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">visit_Block</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">header</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">body</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">footer</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">body</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">&gt;</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">body</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+            <span class="n">detail</span> <span class="o">=</span> <span class="s1">&#39;::</span><span class="si">%s</span><span class="s1">::</span><span class="si">%s</span><span class="s1">::</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">offsets</span><span class="p">)</span>
+            <span class="n">props</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">properties</span><span class="p">]</span>
+            <span class="n">props</span> <span class="o">=</span> <span class="s1">&#39;[</span><span class="si">%s</span><span class="s1">] &#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">props</span><span class="p">)</span> <span class="k">if</span> <span class="n">props</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">detail</span><span class="p">,</span> <span class="n">props</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">Iteration </span><span class="si">%s%s</span><span class="s2">&gt;</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">props</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">detail</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> = </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s2">&quot;&lt;Expression </span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="n">body</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="CGen"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen">[docs]</a><span class="k">class</span> <span class="nc">CGen</span><span class="p">(</span><span class="n">Visitor</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a representation of the Iteration/Expression tree as a :module:`cgen` tree.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_args_decl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert an iterable of :class:`Argument` into cgen format.&quot;&quot;&quot;</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ScalarArgument</span><span class="p">:</span>
+                <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;const </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorArgument</span><span class="p">:</span>
+                <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                                   <span class="s1">&#39;*restrict </span><span class="si">%s</span><span class="s1">_vec&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;void&#39;</span><span class="p">,</span> <span class="s1">&#39;*_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+    <span class="k">def</span> <span class="nf">_args_cast</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Build cgen type casts for an iterable of :class:`Argument`.&quot;&quot;&quot;</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorArgument</span><span class="p">:</span>
+                <span class="n">align</span> <span class="o">=</span> <span class="s2">&quot;__attribute__((aligned(64)))&quot;</span>
+                <span class="n">shape</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">ccode</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+                                 <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]])</span>
+                <span class="n">lvalue</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="s1">&#39;(*restrict </span><span class="si">%s</span><span class="s1">)</span><span class="si">%s</span><span class="s1"> </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">align</span><span class="p">))</span>
+                <span class="n">rvalue</span> <span class="o">=</span> <span class="s1">&#39;(</span><span class="si">%s</span><span class="s1"> (*)</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span> <span class="n">shape</span><span class="p">,</span>
+                                            <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_vec&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">lvalue</span><span class="p">,</span> <span class="n">rvalue</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_PtrArgument</span><span class="p">:</span>
+                <span class="n">ctype</span> <span class="o">=</span> <span class="n">ctypes_to_C</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="n">lvalue</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Pointer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+                <span class="n">rvalue</span> <span class="o">=</span> <span class="s1">&#39;(</span><span class="si">%s</span><span class="s1">*) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">lvalue</span><span class="p">,</span> <span class="n">rvalue</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+<div class="viewcode-block" id="CGen.visit_tuple"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_tuple">[docs]</a>    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CGen.visit_Block"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Block">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Block</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Module</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">header</span> <span class="o">+</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">body</span><span class="p">),)</span> <span class="o">+</span> <span class="n">o</span><span class="o">.</span><span class="n">footer</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CGen.visit_List"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_List">[docs]</a>    <span class="k">def</span> <span class="nf">visit_List</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Module</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">header</span> <span class="o">+</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Collection</span><span class="p">(</span><span class="n">body</span><span class="p">),)</span> <span class="o">+</span> <span class="n">o</span><span class="o">.</span><span class="n">footer</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CGen.visit_Element"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Element">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Element</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">element</span></div>
+
+<div class="viewcode-block" id="CGen.visit_Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Expression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">),</span> <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="CGen.visit_LocalExpression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_LocalExpression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_LocalExpression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                             <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)),</span> <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="CGen.visit_Call"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">params</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="CGen.visit_Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+
+        <span class="c1"># Start</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> + </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="n">o</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">NameError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Bound</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> - </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">o</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">end</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">NameError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># For reverse dimensions flip loop bounds</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">reverse</span><span class="p">:</span>
+            <span class="n">loop_init</span> <span class="o">=</span> <span class="s1">&#39;int </span><span class="si">%s</span><span class="s1"> = </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> - 1&#39;</span> <span class="o">%</span> <span class="n">end</span><span class="p">))</span>
+            <span class="n">loop_cond</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> &gt;= </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
+            <span class="n">loop_inc</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> -= </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loop_init</span> <span class="o">=</span> <span class="s1">&#39;int </span><span class="si">%s</span><span class="s1"> = </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
+            <span class="n">loop_cond</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> &lt; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">end</span><span class="p">))</span>
+            <span class="n">loop_inc</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> += </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="c1"># Append unbounded indices, if any</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">uindices</span><span class="p">:</span>
+            <span class="n">uinit</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> = </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">start</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">uindices</span><span class="p">]</span>
+            <span class="n">loop_init</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">loop_init</span><span class="p">]</span> <span class="o">+</span> <span class="n">uinit</span><span class="p">))</span>
+            <span class="n">ustep</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> = </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">step</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">uindices</span><span class="p">]</span>
+            <span class="n">loop_inc</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">loop_inc</span><span class="p">]</span> <span class="o">+</span> <span class="n">ustep</span><span class="p">))</span>
+
+        <span class="c1"># Create For header+body</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">loop_init</span><span class="p">,</span> <span class="n">loop_cond</span><span class="p">,</span> <span class="n">loop_inc</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">body</span><span class="p">))</span>
+
+        <span class="c1"># Attach pragmas, if any</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">pragmas</span><span class="p">:</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Module</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">handle</span><span class="p">,))</span>
+
+        <span class="k">return</span> <span class="n">handle</span></div>
+
+<div class="viewcode-block" id="CGen.visit_Callable"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Callable">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Callable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+        <span class="n">decls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_decl</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">casts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_cast</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">signature</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">retval</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">decls</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionBody</span><span class="p">(</span><span class="n">signature</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">casts</span> <span class="o">+</span> <span class="n">body</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="CGen.visit_Operator"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Operator">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Operator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="c1"># Kernel signature and body</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+        <span class="n">decls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_decl</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">casts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_cast</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">signature</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">retval</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">decls</span><span class="p">)</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;return 0&quot;</span><span class="p">)]</span>
+        <span class="n">kernel</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionBody</span><span class="p">(</span><span class="n">signature</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">casts</span> <span class="o">+</span> <span class="n">body</span> <span class="o">+</span> <span class="n">retval</span><span class="p">))</span>
+
+        <span class="c1"># Elemental functions</span>
+        <span class="n">efuncs</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">ccode</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">func_table</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">local</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">blankline</span><span class="p">]</span>
+
+        <span class="c1"># Header files, extra definitions, ...</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">_headers</span><span class="p">]</span>
+        <span class="n">includes</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Include</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">system</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">_includes</span><span class="p">]</span>
+        <span class="n">includes</span> <span class="o">+=</span> <span class="p">[</span><span class="n">blankline</span><span class="p">]</span>
+        <span class="n">cglobals</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">_globals</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">src_ext</span> <span class="o">==</span> <span class="s1">&#39;cpp&#39;</span><span class="p">:</span>
+            <span class="n">cglobals</span> <span class="o">+=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Extern</span><span class="p">(</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="n">signature</span><span class="p">)]</span>
+        <span class="n">cglobals</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">cglobals</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">blankline</span><span class="p">)]</span>
+
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Module</span><span class="p">(</span><span class="n">header</span> <span class="o">+</span> <span class="n">includes</span> <span class="o">+</span> <span class="n">cglobals</span> <span class="o">+</span> <span class="n">efuncs</span> <span class="o">+</span> <span class="p">[</span><span class="n">kernel</span><span class="p">])</span></div></div>
+
+
+<div class="viewcode-block" id="FindSections"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSections">[docs]</a><span class="k">class</span> <span class="nc">FindSections</span><span class="p">(</span><span class="n">Visitor</span><span class="p">):</span>
+
+<div class="viewcode-block" id="FindSections.default_retval"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSections.default_retval">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_retval</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">()</span></div>
+
+    <span class="sd">&quot;&quot;&quot;Find all sections in an Iteration/Expression tree. A section is a map</span>
+<span class="sd">    from an iteration space (ie, a sequence of :class:`Iteration` obects) to</span>
+<span class="sd">    a set of expressions (ie, the :class:`Expression` objects enclosed by the</span>
+<span class="sd">    iteration space).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="FindSections.visit_tuple"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_tuple">[docs]</a>    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="FindSections.visit_Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Node">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="FindSections.visit_Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">queue</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">queue</span> <span class="o">=</span> <span class="p">[</span><span class="n">o</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
+        <span class="n">queue</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="FindSections.visit_Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSections.visit_Expression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">queue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">queue</span><span class="p">),</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+    <span class="n">visit_Element</span> <span class="o">=</span> <span class="n">visit_Expression</span>
+    <span class="n">visit_Call</span> <span class="o">=</span> <span class="n">visit_Expression</span></div>
+
+
+<div class="viewcode-block" id="MapExpressions"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions">[docs]</a><span class="k">class</span> <span class="nc">MapExpressions</span><span class="p">(</span><span class="n">FindSections</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Map :class:`Expression` and :class:`Call` objects in the Iteration/Expression</span>
+<span class="sd">    tree to their respective section.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="MapExpressions.visit_Call"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MapExpressions.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+        <span class="n">ret</span><span class="p">[</span><span class="n">o</span><span class="p">]</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">queue</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+    <span class="n">visit_Expression</span> <span class="o">=</span> <span class="n">visit_Call</span>
+    <span class="n">visit_Element</span> <span class="o">=</span> <span class="n">FindSections</span><span class="o">.</span><span class="n">visit_Node</span></div>
+
+
+<div class="viewcode-block" id="MapIteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MapIteration">[docs]</a><span class="k">class</span> <span class="nc">MapIteration</span><span class="p">(</span><span class="n">FindSections</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Map each :class:`Iteration` object in the Iteration/Expression tree to the</span>
+<span class="sd">    enclosed :class:`Expression` and :class:`Call` objects.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="MapIteration.visit_Call"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MapIteration.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">queue</span><span class="p">):</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+    <span class="n">visit_Expression</span> <span class="o">=</span> <span class="n">visit_Call</span>
+    <span class="n">visit_Element</span> <span class="o">=</span> <span class="n">FindSections</span><span class="o">.</span><span class="n">visit_Node</span></div>
+
+
+<div class="viewcode-block" id="FindSymbols"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols">[docs]</a><span class="k">class</span> <span class="nc">FindSymbols</span><span class="p">(</span><span class="n">Visitor</span><span class="p">):</span>
+
+<div class="viewcode-block" id="FindSymbols.default_retval"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols.default_retval">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_retval</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="sd">&quot;&quot;&quot;Find symbols in an Iteration/Expression tree.</span>
+
+<span class="sd">    :param mode: Drive the search. Accepted values are: ::</span>
+
+<span class="sd">        * &#39;kernel-data&#39; (default): Collect :class:`SymbolicFunction` objects.</span>
+<span class="sd">        * &#39;symbolics&#39;: Collect :class:`AbstractSymbol` objects.</span>
+<span class="sd">        * &#39;symbolics-writes&#39;: Collect written :class:`AbstractSymbol` objects.</span>
+<span class="sd">        * &#39;free-symbols&#39;: Collect all free symbols.</span>
+<span class="sd">        * &#39;dimensions&#39;: Collect :class:`Dimension` objects only.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">rules</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;kernel-data&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_SymbolicFunction</span><span class="p">],</span>
+        <span class="s1">&#39;symbolics&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">functions</span><span class="p">,</span>
+        <span class="s1">&#39;symbolics-writes&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">write</span><span class="p">),</span>
+        <span class="s1">&#39;free-symbols&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">,</span>
+        <span class="s1">&#39;dimensions&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;kernel-data&#39;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FindSymbols</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rule</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules</span><span class="p">[</span><span class="n">mode</span><span class="p">]</span>
+
+<div class="viewcode-block" id="FindSymbols.visit_tuple"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols.visit_tuple">[docs]</a>    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">symbols</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">symbols</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">attrgetter</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="FindSymbols.visit_Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">symbols</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">symbols</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">attrgetter</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="FindSymbols.visit_Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols.visit_Expression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">filter_sorted</span><span class="p">([</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rule</span><span class="p">(</span><span class="n">o</span><span class="p">)],</span> <span class="n">key</span><span class="o">=</span><span class="n">attrgetter</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span></div></div>
+
+
+<div class="viewcode-block" id="FindNodes"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindNodes">[docs]</a><span class="k">class</span> <span class="nc">FindNodes</span><span class="p">(</span><span class="n">Visitor</span><span class="p">):</span>
+
+<div class="viewcode-block" id="FindNodes.default_retval"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindNodes.default_retval">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_retval</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find :class:`Node` instances.</span>
+
+<span class="sd">    :param match: Pattern to look for.</span>
+<span class="sd">    :param mode: Drive the search. Accepted values are: ::</span>
+
+<span class="sd">        * &#39;type&#39; (default): Collect all instances of type ``match``.</span>
+<span class="sd">        * &#39;scope&#39;: Return the scope in which the object ``match`` appears.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">rules</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">match</span><span class="p">,</span> <span class="n">o</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">match</span><span class="p">),</span>
+        <span class="s1">&#39;scope&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">match</span><span class="p">,</span> <span class="n">o</span><span class="p">:</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">match</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;type&#39;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FindNodes</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">match</span> <span class="o">=</span> <span class="n">match</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rule</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules</span><span class="p">[</span><span class="n">mode</span><span class="p">]</span>
+
+<div class="viewcode-block" id="FindNodes.visit_object"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindNodes.visit_object">[docs]</a>    <span class="k">def</span> <span class="nf">visit_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="FindNodes.visit_tuple"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindNodes.visit_tuple">[docs]</a>    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="FindNodes.visit_Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindNodes.visit_Node">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rule</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">match</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div></div>
+
+
+<div class="viewcode-block" id="FindAdjacentIterations"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindAdjacentIterations">[docs]</a><span class="k">class</span> <span class="nc">FindAdjacentIterations</span><span class="p">(</span><span class="n">Visitor</span><span class="p">):</span>
+
+<div class="viewcode-block" id="FindAdjacentIterations.default_retval"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindAdjacentIterations.default_retval">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_retval</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;seen_iteration&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)])</span></div>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a mapper from nodes N in an Expression/Iteration tree to sequences of</span>
+<span class="sd">    :class:`Iteration` objects I = [I_0, I_1, ...], where N is the direct ancestor of</span>
+<span class="sd">    the items in I and all items in I are adjacent nodes in the tree.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="FindAdjacentIterations.handler"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindAdjacentIterations.handler">[docs]</a>    <span class="k">def</span> <span class="nf">handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">parent</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ret</span>
+        <span class="n">group</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ret</span><span class="p">[</span><span class="s1">&#39;seen_iteration&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">group</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">ret</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">group</span><span class="p">))</span>
+                <span class="c1"># Reset the group, Iterations no longer adjacent</span>
+                <span class="n">group</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Potential leftover</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">group</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="FindAdjacentIterations.visit_object"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindAdjacentIterations.visit_object">[docs]</a>    <span class="k">def</span> <span class="nf">visit_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="FindAdjacentIterations.visit_tuple"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindAdjacentIterations.visit_tuple">[docs]</a>    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">handler</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="FindAdjacentIterations.visit_Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindAdjacentIterations.visit_Node">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">handler</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">)</span>
+        <span class="n">ret</span><span class="p">[</span><span class="s1">&#39;seen_iteration&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="FindAdjacentIterations.visit_Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.FindAdjacentIterations.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">handler</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="n">ret</span><span class="p">)</span>
+        <span class="n">ret</span><span class="p">[</span><span class="s1">&#39;seen_iteration&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="n">ret</span></div></div>
+
+
+<div class="viewcode-block" id="IsPerfectIteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.IsPerfectIteration">[docs]</a><span class="k">class</span> <span class="nc">IsPerfectIteration</span><span class="p">(</span><span class="n">Visitor</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if an :class:`Iteration` defines a perfect loop nest, False otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="IsPerfectIteration.visit_object"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.IsPerfectIteration.visit_object">[docs]</a>    <span class="k">def</span> <span class="nf">visit_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="IsPerfectIteration.visit_tuple"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.IsPerfectIteration.visit_tuple">[docs]</a>    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IsPerfectIteration.visit_Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.IsPerfectIteration.visit_Node">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">found</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Assume all nodes are in a perfect loop if they&#39;re in a loop.</span>
+        <span class="k">return</span> <span class="n">found</span></div>
+
+<div class="viewcode-block" id="IsPerfectIteration.visit_Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.IsPerfectIteration.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">found</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">multi</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">found</span> <span class="ow">and</span> <span class="n">multi</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="n">multi</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">found</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">multi</span><span class="o">=</span><span class="n">multi</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="Transformer"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.Transformer">[docs]</a><span class="k">class</span> <span class="nc">Transformer</span><span class="p">(</span><span class="n">Visitor</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given an Iteration/Expression tree T and a mapper from nodes in T to</span>
+<span class="sd">    a set of new nodes L, M : N --&gt; L, build a new Iteration/Expression tree T&#39;</span>
+<span class="sd">    where a node ``n`` in N is replaced with ``M[n]``.</span>
+
+<span class="sd">    In the special case in which ``M[n]`` is None, ``n`` is dropped from T&#39;.</span>
+
+<span class="sd">    In the special case in which ``M[n]`` is an iterable of nodes, ``n`` is</span>
+<span class="sd">    &quot;extended&quot; by pre-pending to its body the nodes in ``M[n]``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Transformer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rebuilt</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="Transformer.visit_object"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.Transformer.visit_object">[docs]</a>    <span class="k">def</span> <span class="nf">visit_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">o</span></div>
+
+<div class="viewcode-block" id="Transformer.visit_tuple"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.Transformer.visit_tuple">[docs]</a>    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">visited</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">visited</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span></div>
+
+    <span class="n">visit_list</span> <span class="o">=</span> <span class="n">visit_tuple</span>
+
+<div class="viewcode-block" id="Transformer.visit_Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.Transformer.visit_Node">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">o</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">:</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="p">[</span><span class="n">o</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">handle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># None -&gt; drop /o/</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">VisitorException</span>
+                <span class="n">extended</span> <span class="o">=</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="o">+</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span> <span class="o">+</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+                <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">extended</span><span class="p">,</span> <span class="o">**</span><span class="n">o</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">**</span><span class="n">handle</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt</span><span class="p">,</span> <span class="o">**</span><span class="n">o</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Transformer.visit"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.Transformer.visit">[docs]</a>    <span class="k">def</span> <span class="nf">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Transformer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">Node</span><span class="p">)</span> <span class="ow">and</span> <span class="n">obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">o</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rebuilt</span><span class="p">[</span><span class="n">o</span><span class="p">]</span> <span class="o">=</span> <span class="n">obj</span>
+        <span class="k">return</span> <span class="n">obj</span></div></div>
+
+
+<div class="viewcode-block" id="NestedTransformer"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.NestedTransformer">[docs]</a><span class="k">class</span> <span class="nc">NestedTransformer</span><span class="p">(</span><span class="n">Transformer</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Unlike a :class:`Transformer`, a :class:`NestedTransforer` applies</span>
+<span class="sd">    replacements in a depth-first fashion.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="NestedTransformer.visit_Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.NestedTransformer.visit_Node">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">]</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">handle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># None -&gt; drop /o/</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">VisitorException</span>
+            <span class="n">extended</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="o">+</span> <span class="n">rebuilt</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">+</span> <span class="n">rebuilt</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">extended</span><span class="p">,</span> <span class="o">**</span><span class="n">o</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt</span><span class="p">,</span> <span class="o">**</span><span class="n">handle</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="SubstituteExpression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.SubstituteExpression">[docs]</a><span class="k">class</span> <span class="nc">SubstituteExpression</span><span class="p">(</span><span class="n">Transformer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :class:`Transformer` that performs symbol substitution on</span>
+<span class="sd">    :class:`Expression` objects in a given tree.</span>
+
+<span class="sd">    :param subs: Dict defining the symbol substitution</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SubstituteExpression</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">subs</span> <span class="o">=</span> <span class="n">subs</span>
+
+<div class="viewcode-block" id="SubstituteExpression.visit_Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.SubstituteExpression.visit_Expression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">o</span><span class="o">.</span><span class="n">substitute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="ResolveTimeStepping"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping">[docs]</a><span class="k">class</span> <span class="nc">ResolveTimeStepping</span><span class="p">(</span><span class="n">Transformer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :class:`Transformer` class that creates a substitution dictionary</span>
+<span class="sd">    for replacing :class:`Dimension` instances with explicit loop</span>
+<span class="sd">    variables in :class:`Iteration` nodes. For stepping dimensions it</span>
+<span class="sd">    also inserts the relevant definitions for buffer index variables,</span>
+<span class="sd">    for exaple.:</span>
+
+<span class="sd">        .. code-block:: c</span>
+
+<span class="sd">           for (int t = 0; t &lt; t_size; t += 1)</span>
+<span class="sd">           {</span>
+<span class="sd">               int t0 = (t) % 2;</span>
+<span class="sd">               int t1 = (t + 1) % 2;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ResolveTimeStepping.visit_object"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit_object">[docs]</a>    <span class="k">def</span> <span class="nf">visit_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span></div>
+
+<div class="viewcode-block" id="ResolveTimeStepping.visit_tuple"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit_tuple">[docs]</a>    <span class="k">def</span> <span class="nf">visit_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">visited</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">:</span>
+            <span class="n">handle</span><span class="p">,</span> <span class="n">subs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">visited</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">visited</span><span class="p">),</span> <span class="n">subs</span></div>
+
+    <span class="n">visit_list</span> <span class="o">=</span> <span class="n">visit_object</span>
+
+<div class="viewcode-block" id="ResolveTimeStepping.visit_Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit_Node">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">rebuilt</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt</span><span class="p">,</span> <span class="o">**</span><span class="n">o</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">),</span> <span class="n">subs</span></div>
+
+<div class="viewcode-block" id="ResolveTimeStepping.visit_Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)):</span>
+        <span class="n">nodes</span><span class="p">,</span> <span class="n">subs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="n">offsets</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+            <span class="c1"># For SteppingDimension insert the explicit</span>
+            <span class="c1"># definition of buffered variables, eg. t+1 =&gt; t1</span>
+            <span class="n">init</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">off</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">offsets</span><span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="p">])):</span>
+                <span class="n">vname</span> <span class="o">=</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="o">+</span> <span class="n">off</span><span class="p">)</span> <span class="o">%</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">modulo</span>
+                <span class="n">init</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">UnboundedIndex</span><span class="p">(</span><span class="n">vname</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+                <span class="n">subs</span><span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span> <span class="o">+</span> <span class="n">off</span><span class="p">]</span> <span class="o">=</span> <span class="n">LoweredDimension</span><span class="p">(</span><span class="n">vname</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">off</span><span class="p">)</span>
+            <span class="c1"># Always lower to symbol</span>
+            <span class="n">subs</span><span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="p">]</span> <span class="o">=</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">uindices</span><span class="o">=</span><span class="n">init</span><span class="p">),</span> <span class="n">subs</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">nodes</span><span class="p">),</span> <span class="n">subs</span></div>
+
+<div class="viewcode-block" id="ResolveTimeStepping.visit_Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit_Expression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;Collect all offsets used with a dimension&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">dim</span><span class="p">,</span> <span class="n">offs</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">stencil</span><span class="o">.</span><span class="n">entries</span><span class="p">:</span>
+            <span class="n">offsets</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">offs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span></div>
+
+<div class="viewcode-block" id="ResolveTimeStepping.visit"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ResolveTimeStepping.visit">[docs]</a>    <span class="k">def</span> <span class="nf">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">subs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">subs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">obj</span><span class="p">,</span> <span class="n">subs</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">ResolveTimeStepping</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span><span class="p">,</span> <span class="n">subs</span></div></div>
+
+
+<div class="viewcode-block" id="MergeOuterIterations"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations">[docs]</a><span class="k">class</span> <span class="nc">MergeOuterIterations</span><span class="p">(</span><span class="n">Transformer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :class:`Transformer` that merges subsequent :class:`Iteration`</span>
+<span class="sd">    objects iff their dimenions agree.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="MergeOuterIterations.is_mergable"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations.is_mergable">[docs]</a>    <span class="k">def</span> <span class="nf">is_mergable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iter1</span><span class="p">,</span> <span class="n">iter2</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Defines if two :class:`Iteration` objects are mergeable.</span>
+
+<span class="sd">        Note: This currently does not(!) consider data dependencies</span>
+<span class="sd">        between the loops. A deeper analysis is required for this that</span>
+<span class="sd">        will be added soon.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+            <span class="c1"># Aliasing only works one-way because we left-merge</span>
+            <span class="k">if</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="ow">and</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span> <span class="ow">and</span> <span class="n">iter1</span><span class="o">.</span><span class="n">bounds_symbolic</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">bounds_symbolic</span></div>
+
+<div class="viewcode-block" id="MergeOuterIterations.merge"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations.merge">[docs]</a>    <span class="k">def</span> <span class="nf">merge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iter1</span><span class="p">,</span> <span class="n">iter2</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates a new merged :class:`Iteration` object from two</span>
+<span class="sd">        loops along the same dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">newexpr</span> <span class="o">=</span> <span class="n">iter1</span><span class="o">.</span><span class="n">nodes</span> <span class="o">+</span> <span class="n">iter2</span><span class="o">.</span><span class="n">nodes</span>
+        <span class="k">return</span> <span class="n">Iteration</span><span class="p">(</span><span class="n">newexpr</span><span class="p">,</span> <span class="n">dimension</span><span class="o">=</span><span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span>
+                         <span class="n">limits</span><span class="o">=</span><span class="n">iter1</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span>
+                         <span class="n">offsets</span><span class="o">=</span><span class="n">iter1</span><span class="o">.</span><span class="n">offsets</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MergeOuterIterations.visit_Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">rebuilt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt</span><span class="p">,</span> <span class="o">**</span><span class="n">o</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="MergeOuterIterations.visit_list"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations.visit_list">[docs]</a>    <span class="k">def</span> <span class="nf">visit_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">o</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">head</span><span class="p">])</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">if</span> <span class="n">head</span><span class="o">.</span><span class="n">is_Iteration</span> <span class="ow">and</span> <span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Iteration</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_mergable</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="n">newit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">([</span><span class="n">newit</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">body</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+                <span class="k">return</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">head</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">body</span><span class="p">))</span></div>
+
+    <span class="n">visit_tuple</span> <span class="o">=</span> <span class="n">visit_list</span></div>
+
+
+<div class="viewcode-block" id="printAST"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.printAST">[docs]</a><span class="k">def</span> <span class="nf">printAST</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">PrintAST</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

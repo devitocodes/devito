@@ -1,0 +1,884 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.ir.support.basic &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="devito" href="../../../devito.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.ir.support.basic</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.ir.support.basic</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Eq</span>
+
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">q_affine</span><span class="p">,</span> <span class="n">q_inc</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span> <span class="n">filter_sorted</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Scope&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">Vector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A representation of a vector in Z^n.</span>
+
+<span class="sd">    The elements of a Vector can be integers or any SymPy expression.</span>
+
+<span class="sd">    Notes on Vector comparison</span>
+<span class="sd">    ==========================</span>
+
+<span class="sd">    # Vector-scalar comparison</span>
+<span class="sd">    --------------------------</span>
+<span class="sd">    If a comparison between a vector and a non-vector is attempted, then the</span>
+<span class="sd">    non-vector is promoted to a vector; if this is not possible, an exception</span>
+<span class="sd">    is raised. This is handy because it turns a vector-scalar comparison into</span>
+<span class="sd">    a vector-vector comparison with the scalar broadcasted to all vector entries.</span>
+<span class="sd">    For example: ::</span>
+
+<span class="sd">        (3, 4, 5) &gt; 4 =&gt; (3, 4, 5) &gt; (4, 4, 4) =&gt; False</span>
+
+<span class="sd">    # Comparing Vector entries when these are SymPy expression</span>
+<span class="sd">    ----------------------------------------------------------</span>
+<span class="sd">    When we compare two entries that are both generic SymPy expressions, it is</span>
+<span class="sd">    generally not possible to determine the truth value of the relation. For</span>
+<span class="sd">    example, the truth value of `3*i &lt; 4*j` cannot be determined. In some cases,</span>
+<span class="sd">    however, the comparison is feasible; for example, `i + 4 &lt; i` should always</span>
+<span class="sd">    return false. A sufficient condition for two Vectors to be comparable is that</span>
+<span class="sd">    their pair-wise indices are affine functions of the same variables, with</span>
+<span class="sd">    coefficient 1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">items</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">is_integer</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Basic</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">items</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal Vector element type&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Vector</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">items</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_asvector</span><span class="p">(</span><span class="n">relax</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__asvector</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+            <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Vector</span><span class="p">):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">other</span> <span class="o">=</span> <span class="n">Vector</span><span class="p">(</span><span class="o">*</span><span class="n">other</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="c1"># Not iterable</span>
+                        <span class="n">other</span> <span class="o">=</span> <span class="n">Vector</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">other</span><span class="p">)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)))</span>
+                <span class="k">if</span> <span class="n">relax</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">other</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot operate with Vectors of different rank&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">wrapper</span>
+        <span class="k">return</span> <span class="n">__asvector</span>
+
+    <span class="nd">@_asvector</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Vector</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)])</span>
+
+    <span class="nd">@_asvector</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__radd__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="o">+</span> <span class="n">other</span>
+
+    <span class="nd">@_asvector</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Vector</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)])</span>
+
+    <span class="nd">@_asvector</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__rsub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="o">-</span> <span class="n">other</span>
+
+    <span class="nd">@_asvector</span><span class="p">(</span><span class="n">relax</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Vector</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="nd">@_asvector</span><span class="p">(</span><span class="n">relax</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Vector</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__ne__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="nd">@_asvector</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="c1"># This might raise an exception if the distance between the i-th entry</span>
+        <span class="c1"># of /self/ and /other/ isn&#39;t integer, but rather a generic function</span>
+        <span class="c1"># (and thus not comparable to 0). However, the implementation is &quot;smart&quot;,</span>
+        <span class="c1"># in the sense that it will return as soon as the first two comparable</span>
+        <span class="c1"># entries (i.e., such that their distance is a non-zero integer) are found</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">other</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot compare due to non-comparable index functions&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">elif</span> <span class="n">val</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@_asvector</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__gt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">other</span><span class="o">.</span><span class="fm">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@_asvector</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__ge__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__gt__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="nd">@_asvector</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">__le__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__lt__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Vector</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Vector</span><span class="p">(</span><span class="o">*</span><span class="n">ret</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">)</span> <span class="k">else</span> <span class="n">ret</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;NullVector&#39;</span>
+        <span class="n">maxlen</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="nb">max</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([(</span><span class="s1">&#39;|{:^</span><span class="si">%d</span><span class="s1">}|&#39;</span> <span class="o">%</span> <span class="n">maxlen</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rank</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the distance from ``self`` to ``other``.</span>
+
+<span class="sd">        The distance is a reflexive, transitive, and anti-symmetric relation,</span>
+<span class="sd">        which establishes a total ordering amongst Vectors.</span>
+
+<span class="sd">        The distance is a function [Vector x Vector --&gt; D]. D is a tuple of length</span>
+<span class="sd">        equal to the Vector ``rank``. The i-th entry of D, D_i, indicates whether</span>
+<span class="sd">        the i-th component of ``self``, self_i, precedes (&lt; 0), equals (== 0), or</span>
+<span class="sd">        succeeds (&gt; 0) the i-th component of ``other``, other_i.</span>
+
+<span class="sd">        In particular, the *absolute value* of D_i represents the number of</span>
+<span class="sd">        integer points that exist between self_i and sink_i.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        =======</span>
+<span class="sd">                 | 3 |           | 1 |               |  2  |</span>
+<span class="sd">        source = | 2 | ,  sink = | 4 | , distance =&gt; | -2  |</span>
+<span class="sd">                 | 1 |           | 5 |               | -4  |</span>
+
+<span class="sd">        There are 2, 2, and 4 points between [3-2], [2-4], and [1-5], respectively.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="o">-</span> <span class="n">other</span>
+
+
+<span class="k">class</span> <span class="nc">IterationInstance</span><span class="p">(</span><span class="n">Vector</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A representation of the iteration and data points accessed by an</span>
+<span class="sd">    :class:`Indexed` object. Two different concepts are distinguished:</span>
+
+<span class="sd">        * The index functions; that is, the expressions telling what *iteration*</span>
+<span class="sd">          space point is accessed.</span>
+<span class="sd">        * The ``findices``: that is, the :class:`Dimension`s telling what *data*</span>
+<span class="sd">          space point is accessed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indexed</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">findices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal non-unique `findices`&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">IterationInstance</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">findices</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot compare due to mismatching `findices`&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">IterationInstance</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">findices</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot compare due to mismatching `findices`&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__lt__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__gt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">other</span><span class="o">.</span><span class="fm">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__ge__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__gt__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__le__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__lt__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="p">(</span><span class="nb">slice</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">index</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;IterationInstance indices must be integers, slices, or &quot;</span>
+                            <span class="s2">&quot;Dimensions, not </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">index</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">findex</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute vector distance from ``self`` to ``other``. If ``findex`` is</span>
+<span class="sd">        supplied, compute the vector distance up to and including ``findex``.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">IterationInstance</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot compute distance from obj of type </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">findices</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot compute distance due to mismatching `findices`&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">findex</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">findex</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot compute distance as `findex` not in `findices`&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">other</span><span class="p">)[:</span><span class="n">limit</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">section</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">findices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a view of ``self`` in which the slots corresponding to the</span>
+<span class="sd">        provided ``findices`` have been zeroed.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Vector</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">findices</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+                        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">)])</span>
+
+
+<span class="k">class</span> <span class="nc">Access</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A representation of the access performed by a :class:`Indexed` object.</span>
+
+<span class="sd">    Notes on Access comparison</span>
+<span class="sd">    ==========================</span>
+
+<span class="sd">    The comparison operators ``==, !=, &lt;, &lt;=, &gt;, &gt;=`` should be regarded as</span>
+<span class="sd">    operators for lexicographic ordering of :class:`Access` objects, based</span>
+<span class="sd">    on the values of the index functions (and the index functions only).</span>
+
+<span class="sd">    For example, if two Access objects A and B employ the same index functions,</span>
+<span class="sd">    the operation A == B will return True regardless of whether A and B are</span>
+<span class="sd">    reads or writes or mixed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indexed</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="s1">&#39;RI&#39;</span><span class="p">,</span> <span class="s1">&#39;WI&#39;</span><span class="p">]</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Access</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">mode</span> <span class="o">=</span> <span class="n">mode</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Access</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="ow">and</span>\
+            <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Access</span><span class="p">)</span> <span class="ow">and</span>\
+            <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">function</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_read</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;RI&#39;</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_write</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="s1">&#39;WI&#39;</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_read_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;RI&#39;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_write_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;WI&#39;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_read_increment</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_write_increment</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\033</span><span class="s1">[1;37;31mW</span><span class="se">\033</span><span class="s1">[0m&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_write</span> <span class="k">else</span> <span class="s1">&#39;</span><span class="se">\033</span><span class="s1">[1;37;32mR</span><span class="se">\033</span><span class="s1">[0m&#39;</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&lt;</span><span class="si">%s</span><span class="s2">,[</span><span class="si">%s</span><span class="s2">]&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">IterationFunction</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A representation of a function describing the direction and the step</span>
+<span class="sd">    in which an iteration space is traversed.&quot;&quot;&quot;</span>
+
+    <span class="n">_KNOWN</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">IterationFunction</span><span class="o">.</span><span class="n">_KNOWN</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="n">IterationFunction</span><span class="o">.</span><span class="n">_KNOWN</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
+
+
+<span class="n">INC</span> <span class="o">=</span> <span class="n">IterationFunction</span><span class="p">(</span><span class="s1">&#39;++&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Unit-stride increment.&quot;&quot;&quot;</span>
+
+<span class="n">DEC</span> <span class="o">=</span> <span class="n">IterationFunction</span><span class="p">(</span><span class="s1">&#39;--&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Unit-stride decrement&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">TimedAccess</span><span class="p">(</span><span class="n">Access</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A special :class:`Access` object enriched with: ::</span>
+
+<span class="sd">        * a &quot;timestamp&quot;; that is, an integer indicating the access location</span>
+<span class="sd">          within the execution flow;</span>
+<span class="sd">        * an array of directions; there is one direction for each index,</span>
+<span class="sd">          indicating whether the index function is monotonically increasing</span>
+<span class="sd">          or decreasing.</span>
+
+<span class="sd">    Further, a TimedAccess may be regular or irregular. A TimedAccess is regular</span>
+<span class="sd">    if and only if *all* index functions are affine in their respective findex.</span>
+<span class="sd">    The downside of irregular TimedAccess objects is that dependence testing is</span>
+<span class="sd">    harder, which in turn may force the data dependence analyzer to make stronger</span>
+<span class="sd">    assumptions to be conservative.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+<span class="sd">    Given:</span>
+<span class="sd">    findices = [x, y, z]</span>
+<span class="sd">    w = an object of type Dimension</span>
+
+<span class="sd">           | x+1 |           |  x  |           |  x  |          | w |          | x+y |</span>
+<span class="sd">    obj1 = | y+2 | ,  obj2 = |  4  | , obj3 =&gt; |  x  | , obj4 = | y | , obj5 = |  y  |</span>
+<span class="sd">           | z-3 |           | z+1 |           |  y  |          | z |          |  z  |</span>
+
+<span class="sd">    We have that: ::</span>
+
+<span class="sd">        * obj1 and obj2 are regular;</span>
+<span class="sd">        * obj3 is irregular because an findex, ``x``, appears outside of its index</span>
+<span class="sd">          function (i.e., in the second slot, whew ``y`` is expected);</span>
+<span class="sd">        * obj4 is irregular, because a different dimension, ``w``, is used in place</span>
+<span class="sd">          of ``x`` within the first index function, where ``x`` is expected;</span>
+<span class="sd">        * obj5 is irregular, as two findices appear in the same index function --</span>
+<span class="sd">          the one in the first slot, where only ``x`` is expected.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">timestamp</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">timestamp</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">direction</span> <span class="o">=</span> <span class="p">[</span><span class="n">DEC</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">reverse</span> <span class="k">else</span> <span class="n">INC</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="ow">and</span>\
+            <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">TimedAccess</span><span class="p">)</span> <span class="ow">and</span>\
+            <span class="bp">self</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">direction</span>
+
+    <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">TimedAccess</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot compare with object of type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">direction</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">direction</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot compare due to mismatching `direction`&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__lt__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">index_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;regular&#39;</span> <span class="k">if</span> <span class="p">(</span><span class="n">is_integer</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="n">q_affine</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">fi</span><span class="p">))</span> <span class="k">else</span> <span class="s1">&#39;irregular&#39;</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">fi</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">)]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_regular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="s1">&#39;regular&#39;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_mode</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_irregular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_regular</span>
+
+    <span class="k">def</span> <span class="nf">lex_eq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">timestamp</span>
+
+    <span class="k">def</span> <span class="nf">lex_ne</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">timestamp</span>
+
+    <span class="k">def</span> <span class="nf">lex_ge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&gt;=</span> <span class="n">other</span><span class="o">.</span><span class="n">timestamp</span>
+
+    <span class="k">def</span> <span class="nf">lex_gt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&gt;</span> <span class="n">other</span><span class="o">.</span><span class="n">timestamp</span>
+
+    <span class="k">def</span> <span class="nf">lex_le</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;=</span> <span class="n">other</span><span class="o">.</span><span class="n">timestamp</span>
+
+    <span class="k">def</span> <span class="nf">lex_lt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="n">other</span><span class="o">.</span><span class="n">timestamp</span>
+
+    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">findex</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">direction</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">direction</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rank</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">rank</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot order due to mismatching `direction` and/or `rank`&quot;</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">findex</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">findex</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">findex</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">direction</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">direction</span><span class="p">[:</span><span class="n">limit</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">direction</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">direction</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">direction</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Vector</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span> <span class="k">if</span> <span class="n">d</span> <span class="o">==</span> <span class="n">INC</span> <span class="k">else</span> <span class="p">(</span><span class="o">-</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ret</span><span class="p">,</span> <span class="n">direction</span><span class="p">)])</span>
+
+
+<span class="k">class</span> <span class="nc">Dependence</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A data dependence between two :class:`Access` objects.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">sink</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">TimedAccess</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sink</span><span class="p">,</span> <span class="n">TimedAccess</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">source</span><span class="o">.</span><span class="n">function</span> <span class="o">==</span> <span class="n">sink</span><span class="o">.</span><span class="n">function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="n">source</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sink</span> <span class="o">=</span> <span class="n">sink</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">findices</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">findices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">distance</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">sink</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cause</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the findex causing the dependence (if any -- return None if</span>
+<span class="sd">        the dependence is between scalars).&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">j</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">i</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="c1"># Conservatively assume this is an offending dimension</span>
+                <span class="k">return</span> <span class="n">i</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_indirect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if induced by an indirection array (e.g., A[B[i]]),</span>
+<span class="sd">        False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">index_mode</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">index_mode</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">d</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">cause</span> <span class="ow">and</span> <span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="s1">&#39;irregular&#39;</span> <span class="ow">or</span> <span class="n">j</span> <span class="o">==</span> <span class="s1">&#39;irregular&#39;</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_direct</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if the dependence occurs through affine functions,</span>
+<span class="sd">        False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_indirect</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_increment</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_increment</span>
+
+    <span class="k">def</span> <span class="nf">is_carried</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if a dimension-carried dependence, False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distance</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="k">if</span> <span class="n">dim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">cause</span> <span class="o">==</span> <span class="n">dim</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="c1"># Conservatively assume this is a carried dependence</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">is_independent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if a dimension-independent dependence, False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">dim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_irregular</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_irregular</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cause</span> <span class="o">!=</span> <span class="n">dim</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="c1"># Conservatively assume this is not dimension-independent</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">is_inplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Stronger than ``is_independent()``, as it also compares the timestamps.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_independent</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">lex_eq</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> -&gt; </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">DependenceGroup</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cause</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">filter_sorted</span><span class="p">(</span><span class="n">ret</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">none</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">direct</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the dependences induced through affine index functions.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_direct</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">indirect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the dependences induced through an indirection array.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_indirect</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the increment-induced dependences.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_increment</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">carried</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the dimension-carried dependences.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_carried</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">independent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the dimension-independent dependences.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_independent</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">inplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the in-place dependences.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_inplace</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">DependenceGroup</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="nb">super</span><span class="p">(</span><span class="n">DependenceGroup</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__add__</span><span class="p">(</span><span class="n">other</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">DependenceGroup</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">other</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="Scope"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.Scope">[docs]</a><span class="k">class</span> <span class="nc">Scope</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize a Scope, which represents a group of :class:`Access` objects</span>
+<span class="sd">        extracted from some expressions ``exprs``. The expressions are to be</span>
+<span class="sd">        provided as they appear in program order.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">reads</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">writes</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+            <span class="c1"># reads</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="p">):</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="p">[])</span>
+                <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;R&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">q_inc</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;RI&#39;</span>
+                <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+            <span class="c1"># write</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="p">[])</span>
+                <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;W&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">q_inc</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;WI&#39;</span>
+                <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+
+<div class="viewcode-block" id="Scope.getreads"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.Scope.getreads">[docs]</a>    <span class="k">def</span> <span class="nf">getreads</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">as_tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">function</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Scope.getwrites"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.Scope.getwrites">[docs]</a>    <span class="k">def</span> <span class="nf">getwrites</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">as_tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">function</span><span class="p">))</span></div>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">getwrites</span><span class="p">(</span><span class="n">function</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">getreads</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">tracked</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">maxlen</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">max</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tracked</span><span class="p">]))</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="s2">&quot;{:&gt;</span><span class="si">%d</span><span class="s2">} =&gt;  W : </span><span class="si">{}</span><span class="se">\n</span><span class="s2">{:&gt;</span><span class="si">%d</span><span class="s2">}     R : </span><span class="si">{}</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">maxlen</span><span class="p">,</span> <span class="n">maxlen</span><span class="p">)</span>
+        <span class="n">pad</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">*</span><span class="p">(</span><span class="n">maxlen</span> <span class="o">+</span> <span class="mi">9</span><span class="p">)</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">getreads</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tracked</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">reads</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="p">:</span>
+                <span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+                <span class="k">continue</span>
+            <span class="n">first</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">tuple</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">shifted</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">pad</span><span class="p">,</span> <span class="nb">tuple</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">(</span><span class="n">j</span><span class="p">))</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+            <span class="n">shifted</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">shifted</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">shifted</span><span class="p">)</span>
+            <span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">first</span> <span class="o">+</span> <span class="n">shifted</span>
+        <span class="n">writes</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">getwrites</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tracked</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">writes</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">w</span><span class="p">:</span>
+                <span class="n">writes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+                <span class="k">continue</span>
+            <span class="n">first</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">tuple</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">(</span><span class="n">w</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">shifted</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">pad</span><span class="p">,</span> <span class="nb">tuple</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">(</span><span class="n">j</span><span class="p">))</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">w</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+            <span class="n">shifted</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">shifted</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">shifted</span><span class="p">)</span>
+            <span class="n">writes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\033</span><span class="s1">[1;37;31m</span><span class="si">%s</span><span class="se">\033</span><span class="s1">[0m&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">first</span> <span class="o">+</span> <span class="n">shifted</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">out</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>
+                          <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tracked</span><span class="p">,</span> <span class="n">reads</span><span class="p">,</span> <span class="n">writes</span><span class="p">)])</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">accesses</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">groups</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">d_flow</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Retrieve the flow dependencies, or true dependencies, or read-after-write.&quot;&quot;&quot;</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="n">DependenceGroup</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[]):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">is_flow</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="n">w</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">r</span> <span class="o">==</span> <span class="n">w</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">lex_ge</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="c1"># Non-integer vectors are not comparable.</span>
+                        <span class="c1"># Conservatively, we assume it is a dependence</span>
+                        <span class="n">is_flow</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">if</span> <span class="n">is_flow</span><span class="p">:</span>
+                        <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Dependence</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">r</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">found</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">d_anti</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Retrieve the anti dependencies, or write-after-read.&quot;&quot;&quot;</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="n">DependenceGroup</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[]):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">is_anti</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="o">&gt;</span> <span class="n">w</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">r</span> <span class="o">==</span> <span class="n">w</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">lex_lt</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="c1"># Non-integer vectors are not comparable.</span>
+                        <span class="c1"># Conservatively, we assume it is a dependence</span>
+                        <span class="n">is_anti</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">if</span> <span class="n">is_anti</span><span class="p">:</span>
+                        <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Dependence</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">w</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">found</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">d_output</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Retrieve the output dependencies, or write-after-write.&quot;&quot;&quot;</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="n">DependenceGroup</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">w1</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">w2</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[]):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">is_output</span> <span class="o">=</span> <span class="p">(</span><span class="n">w2</span> <span class="o">&gt;</span> <span class="n">w1</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">w2</span> <span class="o">==</span> <span class="n">w1</span> <span class="ow">and</span> <span class="n">w2</span><span class="o">.</span><span class="n">lex_gt</span><span class="p">(</span><span class="n">w1</span><span class="p">))</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="c1"># Non-integer vectors are not comparable.</span>
+                        <span class="c1"># Conservatively, we assume it is a dependence</span>
+                        <span class="n">is_output</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">if</span> <span class="n">is_output</span><span class="p">:</span>
+                        <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Dependence</span><span class="p">(</span><span class="n">w2</span><span class="p">,</span> <span class="n">w1</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">found</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">d_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Retrieve all flow, anti, and output dependences.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_flow</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_anti</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_output</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

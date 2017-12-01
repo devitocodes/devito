@@ -1,0 +1,307 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.core package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="index.html"/>
+        <link rel="up" title="devito package" href="devito.html"/>
+        <link rel="next" title="devito.dle package" href="devito.dle.html"/>
+        <link rel="prev" title="devito package" href="devito.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.core package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.core.autotuning">devito.core.autotuning module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.core.operator">devito.core.operator module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.core">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.foreign.html">devito.foreign package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.arguments">devito.arguments module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.grid">devito.grid module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.logger">devito.logger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.memory">devito.memory module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="devito.html">devito package</a> &raquo;</li>
+        
+      <li>devito.core package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/devito.core.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="devito-core-package">
+<h1>devito.core package<a class="headerlink" href="#devito-core-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-devito.core.autotuning">
+<span id="devito-core-autotuning-module"></span><h2>devito.core.autotuning module<a class="headerlink" href="#module-devito.core.autotuning" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.core.autotuning.autotune">
+<code class="descclassname">devito.core.autotuning.</code><code class="descname">autotune</code><span class="sig-paren">(</span><em>operator</em>, <em>arguments</em>, <em>tunable</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/core/autotuning.html#autotune"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.core.autotuning.autotune" title="Permalink to this definition">¶</a></dt>
+<dd><p>Acting as a high-order function, take as input an operator and a list of
+operator arguments to perform empirical autotuning. Some of the operator
+arguments are marked as tunable.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.core.operator">
+<span id="devito-core-operator-module"></span><h2>devito.core.operator module<a class="headerlink" href="#module-devito.core.operator" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.core.operator.Operator">
+<em class="property">class </em><code class="descclassname">devito.core.operator.</code><code class="descname">Operator</code><a class="reference internal" href="_modules/devito/core/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.core.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.core">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.core" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal"><span class="pre">core</span></code> Devito backend is simply a “shadow” of the <code class="docutils literal"><span class="pre">base</span></code> backend,
+common to all other backends. The <code class="docutils literal"><span class="pre">core</span></code> backend (and therefore the <code class="docutils literal"><span class="pre">base</span></code>
+backend as well) are used to run Devito on standard CPU architectures.</p>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="devito.dle.html" class="btn btn-neutral float-right" title="devito.dle package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="devito.html" class="btn btn-neutral" title="devito package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

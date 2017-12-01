@@ -1,0 +1,523 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.ir.dfg.graph &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="devito" href="../../../devito.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.ir.dfg.graph</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.ir.dfg.graph</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">islice</span>
+
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span><span class="p">,</span>
+                              <span class="n">q_inc</span><span class="p">,</span> <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TemporariesGraph&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">Temporary</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A special :class:`sympy.Eq` which keeps track of: ::</span>
+
+<span class="sd">        - :class:`sympy.Eq` writing to ``self``</span>
+<span class="sd">        - :class:`sympy.Eq` reading from ``self``</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;reads&#39;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">readby</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;readby&#39;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">inc</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;inc&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Temporary</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_is_Increment</span> <span class="o">=</span> <span class="n">inc</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_readby</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">readby</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_Increment</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">reads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reads</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">readby</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_readby</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">rank</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_tensor</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="s1">&#39;[</span><span class="si">%s%s</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">][:</span><span class="mi">2</span><span class="p">]),</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="n">reads</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="s1">&#39;, ...&#39;</span><span class="p">)</span>
+        <span class="n">readby</span> <span class="o">=</span> <span class="s1">&#39;[</span><span class="si">%s%s</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">readby</span><span class="p">][:</span><span class="mi">2</span><span class="p">]),</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">readby</span> <span class="o">=</span> <span class="n">readby</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">readby</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="s1">&#39;, ...&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;Temp(key=</span><span class="si">%s</span><span class="s2">, reads=</span><span class="si">%s</span><span class="s2">, readby=</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">reads</span><span class="p">,</span> <span class="n">readby</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="TemporariesGraph"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph">[docs]</a><span class="k">class</span> <span class="nc">TemporariesGraph</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A temporaries graph represents an ordered sequence of operations. Operations,</span>
+<span class="sd">    of type :class:`Temporary`, are the nodes of the graph. An edge from ``n0`` to</span>
+<span class="sd">    ``n1`` indicates that ``n1`` reads from ``n0``. For example, the sequence: ::</span>
+
+<span class="sd">        temp0 = a*b</span>
+<span class="sd">        temp1 = temp0*c</span>
+<span class="sd">        temp2 = temp0*d</span>
+<span class="sd">        temp3 = temp1 + temp2</span>
+
+<span class="sd">    is represented by the following TemporariesGraph: ::</span>
+
+<span class="sd">        temp0 ---&gt; temp1</span>
+<span class="sd">          |          |</span>
+<span class="sd">          |          |</span>
+<span class="sd">          v          v</span>
+<span class="sd">        temp2 ---&gt; temp3</span>
+
+<span class="sd">    The input and output edges of a node ``n`` are encoded in ``n.reads`` and</span>
+<span class="sd">    ``n.readby``, respectively.</span>
+
+<span class="sd">    Operations may involve scalars and indexed objects (arrays). The indices</span>
+<span class="sd">    of the indexed objects represent either &quot;space&quot; or &quot;time&quot; dimensions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Check input legality</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">DSEException</span><span class="p">(</span><span class="s2">&quot;Found redundant node, cannot build TemporariesGraph.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Construct Temporaries, tracking reads and readby</span>
+        <span class="n">tensor_map</span> <span class="o">=</span> <span class="n">DefaultOrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">:</span>
+            <span class="n">tensor_map</span><span class="p">[</span><span class="n">as_symbol</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="n">DefaultOrderedDict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
+        <span class="n">readby</span> <span class="o">=</span> <span class="n">DefaultOrderedDict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">handle</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+                        <span class="n">handle</span> <span class="o">|=</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+            <span class="n">reads</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">tensor_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">as_symbol</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="p">[])</span>
+                                         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">])))</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">reads</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                <span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+
+        <span class="c1"># Make sure read-after-writes are honored for scalar temporaries</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">]</span>
+        <span class="n">queue</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
+        <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">readby</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">readby</span><span class="p">[</span><span class="n">k</span><span class="p">]):</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">processed</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">readby</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+
+        <span class="c1"># Build up the TemporariesGraph</span>
+        <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">Temporary</span><span class="p">(</span><span class="o">*</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">inc</span><span class="o">=</span><span class="n">q_inc</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                                     <span class="n">reads</span><span class="o">=</span><span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+                       <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TemporariesGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">temporaries</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Determine indices along the space and time dimensions</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">q_indirect</span><span class="p">(</span><span class="n">k</span><span class="p">)]</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">space_indices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Space</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_indices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Time</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TemporariesGraph.trace"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.trace">[docs]</a>    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the sequence of operations required to compute the temporary ``key``.</span>
+<span class="sd">        If ``readby = True``, then return the sequence of operations that will</span>
+<span class="sd">        depend on ``key``, instead. With ``strict = True``, drop ``key`` from the</span>
+<span class="sd">        result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="c1"># OrderedDicts, besides preserving the scheduling order, also prevent</span>
+        <span class="c1"># scheduling the same temporary more than once</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">queue</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">key</span><span class="p">,</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">])])</span>
+        <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">popitem</span><span class="p">(</span><span class="n">last</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">reads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">values</span><span class="p">())):</span>
+                <span class="c1"># All dependencies satisfied, schedulable</span>
+                <span class="n">found</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Tensors belong to other traces, so they can be scheduled straight away</span>
+                <span class="n">tensors</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">reads</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">]</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">items</span><span class="p">())</span> <span class="o">+</span> <span class="p">[(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tensors</span><span class="p">])</span>
+                <span class="c1"># Postpone the rest until all dependening temporaries got scheduled</span>
+                <span class="n">scalars</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">reads</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">]</span>
+                <span class="n">queue</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">scalars</span><span class="p">]</span> <span class="o">+</span>
+                                    <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">queue</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="k">if</span> <span class="n">strict</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">values</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="TemporariesGraph.time_invariant"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.time_invariant">[docs]</a>    <span class="k">def</span> <span class="nf">time_invariant</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``</span>
+<span class="sd">        explicitly tracked by the TemporariesGraph or even a generic subexpression</span>
+<span class="sd">        of ``e``. If no ``expr`` is provided, then time invariance of the entire</span>
+<span class="sd">        TemporariesGraph is assessed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">expr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">q_timedimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">queue</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">]</span> <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span> <span class="k">else</span> <span class="p">[</span><span class="n">expr</span><span class="p">]</span>
+        <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">j</span><span class="o">.</span><span class="n">is_Time</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">):</span>
+                    <span class="c1"># Definitely not time-invariant</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+                    <span class="c1"># Go on with the search</span>
+                    <span class="n">temporaries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
+                    <span class="c1"># Go on with the search, as /i/ is not a time dimension</span>
+                    <span class="k">continue</span>
+                <span class="k">elif</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_SymbolicFunction</span><span class="p">:</span>
+                    <span class="c1"># It didn&#39;t come from the outside and it&#39;s not in self, so</span>
+                    <span class="c1"># cannot determine if time-invariant; assume time-varying</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">temporaries</span> <span class="k">if</span> <span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="o">!=</span> <span class="n">item</span><span class="p">])</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="TemporariesGraph.is_index"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.is_index">[docs]</a>    <span class="k">def</span> <span class="nf">is_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return True if ``key`` is used as array index in an expression of the</span>
+<span class="sd">        TemporariesGraph, False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span> <span class="k">if</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">is_tensor</span> <span class="k">else</span> <span class="n">key</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">match</span> <span class="ow">in</span> <span class="n">idx</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="TemporariesGraph.extract"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.extract">[docs]</a>    <span class="k">def</span> <span class="nf">extract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the list of nodes appearing in ``key.reads``, in program order</span>
+<span class="sd">        (ie, based on the order in which the temporaries appear in ``self``). If</span>
+<span class="sd">        ``readby is True``, then return instead the list of nodes appearing</span>
+<span class="sd">        ``key.readby``, in program order.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+<span class="sd">        Given the following sequence of operations: ::</span>
+
+<span class="sd">            t1 = ...</span>
+<span class="sd">            t0 = ...</span>
+<span class="sd">            u[i, j] = ... v ...</span>
+<span class="sd">            u[3, j] = ...</span>
+<span class="sd">            v = t0 + t1 + u[z, k]</span>
+<span class="sd">            t2 = ...</span>
+
+<span class="sd">        Assuming ``key == v`` and ``readby is False`` (as by default), return</span>
+<span class="sd">        the following list of :class:`Temporary` objects: ::</span>
+
+<span class="sd">            [t1, t0, u[i, j], u[3, j]]</span>
+
+<span class="sd">        If ``readby is True``, return: ::</span>
+
+<span class="sd">            [v, t2]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">reads</span> <span class="k">if</span> <span class="n">readby</span> <span class="ow">is</span> <span class="kc">False</span> <span class="k">else</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">readby</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">match</span><span class="p">:</span>
+                <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">found</span></div>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TemporariesGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">step</span> <span class="ow">or</span> <span class="mi">0</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">start</span><span class="p">)</span> <span class="o">+</span> <span class="n">offset</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">stop</span><span class="p">)</span> <span class="o">+</span> <span class="n">offset</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">TemporariesGraph</span><span class="p">(</span><span class="n">islice</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">unknown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all symbols appearing in self for which a temporary is not available.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">known</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
+                     <span class="n">flatten</span><span class="p">(</span><span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">())])</span>
+        <span class="k">return</span> <span class="n">reads</span> <span class="o">-</span> <span class="n">known</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">tensors</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all occurrences of the tensors in ``self`` keyed by function.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="p">[])</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
+                    <span class="c1"># Not using sets to preserve order</span>
+                    <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mapper</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

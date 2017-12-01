@@ -1,0 +1,372 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.backends &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="devito" href="../devito.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.backends</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.backends</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;The Devito backend configuration engine.</span>
+
+<span class="sd">.. warning :: The backend should always be set via :func:`devito.init`</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># This code is partly extracted from https://github.com/OP2/PyOP2/</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">FunctionClass</span>
+
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DevitoError</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
+
+<span class="n">backends</span> <span class="o">=</span> <span class="p">{}</span>
+
+<span class="n">backends_registry</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;core&#39;</span><span class="p">,</span> <span class="s1">&#39;foreign&#39;</span><span class="p">,</span> <span class="s1">&#39;yask&#39;</span><span class="p">,</span> <span class="s1">&#39;void&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="void"><a class="viewcode-back" href="../../devito.html#devito.backends.void">[docs]</a><span class="k">class</span> <span class="nc">void</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dummy backend.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+
+<span class="k">class</span> <span class="nc">_BackendSelector</span><span class="p">(</span><span class="n">FunctionClass</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Metaclass creating the backend class corresponding to the requested class.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_backend</span> <span class="o">=</span> <span class="n">void</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dct</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Inherit Docstrings when creating a class definition. A variation of</span>
+<span class="sd">        http://groups.google.com/group/comp.lang.python/msg/26f7b4fcb4d66c95</span>
+<span class="sd">        by Paul McGuire.</span>
+
+<span class="sd">        Source: http://stackoverflow.com/a/8101118/396967</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Get the class docstring</span>
+        <span class="k">if</span> <span class="ow">not</span><span class="p">(</span><span class="s1">&#39;__doc__&#39;</span> <span class="ow">in</span> <span class="n">dct</span> <span class="ow">and</span> <span class="n">dct</span><span class="p">[</span><span class="s1">&#39;__doc__&#39;</span><span class="p">]):</span>
+            <span class="k">for</span> <span class="n">mro_cls</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">cls</span> <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">bases</span> <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">base</span><span class="o">.</span><span class="n">mro</span><span class="p">()):</span>
+                <span class="n">doc</span> <span class="o">=</span> <span class="n">mro_cls</span><span class="o">.</span><span class="vm">__doc__</span>
+                <span class="k">if</span> <span class="n">doc</span><span class="p">:</span>
+                    <span class="n">dct</span><span class="p">[</span><span class="s1">&#39;__doc__&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doc</span>
+                    <span class="k">break</span>
+        <span class="c1"># Get the attribute docstrings</span>
+        <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">attribute</span> <span class="ow">in</span> <span class="n">dct</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">attribute</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">mro_cls</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">cls</span> <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">bases</span> <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">base</span><span class="o">.</span><span class="n">mro</span><span class="p">()</span>
+                                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">attr</span><span class="p">)):</span>
+                    <span class="n">doc</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">mro_cls</span><span class="p">,</span> <span class="n">attr</span><span class="p">),</span> <span class="s1">&#39;__doc__&#39;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">doc</span><span class="p">:</span>
+                        <span class="n">attribute</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="n">doc</span>
+                        <span class="k">break</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dct</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create an instance of the request class for the current backend.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Try the selected backend first</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Backend </span><span class="si">%s</span><span class="s1"> does not appear to implement class </span><span class="si">%s</span><span class="s1">&#39;</span>
+                    <span class="o">%</span> <span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="n">e</span>
+        <span class="c1"># Invoke the constructor with the arguments given</span>
+        <span class="k">return</span> <span class="n">t</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="c1"># More disgusting metaclass voodoo</span>
+    <span class="k">def</span> <span class="nf">__instancecheck__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return True if instance is an instance of cls.</span>
+
+<span class="sd">        We need to override the default isinstance check because</span>
+<span class="sd">        ``type(function.Function(...))`` is ``function.Function``, but</span>
+<span class="sd">        type(function.Function) is ``_BackendSelector`` and so by default</span>
+<span class="sd">        ``isinstance(function.Function(...), function.Function)`` is False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">__subclasscheck__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">subclass</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return True if subclass is a subclass of cls.</span>
+
+<span class="sd">        We need to override the default subclass check because</span>
+<span class="sd">        ``type(function.Function(...))`` is ``function.Function`, but</span>
+<span class="sd">        ``type(function.Function)`` is ``_BackendSelector`` and so by default</span>
+<span class="sd">        ``isinstance(type(function.Function(...)), function.Function)`` is False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">subclass</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="get_backend"><a class="viewcode-back" href="../../devito.html#devito.backends.get_backend">[docs]</a><span class="k">def</span> <span class="nf">get_backend</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the Devito backend.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__name__</span></div>
+
+
+<div class="viewcode-block" id="set_backend"><a class="viewcode-back" href="../../devito.html#devito.backends.set_backend">[docs]</a><span class="k">def</span> <span class="nf">set_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Set the Devito backend.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">global</span> <span class="n">_BackendSelector</span>
+    <span class="k">if</span> <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span> <span class="o">!=</span> <span class="n">void</span><span class="p">:</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;WARNING: Switching backend to </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># We need to pass a non-empty fromlist so that __import__</span>
+        <span class="c1"># returns the submodule (i.e. the backend) rather than the</span>
+        <span class="c1"># package.</span>
+        <span class="n">mod</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="s1">&#39;devito.</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">,</span> <span class="n">fromlist</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;None&#39;</span><span class="p">])</span>
+    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Unable to import backend </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">e</span>
+    <span class="n">backends</span><span class="p">[</span><span class="n">backend</span><span class="p">]</span> <span class="o">=</span> <span class="n">mod</span>
+    <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="n">mod</span></div>
+
+
+<div class="viewcode-block" id="initialised_backend"><a class="viewcode-back" href="../../devito.html#devito.backends.initialised_backend">[docs]</a><span class="k">def</span> <span class="nf">initialised_backend</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Check whether Devito has been yet initialised.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">backends</span><span class="o">.</span><span class="n">get_backend</span><span class="p">()</span> <span class="o">!=</span> <span class="s1">&#39;void&#39;</span></div>
+
+
+<div class="viewcode-block" id="init_backend"><a class="viewcode-back" href="../../devito.html#devito.backends.init_backend">[docs]</a><span class="k">def</span> <span class="nf">init_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialise Devito: select the backend and other configuration options.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">backend</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">backends_registry</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Calling init() for a different backend is illegal.&quot;</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">set_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">DevitoError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t initialize Devito.&quot;</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

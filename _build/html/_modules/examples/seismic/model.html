@@ -1,0 +1,681 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>examples.seismic.model &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>examples.seismic.model</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for examples.seismic.model</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Constant</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Model&#39;</span><span class="p">,</span> <span class="s1">&#39;demo_model&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="demo_model"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.model.demo_model">[docs]</a><span class="k">def</span> <span class="nf">demo_model</span><span class="p">(</span><span class="n">preset</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Utility function to create preset :class:`Model` objects for</span>
+<span class="sd">    demonstration and testing purposes. The particular presets are ::</span>
+
+<span class="sd">    * `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model</span>
+<span class="sd">    * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and</span>
+<span class="sd">                      Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad</span>
+<span class="sd">                      and phi=.35rad for 3D. 2d/3d is defined from the input shape</span>
+<span class="sd">    * &#39;layers-isotropic&#39;: Simple two-layer model with velocities 1.5 km/s</span>
+<span class="sd">                 and 2.5 km/s in the top and bottom layer respectively.</span>
+<span class="sd">                 2d/3d is defined from the input shape</span>
+<span class="sd">    * &#39;layers-tti&#39;: Simple two-layer TTI model with velocities 1.5 km/s</span>
+<span class="sd">                    and 2.5 km/s in the top and bottom layer respectively.</span>
+<span class="sd">                    Thomsen parameters in the top layer are 0 and in the lower layer</span>
+<span class="sd">                    are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.</span>
+<span class="sd">                    2d/3d is defined from the input shape</span>
+<span class="sd">    * &#39;circle-isotropic&#39;: Simple camembert model with velocities 1.5 km/s</span>
+<span class="sd">                 and 2.5 km/s in a circle at the center. 2D only.</span>
+<span class="sd">    * &#39;marmousi2d-isotropic&#39;: Loads the 2D Marmousi data set from the given</span>
+<span class="sd">                    filepath. Requires the ``opesci/data`` repository</span>
+<span class="sd">                    to be available on your machine.</span>
+<span class="sd">    * &#39;marmousi2d-tti&#39;: Loads the 2D Marmousi data set from the given</span>
+<span class="sd">                    filepath. Requires the ``opesci/data`` repository</span>
+<span class="sd">                    to be available on your machine.</span>
+<span class="sd">    * &#39;marmousi3d-tti&#39;: Loads the 2D Marmousi data set from the given</span>
+<span class="sd">                    filepath. Requires the ``opesci/data`` repository</span>
+<span class="sd">                    to be available on your machine.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">preset</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;constant-isotropic&#39;</span><span class="p">]:</span>
+        <span class="c1"># A constant single-layer model in a 2D or 3D domain</span>
+        <span class="c1"># with velocity 1.5km/s.</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="mi">101</span><span class="p">))</span>
+        <span class="n">spacing</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">10.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;origin&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">0.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">nbpml</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nbpml&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">vp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;vp&#39;</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">vp</span><span class="o">=</span><span class="n">vp</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                     <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">preset</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;constant-tti&#39;</span><span class="p">]:</span>
+        <span class="c1"># A constant single-layer model in a 2D or 3D domain</span>
+        <span class="c1"># with velocity 1.5km/s.</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="mi">101</span><span class="p">))</span>
+        <span class="n">spacing</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">10.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;origin&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">0.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">nbpml</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nbpml&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">v</span><span class="p">[:]</span> <span class="o">=</span> <span class="mf">1.5</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="o">.</span><span class="mi">3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="o">.</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="o">.</span><span class="mi">7</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">phi</span> <span class="o">=</span> <span class="o">.</span><span class="mi">35</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">vp</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                     <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">,</span>
+                     <span class="n">epsilon</span><span class="o">=</span><span class="n">epsilon</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">,</span> <span class="n">theta</span><span class="o">=</span><span class="n">theta</span><span class="p">,</span> <span class="n">phi</span><span class="o">=</span><span class="n">phi</span><span class="p">,</span>
+                     <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">preset</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;layers-isotropic&#39;</span><span class="p">,</span> <span class="s1">&#39;twolayer-isotropic&#39;</span><span class="p">,</span>
+                            <span class="s1">&#39;2layer-isotropic&#39;</span><span class="p">]:</span>
+        <span class="c1"># A two-layer model in a 2D or 3D domain with two different</span>
+        <span class="c1"># velocities split across the height dimension:</span>
+        <span class="c1"># By default, the top part of the domain has 1.5 km/s,</span>
+        <span class="c1"># and the bottom part of the domain has 2.5 km/s.</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="mi">101</span><span class="p">))</span>
+        <span class="n">spacing</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">10.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;origin&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">0.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">nbpml</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nbpml&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">ratio</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;ratio&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">vp_top</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;vp_top&#39;</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">)</span>
+        <span class="n">vp_bottom</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;vp_bottom&#39;</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">)</span>
+
+        <span class="c1"># Define a velocity profile in km/s</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">v</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">vp_top</span>  <span class="c1"># Top velocity (background)</span>
+        <span class="n">v</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">ratio</span><span class="p">):]</span> <span class="o">=</span> <span class="n">vp_bottom</span>  <span class="c1"># Bottom velocity</span>
+
+        <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">vp</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                     <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">preset</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;layers-tti&#39;</span><span class="p">,</span> <span class="s1">&#39;twolayer-tti&#39;</span><span class="p">,</span> <span class="s1">&#39;2layer-tti&#39;</span><span class="p">]:</span>
+        <span class="c1"># A two-layer model in a 2D or 3D domain with two different</span>
+        <span class="c1"># velocities split across the height dimension:</span>
+        <span class="c1"># By default, the top part of the domain has 1.5 km/s,</span>
+        <span class="c1"># and the bottom part of the domain has 2.5 km/s.\</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="mi">101</span><span class="p">))</span>
+        <span class="n">spacing</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">10.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;origin&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">0.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">nbpml</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nbpml&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">ratio</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;ratio&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">vp_top</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;vp_top&#39;</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">)</span>
+        <span class="n">vp_bottom</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;vp_bottom&#39;</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">)</span>
+
+        <span class="c1"># Define a velocity profile in km/s</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">v</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">vp_top</span>  <span class="c1"># Top velocity (background)</span>
+        <span class="n">v</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">ratio</span><span class="p">):]</span> <span class="o">=</span> <span class="n">vp_bottom</span>  <span class="c1"># Bottom velocity</span>
+
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="o">.</span><span class="mi">3</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">)</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="o">.</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">)</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="o">.</span><span class="mi">5</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">)</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">phi</span> <span class="o">=</span> <span class="o">.</span><span class="mi">1</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">vp</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                     <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">,</span>
+                     <span class="n">epsilon</span><span class="o">=</span><span class="n">epsilon</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">,</span> <span class="n">theta</span><span class="o">=</span><span class="n">theta</span><span class="p">,</span> <span class="n">phi</span><span class="o">=</span><span class="n">phi</span><span class="p">,</span>
+                     <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">preset</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;circle-isotropic&#39;</span><span class="p">]:</span>
+        <span class="c1"># A simple circle in a 2D domain with a background velocity.</span>
+        <span class="c1"># By default, the circle velocity is 2.5 km/s,</span>
+        <span class="c1"># and the background veloity is 3.0 km/s.</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">101</span><span class="p">,</span> <span class="mi">101</span><span class="p">))</span>
+        <span class="n">spacing</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">10.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;origin&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">([</span><span class="mf">0.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">]))</span>
+        <span class="n">nbpml</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nbpml&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">vp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;vp&#39;</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)</span>
+        <span class="n">vp_background</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;vp_background&#39;</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">)</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="mi">15</span><span class="p">)</span>
+
+        <span class="c1"># Only a 2D preset is available currently</span>
+        <span class="k">assert</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">v</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">vp_background</span>
+
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">y</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ogrid</span><span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">:</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="n">a</span><span class="p">,</span> <span class="o">-</span><span class="n">b</span><span class="p">:</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">b</span><span class="p">]</span>
+        <span class="n">v</span><span class="p">[</span><span class="n">x</span><span class="o">*</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span><span class="o">*</span><span class="n">y</span> <span class="o">&lt;=</span> <span class="n">r</span><span class="o">*</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="n">vp</span>
+
+        <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">vp</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                     <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">preset</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;marmousi-isotropic&#39;</span><span class="p">,</span> <span class="s1">&#39;marmousi2d-isotropic&#39;</span><span class="p">]:</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1601</span><span class="p">,</span> <span class="mi">401</span><span class="p">)</span>
+        <span class="n">spacing</span> <span class="o">=</span> <span class="p">(</span><span class="mf">7.5</span><span class="p">,</span> <span class="mf">7.5</span><span class="p">)</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+
+        <span class="c1"># Read 2D Marmousi model from opesc/data repo</span>
+        <span class="n">data_path</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;data_path&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Path to opesci/data not found! Please specify with &quot;</span>
+                  <span class="s2">&quot;&#39;data_path=&lt;path/to/opesci/data&gt;&#39;&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Path to model data unspecified&quot;</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;Simple2D/vp_marmousi_bi&#39;</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="c1"># Cut the model to make it slightly cheaper</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="mi">301</span><span class="p">:</span><span class="o">-</span><span class="mi">300</span><span class="p">,</span> <span class="p">:]</span>
+
+        <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">vp</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                     <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">preset</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;marmousi-tti2d&#39;</span><span class="p">,</span> <span class="s1">&#39;marmousi2d-tti&#39;</span><span class="p">]:</span>
+
+        <span class="n">shape_full</span> <span class="o">=</span> <span class="p">(</span><span class="mi">201</span><span class="p">,</span> <span class="mi">201</span><span class="p">,</span> <span class="mi">70</span><span class="p">)</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="mi">201</span><span class="p">,</span> <span class="mi">70</span><span class="p">)</span>
+        <span class="n">spacing</span> <span class="o">=</span> <span class="p">(</span><span class="mf">10.</span><span class="p">,</span> <span class="mf">10.</span><span class="p">)</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+        <span class="n">nbpml</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nbpml&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+
+        <span class="c1"># Read 2D Marmousi model from opesc/data repo</span>
+        <span class="n">data_path</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;data_path&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Path to opesci/data not found! Please specify with &quot;</span>
+                  <span class="s2">&quot;&#39;data_path=&lt;path/to/opesci/data&gt;&#39;&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Path to model data unspecified&quot;</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/vp_marmousi_bi&#39;</span><span class="p">)</span>
+
+        <span class="c1"># velocity</span>
+        <span class="n">vp</span> <span class="o">=</span> <span class="mf">1e-3</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/MarmousiVP.raw&#39;</span><span class="p">),</span>
+                                <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">vp</span> <span class="o">=</span> <span class="n">vp</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape_full</span><span class="p">)</span>
+        <span class="n">vp</span> <span class="o">=</span> <span class="n">vp</span><span class="p">[</span><span class="mi">101</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
+        <span class="c1"># Epsilon, in % in file, resale between 0 and 1</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/MarmousiEps.raw&#39;</span><span class="p">),</span>
+                              <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1e-2</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">epsilon</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape_full</span><span class="p">)</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">epsilon</span><span class="p">[</span><span class="mi">101</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
+        <span class="c1"># Delta, in % in file, resale between 0 and 1</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/MarmousiDelta.raw&#39;</span><span class="p">),</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1e-2</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">delta</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape_full</span><span class="p">)</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">delta</span><span class="p">[</span><span class="mi">101</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
+        <span class="c1"># Theta, in degrees in file, resale in radian</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/MarmousiTilt.raw&#39;</span><span class="p">),</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">180</span> <span class="o">*</span> <span class="n">theta</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape_full</span><span class="p">))</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">theta</span><span class="p">[</span><span class="mi">101</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
+
+        <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">vp</span><span class="o">=</span><span class="n">vp</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                     <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">,</span>
+                     <span class="n">epsilon</span><span class="o">=</span><span class="n">epsilon</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">,</span> <span class="n">theta</span><span class="o">=</span><span class="n">theta</span><span class="p">,</span>
+                     <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">preset</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;marmousi-tti3d&#39;</span><span class="p">,</span> <span class="s1">&#39;marmousi3d-tti&#39;</span><span class="p">]:</span>
+
+        <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="mi">201</span><span class="p">,</span> <span class="mi">201</span><span class="p">,</span> <span class="mi">70</span><span class="p">)</span>
+        <span class="n">spacing</span> <span class="o">=</span> <span class="p">(</span><span class="mf">10.</span><span class="p">,</span> <span class="mf">10.</span><span class="p">,</span> <span class="mf">10.</span><span class="p">)</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+        <span class="n">nbpml</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nbpml&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+
+        <span class="c1"># Read 2D Marmousi model from opesc/data repo</span>
+        <span class="n">data_path</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;data_path&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Path to opesci/data not found! Please specify with &quot;</span>
+                  <span class="s2">&quot;&#39;data_path=&lt;path/to/opesci/data&gt;&#39;&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Path to model data unspecified&quot;</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/vp_marmousi_bi&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Velcoity</span>
+        <span class="n">vp</span> <span class="o">=</span> <span class="mf">1e-3</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/MarmousiVP.raw&#39;</span><span class="p">),</span>
+                                <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">vp</span> <span class="o">=</span> <span class="n">vp</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+        <span class="c1"># Epsilon, in % in file, resale between 0 and 1</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/MarmousiEps.raw&#39;</span><span class="p">),</span>
+                              <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1e-2</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">epsilon</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+        <span class="c1"># Delta, in % in file, resale between 0 and 1</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/MarmousiDelta.raw&#39;</span><span class="p">),</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1e-2</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">delta</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+        <span class="c1"># Theta, in degrees in file, resale in radian</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/MarmousiTilt.raw&#39;</span><span class="p">),</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">180</span> <span class="o">*</span> <span class="n">theta</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">))</span>
+        <span class="c1"># Phi, in degrees in file, resale in radian</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;marmousi3D/Azimuth.raw&#39;</span><span class="p">),</span>
+                          <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">180</span> <span class="o">*</span> <span class="n">phi</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">vp</span><span class="o">=</span><span class="n">vp</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                     <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">,</span>
+                     <span class="n">epsilon</span><span class="o">=</span><span class="n">epsilon</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">,</span> <span class="n">theta</span><span class="o">=</span><span class="n">theta</span><span class="p">,</span> <span class="n">phi</span><span class="o">=</span><span class="n">phi</span><span class="p">,</span>
+                     <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">error</span><span class="p">(</span><span class="s1">&#39;Unknown model preset name </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">preset</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">damp_boundary</span><span class="p">(</span><span class="n">damp</span><span class="p">,</span> <span class="n">nbpml</span><span class="p">,</span> <span class="n">spacing</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Initialise damping field with an absorbing PML layer.</span>
+
+<span class="sd">    :param damp: Array data defining the damping field</span>
+<span class="sd">    :param nbpml: Number of points in the damping layer</span>
+<span class="sd">    :param spacing: Grid spacing coefficent</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dampcoeff</span> <span class="o">=</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="mf">0.001</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">40.</span><span class="p">)</span>
+    <span class="n">ndim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">damp</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nbpml</span><span class="p">):</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">((</span><span class="n">nbpml</span> <span class="o">-</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">nbpml</span><span class="p">))</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">dampcoeff</span> <span class="o">*</span> <span class="p">(</span><span class="n">pos</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">pos</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">damp</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">damp</span><span class="p">[</span><span class="o">-</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">damp</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">damp</span><span class="p">[:,</span> <span class="o">-</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">damp</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">damp</span><span class="p">[</span><span class="o">-</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="p">:,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">damp</span><span class="p">[:,</span> <span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">damp</span><span class="p">[:,</span> <span class="o">-</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">damp</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">damp</span><span class="p">[:,</span> <span class="p">:,</span> <span class="o">-</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">val</span><span class="o">/</span><span class="n">spacing</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Model"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.model.Model">[docs]</a><span class="k">class</span> <span class="nc">Model</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The physical model used in seismic inversion processes.</span>
+
+<span class="sd">    :param origin: Origin of the model in m as a tuple in (x,y,z) order</span>
+<span class="sd">    :param spacing: Grid size in m as a Tuple in (x,y,z) order</span>
+<span class="sd">    :param shape: Number of grid points size in (x,y,z) order</span>
+<span class="sd">    :param vp: Velocity in km/s</span>
+<span class="sd">    :param nbpml: The number of PML layers for boundary damping</span>
+<span class="sd">    :param rho: Density in kg/cm^3 (rho=1 for water)</span>
+<span class="sd">    :param epsilon: Thomsen epsilon parameter (0&lt;epsilon&lt;1)</span>
+<span class="sd">    :param delta: Thomsen delta parameter (0&lt;delta&lt;1), delta&lt;epsilon</span>
+<span class="sd">    :param theta: Tilt angle in radian</span>
+<span class="sd">    :param phi: Asymuth angle in radian</span>
+
+<span class="sd">    The :class:`Model` provides two symbolic data objects for the</span>
+<span class="sd">    creation of seismic wave propagation operators:</span>
+
+<span class="sd">    :param m: The square slowness of the wave</span>
+<span class="sd">    :param damp: The damping field for absorbing boundarycondition</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                 <span class="n">epsilon</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">theta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">phi</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">nbpml</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">origin</span> <span class="o">=</span> <span class="n">origin</span>
+
+        <span class="n">shape_pml</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span>
+        <span class="c1"># Physical extent is calculated per cell, so shape - 1</span>
+        <span class="n">extent</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">spacing</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">shape_pml</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape_pml</span><span class="p">,</span>
+                         <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="c1"># Create square slowness of the wave as symbol `m`</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vp</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mi">1</span><span class="o">/</span><span class="n">vp</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># Set model velocity, which will also set `m`</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vp</span> <span class="o">=</span> <span class="n">vp</span>
+
+        <span class="c1"># Create dampening field as symbol `damp`</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">damp</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;damp&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+        <span class="n">damp_boundary</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">damp</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
+
+        <span class="c1"># Additional parameter fields for TTI operators</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="mf">1.</span>
+
+        <span class="k">if</span> <span class="n">epsilon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">epsilon</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;epsilon&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">epsilon</span><span class="p">)</span>
+                <span class="c1"># Maximum velocity is scale*max(vp) if epsilon &gt; 0</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="o">.</span><span class="n">data</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">epsilon</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">epsilon</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">delta</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">delta</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">delta</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;delta&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">delta</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">delta</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">delta</span> <span class="o">=</span> <span class="n">delta</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">delta</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">theta</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">theta</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">theta</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;theta&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">theta</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">theta</span> <span class="o">=</span> <span class="n">theta</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">theta</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">phi</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">phi</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">phi</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;phi&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">phi</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">phi</span> <span class="o">=</span> <span class="n">phi</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">phi</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Spatial dimension of the problem and model domain.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">spacing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Grid spacing for all fields in the physical model.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">spacing</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">spacing_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Map between spacing symbols and their values for each :class:`SpaceDimension`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">spacing_map</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Data type for all assocaited data objects.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dtype</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Computational shape of the model domain, with PML layers&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">d</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">domain_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Physical size of the domain as determined by shape and spacing</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">d</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">s</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">critical_dt</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Critical computational time step value from the CFL condition.&quot;&quot;&quot;</span>
+        <span class="c1"># For a fixed time order this number goes down as the space order increases.</span>
+        <span class="c1">#</span>
+        <span class="c1"># The CFL condtion is then given by</span>
+        <span class="c1"># dt &lt;= coeff * h / (max(velocity))</span>
+        <span class="n">coeff</span> <span class="o">=</span> <span class="mf">0.38</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span> <span class="k">else</span> <span class="mf">0.42</span>
+        <span class="k">return</span> <span class="n">coeff</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vp</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">vp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`numpy.ndarray` holding the model velocity in km/s.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">        Updating the velocity field also updates the square slowness</span>
+<span class="sd">        ``self.m``. However, only ``self.m`` should be used in seismic</span>
+<span class="sd">        operators, since it is of type :class:`Function`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vp</span>
+
+    <span class="nd">@vp</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">vp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vp</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set a new velocity model and update square slowness</span>
+
+<span class="sd">        :param vp : new velocity in km/s</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_vp</span> <span class="o">=</span> <span class="n">vp</span>
+
+        <span class="c1"># Update the square slowness according to new value</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vp</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vp</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">vp</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">vp</span><span class="o">**</span><span class="mi">2</span>
+
+<div class="viewcode-block" id="Model.pad"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.model.Model.pad">[docs]</a>    <span class="k">def</span> <span class="nf">pad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Padding function PNL layers in every direction for for the</span>
+<span class="sd">        absorbing boundary conditions.</span>
+
+<span class="sd">        :param data : Data array to be padded&quot;&quot;&quot;</span>
+        <span class="n">pad_list</span> <span class="o">=</span> <span class="p">[(</span><span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">pad_list</span><span class="p">,</span> <span class="s1">&#39;edge&#39;</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

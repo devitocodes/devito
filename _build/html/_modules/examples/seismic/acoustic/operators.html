@@ -1,0 +1,449 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>examples.seismic.acoustic.operators &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="Module code" href="../../../index.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+      <li>examples.seismic.acoustic.operators</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for examples.seismic.acoustic.operators</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">solve</span><span class="p">,</span> <span class="n">Symbol</span>
+
+<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Operator</span><span class="p">,</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">TimeFunction</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
+<span class="kn">from</span> <span class="nn">examples.seismic</span> <span class="k">import</span> <span class="n">PointSource</span><span class="p">,</span> <span class="n">Receiver</span>
+
+
+<div class="viewcode-block" id="laplacian"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.laplacian">[docs]</a><span class="k">def</span> <span class="nf">laplacian</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Spacial discretization for the isotropic acoustic wave equation. For a 4th</span>
+<span class="sd">    order in time formulation, the 4th order time derivative is replaced by a</span>
+<span class="sd">    double laplacian:</span>
+<span class="sd">    H = (laplacian + s**2/12 laplacian(1/m*laplacian))</span>
+<span class="sd">    :param field: Symbolic TimeFunction object, solution to be computed</span>
+<span class="sd">    :param time_order: time order</span>
+<span class="sd">    :param m: square slowness</span>
+<span class="sd">    :param s: symbol for the time-step</span>
+<span class="sd">    :return: H</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">time_order</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">biharmonic</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">elif</span> <span class="n">time_order</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="n">biharmonic</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">laplace2</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">m</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Unsupported time order </span><span class="si">%d</span><span class="s2">, order has to be 2 or 4&quot;</span> <span class="o">%</span>
+              <span class="n">time_order</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">field</span><span class="o">.</span><span class="n">laplace</span> <span class="o">+</span> <span class="n">s</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mi">12</span> <span class="o">*</span> <span class="n">biharmonic</span></div>
+
+
+<div class="viewcode-block" id="iso_stencil"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.iso_stencil">[docs]</a><span class="k">def</span> <span class="nf">iso_stencil</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">damp</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Stencil for the acoustic isotropic wave-equation:</span>
+<span class="sd">    u.dt2 - H + damp*u.dt = 0</span>
+<span class="sd">    :param field: Symbolic TimeFunction object, solution to be computed</span>
+<span class="sd">    :param time_order: time order</span>
+<span class="sd">    :param m: square slowness</span>
+<span class="sd">    :param s: symbol for the time-step</span>
+<span class="sd">    :param damp: ABC dampening field (Function)</span>
+<span class="sd">    :param kwargs: forwad/backward wave equation (sign of u.dt will change accordingly</span>
+<span class="sd">    as well as the updated time-step (u.forwad or u.backward)</span>
+<span class="sd">    :return: Stencil for the wave-equation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Creat a temporary symbol for H to avoid expensive sympy solve</span>
+    <span class="n">H</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">)</span>
+    <span class="c1"># Define time sep to be updated</span>
+    <span class="nb">next</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">forward</span> <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;forward&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="k">else</span> <span class="n">field</span><span class="o">.</span><span class="n">backward</span>
+    <span class="c1"># Define PDE</span>
+    <span class="n">eq</span> <span class="o">=</span> <span class="n">m</span> <span class="o">*</span> <span class="n">field</span><span class="o">.</span><span class="n">dt2</span> <span class="o">-</span> <span class="n">H</span> <span class="o">-</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;q&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="c1"># Add dampening field according to the propagation direction</span>
+    <span class="n">eq</span> <span class="o">+=</span> <span class="n">damp</span> <span class="o">*</span> <span class="n">field</span><span class="o">.</span><span class="n">dt</span> <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;forward&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="k">else</span> <span class="o">-</span><span class="n">damp</span> <span class="o">*</span> <span class="n">field</span><span class="o">.</span><span class="n">dt</span>
+    <span class="c1"># Solve the symbolic equation for the field to be updated</span>
+    <span class="n">eq_time</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="nb">next</span><span class="p">,</span> <span class="n">rational</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">simplify</span><span class="o">=</span><span class="kc">False</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="c1"># Get the spacial FD</span>
+    <span class="n">lap</span> <span class="o">=</span> <span class="n">laplacian</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+    <span class="c1"># return the Stencil with H replaced by its symbolic expression</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="nb">next</span><span class="p">,</span> <span class="n">eq_time</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">H</span><span class="p">:</span> <span class="n">lap</span><span class="p">}))]</span></div>
+
+
+<div class="viewcode-block" id="ForwardOperator"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.ForwardOperator">[docs]</a><span class="k">def</span> <span class="nf">ForwardOperator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                    <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Constructor method for the forward modelling operator in an acoustic media</span>
+
+<span class="sd">    :param model: :class:`Model` object containing the physical parameters</span>
+<span class="sd">    :param source: :class:`PointData` object containing the source geometry</span>
+<span class="sd">    :param receiver: :class:`PointData` object containing the acquisition geometry</span>
+<span class="sd">    :param time_order: Time discretization order</span>
+<span class="sd">    :param space_order: Space discretization order</span>
+<span class="sd">    :param save: Saving flag, True saves all time steps, False only the three</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">damp</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">damp</span>
+
+    <span class="c1"># Create symbols for forward wavefield, source and receivers</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                     <span class="n">save</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span> <span class="k">if</span> <span class="n">save</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                     <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">)</span>
+    <span class="n">src</span> <span class="o">=</span> <span class="n">PointSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;src&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">ntime</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                      <span class="n">npoint</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">npoint</span><span class="p">)</span>
+    <span class="n">rec</span> <span class="o">=</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">ntime</span><span class="o">=</span><span class="n">receiver</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                   <span class="n">npoint</span><span class="o">=</span><span class="n">receiver</span><span class="o">.</span><span class="n">npoint</span><span class="p">)</span>
+
+    <span class="c1"># Get computational time-step value</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">critical_dt</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.73</span> <span class="k">if</span> <span class="n">time_order</span> <span class="o">==</span> <span class="mi">4</span> <span class="k">else</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span><span class="o">.</span><span class="n">spacing</span>
+    <span class="n">eqn</span> <span class="o">=</span> <span class="n">iso_stencil</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">damp</span><span class="p">)</span>
+
+    <span class="c1"># Construct expression to inject source values</span>
+    <span class="n">src_term</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">src</span> <span class="o">*</span> <span class="n">dt</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">m</span><span class="p">,</span>
+                          <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
+
+    <span class="c1"># Create interpolation expression for receivers</span>
+    <span class="n">rec_term</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">u</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
+
+    <span class="c1"># Substitute spacing terms to reduce flops</span>
+    <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">eqn</span> <span class="o">+</span> <span class="n">src_term</span> <span class="o">+</span> <span class="n">rec_term</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span>
+                    <span class="n">time_axis</span><span class="o">=</span><span class="n">Forward</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AdjointOperator"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.AdjointOperator">[docs]</a><span class="k">def</span> <span class="nf">AdjointOperator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Constructor method for the adjoint modelling operator in an acoustic media</span>
+
+<span class="sd">    :param model: :class:`Model` object containing the physical parameters</span>
+<span class="sd">    :param source: :class:`PointData` object containing the source geometry</span>
+<span class="sd">    :param receiver: :class:`PointData` object containing the acquisition geometry</span>
+<span class="sd">    :param time_order: Time discretization order</span>
+<span class="sd">    :param space_order: Space discretization order</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">damp</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">damp</span>
+
+    <span class="n">v</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;v&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">)</span>
+    <span class="n">srca</span> <span class="o">=</span> <span class="n">PointSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;srca&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">ntime</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                       <span class="n">npoint</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">npoint</span><span class="p">)</span>
+    <span class="n">rec</span> <span class="o">=</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">ntime</span><span class="o">=</span><span class="n">receiver</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                   <span class="n">npoint</span><span class="o">=</span><span class="n">receiver</span><span class="o">.</span><span class="n">npoint</span><span class="p">)</span>
+
+    <span class="c1"># Get computational time-step value</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">critical_dt</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.73</span> <span class="k">if</span> <span class="n">time_order</span> <span class="o">==</span> <span class="mi">4</span> <span class="k">else</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span><span class="o">.</span><span class="n">spacing</span>
+    <span class="n">eqn</span> <span class="o">=</span> <span class="n">iso_stencil</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">damp</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># Construct expression to inject receiver values</span>
+    <span class="n">receivers</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">backward</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">rec</span> <span class="o">*</span> <span class="n">dt</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">m</span><span class="p">,</span>
+                           <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
+
+    <span class="c1"># Create interpolation expression for the adjoint-source</span>
+    <span class="n">source_a</span> <span class="o">=</span> <span class="n">srca</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
+
+    <span class="c1"># Substitute spacing terms to reduce flops</span>
+    <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">eqn</span> <span class="o">+</span> <span class="n">receivers</span> <span class="o">+</span> <span class="n">source_a</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span>
+                    <span class="n">time_axis</span><span class="o">=</span><span class="n">Backward</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Adjoint&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GradientOperator"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.GradientOperator">[docs]</a><span class="k">def</span> <span class="nf">GradientOperator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                     <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Constructor method for the gradient operator in an acoustic media</span>
+
+<span class="sd">    :param model: :class:`Model` object containing the physical parameters</span>
+<span class="sd">    :param source: :class:`PointData` object containing the source geometry</span>
+<span class="sd">    :param receiver: :class:`PointData` object containing the acquisition geometry</span>
+<span class="sd">    :param time_order: Time discretization order</span>
+<span class="sd">    :param space_order: Space discretization order</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">damp</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">damp</span>
+
+    <span class="c1"># Gradient symbol and wavefield symbols</span>
+    <span class="n">grad</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;grad&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span> <span class="k">if</span> <span class="n">save</span>
+                     <span class="k">else</span> <span class="kc">None</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">)</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;v&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">)</span>
+    <span class="n">rec</span> <span class="o">=</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">ntime</span><span class="o">=</span><span class="n">receiver</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                   <span class="n">npoint</span><span class="o">=</span><span class="n">receiver</span><span class="o">.</span><span class="n">npoint</span><span class="p">)</span>
+
+    <span class="c1"># Get computational time-step value</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">critical_dt</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.73</span> <span class="k">if</span> <span class="n">time_order</span> <span class="o">==</span> <span class="mi">4</span> <span class="k">else</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span><span class="o">.</span><span class="n">spacing</span>
+    <span class="n">eqn</span> <span class="o">=</span> <span class="n">iso_stencil</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">damp</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">time_order</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">gradient_update</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">grad</span><span class="p">,</span> <span class="n">grad</span> <span class="o">-</span> <span class="n">u</span><span class="o">.</span><span class="n">dt2</span> <span class="o">*</span> <span class="n">v</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">gradient_update</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">grad</span><span class="p">,</span> <span class="n">grad</span> <span class="o">-</span> <span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">dt2</span> <span class="o">+</span>
+                                           <span class="n">s</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="mf">12.0</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">laplace2</span><span class="p">(</span><span class="n">m</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">)))</span> <span class="o">*</span> <span class="n">v</span><span class="p">)</span>
+
+    <span class="c1"># Add expression for receiver injection</span>
+    <span class="n">receivers</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">backward</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">rec</span> <span class="o">*</span> <span class="n">dt</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">m</span><span class="p">,</span>
+                           <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
+
+    <span class="c1"># Substitute spacing terms to reduce flops</span>
+    <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">eqn</span> <span class="o">+</span> <span class="n">receivers</span> <span class="o">+</span> <span class="p">[</span><span class="n">gradient_update</span><span class="p">],</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span>
+                    <span class="n">time_axis</span><span class="o">=</span><span class="n">Backward</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Gradient&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BornOperator"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.BornOperator">[docs]</a><span class="k">def</span> <span class="nf">BornOperator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Constructor method for the Linearized Born operator in an acoustic media</span>
+
+<span class="sd">    :param model: :class:`Model` object containing the physical parameters</span>
+<span class="sd">    :param source: :class:`PointData` object containing the source geometry</span>
+<span class="sd">    :param receiver: :class:`PointData` object containing the acquisition geometry</span>
+<span class="sd">    :param time_order: Time discretization order</span>
+<span class="sd">    :param space_order: Space discretization order</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">damp</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">m</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">damp</span>
+
+    <span class="c1"># Create source and receiver symbols</span>
+    <span class="n">src</span> <span class="o">=</span> <span class="n">PointSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;src&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">ntime</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                      <span class="n">npoint</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">npoint</span><span class="p">)</span>
+    <span class="n">rec</span> <span class="o">=</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">ntime</span><span class="o">=</span><span class="n">receiver</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                   <span class="n">npoint</span><span class="o">=</span><span class="n">receiver</span><span class="o">.</span><span class="n">npoint</span><span class="p">)</span>
+
+    <span class="c1"># Create wavefields and a dm field</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;u&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">)</span>
+    <span class="n">U</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;U&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">)</span>
+    <span class="n">dm</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;dm&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+
+    <span class="c1"># Get computational time-step value</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">critical_dt</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.73</span> <span class="k">if</span> <span class="n">time_order</span> <span class="o">==</span> <span class="mi">4</span> <span class="k">else</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span><span class="o">.</span><span class="n">spacing</span>
+    <span class="n">eqn1</span> <span class="o">=</span> <span class="n">iso_stencil</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">damp</span><span class="p">)</span>
+    <span class="n">eqn2</span> <span class="o">=</span> <span class="n">iso_stencil</span><span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">damp</span><span class="p">,</span> <span class="n">q</span><span class="o">=-</span><span class="n">dm</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">dt2</span><span class="p">)</span>
+
+    <span class="c1"># Add source term expression for u</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">src</span> <span class="o">*</span> <span class="n">dt</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">m</span><span class="p">,</span>
+                        <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
+
+    <span class="c1"># Create receiver interpolation expression from U</span>
+    <span class="n">receivers</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">U</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
+
+    <span class="c1"># Substitute spacing terms to reduce flops</span>
+    <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">eqn1</span> <span class="o">+</span> <span class="n">source</span> <span class="o">+</span> <span class="n">eqn2</span> <span class="o">+</span> <span class="n">receivers</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span>
+                    <span class="n">time_axis</span><span class="o">=</span><span class="n">Forward</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Born&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

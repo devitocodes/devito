@@ -1,0 +1,292 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dle.backends.utils &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="devito" href="../../../devito.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dle.backends.utils</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dle.backends.utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">cpuinfo</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">A dictionary to quickly access standard OpenMP pragmas</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="n">omplang</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for schedule(static)&#39;</span><span class="p">),</span>
+    <span class="s1">&#39;collapse&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for collapse(</span><span class="si">%d</span><span class="s1">) schedule(static)&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
+    <span class="s1">&#39;par-region&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
+    <span class="s1">&#39;par-for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel for schedule(static)&#39;</span><span class="p">),</span>
+    <span class="s1">&#39;simd-for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp simd&#39;</span><span class="p">),</span>
+    <span class="s1">&#39;simd-for-aligned&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp simd aligned(</span><span class="si">%s</span><span class="s1">:</span><span class="si">%d</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+<span class="p">}</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Compiler-specific language</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="n">complang_ALL</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;IntelCompiler&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;ignore-deps&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;ivdep&#39;</span><span class="p">),</span>
+                      <span class="s1">&#39;ntstores&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;vector nontemporal&#39;</span><span class="p">),</span>
+                      <span class="s1">&#39;storefence&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;_mm_sfence()&#39;</span><span class="p">),</span>
+                      <span class="s1">&#39;noinline&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;noinline&#39;</span><span class="p">)}</span>
+<span class="p">}</span>
+<span class="n">complang_ALL</span><span class="p">[</span><span class="s1">&#39;IntelKNLCompiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">complang_ALL</span><span class="p">[</span><span class="s1">&#39;IntelCompiler&#39;</span><span class="p">]</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">SIMD generic info</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="n">simdinfo</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="c1"># Sizes in bytes of a vector register</span>
+    <span class="s1">&#39;sse&#39;</span><span class="p">:</span> <span class="mi">16</span><span class="p">,</span> <span class="s1">&#39;see4_2&#39;</span><span class="p">:</span> <span class="mi">16</span><span class="p">,</span>
+    <span class="s1">&#39;avx&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="s1">&#39;avx2&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span>
+    <span class="s1">&#39;avx512f&#39;</span><span class="p">:</span> <span class="mi">64</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="get_simd_flag"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.utils.get_simd_flag">[docs]</a><span class="k">def</span> <span class="nf">get_simd_flag</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Retrieve the best SIMD flag on the current architecture.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">get_simd_flag</span><span class="o">.</span><span class="n">flag</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ordered_known</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;sse&#39;</span><span class="p">,</span> <span class="s1">&#39;sse4_2&#39;</span><span class="p">,</span> <span class="s1">&#39;avx&#39;</span><span class="p">,</span> <span class="s1">&#39;avx2&#39;</span><span class="p">,</span> <span class="s1">&#39;avx512f&#39;</span><span class="p">)</span>
+        <span class="n">flags</span> <span class="o">=</span> <span class="n">cpuinfo</span><span class="o">.</span><span class="n">get_cpu_info</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;flags&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">flags</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">ordered_known</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">flags</span><span class="p">:</span>
+                <span class="n">get_simd_flag</span><span class="o">.</span><span class="n">flag</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="k">return</span> <span class="n">i</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># &quot;Cached&quot; because calls to cpuingo are expensive</span>
+        <span class="k">return</span> <span class="n">get_simd_flag</span><span class="o">.</span><span class="n">flag</span></div>
+<span class="n">get_simd_flag</span><span class="o">.</span><span class="n">flag</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># noqa</span>
+
+
+<div class="viewcode-block" id="get_simd_items"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.utils.get_simd_items">[docs]</a><span class="k">def</span> <span class="nf">get_simd_items</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Determine the number of items of type ``dtype`` that can fit in a SIMD</span>
+<span class="sd">    register on the current architecture.&quot;&quot;&quot;</span>
+
+    <span class="n">simd_size</span> <span class="o">=</span> <span class="n">simdinfo</span><span class="p">[</span><span class="n">get_simd_flag</span><span class="p">()]</span>
+    <span class="k">assert</span> <span class="n">simd_size</span> <span class="o">%</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">simd_size</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

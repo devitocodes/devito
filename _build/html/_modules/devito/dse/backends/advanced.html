@@ -1,0 +1,393 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dse.backends.advanced &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="devito" href="../../../devito.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dse.backends.advanced</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dse.backends.advanced</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">clusterize</span>
+<span class="kn">from</span> <span class="nn">devito.dse.aliases</span> <span class="k">import</span> <span class="n">collect</span>
+<span class="kn">from</span> <span class="nn">devito.dse.backends</span> <span class="k">import</span> <span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">dse_pass</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">xreplace_constrained</span><span class="p">,</span> <span class="n">iq_timeinvariant</span>
+<span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="p">(</span><span class="n">common_subexprs_elimination</span><span class="p">,</span> <span class="n">collect_nested</span><span class="p">,</span>
+                                     <span class="n">compact_temporaries</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Scalar</span><span class="p">,</span> <span class="n">Array</span>
+
+
+<div class="viewcode-block" id="AdvancedRewriter"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.advanced.AdvancedRewriter">[docs]</a><span class="k">class</span> <span class="nc">AdvancedRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_extract_time_invariants</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_eliminate_inter_stencil_redundancies</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_eliminate_intra_stencil_redundancies</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_factorize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+    <span class="nd">@dse_pass</span>
+    <span class="k">def</span> <span class="nf">_extract_time_invariants</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">,</span> <span class="n">template</span><span class="p">,</span> <span class="n">with_cse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                 <span class="n">costmodel</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract time-invariant subexpressions, and assign them to temporaries.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Extract time invariants</span>
+        <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span><span class="p">))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
+        <span class="n">rule</span> <span class="o">=</span> <span class="n">iq_timeinvariant</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span>
+        <span class="n">costmodel</span> <span class="o">=</span> <span class="n">costmodel</span> <span class="ow">or</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">processed</span><span class="p">,</span> <span class="n">found</span> <span class="o">=</span> <span class="n">xreplace_constrained</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">make</span><span class="p">,</span> <span class="n">rule</span><span class="p">,</span> <span class="n">costmodel</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">with_cse</span><span class="p">:</span>
+            <span class="n">leaves</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">found</span><span class="p">]</span>
+
+            <span class="c1"># Search for common sub-expressions amongst them (and only them)</span>
+            <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">found</span><span class="p">)))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
+            <span class="n">found</span> <span class="o">=</span> <span class="n">common_subexprs_elimination</span><span class="p">(</span><span class="n">found</span><span class="p">,</span> <span class="n">make</span><span class="p">)</span>
+
+            <span class="c1"># Some temporaries may be droppable at this point</span>
+            <span class="n">processed</span> <span class="o">=</span> <span class="n">compact_temporaries</span><span class="p">(</span><span class="n">found</span><span class="p">,</span> <span class="n">leaves</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">rebuild</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
+
+    <span class="nd">@dse_pass</span>
+    <span class="k">def</span> <span class="nf">_factorize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Collect terms in each expr in exprs based on the following heuristic:</span>
+
+<span class="sd">            * Collect all literals;</span>
+<span class="sd">            * Collect all temporaries produced by CSE;</span>
+<span class="sd">            * If the expression has an operation count higher than</span>
+<span class="sd">              self.threshold, then this is applied recursively until</span>
+<span class="sd">              no more factorization opportunities are available.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">:</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">collect_nested</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+            <span class="n">cost_handle</span> <span class="o">=</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">cost_handle</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;min-cost-factorize&#39;</span><span class="p">]:</span>
+                <span class="n">handle_prev</span> <span class="o">=</span> <span class="n">handle</span>
+                <span class="n">cost_prev</span> <span class="o">=</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+                <span class="k">while</span> <span class="n">cost_handle</span> <span class="o">&lt;</span> <span class="n">cost_prev</span><span class="p">:</span>
+                    <span class="n">handle_prev</span><span class="p">,</span> <span class="n">handle</span> <span class="o">=</span> <span class="n">handle</span><span class="p">,</span> <span class="n">collect_nested</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+                    <span class="n">cost_prev</span><span class="p">,</span> <span class="n">cost_handle</span> <span class="o">=</span> <span class="n">cost_handle</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+                <span class="n">cost_handle</span><span class="p">,</span> <span class="n">handle</span> <span class="o">=</span> <span class="n">cost_prev</span><span class="p">,</span> <span class="n">handle_prev</span>
+
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">rebuild</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
+
+    <span class="nd">@dse_pass</span>
+    <span class="k">def</span> <span class="nf">_eliminate_inter_stencil_redundancies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">,</span> <span class="n">template</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Search for redundancies across the expressions and expose them</span>
+<span class="sd">        to the later stages of the optimisation pipeline by introducing</span>
+<span class="sd">        new temporaries of suitable rank.</span>
+
+<span class="sd">        Two type of redundancies are sought:</span>
+
+<span class="sd">            * Time-invariants, and</span>
+<span class="sd">            * Across different space points</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+<span class="sd">        Let ``t`` be the time dimension, ``x, y, z`` the space dimensions. Then:</span>
+
+<span class="sd">        1) temp = (a[x,y,z]+b[x,y,z])*c[t,x,y,z]</span>
+<span class="sd">           &gt;&gt;&gt;</span>
+<span class="sd">           ti[x,y,z] = a[x,y,z] + b[x,y,z]</span>
+<span class="sd">           temp = ti[x,y,z]*c[t,x,y,z]</span>
+
+<span class="sd">        2) temp1 = 2.0*a[x,y,z]*b[x,y,z]</span>
+<span class="sd">           temp2 = 3.0*a[x,y,z+1]*b[x,y,z+1]</span>
+<span class="sd">           &gt;&gt;&gt;</span>
+<span class="sd">           ti[x,y,z] = a[x,y,z]*b[x,y,z]</span>
+<span class="sd">           temp1 = 2.0*ti[x,y,z]</span>
+<span class="sd">           temp2 = 3.0*ti[x,y,z+1]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cluster</span><span class="o">.</span><span class="n">is_sparse</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cluster</span>
+
+        <span class="c1"># For more information about &quot;aliases&quot;, refer to collect.__doc__</span>
+        <span class="n">mapper</span><span class="p">,</span> <span class="n">aliases</span> <span class="o">=</span> <span class="n">collect</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span>
+
+        <span class="c1"># Redundancies will be stored in space-varying temporaries</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">trace</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">space_indices</span>
+        <span class="n">time_invariants</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
+
+        <span class="c1"># Template for captured redundancies</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_extent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">)</span>
+        <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                               <span class="n">dimensions</span><span class="o">=</span><span class="n">indices</span><span class="p">)</span><span class="o">.</span><span class="n">indexed</span>
+
+        <span class="c1"># Find the candidate expressions</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># Cost check (to keep the memory footprint under control)</span>
+            <span class="n">naliases</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="p">[]))</span>
+            <span class="n">cost</span> <span class="o">=</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">*</span><span class="n">naliases</span>
+            <span class="k">if</span> <span class="n">cost</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;min-cost-alias&#39;</span><span class="p">]</span> <span class="ow">and</span>\
+                    <span class="p">(</span><span class="n">naliases</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">time_invariants</span><span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">]):</span>
+                <span class="n">candidates</span><span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
+
+        <span class="c1"># Create temporaries capturing redundant computation</span>
+        <span class="n">expressions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">stencils</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">rules</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">alias</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">aliases</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">candidates</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">alias</span><span class="o">.</span><span class="n">aliased</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="c1"># Build alias expression</span>
+            <span class="n">function</span> <span class="o">=</span> <span class="n">make</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+            <span class="n">expressions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">Indexed</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">),</span> <span class="n">origin</span><span class="p">))</span>
+            <span class="c1"># Build substitution rules</span>
+            <span class="k">for</span> <span class="n">aliased</span><span class="p">,</span> <span class="n">distance</span> <span class="ow">in</span> <span class="n">alias</span><span class="o">.</span><span class="n">with_distance</span><span class="p">:</span>
+                <span class="n">coordinates</span> <span class="o">=</span> <span class="p">[</span><span class="nb">sum</span><span class="p">([</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">distance</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">]</span>
+                <span class="n">temporary</span> <span class="o">=</span> <span class="n">Indexed</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="o">*</span><span class="nb">tuple</span><span class="p">(</span><span class="n">coordinates</span><span class="p">))</span>
+                <span class="n">rules</span><span class="p">[</span><span class="n">candidates</span><span class="p">[</span><span class="n">aliased</span><span class="p">]]</span> <span class="o">=</span> <span class="n">temporary</span>
+                <span class="n">rules</span><span class="p">[</span><span class="n">aliased</span><span class="p">]</span> <span class="o">=</span> <span class="n">temporary</span>
+            <span class="c1"># Build cluster stencil</span>
+            <span class="n">stencil</span> <span class="o">=</span> <span class="n">alias</span><span class="o">.</span><span class="n">anti_stencil</span><span class="o">.</span><span class="n">anti</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">stencil</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">time_invariants</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">alias</span><span class="o">.</span><span class="n">aliased</span><span class="p">):</span>
+                <span class="c1"># Optimization: drop time dimension if time-invariant and the</span>
+                <span class="c1"># alias involves a complex calculation</span>
+                <span class="n">stencil</span> <span class="o">=</span> <span class="n">stencil</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">time_indices</span><span class="p">)</span>
+            <span class="n">stencils</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
+
+        <span class="c1"># Create the alias clusters</span>
+        <span class="n">alias_clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">stencils</span><span class="p">)</span>
+        <span class="n">alias_clusters</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">alias_clusters</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_dense</span><span class="p">)</span>
+
+        <span class="c1"># Switch temporaries in the expression trees</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">alias_clusters</span> <span class="o">+</span> <span class="p">[</span><span class="n">cluster</span><span class="o">.</span><span class="n">rebuild</span><span class="p">(</span><span class="n">processed</span><span class="p">)]</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

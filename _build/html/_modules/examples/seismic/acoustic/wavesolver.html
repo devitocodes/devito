@@ -1,0 +1,437 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>examples.seismic.acoustic.wavesolver &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="Module code" href="../../../index.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+      <li>examples.seismic.acoustic.wavesolver</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for examples.seismic.acoustic.wavesolver</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">TimeFunction</span><span class="p">,</span> <span class="n">memoized</span>
+<span class="kn">from</span> <span class="nn">examples.seismic</span> <span class="k">import</span> <span class="n">PointSource</span><span class="p">,</span> <span class="n">Receiver</span>
+<span class="kn">from</span> <span class="nn">examples.seismic.acoustic.operators</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">ForwardOperator</span><span class="p">,</span> <span class="n">AdjointOperator</span><span class="p">,</span> <span class="n">GradientOperator</span><span class="p">,</span> <span class="n">BornOperator</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="AcousticWaveSolver"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver">[docs]</a><span class="k">class</span> <span class="nc">AcousticWaveSolver</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Solver object that provides operators for seismic inversion problems</span>
+<span class="sd">    and encapsulates the time and space discretization for a given problem</span>
+<span class="sd">    setup.</span>
+
+<span class="sd">    :param model: Physical model with domain parameters</span>
+<span class="sd">    :param source: Sparse point symbol providing the injected wave</span>
+<span class="sd">    :param receiver: Sparse point symbol describing an array of receivers</span>
+<span class="sd">    :param time_order: Order of the time-stepping scheme (default: 2, choices: 2,4)</span>
+<span class="sd">                       time_order=4 will not implement a 4th order FD discretization</span>
+<span class="sd">                       of the time-derivative as it is unstable. It implements instead</span>
+<span class="sd">                       a 4th order accurate wave-equation with only second order</span>
+<span class="sd">                       time derivative. Full derivation and explanation of the 4th order</span>
+<span class="sd">                       in time can be found at:</span>
+<span class="sd">                       http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf</span>
+<span class="sd">    :param space_order: Order of the spatial stencil discretisation (default: 4)</span>
+
+<span class="sd">    Note: space_order must always be greater than time_order</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span>
+                 <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="n">source</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">receiver</span> <span class="o">=</span> <span class="n">receiver</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">=</span> <span class="n">time_order</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="n">space_order</span>
+
+        <span class="c1"># Time step can be \sqrt{3}=1.73 bigger with 4th order</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">critical_dt</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dt</span> <span class="o">*=</span> <span class="mf">1.73</span>
+
+        <span class="c1"># Cache compiler options</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span> <span class="o">=</span> <span class="n">kwargs</span>
+
+    <span class="nd">@memoized</span>
+    <span class="k">def</span> <span class="nf">op_fwd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cached operator for forward runs with buffered wavefield&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">ForwardOperator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="n">save</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+                               <span class="n">receiver</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span>
+                               <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span><span class="p">)</span>
+
+    <span class="nd">@memoized</span>
+    <span class="k">def</span> <span class="nf">op_adj</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cached operator for adjoint runs&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">AdjointOperator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+                               <span class="n">receiver</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span>
+                               <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span><span class="p">)</span>
+
+    <span class="nd">@memoized</span>
+    <span class="k">def</span> <span class="nf">op_grad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cached operator for gradient runs&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">GradientOperator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+                                <span class="n">receiver</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span>
+                                <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span><span class="p">)</span>
+
+    <span class="nd">@memoized</span>
+    <span class="k">def</span> <span class="nf">op_born</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cached operator for born runs&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">BornOperator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+                            <span class="n">receiver</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span>
+                            <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AcousticWaveSolver.forward"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rec</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">u</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward modelling function that creates the necessary</span>
+<span class="sd">        data objects for running a forward modelling operator.</span>
+
+<span class="sd">        :param src: Symbol with time series data for the injected source term</span>
+<span class="sd">        :param rec: Symbol to store interpolated receiver data</span>
+<span class="sd">        :param u: (Optional) Symbol to store the computed wavefield</span>
+<span class="sd">        :param m: (Optional) Symbol for the time-constant square slowness</span>
+<span class="sd">        :param save: Option to store the entire (unrolled) wavefield</span>
+
+<span class="sd">        :returns: Receiver, wavefield and performance summary</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Source term is read-only, so re-use the default</span>
+        <span class="k">if</span> <span class="n">src</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span>
+        <span class="c1"># Create a new receiver object to store the result</span>
+        <span class="k">if</span> <span class="n">rec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rec</span> <span class="o">=</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                           <span class="n">ntime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                           <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="c1"># Create the forward wavefield if not provided</span>
+        <span class="k">if</span> <span class="n">u</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                             <span class="n">save</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span> <span class="k">if</span> <span class="n">save</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                             <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+
+        <span class="c1"># Pick m from model unless explicitly provided</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">m</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">m</span>
+
+        <span class="c1"># Execute operator and return wavefield and receiver data</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">op_fwd</span><span class="p">(</span><span class="n">save</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">src</span><span class="o">=</span><span class="n">src</span><span class="p">,</span> <span class="n">rec</span><span class="o">=</span><span class="n">rec</span><span class="p">,</span> <span class="n">u</span><span class="o">=</span><span class="n">u</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="n">m</span><span class="p">,</span>
+                                          <span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rec</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">summary</span></div>
+
+<div class="viewcode-block" id="AcousticWaveSolver.adjoint"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.adjoint">[docs]</a>    <span class="k">def</span> <span class="nf">adjoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rec</span><span class="p">,</span> <span class="n">srca</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Adjoint modelling function that creates the necessary</span>
+<span class="sd">        data objects for running an adjoint modelling operator.</span>
+
+<span class="sd">        :param rec: Symbol with stored receiver data. Please note that</span>
+<span class="sd">                    these act as the source term in the adjoint run.</span>
+<span class="sd">        :param srca: Symbol to store the resulting data for the</span>
+<span class="sd">                     interpolated at the original source location.</span>
+<span class="sd">        :param v: (Optional) Symbol to store the computed wavefield</span>
+<span class="sd">        :param m: (Optional) Symbol for the time-constant square slowness</span>
+
+<span class="sd">        :returns: Adjoint source, wavefield and performance summary</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Create a new adjoint source and receiver symbol</span>
+        <span class="k">if</span> <span class="n">srca</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">srca</span> <span class="o">=</span> <span class="n">PointSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;srca&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                               <span class="n">ntime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                               <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="c1"># Create the adjoint wavefield if not provided</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;v&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+
+        <span class="c1"># Pick m from model unless explicitly provided</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">m</span>
+
+        <span class="c1"># Execute operator and return wavefield and receiver data</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">op_adj</span><span class="p">()</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">srca</span><span class="o">=</span><span class="n">srca</span><span class="p">,</span> <span class="n">rec</span><span class="o">=</span><span class="n">rec</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="n">m</span><span class="p">,</span>
+                                      <span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">srca</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">summary</span></div>
+
+<div class="viewcode-block" id="AcousticWaveSolver.gradient"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.gradient">[docs]</a>    <span class="k">def</span> <span class="nf">gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rec</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">grad</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Gradient modelling function for computing the adjoint of the</span>
+<span class="sd">        Linearized Born modelling function, ie. the action of the</span>
+<span class="sd">        Jacobian adjoint on an input data.</span>
+
+<span class="sd">        :param recin: Receiver data as a numpy array</span>
+<span class="sd">        :param u: Symbol for full wavefield `u` (created with save=True)</span>
+<span class="sd">        :param v: (Optional) Symbol to store the computed wavefield</span>
+<span class="sd">        :param grad: (Optional) Symbol to store the gradient field</span>
+
+<span class="sd">        :returns: Gradient field and performance summary</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Gradient symbol</span>
+        <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">grad</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;grad&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">)</span>
+
+        <span class="c1"># Create the forward wavefield</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;v&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+
+        <span class="c1"># Pick m from model unless explicitly provided</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">m</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">m</span>
+
+        <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">op_grad</span><span class="p">()</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">rec</span><span class="o">=</span><span class="n">rec</span><span class="p">,</span> <span class="n">grad</span><span class="o">=</span><span class="n">grad</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">u</span><span class="o">=</span><span class="n">u</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="n">m</span><span class="p">,</span>
+                                       <span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">grad</span><span class="p">,</span> <span class="n">summary</span></div>
+
+<div class="viewcode-block" id="AcousticWaveSolver.born"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.born">[docs]</a>    <span class="k">def</span> <span class="nf">born</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmin</span><span class="p">,</span> <span class="n">src</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rec</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">u</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">U</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Linearized Born modelling function that creates the necessary</span>
+<span class="sd">        data objects for running an adjoint modelling operator.</span>
+
+<span class="sd">        :param src: Symbol with time series data for the injected source term</span>
+<span class="sd">        :param rec: Symbol to store interpolated receiver data</span>
+<span class="sd">        :param u: (Optional) Symbol to store the computed wavefield</span>
+<span class="sd">        :param U: (Optional) Symbol to store the computed wavefield</span>
+<span class="sd">        :param m: (Optional) Symbol for the time-constant square slowness</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Source term is read-only, so re-use the default</span>
+        <span class="k">if</span> <span class="n">src</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span>
+        <span class="c1"># Create a new receiver object to store the result</span>
+        <span class="k">if</span> <span class="n">rec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rec</span> <span class="o">=</span> <span class="n">rec</span> <span class="ow">or</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                                  <span class="n">ntime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                                  <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="c1"># Create the forward wavefields u and U if not provided</span>
+        <span class="k">if</span> <span class="n">u</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                             <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">U</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">U</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;U&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                             <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+
+        <span class="c1"># Pick m from model unless explicitly provided</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">m</span>
+
+        <span class="c1"># Execute operator and return wavefield and receiver data</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">op_born</span><span class="p">()</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">dm</span><span class="o">=</span><span class="n">dmin</span><span class="p">,</span> <span class="n">u</span><span class="o">=</span><span class="n">u</span><span class="p">,</span> <span class="n">U</span><span class="o">=</span><span class="n">U</span><span class="p">,</span> <span class="n">src</span><span class="o">=</span><span class="n">src</span><span class="p">,</span> <span class="n">rec</span><span class="o">=</span><span class="n">rec</span><span class="p">,</span>
+                                       <span class="n">m</span><span class="o">=</span><span class="n">m</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rec</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">U</span><span class="p">,</span> <span class="n">summary</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

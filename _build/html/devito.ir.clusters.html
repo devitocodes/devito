@@ -1,0 +1,368 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.ir.clusters package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="index.html"/>
+        <link rel="up" title="devito.ir package" href="devito.ir.html"/>
+        <link rel="next" title="devito.ir.dfg package" href="devito.ir.dfg.html"/>
+        <link rel="prev" title="devito.ir package" href="devito.ir.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.foreign.html">devito.foreign package</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="devito.ir.html">devito.ir package</a><ul class="current">
+<li class="toctree-l4 current"><a class="reference internal" href="devito.ir.html#subpackages">Subpackages</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.html#module-devito.ir">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.arguments">devito.arguments module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.grid">devito.grid module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.logger">devito.logger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.memory">devito.memory module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="devito.html">devito package</a> &raquo;</li>
+        
+          <li><a href="devito.ir.html">devito.ir package</a> &raquo;</li>
+        
+      <li>devito.ir.clusters package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/devito.ir.clusters.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="devito-ir-clusters-package">
+<h1>devito.ir.clusters package<a class="headerlink" href="#devito-ir-clusters-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-devito.ir.clusters.algorithms">
+<span id="devito-ir-clusters-algorithms-module"></span><h2>devito.ir.clusters.algorithms module<a class="headerlink" href="#module-devito.ir.clusters.algorithms" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.ir.clusters.algorithms.clusterize">
+<code class="descclassname">devito.ir.clusters.algorithms.</code><code class="descname">clusterize</code><span class="sig-paren">(</span><em>exprs</em>, <em>stencils</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/algorithms.html#clusterize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.algorithms.clusterize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Derive <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects from an iterable of expressions; a stencil for
+each expression must be provided.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.clusters.algorithms.groupby">
+<code class="descclassname">devito.ir.clusters.algorithms.</code><code class="descname">groupby</code><span class="sig-paren">(</span><em>clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/algorithms.html#groupby"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.algorithms.groupby" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given an ordered collection of <code class="xref py py-class docutils literal"><span class="pre">PartialCluster</span></code> objects, return a
+(potentially) smaller sequence in which dependence-free PartialClusters with
+identical stencil have been squashed into a single PartialCluster.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.ir.clusters.cluster">
+<span id="devito-ir-clusters-cluster-module"></span><h2>devito.ir.clusters.cluster module<a class="headerlink" href="#module-devito.ir.clusters.cluster" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.ir.clusters.cluster.Cluster">
+<em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">Cluster</code><span class="sig-paren">(</span><em>exprs</em>, <em>stencil</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.ir.clusters.cluster.PartialCluster</span></code></p>
+<p>A Cluster is an immutable PartialCluster.</p>
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.Cluster.exprs">
+<code class="descname">exprs</code><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.exprs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.Cluster.is_dense">
+<code class="descname">is_dense</code><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.is_dense" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.Cluster.is_sparse">
+<code class="descname">is_sparse</code><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.is_sparse" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.clusters.cluster.Cluster.rebuild">
+<code class="descname">rebuild</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster.rebuild"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.rebuild" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build a new cluster with expressions <code class="docutils literal"><span class="pre">exprs</span></code> having same stencil as <code class="docutils literal"><span class="pre">self</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.clusters.cluster.Cluster.squash">
+<code class="descname">squash</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster.squash"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.squash" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.Cluster.stencil">
+<code class="descname">stencil</code><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.stencil" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.Cluster.trace">
+<code class="descname">trace</code><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.trace" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.clusters.cluster.ClusterGroup">
+<em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">ClusterGroup</code><span class="sig-paren">(</span><em>*clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">list</span></code></p>
+<dl class="method">
+<dt id="devito.ir.clusters.cluster.ClusterGroup.freeze">
+<code class="descname">freeze</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup.freeze"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.freeze" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a new ClusterGroup in which all of <code class="docutils literal"><span class="pre">self</span></code>’s PartialClusters
+have been turned into actual Clusters.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.clusters.cluster.ClusterGroup.unfreeze">
+<code class="descname">unfreeze</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup.unfreeze"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.unfreeze" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a new ClusterGroup in which all of <code class="docutils literal"><span class="pre">self</span></code>’s Clusters have
+been promoted to PartialClusters. The <code class="docutils literal"><span class="pre">atomics</span></code> information is lost.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.ir.clusters">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.ir.clusters" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="devito.ir.dfg.html" class="btn btn-neutral float-right" title="devito.ir.dfg package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="devito.ir.html" class="btn btn-neutral" title="devito.ir package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
