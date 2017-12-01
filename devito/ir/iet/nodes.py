@@ -400,11 +400,9 @@ class Iteration(Node):
         if a limit is unknown."""
         lower = start if start is not None else self.limits[0]
         upper = finish if finish is not None else self.limits[1]
-        if lower and self.offsets[0]:
-            lower = lower - self.offsets[0]
 
-        if upper and self.offsets[1]:
-            upper = upper - self.offsets[1]
+        lower = lower - self.offsets[0]
+        upper = upper - self.offsets[1]
 
         return (lower, upper)
 
