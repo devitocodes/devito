@@ -108,7 +108,7 @@ class WaveletSource(PointSource):
         plt.figure()
         plt.plot(time, wavelet)
         plt.xlabel('Time (ms)')
-        plt.ylabel('Velocity (km/s)')
+        plt.ylabel('Amplitude')
         plt.tick_params()
         plt.show()
 
