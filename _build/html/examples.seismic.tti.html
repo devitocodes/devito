@@ -308,8 +308,8 @@ two non-centered rotated second order derivative in the direction y
 </dd></dl>
 
 <dl class="function">
-<dt id="examples.seismic.tti.operators.Gzz_shited">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gzz_shited</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gzz_shited"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gzz_shited" title="Permalink to this definition">¶</a></dt>
+<dt id="examples.seismic.tti.operators.Gzz_shifted">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gzz_shifted</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gzz_shifted"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gzz_shifted" title="Permalink to this definition">¶</a></dt>
 <dd><p>3D rotated second order derivative in the direction z as an average of
 two non-centered rotated second order derivative in the direction z
 :param field: symbolic data whose derivative we are computing
@@ -322,8 +322,8 @@ two non-centered rotated second order derivative in the direction z
 </dd></dl>
 
 <dl class="function">
-<dt id="examples.seismic.tti.operators.Gzz_shited_2d">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gzz_shited_2d</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gzz_shited_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gzz_shited_2d" title="Permalink to this definition">¶</a></dt>
+<dt id="examples.seismic.tti.operators.Gzz_shifted_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gzz_shifted_2d</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gzz_shifted_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gzz_shifted_2d" title="Permalink to this definition">¶</a></dt>
 <dd><p>2D rotated second order derivative in the direction z as an average of
 two non-centered rotated second order derivative in the direction z
 :param field: symbolic data whose derivative we are computing
@@ -396,8 +396,8 @@ Hz = Gzz(v)</p>
 </dd></dl>
 
 <dl class="function">
-<dt id="examples.seismic.tti.operators.kernel_shited_2d">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shited_2d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shited_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shited_2d" title="Permalink to this definition">¶</a></dt>
+<dt id="examples.seismic.tti.operators.kernel_shifted_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shifted_2d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shifted_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shifted_2d" title="Permalink to this definition">¶</a></dt>
 <dd><p>TTI finite difference kernel. The equation we solve is:</p>
 <p>u.dt2 = (1+2 <a href="#id5"><span class="problematic" id="id6">*</span></a>epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
 v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)</p>
@@ -427,8 +427,8 @@ Hz = Gzz(v)</p>
 </dd></dl>
 
 <dl class="function">
-<dt id="examples.seismic.tti.operators.kernel_shited_3d">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shited_3d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shited_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shited_3d" title="Permalink to this definition">¶</a></dt>
+<dt id="examples.seismic.tti.operators.kernel_shifted_3d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shifted_3d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shifted_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shifted_3d" title="Permalink to this definition">¶</a></dt>
 <dd><p>TTI finite difference kernel. The equation we solve is:</p>
 <p>u.dt2 = (1+2 <a href="#id7"><span class="problematic" id="id8">*</span></a>epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
 v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)</p>
