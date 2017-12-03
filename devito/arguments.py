@@ -276,6 +276,7 @@ class ArgumentEngine(object):
     def _derive_values(self, kwargs):
         # Use kwargs
         values = OrderedDict()
+        print(kwargs)
         for i in self.arguments:
             values[i] = get_value(i, kwargs.pop(i.name, None), values)
 
@@ -344,15 +345,6 @@ def runtime_dim_extent(dimension, values):
     except (KeyError, TypeError):
         return None
 
-class UnevaluatedDependency(object):
-    def __init__(self, consumer, evaluator, extra_param=None):
-        self.consumer = consumer
-        self.evaluator = evaluator
-        self.extra_param = extra_param
-
-    def evaluate(self, known_values):
-        return self.evaluator(self.consumer, known_values, self.extra_param)
-    
 
 def derive_dle_argument_value(blocked_dim, known_values, dle_argument):
     dim_size = runtime_dim_extent(dle_argument.original_dim, known_values)
@@ -431,9 +423,12 @@ class ValueVisitor(Visitor):
             return 0
         provided_values = [get_value(o, x, self.known_values) for x in o.gets_value_from]
         if len(provided_values) > 1:
-            print(o)
-            print(o.dependencies)
-            print(provided_values)
+            if not all(x is not None for x in provided_values):
+                unknown_args = [x.obj for x in o.gets_value_from if get_value(o, x, self.known_values) is None]
+                def late_evaluate_dim_size(consumer, known_values, partial_values):
+                    new_values = [known_values[x] for x in unknown_args]
+                    return reduce(max, partial_values + new_values)
+                return UnevaluatedDependency(o, late_evaluate_dim_size, [x for x in provided_values if x is not None])
             value = reduce(max, provided_values)
         elif len(provided_values) == 1:
             value = provided_values[0]
@@ -449,7 +444,15 @@ class ValueVisitor(Visitor):
 def get_value(consumer, provider, known_values):
     return ValueVisitor(consumer, known_values).visit(provider)
 
-    
+class UnevaluatedDependency(object):
+    def __init__(self, consumer, evaluator, extra_param=None):
+        self.consumer = consumer
+        self.evaluator = evaluator
+        self.extra_param = extra_param
+
+    def evaluate(self, known_values):
+        return self.evaluator(self.consumer, known_values, self.extra_param)
+
 class Dependency(object):
     """ Object that represents an edge between two nodes on a dependency graph
         Dependencies are directional, i.e. A -> B != B -> A
