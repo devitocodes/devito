@@ -49,7 +49,7 @@ class Parameter(object):
         return [x for x in self.dependencies if x.dependency_type=="verified_by"]
 
     def __repr__(self):
-        return self.name
+        return self.name + ", Depends: " + str(self.dependencies)
 
 
 class DimensionParameter(Parameter):
@@ -209,16 +209,20 @@ class ArgumentEngine(object):
                     dimension_dependency_mapper[d] = []
             dimension_dependency_mapper[d].append(Dependency("gets_value_from", derive_dle_argument_value, param=arg))
             
-            
         # Record dependencies in Dimensions
-        dimension_parameters = []
+        dimension_parameter_mapper = {}
         for dim, deps in dimension_dependency_mapper.items():
-            dimension_parameters.append(DimensionParameter(dim, deps))
+            dimension_parameter_mapper[dim] = DimensionParameter(dim, deps)
 
         # Dimensions that are in parameters but not directly referenced in the expressions
         for dim in [x for x in parameters if isinstance(x, Dimension) and x not in dimension_dependency_mapper.keys()]:
-            dimension_parameters.append(DimensionParameter(dim, []))
+            dimension_parameter_mapper[dim] = DimensionParameter(dim, [])
 
+        for dim in [x for x in parameters if isinstance(x, Dimension) and x.is_Buffered]:
+            dimension_parameter_mapper[dim].dependencies.append(Dependency(Dependency.GETS_VALUE_FROM, dimension_parameter_mapper[dim.parent]))
+
+        dimension_parameters = list(dimension_parameter_mapper.values())
+        
         # Pass Dimensions
         scalar_arguments = []
         for dimension_parameter in dimension_parameters:
@@ -425,9 +429,11 @@ class ValueVisitor(Visitor):
         # We are being asked to provide a default value for dim_start
         if self.consumer.name == o.provider.start_name:
             return 0
-        
         provided_values = [get_value(o, x, self.known_values) for x in o.gets_value_from]
         if len(provided_values) > 1:
+            print(o)
+            print(o.dependencies)
+            print(provided_values)
             value = reduce(max, provided_values)
         elif len(provided_values) == 1:
             value = provided_values[0]
@@ -461,6 +467,8 @@ class Dependency(object):
                       derives its value from a SymbolicFunction's shape, this param carries
                       the index of a dimension in the SymbolicFunction's shape. 
     """
+    GETS_VALUE_FROM = "gets_value_from"
+    VERIFIED_BY = "verified_by"
     _types = ["gets_value_from", "verified_by"]
     def __init__(self, dependency_type, obj, param=None):
         assert(dependency_type in self._types)

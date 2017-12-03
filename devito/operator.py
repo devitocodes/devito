@@ -147,7 +147,7 @@ class Operator(Callable):
             arguments = self._autotune(arguments)
 
         return arguments
-    
+
     def _default_args(self):
         return OrderedDict([(x.name, x.value) for x in self.parameters])
 
