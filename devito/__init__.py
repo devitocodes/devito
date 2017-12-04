@@ -56,13 +56,13 @@ configuration.add('backend', 'core', list(backends_registry),
 
 # Set the Instruction Set Architecture (ISA)
 ISAs = [None, 'cpp', 'avx', 'avx2', 'avx512', 'knc']
-configuration.add('isa', None, ISAs)
+configuration.add('isa', 'cpp', ISAs)
 
 # Set the CPU architecture (only codename)
 PLATFORMs = [None, 'intel64', 'sandybridge', 'ivybridge', 'haswell',
              'broadwell', 'skylake', 'knc', 'knl']
 # TODO: switch arch to actual architecture names; use the mapper in /YASK/
-configuration.add('platform', None, PLATFORMs)
+configuration.add('platform', 'intel64', PLATFORMs)
 
 
 # Initialize the configuration, either from the environment or

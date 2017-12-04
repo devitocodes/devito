@@ -271,10 +271,6 @@ class memoized(object):
         return partial(self.__call__, obj)
 
 
-default_isa = 'cpp'
-default_platform = 'intel64'
-
-
 def infer_cpu():
     """
     Detect the highest Instruction Set Architecture and the platform
@@ -283,7 +279,7 @@ def infer_cpu():
     """
     info = cpuinfo.get_cpu_info()
     # ISA
-    isa = default_isa
+    isa = configuration._defaults['isa']
     for i in reversed(configuration._accepted['isa']):
         if i in info['flags']:
             isa = i
@@ -306,7 +302,7 @@ def infer_cpu():
             platform = None
     # Is it a known platform?
     if platform not in configuration._accepted['platform']:
-        platform = default_platform
+        platform = configuration._defaults['platform']
     return isa, platform
 
 
