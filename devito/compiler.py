@@ -131,28 +131,6 @@ class IntelCompiler(Compiler):
             self.ldflags += ['-qopenmp']
 
 
-class IntelMICCompiler(Compiler):
-    """Set of standard compiler flags for the IntelMIC toolchain
-
-    :param openmp: Boolean indicating if openmp is enabled. False by default
-
-    Note: Generates warning if openmp is disabled.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(IntelMICCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icc'
-        self.ld = 'icc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-mmic"]
-        self.ldflags = ['-shared']
-
-        if configuration['openmp']:
-            self.ldflags += ['-qopenmp']
-        else:
-            log("WARNING: Running on Intel MIC without OpenMP is highly discouraged")
-        self._mic = __import__('pymic')
-
-
 class IntelKNLCompiler(Compiler):
     """Set of standard compiler flags for the clang toolchain"""
 
@@ -209,17 +187,7 @@ def load(basename, compiler):
     :param basename: Name of the .so file.
     :param compiler: The toolchain used for compilation.
     :return: The loaded library.
-
-    Note: If the provided compiler is of type `IntelMICCompiler`
-    we utilise the `pymic` package to manage device streams.
     """
-    if isinstance(compiler, IntelMICCompiler):
-        compiler._device = compiler._mic.devices[0]
-        compiler._stream = compiler._device.get_default_stream()
-        # The name with the extension is only used for MIC
-        lib_file = "%s.%s" % (basename, compiler.lib_ext)
-        return compiler._device.load_library(lib_file)
-
     return npct.load_library(basename, '.')
 
 
@@ -289,6 +257,5 @@ compiler_registry = {
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
     'icc': IntelCompiler,
-    'intel-mic': IntelMICCompiler, 'mic': IntelMICCompiler,
     'intel-knl': IntelKNLCompiler, 'knl': IntelKNLCompiler,
 }
