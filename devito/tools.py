@@ -3,14 +3,10 @@ import os
 import ctypes
 from collections import Callable, Iterable, OrderedDict, Hashable
 from functools import partial, wraps
-from itertools import product
-from subprocess import PIPE, Popen
+from itertools import product, zip_longest
+from subprocess import DEVNULL, PIPE, Popen, CalledProcessError, check_output
 import cpuinfo
-try:
-    from itertools import izip_longest as zip_longest
-except ImportError:
-    # Python3.5 compatibility
-    from itertools import zip_longest
+from distutils import version
 
 from devito.parameters import configuration
 
@@ -304,6 +300,54 @@ def infer_cpu():
     if platform not in configuration._accepted['platform']:
         platform = configuration._defaults['platform']
     return isa, platform
+
+
+def sniff_compiler_version(cc):
+    """
+    Try to detect the compiler version.
+
+    Adapted from: ::
+
+        https://github.com/OP2/PyOP2/
+    """
+    try:
+        ver = check_output([cc, "--version"]).decode("utf-8")
+    except (CalledProcessError, UnicodeDecodeError):
+        return version.LooseVersion("unknown")
+
+    if ver.startswith("gcc"):
+        compiler = "gcc"
+    elif ver.startswith("clang"):
+        compiler = "clang"
+    elif ver.startswith("Apple LLVM"):
+        compiler = "clang"
+    elif ver.startswith("icc"):
+        compiler = "icc"
+    else:
+        compiler = "unknown"
+
+    ver = version.LooseVersion("unknown")
+    if compiler in ["gcc", "icc"]:
+        try:
+            # gcc-7 series only spits out patch level on dumpfullversion.
+            ver = check_output([cc, "-dumpfullversion"], stderr=DEVNULL).decode("utf-8")
+            ver = version.StrictVersion(ver.strip())
+        except CalledProcessError:
+            try:
+                ver = check_output([cc, "-dumpversion"], stderr=DEVNULL).decode("utf-8")
+                ver = version.StrictVersion(ver.strip())
+            except (CalledProcessError, UnicodeDecodeError):
+                pass
+        except UnicodeDecodeError:
+            pass
+
+    # Pure integer versions (e.g., ggc5, rather than gcc5.0) need special handling
+    try:
+        ver = version.StrictVersion(float(ver))
+    except TypeError:
+        pass
+
+    return ver
 
 
 class silencio(object):

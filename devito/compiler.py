@@ -4,6 +4,7 @@ from os import environ, path
 from tempfile import mkdtemp
 from time import time
 from sys import platform
+from distutils import version
 import subprocess
 
 import numpy.ctypeslib as npct
@@ -13,7 +14,7 @@ from codepy.toolchain import GCCToolchain
 from devito.exceptions import CompilationError
 from devito.logger import log
 from devito.parameters import configuration
-from devito.tools import change_directory
+from devito.tools import change_directory, sniff_compiler_version
 
 __all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
 
@@ -28,7 +29,7 @@ class Compiler(GCCToolchain):
     def class MyCompiler(Compiler):
         def __init__(self):
             self.cc = 'mycompiler'
-            self.cflags = ['list', 'of', 'all', 'compiler', 'flags']
+            self.cflags += ['list', 'of', 'all', 'compiler', 'flags']
 
     The flags that can be set are:
         * :data:`self.cc`
@@ -46,13 +47,18 @@ class Compiler(GCCToolchain):
     cpp_mapper = {'gcc': 'g++', 'clang': 'clang++', 'icc': 'icpc',
                   'gcc-4.9': 'g++-4.9', 'gcc-5': 'g++-5', 'gcc-6': 'g++-6'}
 
-    fields = ['cc', 'ld']
+    fields = {'cc', 'ld'}
+
+    CC = 'unknown'
+    LD = 'unknown'
 
     def __init__(self, **kwargs):
-        self.cc = 'unknown'
-        self.ld = 'unknown'
-        self.cflags = []
-        self.ldflags = []
+        super(Compiler, self).__init__(**kwargs)
+        self.suffix = kwargs.get('suffix')
+        self.cc = self.CC if self.suffix is None else ('%s-%s' % (self.CC, self.suffix))
+        self.ld = self.LD if self.suffix is None else ('%s-%s' % (self.LD, self.suffix))
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
+        self.ldflags = ['-shared']
         self.include_dirs = []
         self.libraries = []
         self.library_dirs = []
@@ -60,6 +66,11 @@ class Compiler(GCCToolchain):
         self.undefines = []
         self.src_ext = 'c'
         self.lib_ext = 'so'
+        if self.suffix is not None:
+            self.version = self.suffix
+        else:
+            # Knowing the version may still be useful to pick supported flags
+            self.version = sniff_compiler_version(self.CC)
 
     def __str__(self):
         return self.__class__.__name__
@@ -71,17 +82,22 @@ class Compiler(GCCToolchain):
 class GNUCompiler(Compiler):
     """Set of standard compiler flags for the GCC toolchain."""
 
+    CC = 'gcc'
+    LD = 'gcc'
+
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
-        self.version = kwargs.get('version', None)
-        self.cc = 'gcc' if self.version is None else 'gcc-%s' % self.version
-        self.ld = 'gcc' if self.version is None else 'gcc-%s' % self.version
-        self.cflags = ['-O3', '-g', '-march=native', '-fPIC', '-Wall', '-std=c99',
-                       '-Wno-unused-result', '-Wno-unused-variable']
-        self.ldflags = ['-shared']
-
-        if configuration['openmp']:
-            self.ldflags += ['-fopenmp']
+        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
+                        '-Wno-unused-but-set-variable']
+        try:
+            if self.version >= version.StrictVersion("4.9.0"):
+                # Append the openmp flag regardless of configuration['openmp'],
+                # since GCC4.9 and later versions implement OpenMP 4.0, hence
+                # they support `#pragma omp simd`
+                self.ldflags += ['-fopenmp']
+        except (TypeError, ValueError):
+            if configuration['openmp']:
+                self.ldflags += ['-fopenmp']
 
 
 class GNUCompilerNoAVX(GNUCompiler):
@@ -93,8 +109,7 @@ class GNUCompilerNoAVX(GNUCompiler):
 
     def __init__(self, *args, **kwargs):
         super(GNUCompilerNoAVX, self).__init__(*args, **kwargs)
-        self.cflags = ['-O3', '-g', '-march=native', '-mno-avx', '-fPIC', '-Wall',
-                       '-std=c99', '-Wno-unused-result', '-Wno-unused-variable']
+        self.cflags += ['-mno-avx']
 
 
 class ClangCompiler(Compiler):
@@ -105,44 +120,48 @@ class ClangCompiler(Compiler):
     Note: Genrates warning if openmp is disabled.
     """
 
+    CC = 'clang'
+    LD = 'clang'
+
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'clang'
-        self.ld = 'clang'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
-        self.ldflags = ['-shared']
         self.lib_ext = 'dylib'
 
 
 class IntelCompiler(Compiler):
-    """Set of standard compiler flags for the Intel toolchain
+    """Set of standard compiler flags for the Intel toolchain.
 
     :param openmp: Boolean indicating if openmp is enabled. False by default
     """
 
+    CC = 'icc'
+    LD = 'icc'
+
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icc'
-        self.ld = 'icc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-xhost"]
-        self.ldflags = ['-shared']
+        self.cflags += ["-xhost"]
+        if configuration['platform'] == 'skylake':
+            # Systematically use 512-bit vectors on skylake
+            self.cflags += ["-qopt-zmm-usage=high"]
+        try:
+            if self.version >= version.StrictVersion("15.0.0"):
+                # Append the openmp flag regardless of configuration['openmp'],
+                # since icc15 and later versions implement OpenMP 4.0, hence
+                # they support `#pragma omp simd`
+                self.ldflags += ['-qopenmp']
+        except (TypeError, ValueError):
+            if configuration['openmp']:
+                # Note: fopenmp, not qopenmp, is what is needed by icc versions < 15.0
+                self.ldflags += ['-fopenmp']
 
-        if configuration['openmp']:
-            self.ldflags += ['-qopenmp']
 
-
-class IntelKNLCompiler(Compiler):
+class IntelKNLCompiler(IntelCompiler):
     """Set of standard compiler flags for the clang toolchain"""
 
     def __init__(self, *args, **kwargs):
         super(IntelKNLCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icc'
-        self.ld = 'icc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-xMIC-AVX512"]
-        self.ldflags = ['-shared']
-        if configuration['openmp']:
-            self.ldflags += ['-qopenmp']
-        else:
+        self.cflags += ["-xMIC-AVX512"]
+        if not configuration['openmp']:
             log("WARNING: Running on Intel KNL without OpenMP is highly discouraged")
 
 
@@ -250,12 +269,17 @@ def make(loc, args):
 # DEVITO_ARCH. Developers should add new compiler classes here.
 compiler_registry = {
     'custom': CustomCompiler,
-    'gcc': GNUCompiler, 'gnu': GNUCompiler,
-    'gcc-4.9': partial(GNUCompiler, version='4.9'),
-    'gcc-5': partial(GNUCompiler, version='5'),
-    'gcc-noavx': GNUCompilerNoAVX, 'gnu-noavx': GNUCompilerNoAVX,
-    'clang': ClangCompiler, 'osx': ClangCompiler,
-    'intel': IntelCompiler, 'icpc': IntelCompiler,
+    'gnu': GNUCompiler,
+    'gcc': GNUCompiler,
+    'gcc-4.9': partial(GNUCompiler, suffix='4.9'),
+    'gcc-5': partial(GNUCompiler, suffix='5'),
+    'gcc-noavx': GNUCompilerNoAVX,
+    'gnu-noavx': GNUCompilerNoAVX,
+    'clang': ClangCompiler,
+    'osx': ClangCompiler,
+    'intel': IntelCompiler,
+    'icpc': IntelCompiler,
     'icc': IntelCompiler,
-    'intel-knl': IntelKNLCompiler, 'knl': IntelKNLCompiler,
+    'intel-knl': IntelKNLCompiler,
+    'knl': IntelKNLCompiler,
 }
