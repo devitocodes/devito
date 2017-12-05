@@ -11,10 +11,10 @@ import numpy as np
 from devito.compiler import make
 from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log
-from devito.tools import numpy_to_ctypes
+from devito.tools import as_tuple, numpy_to_ctypes
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
-from devito.yask.utils import convert_multislice, rawpointer
+from devito.yask.utils import rawpointer
 
 
 class YaskGrid(object):
@@ -32,7 +32,7 @@ class YaskGrid(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, shape, radius, dtype):
+    def __init__(self, grid, shape, radius, dtype, modulo):
         """
         Initialize a new :class:`YaskGrid`, a wrapper for a YASK grid.
 
@@ -54,10 +54,14 @@ class YaskGrid(object):
                       such as those lying on the halo region.
         :param radius: The extent of the halo region.
         :param dtype: The type of the raw data.
+        :param modulo: A mask of boolean values, one for each grid dimension; if
+                       True, the corresponding dimension is iterated over with
+                       modulo indexing.
         """
         self.grid = grid
         self.shape = shape
         self.dtype = dtype
+        self._modulo = modulo
 
         if not self.is_storage_allocated():
             # Allocate memory in YASK-land and initialize it to 0
@@ -74,7 +78,7 @@ class YaskGrid(object):
             self._reset()
 
     def __getitem__(self, index):
-        start, stop, shape = convert_multislice(index, self.shape, self._offsets)
+        start, stop, shape = self._convert_index(index)
         if not shape:
             log("YaskGrid: Getting single entry %s" % str(start))
             assert start == stop
@@ -86,7 +90,7 @@ class YaskGrid(object):
         return out
 
     def __setitem__(self, index, val):
-        start, stop, shape = convert_multislice(index, self.shape, self._offsets, 'set')
+        start, stop, shape = self._convert_index(index, 'set')
         if all(i == 1 for i in shape):
             log("YaskGrid: Setting single entry %s" % str(start))
             assert start == stop
@@ -112,6 +116,99 @@ class YaskGrid(object):
             # Emulate default NumPy behaviour
             stop = None
         self.__setitem__(slice(start, stop), val)
+
+    def _convert_index(self, index, mode='get'):
+        """
+        Convert an ``index`` into a format suitable for YASK's get_elements_{...}
+        and set_elements_{...} routines.
+
+        ``index`` can be of any type out of the types supported by NumPy's
+        ``ndarray.__getitem__`` and ``ndarray.__setitem__``.
+
+        In particular, an ``index`` is either a single element or an iterable of
+        elements. An element can be a slice object, an integer index, or a tuple
+        of integer indices.
+
+        In the general case in which ``index`` is an iterable, each element in
+        the iterable corresponds to a dimension in ``shape``. In this case, an element
+        can be either a slice or an integer, but not a tuple of integers.
+
+        If ``index`` is a single element,  then it is interpreted as follows: ::
+
+            * slice object: the slice spans the whole shape;
+            * single integer: shape is one-dimensional, and the index represents
+              a specific entry;
+            * a tuple of integers: it must be ``len(index) == len(shape)``,
+              and each entry in ``index`` corresponds to a specific entry in a
+              dimension in ``shape``.
+
+        The returned value is a 3-tuple ``(starts, ends, shapes)``, where ``starts,
+        ends, shapes`` are lists of length ``len(shape)``. By taking ``starts[i]`` and
+        `` ends[i]``, one gets the start and end points of the section of elements to
+        be accessed along dimension ``i``; ``shapes[i]`` gives the size of the section.
+        """
+
+        # Note: the '-1' below are because YASK uses '<=', rather than '<', to check
+        # bounds when iterating over grid dimensions
+
+        assert mode in ['get', 'set']
+        index = as_tuple(index)
+
+        # Index conversion
+        cstart = []
+        cstop = []
+        cshape = []
+        for i, size, mod in zip(index, self.shape, self._modulo):
+            if isinstance(i, slice):
+                if i.step is not None:
+                    raise NotImplementedError("Unsupported stepping != 1.")
+                if i.start is None:
+                    start = 0
+                elif i.start < 0:
+                    start = size + i.start
+                else:
+                    start = i.start
+                if i.stop is None:
+                    stop = size - 1
+                elif i.stop < 0:
+                    stop = size + i.stop
+                else:
+                    stop = i.stop - 1
+                shape = stop - start + 1
+            else:
+                if i is None:
+                    start = 0
+                    stop = size - 1
+                elif i < 0:
+                    start = size + i
+                    stop = size + i
+                else:
+                    start = i
+                    stop = i
+                shape = 1 if mode == 'set' else None
+            # Apply logical indexing
+            if mod is not None:
+                start %= mod
+                stop %= mod
+            # Finally append the converted index
+            cstart.append(start)
+            cstop.append(stop)
+            if shape is not None:
+                cshape.append(shape)
+
+        # Remainder (e.g., requesting A[1] and A has shape (3,3))
+        nremainder = len(self.shape) - len(index)
+        cstart.extend([0]*nremainder)
+        cstop.extend([self.shape[len(index) + j] - 1 for j in range(nremainder)])
+        cshape.extend([self.shape[len(index) + j] for j in range(nremainder)])
+
+        assert len(self.shape) == len(cstart) == len(cstop) == len(self._offsets)
+
+        # Shift by the specified offsets
+        cstart = [int(j + i) for i, j in zip(self._offsets, cstart)]
+        cstop = [int(j + i) for i, j in zip(self._offsets, cstop)]
+
+        return cstart, cstop, cshape
 
     def __getattr__(self, name):
         """Proxy to yk::grid methods."""
@@ -177,7 +274,7 @@ class YaskGrid(object):
         unmasked. This allows the caller to write/read the halo region as well as
         the domain.
         """
-        return YaskGridWithHalo(self.grid, self.shape, 0, self.dtype)
+        return YaskGridWithHalo(self.grid, self.shape, 0, self.dtype, self._modulo)
 
     @property
     def name(self):
@@ -224,8 +321,8 @@ class YaskGridWithHalo(YaskGrid):
 
     """A helper class for YaskGrid wrappers providing access to the halo region."""
 
-    def __init__(self, grid, shape, radius, dtype):
-        super(YaskGridWithHalo, self).__init__(grid, shape, radius, dtype)
+    def __init__(self, grid, shape, radius, dtype, modulo):
+        super(YaskGridWithHalo, self).__init__(grid, shape, radius, dtype, modulo)
         self.shape = [i + 2*j for i, j in zip(self.shape, self._halo)]
 
     @property
@@ -470,7 +567,8 @@ class YaskContext(object):
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
         log("Allocating YaskGrid for %s (%s)" % (obj.name, str(obj.shape)))
         grid = self.yk_hook.new_grid(name, obj)
-        wrapper = YaskGrid(grid, obj.shape, obj.space_order, obj.dtype)
+        modulo = [i.modulo if i.is_Stepping else None for i in obj.indices]
+        wrapper = YaskGrid(grid, obj.shape, obj.space_order, obj.dtype, modulo)
         self.grids[name] = wrapper
         return wrapper
 
