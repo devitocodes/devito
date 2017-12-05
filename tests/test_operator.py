@@ -29,13 +29,13 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
 
 
 @skipif_yask
-class TestAPI(object):
+class TestCodeGen(object):
 
     @classmethod
     def setup_class(cls):
         clear_cache()
 
-    def test_code_generation(self, const, a_dense):
+    def test_parameters(self, const, a_dense):
         """
         Tests that we can actually generate code for a trivial operator
         using constant and array data objects.
@@ -56,38 +56,6 @@ class TestAPI(object):
         assert op.parameters[5].name == 'timers'
         assert op.parameters[5].is_PtrArgument
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
-
-    def test_logic_indexing(self):
-        """
-        Tests that logic indexing for stepping dimensions works.
-        """
-        grid = Grid(shape=(4, 4, 4))
-        nt = 5
-
-        u = Function(name='u', grid=grid)
-        try:
-            u.data[5]
-            assert False
-        except IndexError:
-            pass
-
-        v = TimeFunction(name='v', grid=grid, save=nt)
-        try:
-            v.data[nt]
-            assert False
-        except IndexError:
-            pass
-
-        v_mod = TimeFunction(name='v_mod', grid=grid)
-        v_mod.data[0] = 1.
-        v_mod.data[1] = 2.
-        assert np.all(v_mod.data[0] == 1.)
-        assert np.all(v_mod.data[1] == 2.)
-        assert np.all(v_mod.data[2] == v_mod.data[0])
-        assert np.all(v_mod.data[4] == v_mod.data[0])
-        assert np.all(v_mod.data[3] == v_mod.data[1])
-        assert np.all(v_mod.data[-1] == v_mod.data[1])
-        assert np.all(v_mod.data[-2] == v_mod.data[0])
 
 
 @skipif_yask
