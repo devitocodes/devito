@@ -11,7 +11,7 @@ import numpy as np
 from devito.compiler import make
 from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log
-from devito.tools import numpy_to_ctypes
+from devito.tools import as_tuple, numpy_to_ctypes
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
 from devito.yask.utils import convert_multislice, rawpointer
@@ -32,7 +32,7 @@ class YaskGrid(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, shape, radius, dtype):
+    def __init__(self, grid, shape, radius, dtype, modulo):
         """
         Initialize a new :class:`YaskGrid`, a wrapper for a YASK grid.
 
@@ -54,10 +54,14 @@ class YaskGrid(object):
                       such as those lying on the halo region.
         :param radius: The extent of the halo region.
         :param dtype: The type of the raw data.
+        :param modulo: A mask of boolean values, one for each grid dimension; if
+                       True, the corresponding dimension is iterated over with
+                       modulo indexing.
         """
         self.grid = grid
         self.shape = shape
         self.dtype = dtype
+        self._modulo = modulo
 
         if not self.is_storage_allocated():
             # Allocate memory in YASK-land and initialize it to 0
@@ -74,7 +78,7 @@ class YaskGrid(object):
             self._reset()
 
     def __getitem__(self, index):
-        start, stop, shape = convert_multislice(index, self.shape, self._offsets)
+        start, stop, shape = self._convert_index(index)
         if not shape:
             log("YaskGrid: Getting single entry %s" % str(start))
             assert start == stop
@@ -86,7 +90,7 @@ class YaskGrid(object):
         return out
 
     def __setitem__(self, index, val):
-        start, stop, shape = convert_multislice(index, self.shape, self._offsets, 'set')
+        start, stop, shape = self._convert_index(index, 'set')
         if all(i == 1 for i in shape):
             log("YaskGrid: Setting single entry %s" % str(start))
             assert start == stop
@@ -112,6 +116,96 @@ class YaskGrid(object):
             # Emulate default NumPy behaviour
             stop = None
         self.__setitem__(slice(start, stop), val)
+
+    def _convert_index(self, multislice, mode='get'):
+        """
+        Convert a multislice into a format suitable to YASK's get_elements_{...}
+        and set_elements_{...} grid routines.
+
+        A multislice is the typical object received by NumPy ndarray's __getitem__
+        and __setitem__ methods; this function, therefore, converts NumPy indices
+        into YASK indices.
+
+        In particular, a multislice is either a single element or an iterable of
+        elements. An element can be a slice object, an integer index, or a tuple
+        of integer indices.
+
+        In the general case in which ``multislice`` is an iterable, each element in
+        the iterable corresponds to a dimension in ``shape``. In this case, an element
+        can be either a slice or an integer index, but not a tuple of integers.
+
+        If ``multislice`` is a single element,  then it is interpreted as follows: ::
+
+            * slice object: the slice spans the whole shape;
+            * single (integer) index: shape is one-dimensional, and the index
+              represents a specific entry;
+            * a tuple of (integer) indices: it must be ``len(multislice) == len(shape)``,
+              and each entry in ``multislice`` corresponds to a specific entry in a
+              dimension in ``shape``.
+
+        The returned value is a 3-tuple ``(starts, ends, shapes)``, where ``starts,
+        ends, shapes`` are lists of length ``len(shape)``. By taking ``starts[i]`` and
+        `` ends[i]``, one gets the start and end points of the section of elements to
+        be accessed along dimension ``i``; ``shapes[i]`` gives the size of the section.
+        """
+
+        # Note: the '-1' below are because YASK uses '<=', rather than '<', to check
+        # bounds when iterating over grid dimensions
+
+        assert mode in ['get', 'set']
+        multislice = as_tuple(multislice)
+
+        # Convert dimensions
+        start = []
+        stop = []
+        shape = []
+        for i, v in enumerate(multislice):
+            if isinstance(v, slice):
+                if v.step is not None:
+                    raise NotImplementedError("Unsupported stepping != 1.")
+                if v.start is None:
+                    start = 0
+                elif v.start < 0:
+                    start = self.shape[i] + v.start
+                else:
+                    start = v.start
+                start.append(start)
+                if v.stop is None:
+                    stop = self.shape[i] - 1
+                elif v.stop < 0:
+                    stop = self.shape[i] + v.stop
+                else:
+                    stop = v.stop - 1
+                stop.append(stop)
+                shape.append(stop[-1] - start[-1] + 1)
+            else:
+                if v is None:
+                    start = 0
+                    stop = self.shape[i] - 1
+                elif v < 0:
+                    start = self.shape[i] + v
+                    stop = self.shape[i] + v
+                else:
+                    start = v
+                    stop = v
+                start.append(start)
+                stop.append(stop)
+                if mode == 'set':
+                    shape.append(1)
+
+        # Remainder (e.g., requesting A[1] and A has shape (3,3))
+        nremainder = len(self.shape) - len(multislice)
+        start.extend([0]*nremainder)
+        stop.extend([self.shape[i + j] - 1 for j in range(1, nremainder + 1)])
+        shape.extend([self.shape[i + j] for j in range(1, nremainder + 1)])
+
+        assert len(self.shape) == len(start) == len(stop) == len(self._offsets)
+
+        # Shift by the specified offsets
+        start = [int(j + i) for i, j in zip(self._offsets, start)]
+        stop = [int(j + i) for i, j in zip(self._offsets, stop)]
+
+        return start, stop, shape
 
     def __getattr__(self, name):
         """Proxy to yk::grid methods."""
@@ -470,7 +564,8 @@ class YaskContext(object):
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
         log("Allocating YaskGrid for %s (%s)" % (obj.name, str(obj.shape)))
         grid = self.yk_hook.new_grid(name, obj)
-        wrapper = YaskGrid(grid, obj.shape, obj.space_order, obj.dtype)
+        modulo = [i.modulo if i.is_Stepping else None for i in obj.indices]
+        wrapper = YaskGrid(grid, obj.shape, obj.space_order, obj.dtype, modulo)
         self.grids[name] = wrapper
         return wrapper
 
