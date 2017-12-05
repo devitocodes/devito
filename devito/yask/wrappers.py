@@ -120,30 +120,31 @@ class YaskGrid(object):
     def __repr__(self):
         return repr(self[:])
 
-    def __meta_binop(op):
+    def __meta_op__(op, reverse=False):
         # Used to build all binary operations such as __eq__, __add__, etc.
         # These all boil down to calling the numpy equivalents
         def f(self, other):
-            return getattr(self[:], op)(other)
+            o1, o2 = (self[:], other) if reverse is False else (other, self[:])
+            return getattr(o1, op)(o2)
         return f
-    __eq__ = __meta_binop('__eq__')
-    __ne__ = __meta_binop('__ne__')
-    __le__ = __meta_binop('__le__')
-    __lt__ = __meta_binop('__lt__')
-    __ge__ = __meta_binop('__ge__')
-    __gt__ = __meta_binop('__gt__')
-    __add__ = __meta_binop('__add__')
-    __radd__ = __meta_binop('__add__')
-    __sub__ = __meta_binop('__sub__')
-    __rsub__ = __meta_binop('__sub__')
-    __mul__ = __meta_binop('__mul__')
-    __rmul__ = __meta_binop('__mul__')
-    __div__ = __meta_binop('__div__')
-    __rdiv__ = __meta_binop('__div__')
-    __truediv__ = __meta_binop('__truediv__')
-    __rtruediv__ = __meta_binop('__truediv__')
-    __mod__ = __meta_binop('__mod__')
-    __rmod__ = __meta_binop('__mod__')
+    __eq__ = __meta_op__('__eq__')
+    __ne__ = __meta_op__('__ne__')
+    __le__ = __meta_op__('__le__')
+    __lt__ = __meta_op__('__lt__')
+    __ge__ = __meta_op__('__ge__')
+    __gt__ = __meta_op__('__gt__')
+    __add__ = __meta_op__('__add__')
+    __radd__ = __meta_op__('__add__')
+    __sub__ = __meta_op__('__sub__')
+    __rsub__ = __meta_op__('__sub__', True)
+    __mul__ = __meta_op__('__mul__')
+    __rmul__ = __meta_op__('__mul__', True)
+    __div__ = __meta_op__('__div__')
+    __rdiv__ = __meta_op__('__div__', True)
+    __truediv__ = __meta_op__('__truediv__')
+    __rtruediv__ = __meta_op__('__truediv__', True)
+    __mod__ = __meta_op__('__mod__')
+    __rmod__ = __meta_op__('__mod__', True)
 
     def _reset(self):
         """

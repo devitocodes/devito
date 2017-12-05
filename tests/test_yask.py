@@ -126,7 +126,7 @@ class TestGrids(object):
         u.data[:] = 1.
         arr = np.ndarray(shape=(16, 16, 16), dtype=np.float32)
         arr.fill(2.)
-        assert np.all(arr - u.data == -1.)
+        assert np.all(arr - u.data == 1.)
 
 
 class TestOperatorSimple(object):
