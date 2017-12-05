@@ -98,45 +98,68 @@ class Data(np.ndarray):
         https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 
     The new instance takes an existing ndarray as input, casts it to one of
-    type ``Data``, and adds the extra attribute ``wrap``.
+    type ``Data``, and adds the extra attribute ``modulo``.
+
+    .. note::
+
+        Any view or copy ``A`` created starting from ``self``, for instance via
+        a slice operation or a universal function ("ufunc" in NumPy jargon), will
+        still be of type :class:`Data`. However, if ``A`` is a view and its rank
+        is lower than that of ``self``, namely ``A.ndim < self.ndim``, then the
+        ``modulo`` attribute is dropped. A suitable exception is then raised if
+        user code seems to attempt accessing data through modulo iteration on
+        such a contracted view.
     """
 
-    def __new__(cls, array, wrap=None):
+    def __new__(cls, array, modulo=None):
         obj = np.asarray(array).view(cls)
-        obj._wrap = wrap
+        obj.modulo = tuple(modulo)
         return obj
 
     def __array_finalize__(self, obj):
-        if obj is None:
+        if type(obj) != Data:
             return
-        self._wrap = getattr(obj, '_wrap', None)
+        # `self` is the newly created object
+        # `obj` is the object from which `self` was created
+        if self.ndim == obj.ndim:
+            self.modulo = obj.modulo
+        else:
+            self.modulo = tuple(None for i in range(self.ndim))
 
     def __getitem__(self, index):
-        index = self._apply_wrap(index)
+        index = self._convert_index(index)
         return super(Data, self).__getitem__(index)
 
     def __setitem__(self, index, val):
-        index = self._apply_wrap(index)
+        index = self._convert_index(index)
         super(Data, self).__setitem__(index, val)
 
-    def _apply_wrap(self, index):
+    def _convert_index(self, index):
         if isinstance(index, np.ndarray):
-            # Mask array
+            # Using a mask array, nothing we really have to do
             return index
         else:
             index = as_tuple(index)
             wrapped = []
-            for i, j in zip(index, self._wrap):
-                if j is None:
+            for i, mod in zip(index, self.modulo):
+                if mod is None:
                     wrapped.append(i)
                 elif isinstance(i, slice):
-                    handle = []
-                    handle.append(i.start if i.start is None else (i.start % j))
-                    handle.append(i.stop if i.stop is None else (i.stop % (j + 1)))
-                    handle.append(i.step)
-                    wrapped.append(slice(*handle))
+                    if i.start is None:
+                        start = i.start
+                    elif i.start >= 0:
+                        start = i.start % mod
+                    else:
+                        start = -(i.start % mod)
+                    if i.stop is None:
+                        stop = i.stop
+                    elif i.stop >= 0:
+                        stop = i.stop % (mod + 1)
+                    else:
+                        stop = -(i.stop % (mod + 1))
+                    wrapped.append(slice(start, stop, i.step))
                 elif isinstance(i, (tuple, list)):
-                    wrapped.append([k % j for k in i])
+                    wrapped.append([k % mod for k in i])
                 else:
-                    wrapped.append(i % j)
+                    wrapped.append(i % mod)
             return wrapped[0] if len(index) == 1 else tuple(wrapped)
