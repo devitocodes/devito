@@ -47,6 +47,12 @@ class Constant(AbstractSymbol, ConstantArgProvider):
 
     """
     Symbol representing constant values in symbolic equations.
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
     """
 
     is_Constant = True
@@ -101,6 +107,12 @@ class Function(TensorFunction):
     :param dtype: (Optional) data type of the buffered data.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
 
     .. note::
 
@@ -266,7 +278,7 @@ class Function(TensorFunction):
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-        self._data_object = CMemory(self.shape, dtype=self.dtype)
+        self._data_object = CMemory(self.shape, self.indices, dtype=self.dtype)
         if self._first_touch:
             first_touch(self)
         else:
@@ -335,6 +347,12 @@ class TimeFunction(Function):
     :param time_order: Order of the time discretization which affects the
                        final size of the leading time dimension of the
                        data buffer.
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
 
     .. note::
 
@@ -498,6 +516,12 @@ class SparseFunction(CompositeFunction):
     :param nt: Size of the time dimension for point data
     :param coordinates: Optional coordinate data for the sparse points
     :param dtype: Data type of the buffered data
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
     """
 
     is_SparseFunction = True

@@ -35,11 +35,7 @@ class Basic(object):
                         -----------------------------------
                         |                                 |
                   CachedSymbol                          Object
-                        |                          <see Object.__doc__>
-           --------------------------
-           |                        |
-    AbstractSymbol          AbstractFunction
-                        <see AbstractFunction.__doc__>
+          <root of the symbol objects>       <root of the generic objects>
 
     All derived :class:`Basic` objects may be emitted through code generation
     to create a just-in-time compilable kernel.
@@ -74,7 +70,31 @@ class Basic(object):
 
 
 class CachedSymbol(Basic):
-    """Base class for symbolic objects that caches on the class type."""
+    """
+    Base class for symbolic objects that caches on the class type.
+
+    In order to maintain meta information across the numerous
+    re-instantiation SymPy performs during symbolic manipulation, we inject
+    the symbol name as the class name and cache all created objects on that
+    name. This entails that a symbolic object inheriting from :class:`CachedSymbol`
+    should implement `__init__` in the following way:
+
+        .. code-block::
+            def __init__(self, \*args, \*\*kwargs):
+                if not self._cached():
+                    ... # Initialise object properties from kwargs
+
+    This class is the root of the symbolic objects hierarchy, which is
+    structured as follows.
+
+                                    CachedSymbol
+                                         |
+                        -----------------------------------
+                        |                                 |
+                  AbstractSymbol                    AbstractFunction
+           <root of the scalar symbols>       <root of the tensor symbols>
+
+    """
 
     @classmethod
     def _cached(cls):
@@ -102,9 +122,22 @@ class CachedSymbol(Basic):
 
 class AbstractSymbol(sympy.Symbol, CachedSymbol):
     """
-    Base class for dimension-free symbols that are cached by Devito,
-    in addition to SymPy caching. Note that these objects are not
-    :class:`Function` objects and do not have any indexing dimensions.
+    Base class for dimension-free symbols, cached by both Devito and Sympy.
+    Note that these objects are not :class:`Function` objects and do not have
+    any indexing dimensions.
+
+    This class is the root of the scalar (i.e., dimension-free) symbols hierarchy,
+    which is structured as follows
+
+                             AbstractSymbol
+                                   |
+                 -------------------------------------
+                 |                                   |
+               Symbol                             Constant
+
+    The difference between a :class:`Constant` and a :class:`Symbol` object
+    is that the former carries data (a scalar) and is created directly by the
+    user, whereas the latter is created and managed internally by Devito.
     """
 
     is_AbstractSymbol = True
@@ -112,7 +145,7 @@ class AbstractSymbol(sympy.Symbol, CachedSymbol):
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
         if cls in _SymbolCache:
-            newobj = sympy.Function.__new__(cls, *args, **options)
+            newobj = sympy.Symbol.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
             name = kwargs.get('name')
@@ -162,52 +195,30 @@ class Symbol(AbstractSymbol):
 
 
 class AbstractFunction(sympy.Function, CachedSymbol):
-    """Base class for data classes that provides symbolic behaviour.
+    """
+    Base class for tensor symbols, cached by both Devito and SymPy.
+    It inherits from and mimick the behaviour of a :class:`sympy.Function`.
 
-    :param name: Symbolic name to give to the resulting function. Must
-                 be given as keyword argument.
-    :param shape: Shape of the underlying object. Must be given as
-                  keyword argument.
+    This class is the root of the tensor symbols hierarchy, which is
+    structured as follows.
 
-    This class implements the behaviour of Devito's symbolic
-    objects by inheriting from and mimicking the behaviour of
-    :class:`sympy.Function`. In order to maintain meta information
-    across the numerous re-instantiation SymPy performs during
-    symbolic manipulation, we inject the symbol name as the class name
-    and cache all created objects on that name. This entails that a
-    symbolic object should implement `__init__` in the following
-    format:
-
-    def __init__(self, \*args, \*\*kwargs):
-        if not self._cached():
-            ... # Initialise object properties from kwargs
-
-    Note: The parameters :param name: and :param shape: must always be
-    present and given as keyword arguments, since SymPy uses `*args`
-    to (re-)create the dimension arguments of the symbolic function.
-
-    This class is the root of the Devito data objects hierarchy, which
-    is structured as follows.
-
-                             AbstractFunction
+                            AbstractFunction
                                    |
                  -------------------------------------
                  |                                   |
             SymbolicData                      SymbolicFunction
                  |                                   |
-          ------------------                 ------------------
-          |                |                 |                |
-       Scalar            Array            Constant      TensorFunction
-                                                              |
-                                                ------------------------------
-                                                |             |              |
-                                            Function      TimeFunction  CompositeFunction
-                                                                             |
-                                                                         SparseFunction
+               Array                           TensorFunction
+                                                     |
+                                       ------------------------------
+                                       |             |              |
+                                    Function    TimeFunction  CompositeFunction
+                                                                    |
+                                                               SparseFunction
 
     The key difference between a :class:`SymbolicFunction` and a :class:`SymbolicData`
-    is that the former is created directly by the user and employed in some
-    computation, while the latter is created and managed internally by Devito.
+    object is that the former carries data and is created directly by the user,
+    whereas the latter is created and managed internally by Devito.
     """
 
     is_AbstractFunction = True

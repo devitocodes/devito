@@ -14,7 +14,7 @@ from devito.parameters import *  # noqa
 from devito.symbolics import *  # noqa
 from devito.tools import *  # noqa
 
-from devito.compiler import compiler_registry, GNUCompiler
+from devito.compiler import compiler_registry
 from devito.backends import backends_registry, init_backend
 
 
@@ -38,11 +38,7 @@ configuration.add('compiler', 'custom', list(compiler_registry),
 
 def _cast_and_update_compiler(val):
     # Force re-build the compiler
-    compiler = configuration['compiler']
-    if isinstance(compiler, GNUCompiler):
-        compiler.__init__(version=compiler.version)
-    else:
-        compiler.__init__()
+    configuration['compiler'].__init__(suffix=configuration['compiler'].suffix)
     return bool(val)
 
 
@@ -56,13 +52,13 @@ configuration.add('backend', 'core', list(backends_registry),
 
 # Set the Instruction Set Architecture (ISA)
 ISAs = [None, 'cpp', 'avx', 'avx2', 'avx512', 'knc']
-configuration.add('isa', None, ISAs)
+configuration.add('isa', 'cpp', ISAs)
 
 # Set the CPU architecture (only codename)
 PLATFORMs = [None, 'intel64', 'sandybridge', 'ivybridge', 'haswell',
              'broadwell', 'skylake', 'knc', 'knl']
 # TODO: switch arch to actual architecture names; use the mapper in /YASK/
-configuration.add('platform', None, PLATFORMs)
+configuration.add('platform', 'intel64', PLATFORMs)
 
 
 # Initialize the configuration, either from the environment or
