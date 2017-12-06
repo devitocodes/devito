@@ -1,5 +1,9 @@
+import ctypes
+import numpy as np
+
 import devito.types as types
 import devito.function as function
+from devito.tools import numpy_to_ctypes
 
 from devito.yask.wrappers import YaskGridConst, contexts
 
@@ -43,7 +47,14 @@ class Function(function.Function):
 
     @property
     def _data_buffer(self):
-        return super(Function, self).data
+        data = self.data
+        ctype = numpy_to_ctypes(data.dtype)
+        cpointer = ctypes.cast(int(data.grid.get_raw_storage_buffer()),
+                               ctypes.POINTER(ctype))
+        ndpointer = np.ctypeslib.ndpointer(dtype=data.dtype, shape=data.shape)
+        casted = ctypes.cast(cpointer, ndpointer)
+        ndarray = np.ctypeslib.as_array(casted, shape=data.shape)
+        return ndarray
 
     @property
     def data(self):
@@ -66,8 +77,7 @@ class Function(function.Function):
         as the time spent in running Operators is expected to be vastly greater
         than any user-level data manipulation.
         """
-        super(Function, self).data
-        return self._data_object
+        return super(Function, self).data
 
     def initialize(self):
         raise NotImplementedError

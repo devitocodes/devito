@@ -5,13 +5,12 @@ from glob import glob
 from subprocess import call
 from collections import OrderedDict
 
-import ctypes
 import numpy as np
 
 from devito.compiler import make
 from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log
-from devito.tools import as_tuple, numpy_to_ctypes
+from devito.tools import as_tuple
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
 from devito.yask.utils import rawpointer
@@ -283,17 +282,6 @@ class YaskGrid(object):
     @property
     def dimensions(self):
         return self.grid.get_dim_names()
-
-    @property
-    def ndpointer(self):
-        """Return a :class:`numpy.ndarray` view of the grid content."""
-        ctype = numpy_to_ctypes(self.dtype)
-        cpointer = ctypes.cast(int(self.grid.get_raw_storage_buffer()),
-                               ctypes.POINTER(ctype))
-        ndpointer = np.ctypeslib.ndpointer(dtype=self.dtype, shape=self.shape)
-        casted = ctypes.cast(cpointer, ndpointer)
-        ndarray = np.ctypeslib.as_array(casted, shape=self.shape)
-        return ndarray
 
     @property
     def rawpointer(self):
