@@ -37,16 +37,16 @@ def autotune(operator, arguments, tunable):
         timesteps = 1
     elif len(steppers) == 1:
         stepper = steppers[0]
-        start = stepper.dim.rtargs.start.default_value
+        start = 0
         timesteps = stepper.extent(start=start, finish=options['at_squeezer'])
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps + 1
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)
-        at_arguments[stepper.dim.symbolic_start.name] = start
-        at_arguments[stepper.dim.symbolic_end.name] = timesteps
+        at_arguments[stepper.dim.start_name] = start
+        at_arguments[stepper.dim.end_name] = timesteps
         if stepper.dim.is_Stepping:
-            at_arguments[stepper.dim.parent.symbolic_start.name] = start
-            at_arguments[stepper.dim.parent.symbolic_end.name] = timesteps
+            at_arguments[stepper.dim.parent.start_name] = start
+            at_arguments[stepper.dim.parent.end_name] = timesteps
     else:
         info_at("Couldn't understand loop structure, giving up auto-tuning")
         return arguments
@@ -113,7 +113,7 @@ def autotune(operator, arguments, tunable):
         timer = operator.profiler.new()
         at_arguments[operator.profiler.name] = timer
 
-        operator.cfunction(*list(at_arguments.values()))
+        operator.apply(**at_arguments)
         elapsed = sum(getattr(timer._obj, i) for i, _ in timer._obj._fields_)
         timings[tuple(bs.items())] = elapsed
         info_at("Block shape <%s> took %f (s) in %d time steps" %
