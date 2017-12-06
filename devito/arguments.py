@@ -6,6 +6,7 @@ from sympy import Symbol
 from cached_property import cached_property
 from collections import defaultdict, namedtuple, OrderedDict
 from functools import reduce
+from itertools import chain
 
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, error
@@ -166,6 +167,7 @@ class ArgumentEngine(object):
         self.dle_arguments = dle_arguments
         self.argument_mapper = self._build_argument_mapper(parameters)
         self.arguments = filter_ordered([x for x in self.argument_mapper if isinstance(x, Argument)], key=lambda x: x.name)
+        self.dims = [x for x in self.argument_mapper if isinstance(x, DimensionParameter)]
 
     def handle(self, **kwargs):
 
@@ -220,6 +222,7 @@ class ArgumentEngine(object):
 
         for dim in [x for x in parameters if isinstance(x, Dimension) and x.is_Buffered]:
             dimension_parameter_mapper[dim].dependencies.append(Dependency(Dependency.GETS_VALUE_FROM, dimension_parameter_mapper[dim.parent]))
+            # dimension_parameter_mapper[dim.parent].dependencies.append(Dependency(Dependency.GETS_VALUE_FROM, dimension_parameter_mapper[dim]))
 
         dimension_parameters = list(dimension_parameter_mapper.values())
         
@@ -276,9 +279,13 @@ class ArgumentEngine(object):
     def _derive_values(self, kwargs):
         # Use kwargs
         values = OrderedDict()
-        print(kwargs)
+        dimension_values = OrderedDict()
+        
         for i in self.arguments:
             values[i] = get_value(i, kwargs.pop(i.name, None), values)
+
+        for i in self.dims:
+            dimension_values[i] = kwargs.pop(i.name, None)
 
         # Make sure we've used all arguments passed
         if len(kwargs) > 0:
@@ -287,14 +294,15 @@ class ArgumentEngine(object):
         # Derive values for other arguments
         for i in self.arguments:
             if values[i] is None:
-                provided_values = [get_value(i, x, values) for x in i.gets_value_from]
+                known_values = OrderedDict(chain(values.items(), dimension_values.items()))
+                provided_values = [get_value(i, x, known_values) for x in i.gets_value_from]
                 assert(len(provided_values) > 0)
         
                 if len(provided_values) == 1:
                     values[i] = provided_values[0]
                 else:
                     values[i] = reduce(provided_values)
-
+        
         # Second pass to evaluate any Unevaluated dependencies from the first pass
         for k, v in values.items():
             if isinstance(v, UnevaluatedDependency):
@@ -422,12 +430,19 @@ class ValueVisitor(Visitor):
         if self.consumer.name == o.provider.start_name:
             return 0
         provided_values = [get_value(o, x, self.known_values) for x in o.gets_value_from]
+        if o in self.known_values and not isinstance(self.known_values[o], UnevaluatedDependency) and self.known_values[o] is not None:
+            provided_values.append(self.known_values[o])
         if len(provided_values) > 1:
             if not all(x is not None for x in provided_values):
                 unknown_args = [x.obj for x in o.gets_value_from if get_value(o, x, self.known_values) is None]
                 def late_evaluate_dim_size(consumer, known_values, partial_values):
-                    new_values = [known_values[x] for x in unknown_args]
-                    return reduce(max, partial_values + new_values)
+                    known = []
+                    try:
+                        new_values = [known_values[x] for x in unknown_args]
+                        known = [x for x in new_values if x is not None]
+                    except KeyError:
+                        pass
+                    return reduce(max, partial_values + known)
                 return UnevaluatedDependency(o, late_evaluate_dim_size, [x for x in provided_values if x is not None])
             value = reduce(max, provided_values)
         elif len(provided_values) == 1:
