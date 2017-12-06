@@ -69,6 +69,10 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
     def end_name(self):
         return "%s_e" % self.name
 
+    def _hashable_content(self):
+        return super(Dimension, self)._hashable_content() +\
+            (self.reverse, self.spacing)
+
 
 class SpaceDimension(Dimension):
 
@@ -133,6 +137,9 @@ class SteppingDimension(Dimension):
     def spacing(self):
         return self.parent.spacing
 
+    def _hashable_content(self):
+        return (self.parent._hashable_content(), self.modulo)
+
 
 class LoweredDimension(Dimension):
 
@@ -165,3 +172,6 @@ class LoweredDimension(Dimension):
     @property
     def reverse(self):
         return self.stepping.reverse
+
+    def _hashable_content(self):
+        return sympy.Symbol._hashable_content(self) + (self.stepping, self.offset)
