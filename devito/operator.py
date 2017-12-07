@@ -84,14 +84,14 @@ class Operator(Callable):
         expressions = [s.xreplace(subs) for s in expressions]
 
         # Analysis
-        self.dtype = self._retrieve_dtype(expressions)
-        self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
-        stencils = self._retrieve_stencils(expressions)
+        self.dtype = retrieve_dtype(expressions)
+        self.input, self.output, self.dimensions = retrieve_symbols(expressions)
+        stencils = make_stencils(expressions)
         
-        # Parameters of the Operator
+        # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = self.input + self.dimensions
 
-        # Group expressions based on their Stencil
+        # Group expressions based on their Stencil and data dependences
         clusters = clusterize(expressions, stencils)
 
         # Apply the Devito Symbolic Engine (DSE) for symbolic optimization
@@ -99,6 +99,9 @@ class Operator(Callable):
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters)
+
+        # Data dependency analysis. Properties are attached directly to nodes
+        nodes = analyze_iterations(nodes)
 
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes, parameters)
