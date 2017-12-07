@@ -5,7 +5,8 @@ import devito.types as types
 import devito.function as function
 from devito.tools import numpy_to_ctypes
 
-from devito.yask.wrappers import DataScalar, contexts
+from devito.yask.data import DataScalar
+from devito.yask.wrappers import contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction']
 

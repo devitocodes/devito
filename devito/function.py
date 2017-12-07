@@ -6,7 +6,7 @@ from psutil import virtual_memory
 
 from devito.parameters import configuration
 from devito.logger import debug, error, warning
-from devito.memory import Data, first_touch
+from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import Dimension, TimeDimension
 from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider

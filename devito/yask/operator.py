@@ -15,8 +15,9 @@ from devito.operator import OperatorRunnable, FunMeta
 from devito.tools import flatten
 
 from devito.yask import nfac, namespace, exit, configuration
+from devito.yask.data import DataScalar
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
-from devito.yask.wrappers import DataScalar, YaskNullContext, YaskNullKernel, contexts
+from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
 
 __all__ = ['Operator']
 
