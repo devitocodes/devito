@@ -394,7 +394,6 @@ class TestArguments(object):
         # Move the source from the location where the setup put it so we can test
         # whether the override picks up the original coordinates or the changed ones
 
-        # Operator.arguments() returns a tuple of (data, dimension_sizes)
         args = op.arguments(src1=src2)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
