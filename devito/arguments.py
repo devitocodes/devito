@@ -10,8 +10,7 @@ from itertools import chain
 
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, error
-from devito.visitors import Visitor
-from devito.tools import filter_ordered, flatten
+from devito.tools import filter_ordered, flatten, GenericVisitor
 from devito.function import CompositeFunction, SymbolicFunction
 from devito.dimension import Dimension
 
@@ -324,7 +323,7 @@ def derive_dle_argument_value(blocked_dim, known_values, dle_argument):
     return value
 
 
-class ArgumentVisitor(Visitor):
+class ArgumentVisitor(GenericVisitor):
     """ Visits types to return their runtime arguments
     """
     def visit_SymbolicFunction(self, o):
@@ -353,7 +352,7 @@ class ArgumentVisitor(Visitor):
         return ScalarArgument(o.name, [dependency], dtype=o.dtype)
 
     
-class ValueVisitor(Visitor):
+class ValueVisitor(GenericVisitor):
     """Visits types to derive their value
     """
     def __init__(self, consumer, known_values):
