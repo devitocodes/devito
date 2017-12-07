@@ -386,7 +386,7 @@ class ValueVisitor(Visitor):
             return 0
         provided_values = [get_value(o, x, self.known_values) for x in o.gets_value_from]
         if o in self.known_values and not isinstance(self.known_values[o], UnevaluatedDependency) and self.known_values[o] is not None:
-            provided_values.append(self.known_values[o])
+            provided_values = [self.known_values[o]]
         if len(provided_values) > 1:
             if not all(x is not None for x in provided_values):
                 unknown_args = [x.obj for x in o.gets_value_from if get_value(o, x, self.known_values) is None]
