@@ -144,8 +144,6 @@ class ArgumentEngine(object):
         assert(self._verify(values))
 
         arguments = OrderedDict([(k.name, v) for k, v in values.items()])
-        log_args(arguments)
-
         return arguments, user_autotune and dle_autotune
         
 
