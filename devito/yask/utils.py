@@ -116,7 +116,7 @@ def convert_multislice(multislice, shape, offsets, mode='get'):
             elif v.stop < 0:
                 stop = shape[i] + v.stop
             else:
-                stop = v.stop
+                stop = v.stop - 1
             cstop.append(stop)
             cshape.append(cstop[-1] - cstart[-1] + 1)
         else:

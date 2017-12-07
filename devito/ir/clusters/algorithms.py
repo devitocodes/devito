@@ -14,7 +14,7 @@ def groupby(clusters):
     """
     Given an ordered collection of :class:`PartialCluster` objects, return a
     (potentially) smaller sequence in which dependence-free PartialClusters with
-    identical stencil have been squashed into a single PartialCluster.
+    identical stencil have been squashed into a single :class:`PartialCluster`.
     """
     clusters = clusters.unfreeze()
 

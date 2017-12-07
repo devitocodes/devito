@@ -47,6 +47,12 @@ class Constant(AbstractSymbol, ConstantArgProvider):
 
     """
     Symbol representing constant values in symbolic equations.
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses ``*args`` to (re-)create the dimension arguments of the
+        symbolic function.
     """
 
     is_Constant = True
@@ -101,6 +107,12 @@ class Function(TensorFunction):
     :param dtype: (Optional) data type of the buffered data.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses ``*args`` to (re-)create the dimension arguments of the
+        symbolic function.
 
     .. note::
 
@@ -338,6 +350,12 @@ class TimeFunction(Function):
 
     .. note::
 
+        The parameters must always be given as keyword arguments, since
+        SymPy uses ``*args`` to (re-)create the dimension arguments of the
+        symbolic function.
+
+    .. note::
+
        If the parameter ``grid`` is provided, the values for ``shape``,
        ``dimensions`` and ``dtype`` will be derived from it.
 
@@ -498,6 +516,12 @@ class SparseFunction(CompositeFunction):
     :param nt: Size of the time dimension for point data
     :param coordinates: Optional coordinate data for the sparse points
     :param dtype: Data type of the buffered data
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
     """
 
     is_SparseFunction = True

@@ -136,19 +136,16 @@ def mark_wrappable(analysis):
         return
     # Finally check that all data dependences would be honored by using the
     # /front/ index function in place of the /back/ index function
-    for tree in analysis.trees:
-        for i in tree:
-            if i == stepper:
-                continue
-            # There must be NO writes to the /back/ timeslot
-            for access in analysis.scopes[i].accesses:
-                if access.is_write and access[stepping] == back:
-                    return
-            # All reads from the /front/ timeslot must not cause dependences with
-            # the writes in the /back/ timeslot along the /i/ dimension
-            for dep in analysis.scopes[i].d_flow:
-                if dep.source[stepping] != front or dep.sink[stepping] != back:
-                    continue
-                if dep.source.section(stepping) != dep.sink.section(stepping):
-                    return
+    # There must be NO writes to the /back/ timeslot
+    for access in analysis.scopes[stepper].accesses:
+        if access.is_write and access[stepping] == back:
+            return
+    # All reads from the /front/ timeslot must not cause dependences with
+    # the writes in the /back/ timeslot along the /i/ dimension
+    for dep in analysis.scopes[stepper].d_flow:
+        if dep.source[stepping] != front or dep.sink[stepping] != back:
+            continue
+        if dep.sink.lex_gt(dep.source) and\
+                dep.source.section(stepping) != dep.sink.section(stepping):
+            return
     analysis.update({stepper: WRAPPABLE})
