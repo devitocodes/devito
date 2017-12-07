@@ -34,14 +34,18 @@ class Data(object):
     :param shape: Shape of the domain region in grid points.
     :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
                        of the ``Data``.
-    :param radius: An integer indicating the extent of the halo region.
+    :param halo: An integer indicating the extent of the halo region.
     :param dtype: A ``numpy.dtype`` for the raw data.
+
+    .. note::
+
+        This type supports logic indexing over modulo buffered dimensions.
     """
 
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, shape, dimensions, radius, dtype):
+    def __init__(self, grid, shape, dimensions, halo, dtype):
         self.grid = grid
         self.dimensions = dimensions
         self.dtype = dtype
@@ -62,7 +66,7 @@ class Data(object):
                     # Note, from the YASK docs:
                     # "If the halo is set to a value larger than the padding size,
                     # the padding size will be automatically increase to accomodate it."
-                    self.grid.set_halo_size(i.name, radius)
+                    self.grid.set_halo_size(i.name, halo)
 
             # Allocate memory
             self.grid.alloc_storage()
@@ -221,6 +225,17 @@ class Data(object):
 
         return cstart, cstop, cshape
 
+    def _give_storage(self, target):
+        """
+        Share self's storage with ``target``.
+        """
+        for i in self.dimensions:
+            if i.is_Time:
+                target.set_alloc_size(i.name, self.get_alloc_size(i.name))
+            else:
+                target.set_halo_size(i.name, self.get_halo_size(i.name))
+        target.share_storage(self.grid)
+
     def __getattr__(self, name):
         """Proxy to yk::grid methods."""
         return getattr(self.grid, name)
@@ -261,27 +276,12 @@ class Data(object):
         return self.base
 
     @property
-    def name(self):
-        return self.grid.get_name()
-
-    @property
     def shape(self):
         return self._shape
 
     @property
     def rawpointer(self):
         return rawpointer(self.grid)
-
-    def give_storage(self, target):
-        """
-        Share self's storage with ``target``.
-        """
-        for i in self.dimensions:
-            if i.is_Time:
-                target.set_alloc_size(i.name, self.get_alloc_size(i.name))
-            else:
-                target.set_halo_size(i.name, self.get_halo_size(i.name))
-        target.share_storage(self.grid)
 
     def reset(self):
         """
@@ -301,7 +301,7 @@ class DataScalar(np.float64):
 
     """A YASK grid wrapper for scalar values."""
 
-    def give_storage(self, target):
+    def _give_storage(self, target):
         if not target.is_storage_allocated():
             target.alloc_storage()
         target.set_element(float(self.real), [])

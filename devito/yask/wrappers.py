@@ -129,7 +129,7 @@ class YaskKernel(object):
         for k, v in toshare.items():
             target = self.grids.get(k.name)
             if target is not None:
-                v.give_storage(target)
+                v._give_storage(target)
         assert all(not i.is_storage_allocated() for i in self.local_grids.values())
         assert all(v.is_storage_allocated() for k, v in self.grids.items()
                    if k not in self.local_grids)
