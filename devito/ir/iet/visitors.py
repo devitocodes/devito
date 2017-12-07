@@ -18,7 +18,7 @@ from devito.dimension import LoweredDimension
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Iteration, Node, UnboundedIndex
 from devito.types import Scalar
-from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C
+from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
@@ -731,13 +731,15 @@ class ResolveTimeStepping(Transformer):
         if o.dim.is_Stepping:
             # For SteppingDimension insert the explicit
             # definition of buffered variables, eg. t+1 => t1
+            # Note: we avoid using one of the available slots if o.is_Wrappable
             init = []
-            for i, off in enumerate(filter_ordered(offsets[o.dim])):
+            shift = int(o.is_Wrappable)
+            for i, off in enumerate(filter_sorted(offsets[o.dim])):
                 vname = Scalar(name="%s%d" % (o.dim.name, i), dtype=np.int32)
-                value = (o.dim.parent + off) % o.dim.modulo
+                value = (o.dim.parent + off + shift) % (o.dim.modulo - shift)
                 init.append(UnboundedIndex(vname, value, value))
                 subs[o.dim + off] = LoweredDimension(vname.name, o.dim, off)
-            # Always lower to symbol
+            # Always lower from Dimension to Symbol
             subs[o.dim.parent] = Scalar(name=o.dim.parent.name, dtype=np.int32)
             return o._rebuild(index=o.dim.parent.name, uindices=init), subs
         else:

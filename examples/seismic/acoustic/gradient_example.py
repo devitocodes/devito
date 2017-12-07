@@ -120,10 +120,10 @@ class GradientExample(object):
         G = np.dot(gradient.reshape(-1), dm.reshape(-1))
         # FWI Gradient test
         H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
-        error1 = np.zeros(7)
-        error2 = np.zeros(7)
+        err1 = np.zeros(len(H))
+        err2 = np.zeros(len(H))
 
-        for i in range(0, 7):
+        for i in range(len(H)):
             # Add the perturbation to the model
             mloc = m0 + H[i] * dm
             # Set field to zero (we're re-using it)
@@ -134,14 +134,13 @@ class GradientExample(object):
                                        src=self.src, dt=self.dt)
             d = self.rec.data
             # First order error Phi(m0+dm) - Phi(m0)
-            error1[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0)
+            err1[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0)
             # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>
-            error2[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0 - H[i]
-                                    * G)
+            err2[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0 - H[i] * G)
 
-        # Test slope of the  tests
-        p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
-        p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
+        # Test slope of the tests
+        p1 = np.polyfit(np.log10(H), np.log10(err1), 1)
+        p2 = np.polyfit(np.log10(H), np.log10(err2), 1)
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
