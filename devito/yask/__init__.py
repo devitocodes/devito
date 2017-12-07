@@ -65,7 +65,8 @@ class YaskCompiler(configuration['compiler'].__class__):
         # Switch to C++
         self.cc = self.cpp_mapper[configuration['compiler'].cc]
         self.ld = self.cpp_mapper[configuration['compiler'].ld]
-        self.cflags = configuration['compiler'].cflags + ['-std=c++11']
+        self.cflags = [i for i in configuration['compiler'].cflags
+                       if not i.startswith('-std')] + ['-std=c++11']
         self.src_ext = 'cpp'
         # Tell the compiler where to get YASK header files and shared objects
         self.include_dirs.append(os.path.join(namespace['path'], 'include'))
