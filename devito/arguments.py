@@ -115,49 +115,6 @@ class PtrArgument(Argument):
         self.dtype = provider.dtype
 
 
-class DimensionArgProvider(object):
-
-    """ This class is used to decorate the Dimension class with behaviour required
-        to handle runtime arguments. All properties/methods defined here are available
-        in any Dimension object.
-    """
-
-    # TODO: Can we do without a verify on a dimension?
-    def verify(self, value, enforce=False):
-        verify = True
-        if value is None:
-            if self.value is not None:
-                return True
-
-            try:
-                parent_value = self.parent.value
-                if parent_value is None:
-                    return False
-            except AttributeError:
-                return False
-        # Make sure we're dealing with a 3-tuple. See docstring of _promote for more
-        value = self._promote(value, engine)
-        if hasattr(self, 'parent'):
-            parent_value = self.parent.value
-            if parent_value is not None and not enforce:
-                parent_value = self._promote(parent_value, engine)
-                value = tuple([self.reducer(i1, i2) for i1, i2 in zip(value,
-                                                                      parent_value)])
-            verify = verify and self.parent.verify(value, engine)
-
-        if value == self.value:
-            return True
-
-        # Derived dimensions could be linked through constraints
-        # At this point, a constraint needs to be added that enforces
-        # dim_e - dim_s < SOME_MAX
-        # Also need a default constraint that dim_e > dim_s (or vice-versa)
-        verify = verify and all([a.verify(v, engine, enforce=enforce) for a, v in
-                                 zip(self.rtargs, value)])
-        return verify
-        
-
-
 class ArgumentEngine(object):
     """ Class that encapsulates the argument derivation and verification subsystem
     """
