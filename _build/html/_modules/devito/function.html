@@ -210,6 +210,12 @@
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol representing constant values in symbolic equations.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        The parameters must always be given as keyword arguments, since</span>
+<span class="sd">        SymPy uses ``*args`` to (re-)create the dimension arguments of the</span>
+<span class="sd">        symbolic function.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Constant</span> <span class="o">=</span> <span class="kc">True</span>
@@ -264,6 +270,12 @@
 <span class="sd">    :param dtype: (Optional) data type of the buffered data.</span>
 <span class="sd">    :param space_order: Discretisation order for space derivatives</span>
 <span class="sd">    :param initializer: Function to initialize the data, optional</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        The parameters must always be given as keyword arguments, since</span>
+<span class="sd">        SymPy uses ``*args`` to (re-)create the dimension arguments of the</span>
+<span class="sd">        symbolic function.</span>
 
 <span class="sd">    .. note::</span>
 
@@ -501,6 +513,12 @@
 
 <span class="sd">    .. note::</span>
 
+<span class="sd">        The parameters must always be given as keyword arguments, since</span>
+<span class="sd">        SymPy uses ``*args`` to (re-)create the dimension arguments of the</span>
+<span class="sd">        symbolic function.</span>
+
+<span class="sd">    .. note::</span>
+
 <span class="sd">       If the parameter ``grid`` is provided, the values for ``shape``,</span>
 <span class="sd">       ``dimensions`` and ``dtype`` will be derived from it.</span>
 
@@ -661,6 +679,12 @@
 <span class="sd">    :param nt: Size of the time dimension for point data</span>
 <span class="sd">    :param coordinates: Optional coordinate data for the sparse points</span>
 <span class="sd">    :param dtype: Data type of the buffered data</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        The parameters must always be given as keyword arguments, since</span>
+<span class="sd">        SymPy uses `*args` to (re-)create the dimension arguments of the</span>
+<span class="sd">        symbolic function.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_SparseFunction</span> <span class="o">=</span> <span class="kc">True</span>

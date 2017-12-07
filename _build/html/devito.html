@@ -659,6 +659,12 @@ default to 0.</p>
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Constant</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Constant" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.function.Constant" title="devito.function.Constant"><code class="xref py py-class docutils literal"><span class="pre">devito.function.Constant</span></code></a></p>
 <p>Symbol representing constant values in symbolic equations.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
 <dl class="attribute">
 <dt id="devito.base.Constant.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.base.Constant.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -691,6 +697,12 @@ data layout and function indices of this symbol.</li>
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
@@ -918,6 +930,12 @@ grid-aligned <a class="reference internal" href="#devito.base.Function" title="d
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <cite>*args</cite> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
 <dl class="attribute">
 <dt id="devito.base.SparseFunction.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.base.SparseFunction.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -954,6 +972,12 @@ data buffer.</li>
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
@@ -1150,8 +1174,6 @@ derived time dimensions symbol. For example:</p>
 </tr>
 </tbody>
 </table>
-<p>Note: If the provided compiler is of type <cite>IntelMICCompiler</cite>
-we utilise the <cite>pymic</cite> package to manage device streams.</p>
 </dd></dl>
 
 <dl class="function">
@@ -1165,6 +1187,16 @@ we utilise the <cite>pymic</cite> package to manage device streams.</p>
 <em class="property">class </em><code class="descclassname">devito.compiler.</code><code class="descname">GNUCompiler</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#GNUCompiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.GNUCompiler" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.compiler.Compiler</span></code></p>
 <p>Set of standard compiler flags for the GCC toolchain.</p>
+<dl class="attribute">
+<dt id="devito.compiler.GNUCompiler.CC">
+<code class="descname">CC</code><em class="property"> = 'gcc'</em><a class="headerlink" href="#devito.compiler.GNUCompiler.CC" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.compiler.GNUCompiler.LD">
+<code class="descname">LD</code><em class="property"> = 'gcc'</em><a class="headerlink" href="#devito.compiler.GNUCompiler.LD" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 </div>
@@ -1561,6 +1593,12 @@ the width of the resulting stencil expression.</li>
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">Constant</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Constant" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.AbstractSymbol</span></code>, <a class="reference internal" href="#devito.arguments.ConstantArgProvider" title="devito.arguments.ConstantArgProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ConstantArgProvider</span></code></a></p>
 <p>Symbol representing constant values in symbolic equations.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
 <dl class="attribute">
 <dt id="devito.function.Constant.base">
 <code class="descname">base</code><a class="headerlink" href="#devito.function.Constant.base" title="Permalink to this definition">¶</a></dt>
@@ -1614,6 +1652,12 @@ data layout and function indices of this symbol.</li>
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
@@ -1726,6 +1770,12 @@ data buffer.</li>
 </table>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
 <p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
 <code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
 <p>The parameter <code class="docutils literal"><span class="pre">shape</span></code> should only define the spatial shape of
@@ -1820,6 +1870,12 @@ grid-aligned <a class="reference internal" href="#devito.function.Function" titl
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <cite>*args</cite> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
 <dl class="attribute">
 <dt id="devito.function.SparseFunction.coefficients">
 <code class="descname">coefficients</code><a class="headerlink" href="#devito.function.SparseFunction.coefficients" title="Permalink to this definition">¶</a></dt>
@@ -2292,13 +2348,13 @@ in <code class="docutils literal"><span class="pre">expressions</span></code>.</
 <p>The parameters dictionary contains global parameter settings.</p>
 <dl class="data">
 <dt id="devito.parameters.configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([('log_level', 'INFO'), ('first_touch', False), ('dse', 'advanced'), ('dle', 'advanced'), ('dle_options', {'blockinner': False, 'blockshape': None, 'blockalways': False}), ('compiler', DevitoJITCompiler[GNUCompiler]), ('openmp', False), ('debug_compiler', False), ('backend', 'core'), ('isa', None), ('platform', None)])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([('log_level', 'INFO'), ('first_touch', False), ('dse', 'advanced'), ('dle', 'advanced'), ('dle_options', {'blockinner': False, 'blockshape': None, 'blockalways': False}), ('compiler', DevitoJITCompiler[GNUCompiler]), ('openmp', False), ('debug_compiler', False), ('backend', 'core'), ('isa', 'cpp'), ('platform', 'intel64')])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Devito configuration parameters.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.parameters.init_configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">init_configuration</code><span class="sig-paren">(</span><em>configuration=Parameters([('log_level'</em>, <em>'INFO')</em>, <em>('first_touch'</em>, <em>False)</em>, <em>('dse'</em>, <em>'advanced')</em>, <em>('dle'</em>, <em>'advanced')</em>, <em>('dle_options'</em>, <em>{'blockinner': False</em>, <em>'blockshape': None</em>, <em>'blockalways': False})</em>, <em>('compiler'</em>, <em>DevitoJITCompiler[GNUCompiler])</em>, <em>('openmp'</em>, <em>False)</em>, <em>('debug_compiler'</em>, <em>False)</em>, <em>('backend'</em>, <em>'core')</em>, <em>('isa'</em>, <em>None)</em>, <em>('platform'</em>, <em>None)])</em>, <em>env_vars_mapper={'DEVITO_ARCH': 'compiler'</em>, <em>'DEVITO_ISA': 'isa'</em>, <em>'DEVITO_PLATFORM': 'platform'</em>, <em>'DEVITO_BACKEND': 'backend'</em>, <em>'DEVITO_DSE': 'dse'</em>, <em>'DEVITO_DLE': 'dle'</em>, <em>'DEVITO_DLE_OPTIONS': 'dle_options'</em>, <em>'DEVITO_OPENMP': 'openmp'</em>, <em>'DEVITO_LOGGING': 'log_level'</em>, <em>'DEVITO_FIRST_TOUCH': 'first_touch'</em>, <em>'DEVITO_DEBUG_COMPILER': 'debug_compiler'}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#init_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.init_configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">init_configuration</code><span class="sig-paren">(</span><em>configuration=Parameters([('log_level'</em>, <em>'INFO')</em>, <em>('first_touch'</em>, <em>False)</em>, <em>('dse'</em>, <em>'advanced')</em>, <em>('dle'</em>, <em>'advanced')</em>, <em>('dle_options'</em>, <em>{'blockinner': False</em>, <em>'blockshape': None</em>, <em>'blockalways': False})</em>, <em>('compiler'</em>, <em>DevitoJITCompiler[GNUCompiler])</em>, <em>('openmp'</em>, <em>False)</em>, <em>('debug_compiler'</em>, <em>False)</em>, <em>('backend'</em>, <em>'core')</em>, <em>('isa'</em>, <em>'cpp')</em>, <em>('platform'</em>, <em>'intel64')])</em>, <em>env_vars_mapper={'DEVITO_ARCH': 'compiler'</em>, <em>'DEVITO_ISA': 'isa'</em>, <em>'DEVITO_PLATFORM': 'platform'</em>, <em>'DEVITO_BACKEND': 'backend'</em>, <em>'DEVITO_DSE': 'dse'</em>, <em>'DEVITO_DLE': 'dle'</em>, <em>'DEVITO_DLE_OPTIONS': 'dle_options'</em>, <em>'DEVITO_OPENMP': 'openmp'</em>, <em>'DEVITO_LOGGING': 'log_level'</em>, <em>'DEVITO_FIRST_TOUCH': 'first_touch'</em>, <em>'DEVITO_DEBUG_COMPILER': 'debug_compiler'}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#init_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.init_configuration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">

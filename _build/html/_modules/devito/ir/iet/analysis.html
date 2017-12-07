@@ -299,21 +299,18 @@
         <span class="k">return</span>
     <span class="c1"># Finally check that all data dependences would be honored by using the</span>
     <span class="c1"># /front/ index function in place of the /back/ index function</span>
-    <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">trees</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">stepper</span><span class="p">:</span>
-                <span class="k">continue</span>
-            <span class="c1"># There must be NO writes to the /back/ timeslot</span>
-            <span class="k">for</span> <span class="n">access</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">accesses</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">access</span><span class="o">.</span><span class="n">is_write</span> <span class="ow">and</span> <span class="n">access</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">==</span> <span class="n">back</span><span class="p">:</span>
-                    <span class="k">return</span>
-            <span class="c1"># All reads from the /front/ timeslot must not cause dependences with</span>
-            <span class="c1"># the writes in the /back/ timeslot along the /i/ dimension</span>
-            <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">d_flow</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">!=</span> <span class="n">front</span> <span class="ow">or</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">!=</span> <span class="n">back</span><span class="p">:</span>
-                    <span class="k">continue</span>
-                <span class="k">if</span> <span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">stepping</span><span class="p">)</span> <span class="o">!=</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">stepping</span><span class="p">):</span>
-                    <span class="k">return</span>
+    <span class="c1"># There must be NO writes to the /back/ timeslot</span>
+    <span class="k">for</span> <span class="n">access</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">stepper</span><span class="p">]</span><span class="o">.</span><span class="n">accesses</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">access</span><span class="o">.</span><span class="n">is_write</span> <span class="ow">and</span> <span class="n">access</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">==</span> <span class="n">back</span><span class="p">:</span>
+            <span class="k">return</span>
+    <span class="c1"># All reads from the /front/ timeslot must not cause dependences with</span>
+    <span class="c1"># the writes in the /back/ timeslot along the /i/ dimension</span>
+    <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">stepper</span><span class="p">]</span><span class="o">.</span><span class="n">d_flow</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">!=</span> <span class="n">front</span> <span class="ow">or</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">!=</span> <span class="n">back</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">lex_gt</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="p">)</span> <span class="ow">and</span>\
+                <span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">stepping</span><span class="p">)</span> <span class="o">!=</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">stepping</span><span class="p">):</span>
+            <span class="k">return</span>
     <span class="n">analysis</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">stepper</span><span class="p">:</span> <span class="n">WRAPPABLE</span><span class="p">})</span>
 </pre></div>
 

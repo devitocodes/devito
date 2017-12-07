@@ -175,7 +175,7 @@
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
 
-<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">compiler_registry</span><span class="p">,</span> <span class="n">GNUCompiler</span>
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">compiler_registry</span>
 <span class="kn">from</span> <span class="nn">devito.backends</span> <span class="k">import</span> <span class="n">backends_registry</span><span class="p">,</span> <span class="n">init_backend</span>
 
 
@@ -199,11 +199,7 @@
 
 <span class="k">def</span> <span class="nf">_cast_and_update_compiler</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
     <span class="c1"># Force re-build the compiler</span>
-    <span class="n">compiler</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">GNUCompiler</span><span class="p">):</span>
-        <span class="n">compiler</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">version</span><span class="o">=</span><span class="n">compiler</span><span class="o">.</span><span class="n">version</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">compiler</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
     <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
 
 
@@ -217,13 +213,13 @@
 
 <span class="c1"># Set the Instruction Set Architecture (ISA)</span>
 <span class="n">ISAs</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;cpp&#39;</span><span class="p">,</span> <span class="s1">&#39;avx&#39;</span><span class="p">,</span> <span class="s1">&#39;avx2&#39;</span><span class="p">,</span> <span class="s1">&#39;avx512&#39;</span><span class="p">,</span> <span class="s1">&#39;knc&#39;</span><span class="p">]</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;isa&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">ISAs</span><span class="p">)</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;isa&#39;</span><span class="p">,</span> <span class="s1">&#39;cpp&#39;</span><span class="p">,</span> <span class="n">ISAs</span><span class="p">)</span>
 
 <span class="c1"># Set the CPU architecture (only codename)</span>
 <span class="n">PLATFORMs</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;intel64&#39;</span><span class="p">,</span> <span class="s1">&#39;sandybridge&#39;</span><span class="p">,</span> <span class="s1">&#39;ivybridge&#39;</span><span class="p">,</span> <span class="s1">&#39;haswell&#39;</span><span class="p">,</span>
              <span class="s1">&#39;broadwell&#39;</span><span class="p">,</span> <span class="s1">&#39;skylake&#39;</span><span class="p">,</span> <span class="s1">&#39;knc&#39;</span><span class="p">,</span> <span class="s1">&#39;knl&#39;</span><span class="p">]</span>
 <span class="c1"># TODO: switch arch to actual architecture names; use the mapper in /YASK/</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;platform&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">PLATFORMs</span><span class="p">)</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;platform&#39;</span><span class="p">,</span> <span class="s1">&#39;intel64&#39;</span><span class="p">,</span> <span class="n">PLATFORMs</span><span class="p">)</span>
 
 
 <span class="c1"># Initialize the configuration, either from the environment or</span>

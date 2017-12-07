@@ -166,14 +166,10 @@
 <span class="kn">import</span> <span class="nn">ctypes</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">Hashable</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span><span class="p">,</span> <span class="n">wraps</span>
-<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
-<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">PIPE</span><span class="p">,</span> <span class="n">Popen</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span><span class="p">,</span> <span class="n">zip_longest</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">DEVNULL</span><span class="p">,</span> <span class="n">PIPE</span><span class="p">,</span> <span class="n">Popen</span><span class="p">,</span> <span class="n">CalledProcessError</span><span class="p">,</span> <span class="n">check_output</span>
 <span class="kn">import</span> <span class="nn">cpuinfo</span>
-<span class="k">try</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">izip_longest</span> <span class="k">as</span> <span class="n">zip_longest</span>
-<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-    <span class="c1"># Python3.5 compatibility</span>
-    <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">zip_longest</span>
+<span class="kn">from</span> <span class="nn">distutils</span> <span class="k">import</span> <span class="n">version</span>
 
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
@@ -434,10 +430,6 @@
         <span class="k">return</span> <span class="n">partial</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="fm">__call__</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span></div>
 
 
-<span class="n">default_isa</span> <span class="o">=</span> <span class="s1">&#39;cpp&#39;</span>
-<span class="n">default_platform</span> <span class="o">=</span> <span class="s1">&#39;intel64&#39;</span>
-
-
 <div class="viewcode-block" id="infer_cpu"><a class="viewcode-back" href="../../devito.html#devito.tools.infer_cpu">[docs]</a><span class="k">def</span> <span class="nf">infer_cpu</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Detect the highest Instruction Set Architecture and the platform</span>
@@ -446,7 +438,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">info</span> <span class="o">=</span> <span class="n">cpuinfo</span><span class="o">.</span><span class="n">get_cpu_info</span><span class="p">()</span>
     <span class="c1"># ISA</span>
-    <span class="n">isa</span> <span class="o">=</span> <span class="n">default_isa</span>
+    <span class="n">isa</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">]</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">]):</span>
         <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;flags&#39;</span><span class="p">]:</span>
             <span class="n">isa</span> <span class="o">=</span> <span class="n">i</span>
@@ -469,8 +461,56 @@
             <span class="n">platform</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1"># Is it a known platform?</span>
     <span class="k">if</span> <span class="n">platform</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]:</span>
-        <span class="n">platform</span> <span class="o">=</span> <span class="n">default_platform</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">isa</span><span class="p">,</span> <span class="n">platform</span></div>
+
+
+<span class="k">def</span> <span class="nf">sniff_compiler_version</span><span class="p">(</span><span class="n">cc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Try to detect the compiler version.</span>
+
+<span class="sd">    Adapted from: ::</span>
+
+<span class="sd">        https://github.com/OP2/PyOP2/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ver</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">([</span><span class="n">cc</span><span class="p">,</span> <span class="s2">&quot;--version&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">CalledProcessError</span><span class="p">,</span> <span class="ne">UnicodeDecodeError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">version</span><span class="o">.</span><span class="n">LooseVersion</span><span class="p">(</span><span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ver</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;gcc&quot;</span><span class="p">):</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;gcc&quot;</span>
+    <span class="k">elif</span> <span class="n">ver</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;clang&quot;</span><span class="p">):</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;clang&quot;</span>
+    <span class="k">elif</span> <span class="n">ver</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Apple LLVM&quot;</span><span class="p">):</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;clang&quot;</span>
+    <span class="k">elif</span> <span class="n">ver</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;icc&quot;</span><span class="p">):</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;icc&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span>
+
+    <span class="n">ver</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">LooseVersion</span><span class="p">(</span><span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">compiler</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;gcc&quot;</span><span class="p">,</span> <span class="s2">&quot;icc&quot;</span><span class="p">]:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># gcc-7 series only spits out patch level on dumpfullversion.</span>
+            <span class="n">ver</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">([</span><span class="n">cc</span><span class="p">,</span> <span class="s2">&quot;-dumpfullversion&quot;</span><span class="p">],</span> <span class="n">stderr</span><span class="o">=</span><span class="n">DEVNULL</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+            <span class="n">ver</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">StrictVersion</span><span class="p">(</span><span class="n">ver</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+        <span class="k">except</span> <span class="n">CalledProcessError</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">ver</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">([</span><span class="n">cc</span><span class="p">,</span> <span class="s2">&quot;-dumpversion&quot;</span><span class="p">],</span> <span class="n">stderr</span><span class="o">=</span><span class="n">DEVNULL</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+                <span class="n">ver</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">StrictVersion</span><span class="p">(</span><span class="n">ver</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+            <span class="k">except</span> <span class="p">(</span><span class="n">CalledProcessError</span><span class="p">,</span> <span class="ne">UnicodeDecodeError</span><span class="p">):</span>
+                <span class="k">pass</span>
+        <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="c1"># Pure integer versions (e.g., ggc5, rather than gcc5.0) need special handling</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ver</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">StrictVersion</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">ver</span><span class="p">))</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="k">return</span> <span class="n">ver</span>
 
 
 <div class="viewcode-block" id="silencio"><a class="viewcode-back" href="../../devito.html#devito.tools.silencio">[docs]</a><span class="k">class</span> <span class="nc">silencio</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
