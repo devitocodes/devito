@@ -21,60 +21,83 @@ class YaskGrid(object):
     """
     A ``YaskGrid`` wraps a YASK grid.
 
-    An implementation of an array that behaves similarly to a ``numpy.ndarray``,
-    suitable for the YASK storage layout.
+    A ``YaskGrid`` implements a subset of the ``numpy.ndarray`` API. The subset of
+    API implemented should suffice to transition between Devito backends w/o changes
+    to the user code. It was not possible to subclass ``numpy.ndarray``, as this
+    would have led to shadow data copies, since YASK employs a storage layout
+    different than what users expect (row-major).
 
-    Subclassing ``numpy.ndarray`` would have led to shadow data copies, because
-    of the different storage layout.
+    The storage layout of a YASK grid looks as follows: ::
+
+        --------------------------------------------------------------
+        | extra_padding | halo |              | halo | extra_padding |
+        ------------------------    domain    ------------------------
+        |       padding        |              |       padding        |
+        --------------------------------------------------------------
+        |                         allocation                         |
+        --------------------------------------------------------------
+
+    :param grid: The YASK yk::grid that will be wrapped. Data storage will be
+                 allocated if not yet allocated.
+    :param shape: The "visibility region" of the YaskGrid. The shape should be
+                  at least as big as the domain (in each dimension). If larger,
+                  then users will be allowed to access more data entries,
+                  such as those lying on the halo region.
+    :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
+                       of the ``YaskGrid``.
+    :param radius: An integer indicating the extent of the halo region.
+    :param dtype: A ``numpy.dtype`` for the raw data.
     """
 
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, shape, radius, dtype, modulo):
-        """
-        Initialize a new :class:`YaskGrid`, a wrapper for a YASK grid.
-
-        The storage layout of a YASK grid is as follows: ::
-
-            --------------------------------------------------------------
-            | extra_padding | halo |              | halo | extra_padding |
-            ------------------------    domain    ------------------------
-            |       padding        |              |       padding        |
-            --------------------------------------------------------------
-            |                         allocation                         |
-            --------------------------------------------------------------
-
-        :param grid: The YASK yk::grid that will be wrapped. Data storage will be
-                     allocated if not yet allocated.
-        :param shape: The "visibility region" of the YaskGrid. The shape should be
-                      at least as big as the domain (in each dimension). If larger,
-                      then users will be allowed to access more data entries,
-                      such as those lying on the halo region.
-        :param radius: The extent of the halo region.
-        :param dtype: The type of the raw data.
-        :param modulo: A mask of boolean values, one for each grid dimension; if
-                       True, the corresponding dimension is iterated over with
-                       modulo indexing.
-        """
+    def __init__(self, grid, shape, dimensions, radius, dtype):
         self.grid = grid
-        self.shape = shape
+        self.dimensions = dimensions
         self.dtype = dtype
-        self._modulo = modulo
 
-        if not self.is_storage_allocated():
-            # Allocate memory in YASK-land and initialize it to 0
-            for i, j in zip(self.dimensions, shape):
-                if i == namespace['time-dim']:
-                    assert self.grid.is_dim_used(i)
-                    assert self.grid.get_alloc_size(i) == j
+        self._modulo = tuple(i.modulo if i.is_Stepping else None for i in dimensions)
+
+        # TODO: the initialization below will (slightly) change after the
+        # domain-allocation switch will have happened in Devito. E.g.,
+        # currently shape == domain
+
+        if not grid.is_storage_allocated():
+            # Set up halo sizes
+            for i, j in zip(dimensions, shape):
+                if i.is_Time:
+                    assert self.grid.is_dim_used(i.name)
+                    assert self.grid.get_alloc_size(i.name) == j
                 else:
                     # Note, from the YASK docs:
                     # "If the halo is set to a value larger than the padding size,
                     # the padding size will be automatically increase to accomodate it."
-                    self.grid.set_halo_size(i, radius)
+                    self.grid.set_halo_size(i.name, radius)
+
+            # Allocate memory
             self.grid.alloc_storage()
-            self._reset()
+
+            self._halo = []
+            self._ofs = [0 if i.is_Time else self.get_first_rank_domain_index(i.name)
+                         for i in dimensions]
+            self._shape = shape
+
+            # `self` will actually act as a view of `self.base`
+            self.base = YaskGrid(grid, shape, dimensions, 0, dtype)
+
+            # Initialize memory to 0
+            self.reset()
+        else:
+            self._halo = [0 if i.is_Time else self.get_halo_size(i.name)
+                          for i in dimensions]
+            self._ofs = [0 if i.is_Time else (self.get_first_rank_domain_index(i.name)-j)
+                         for i, j in zip(dimensions, self._halo)]
+            self._shape = [i + 2*j for i, j in zip(shape, self._halo)]
+
+            # Like numpy.ndarray, `base = None` indicates that this is the real
+            # array, i.e., it's not a view
+            self.base = None
 
     def __getitem__(self, index):
         start, stop, shape = self._convert_index(index)
@@ -201,11 +224,11 @@ class YaskGrid(object):
         cstop.extend([self.shape[len(index) + j] - 1 for j in range(nremainder)])
         cshape.extend([self.shape[len(index) + j] for j in range(nremainder)])
 
-        assert len(self.shape) == len(cstart) == len(cstop) == len(self._offsets)
+        assert len(self.shape) == len(cstart) == len(cstop) == len(self._ofs)
 
         # Shift by the specified offsets
-        cstart = [int(j + i) for i, j in zip(self._offsets, cstart)]
-        cstop = [int(j + i) for i, j in zip(self._offsets, cstop)]
+        cstart = [int(j + i) for i, j in zip(self._ofs, cstart)]
+        cstop = [int(j + i) for i, j in zip(self._ofs, cstop)]
 
         return cstart, cstop, cshape
 
@@ -242,46 +265,19 @@ class YaskGrid(object):
     __mod__ = __meta_op__('__mod__')
     __rmod__ = __meta_op__('__mod__', True)
 
-    def _reset(self):
-        """
-        Reset grid value to 0.
-        """
-        self[:] = 0.0
-
-    @property
-    def _halo(self):
-        return [0 if i == namespace['time-dim'] else self.get_halo_size(i)
-                for i in self.dimensions]
-
-    @property
-    def _padding(self):
-        return [0 if i == namespace['time-dim'] else self.get_pad_size(i)
-                for i in self.dimensions]
-
-    @property
-    def _offsets(self):
-        offsets = []
-        for i, j in zip(self.dimensions, self._padding):
-            ofs = 0 if i == namespace['time-dim'] else self.get_first_rank_alloc_index(i)
-            offsets.append(ofs + j)
-        return offsets
-
     @property
     def with_halo(self):
-        """
-        Return a new wrapper to self's YASK grid in which the halo has been
-        unmasked. This allows the caller to write/read the halo region as well as
-        the domain.
-        """
-        return YaskGridWithHalo(self.grid, self.shape, 0, self.dtype, self._modulo)
+        if self.base is None:
+            raise ValueError("Cannot access the halo of a non-view Data")
+        return self.base
 
     @property
     def name(self):
         return self.grid.get_name()
 
     @property
-    def dimensions(self):
-        return self.grid.get_dim_names()
+    def shape(self):
+        return self._shape
 
     @property
     def rawpointer(self):
@@ -292,31 +288,24 @@ class YaskGrid(object):
         Share self's storage with ``target``.
         """
         for i in self.dimensions:
-            if i == namespace['time-dim']:
-                target.set_alloc_size(i, self.get_alloc_size(i))
+            if i.is_Time:
+                target.set_alloc_size(i.name, self.get_alloc_size(i.name))
             else:
-                target.set_halo_size(i, self.get_halo_size(i))
+                target.set_halo_size(i.name, self.get_halo_size(i.name))
         target.share_storage(self.grid)
+
+    def reset(self):
+        """
+        Set all grid entries to 0.
+        """
+        self[:] = 0.0
 
     def view(self):
         """
-        View of the YASK grid in standard (i.e., Devito) row-major layout.
+        View of the YASK grid in standard (i.e., Devito) row-major layout,
+        returned as a :class:`numpy.ndarray`.
         """
         return self[:]
-
-
-class YaskGridWithHalo(YaskGrid):
-
-    """A helper class for YaskGrid wrappers providing access to the halo region."""
-
-    def __init__(self, grid, shape, radius, dtype, modulo):
-        super(YaskGridWithHalo, self).__init__(grid, shape, radius, dtype, modulo)
-        self.shape = [i + 2*j for i, j in zip(self.shape, self._halo)]
-
-    @property
-    def _offsets(self):
-        offsets = super(YaskGridWithHalo, self)._offsets
-        return [i - j for i, j in zip(offsets, self._halo)]
 
 
 class YaskKernel(object):
@@ -555,8 +544,7 @@ class YaskContext(object):
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
         log("Allocating YaskGrid for %s (%s)" % (obj.name, str(obj.shape)))
         grid = self.yk_hook.new_grid(name, obj)
-        modulo = [i.modulo if i.is_Stepping else None for i in obj.indices]
-        wrapper = YaskGrid(grid, obj.shape, obj.space_order, obj.dtype, modulo)
+        wrapper = YaskGrid(grid, obj.shape, obj.indices, obj.space_order, obj.dtype)
         self.grids[name] = wrapper
         return wrapper
 

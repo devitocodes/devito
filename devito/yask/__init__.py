@@ -44,7 +44,6 @@ namespace['kernel-path'] = os.path.join(path, 'src', 'kernel')
 namespace['kernel-path-gen'] = os.path.join(namespace['kernel-path'], 'gen')
 namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
                                           namespace['kernel-filename'])
-namespace['time-dim'] = 't'
 namespace['code-soln-type'] = 'yask::yk_solution'
 namespace['code-soln-name'] = 'soln'
 namespace['code-soln-run'] = 'run_solution'
