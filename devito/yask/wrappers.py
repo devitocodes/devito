@@ -16,12 +16,12 @@ from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
 from devito.yask.utils import rawpointer
 
 
-class YaskGrid(object):
+class Data(object):
 
     """
-    A ``YaskGrid`` wraps a YASK grid.
+    A ``Data`` wraps a YASK grid.
 
-    A ``YaskGrid`` implements a subset of the ``numpy.ndarray`` API. The subset of
+    A ``Data`` implements a subset of the ``numpy.ndarray`` API. The subset of
     API implemented should suffice to transition between Devito backends w/o changes
     to the user code. It was not possible to subclass ``numpy.ndarray``, as this
     would have led to shadow data copies, since YASK employs a storage layout
@@ -39,12 +39,9 @@ class YaskGrid(object):
 
     :param grid: The YASK yk::grid that will be wrapped. Data storage will be
                  allocated if not yet allocated.
-    :param shape: The "visibility region" of the YaskGrid. The shape should be
-                  at least as big as the domain (in each dimension). If larger,
-                  then users will be allowed to access more data entries,
-                  such as those lying on the halo region.
+    :param shape: Shape of the domain region in grid points.
     :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
-                       of the ``YaskGrid``.
+                       of the ``Data``.
     :param radius: An integer indicating the extent of the halo region.
     :param dtype: A ``numpy.dtype`` for the raw data.
     """
@@ -84,7 +81,7 @@ class YaskGrid(object):
             self._shape = shape
 
             # `self` will actually act as a view of `self.base`
-            self.base = YaskGrid(grid, shape, dimensions, 0, dtype)
+            self.base = Data(grid, shape, dimensions, 0, dtype)
 
             # Initialize memory to 0
             self.reset()
@@ -102,11 +99,11 @@ class YaskGrid(object):
     def __getitem__(self, index):
         start, stop, shape = self._convert_index(index)
         if not shape:
-            log("YaskGrid: Getting single entry %s" % str(start))
+            log("Data: Getting single entry %s" % str(start))
             assert start == stop
             out = self.grid.get_element(start)
         else:
-            log("YaskGrid: Getting full-array/block via index [%s]" % str(index))
+            log("Data: Getting full-array/block via index [%s]" % str(index))
             out = np.empty(shape, self.dtype, 'C')
             self.grid.get_elements_in_slice(out.data, start, stop)
         return out
@@ -114,17 +111,17 @@ class YaskGrid(object):
     def __setitem__(self, index, val):
         start, stop, shape = self._convert_index(index, 'set')
         if all(i == 1 for i in shape):
-            log("YaskGrid: Setting single entry %s" % str(start))
+            log("Data: Setting single entry %s" % str(start))
             assert start == stop
             self.grid.set_element(val, start)
         elif isinstance(val, np.ndarray):
-            log("YaskGrid: Setting full-array/block via index [%s]" % str(index))
+            log("Data: Setting full-array/block via index [%s]" % str(index))
             self.grid.set_elements_in_slice(val, start, stop)
         elif all(i == j-1 for i, j in zip(shape, self.shape)):
-            log("YaskGrid: Setting full-array to given scalar via single grid sweep")
+            log("Data: Setting full-array to given scalar via single grid sweep")
             self.grid.set_all_elements_same(val)
         else:
-            log("YaskGrid: Setting block to given scalar via index [%s]" % str(index))
+            log("Data: Setting block to given scalar via index [%s]" % str(index))
             self.grid.set_elements_in_slice_same(val, start, stop, True)
 
     def __getslice__(self, start, stop):
@@ -410,7 +407,7 @@ class YaskKernel(object):
         :param cfunction: The JIT-compiler function, of type :class:`ctypes.FuncPtr`
         :param arguments: Mapper from function/dimension/... names to run-time values
                to be passed to ``cfunction``.
-        :param toshare: Mapper from functions to :class:`YaskGrid`s for sharing
+        :param toshare: Mapper from functions to :class:`Data`s for sharing
                         grid storage.
         """
         # Sanity check
@@ -494,8 +491,8 @@ class YaskContext(object):
         """
         Proxy between Devito and YASK.
 
-        A YaskContext contains N YaskKernel and M YaskGrids, which have space
-        and time dimensions in common.
+        A ``YaskContext`` contains N :class:`YaskKernel` and M :class:`Data`,
+        which have common space and time dimensions.
 
         :param name: Unique name of the context.
         :param grid: A :class:`Grid` carrying the context dimensions.
@@ -534,7 +531,7 @@ class YaskContext(object):
 
     def make_grid(self, obj):
         """
-        Create and return a new :class:`YaskGrid`, a YASK grid wrapper. Memory
+        Create and return a new :class:`Data`, a YASK grid wrapper. Memory
         is allocated.
 
         :param obj: The symbolic data object for which a YASK grid is allocated.
@@ -542,9 +539,9 @@ class YaskContext(object):
         if set(obj.indices) < set(self.space_dimensions):
             exit("Need a Function[x,y,z] to create a YASK grid.")
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
-        log("Allocating YaskGrid for %s (%s)" % (obj.name, str(obj.shape)))
+        log("Allocating Data for %s (%s)" % (obj.name, str(obj.shape)))
         grid = self.yk_hook.new_grid(name, obj)
-        wrapper = YaskGrid(grid, obj.shape, obj.indices, obj.space_order, obj.dtype)
+        wrapper = Data(grid, obj.shape, obj.indices, obj.space_order, obj.dtype)
         self.grids[name] = wrapper
         return wrapper
 
@@ -642,7 +639,7 @@ contexts = ContextManager()
 
 # Helpers
 
-class YaskGridConst(np.float64):
+class DataScalar(np.float64):
 
     """A YASK grid wrapper for scalar values."""
 

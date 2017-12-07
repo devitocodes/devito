@@ -16,7 +16,7 @@ from devito.tools import flatten
 
 from devito.yask import nfac, namespace, exit, configuration
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
-from devito.yask.wrappers import YaskGridConst, YaskNullContext, YaskNullKernel, contexts
+from devito.yask.wrappers import DataScalar, YaskNullContext, YaskNullKernel, contexts
 
 __all__ = ['Operator']
 
@@ -126,9 +126,9 @@ class Operator(OperatorRunnable):
             if grid_arg is not None:
                 assert i.provider.from_YASK is True
                 obj = kwargs.get(i.name, i.provider)
-                # Get the associated YaskGrid wrapper (scalars are a special case)
+                # Get the associated Data wrapper (scalars are a special case)
                 if np.isscalar(obj):
-                    wrapper = YaskGridConst(obj)
+                    wrapper = DataScalar(obj)
                     toshare[i.provider] = wrapper
                 else:
                     wrapper = obj.data
