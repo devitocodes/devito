@@ -7,7 +7,6 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.arguments import infer_dimension_values_tuple
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
@@ -27,7 +26,6 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify, retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
 from devito.types import Object
-from devito.stencil import Stencil
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.arguments import runtime_arguments, ArgumentEngine
 

@@ -19,7 +19,7 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'Forward', 'Backward']
+           'Forward', 'Backward', 'CompositeFunction']
 
 
 class TimeAxis(object):
