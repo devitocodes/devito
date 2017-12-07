@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import ctypes
+import inspect
 from collections import Callable, Iterable, OrderedDict, Hashable
 from functools import partial, wraps
 from itertools import product, zip_longest

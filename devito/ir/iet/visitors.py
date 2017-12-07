@@ -6,7 +6,6 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 
 from __future__ import absolute_import
 
-import inspect
 from collections import Iterable, OrderedDict, defaultdict
 from operator import attrgetter
 
