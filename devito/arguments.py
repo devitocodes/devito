@@ -15,6 +15,14 @@ from devito.function import CompositeFunction, SymbolicFunction
 from devito.dimension import Dimension
 
 
+""" This module contains a set of classes and functions to deal with runtime arguments
+to Operators. It represents the arguments and their relationships as a DAG (N, E) where
+every node (N) is represented by an object of class Parameter and every edge is an object
+of class Dependency. 
+The various class hierarchies are explained here:
+Parameter:
+"""
+
 class Parameter(object):
     """ Abstract base class for any object that represents a node in the dependency
         graph. It may or may not represent a runtime argument. 
