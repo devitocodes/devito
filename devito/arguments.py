@@ -215,7 +215,7 @@ class ArgumentEngine(object):
         dle_arguments = OrderedDict()
         autotune = True
         for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
+            dim_size = dim_sizes.get(i.original_dim.name, None)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
                       'Please provide an explicit value.' % i.original_dim.name)
