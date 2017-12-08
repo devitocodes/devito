@@ -278,24 +278,6 @@ class ArgumentEngine(object):
     def dimensions(self):
         return [x for x in self.parameters if isinstance(x, Dimension)]
 
-    def extract_dimension_offsets(self, stencils):
-        all_dimension_offsets = defaultdict(list)
-        dimension_offsets = defaultdict(lambda: (0, 0))
-
-        for s in stencils:
-            for d in s:
-                all_dimension_offsets[d] += s[d]
-
-        for d in all_dimension_offsets:
-            dimension_offsets[d] = (-min(all_dimension_offsets[d]),
-                                    max(all_dimension_offsets[d]))
-            try:
-                # TODO: Maybe there should be some sort of reduction here
-                dimension_offsets[d.parent] = dimension_offsets[d]
-            except:
-                pass
-        self.dimension_offsets = dimension_offsets
-
 
 class ArgumentVisitor(GenericVisitor):
     """ Visits types to return their runtime arguments
