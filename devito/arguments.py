@@ -181,7 +181,6 @@ class ArgumentEngine(object):
             dimension_parameter_mapper[dim] = DimensionParameter(dim, [])
 
         for dim in [x for x in parameters if isinstance(x, Dimension) and x.is_Stepping]:
-           # dimension_parameter_mapper[dim].dependencies.append(Dependency(Dependency.GETS_VALUE_FROM, dimension_parameter_mapper[dim.parent]))
             dimension_parameter_mapper[dim.parent].dependencies.append(Dependency(Dependency.GETS_VALUE_FROM, dimension_parameter_mapper[dim]))
 
         dimension_parameters = list(dimension_parameter_mapper.values())
