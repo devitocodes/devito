@@ -87,6 +87,11 @@ class Operator(Callable):
         self.dtype = retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = retrieve_symbols(expressions)
         stencils = make_stencils(expressions)
+
+        # Set the direction of time acoording to the given TimeAxis
+        for time in [d for d in self.dimensions if d.is_Time]:
+            if not time.is_Stepping:
+                time.reverse = time_axis == Backward
         
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = self.input + self.dimensions
