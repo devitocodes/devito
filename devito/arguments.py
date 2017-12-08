@@ -13,6 +13,7 @@ from devito.logger import debug, error
 from devito.tools import filter_ordered, flatten, GenericVisitor
 from devito.function import CompositeFunction, SymbolicFunction
 from devito.dimension import Dimension
+from devito.ir.support.stencil import retrieve_offsets
 
 
 """ This module contains a set of classes and functions to deal with runtime arguments
@@ -121,10 +122,13 @@ class ArgumentEngine(object):
         self.argument_mapper = self._build_argument_mapper(parameters)
         self.arguments = filter_ordered([x for x in self.argument_mapper if isinstance(x, Argument)], key=lambda x: x.name)
         self.dims = [x for x in self.argument_mapper if isinstance(x, DimensionParameter)]
+        self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
 
     def handle(self, **kwargs):
 
         user_autotune = kwargs.pop('autotune', False)
+
+        kwargs = self._offset_adjust(kwargs)
         
         kwargs = self._extract_children_of_composites(kwargs)
 
@@ -141,7 +145,11 @@ class ArgumentEngine(object):
 
         arguments = OrderedDict([(k.name, v) for k, v in values.items()])
         return arguments, user_autotune and dle_autotune
-        
+
+    def _offset_adjust(self, kwargs):
+        for k, v in kwargs.items():
+            kwargs[k] = v + self.offsets.get(k, 0)
+        return kwargs
 
     def _build_argument_mapper(self, parameters):
         # Pass through SymbolicFunction
