@@ -45,13 +45,13 @@ class TestCodeGen(object):
         assert len(op.parameters) == 6
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_TensorArgument
-        assert op.parameters[1].name == 'constant'
+        assert op.parameters[1].name == 'i_size'
         assert op.parameters[1].is_ScalarArgument
-        assert op.parameters[2].name == 'i_size'
+        assert op.parameters[2].name == 'i_s'
         assert op.parameters[2].is_ScalarArgument
-        assert op.parameters[3].name == 'i_s'
+        assert op.parameters[3].name == 'i_e'
         assert op.parameters[3].is_ScalarArgument
-        assert op.parameters[4].name == 'i_e'
+        assert op.parameters[4].name == 'constant'
         assert op.parameters[4].is_ScalarArgument
         assert op.parameters[5].name == 'timers'
         assert op.parameters[5].is_PtrArgument
