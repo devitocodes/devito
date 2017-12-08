@@ -37,11 +37,9 @@ class Data(np.ndarray):
 
         Any view or copy ``A`` created starting from ``self``, for instance via
         a slice operation or a universal function ("ufunc" in NumPy jargon), will
-        still be of type :class:`Data`. However, if ``A`` is a view and its rank
-        is lower than that of ``self``, namely ``A.ndim < self.ndim``, then the
-        ``modulo`` attribute is dropped. A suitable exception is then raised if
-        user code seems to attempt accessing data through modulo iteration on
-        such a contracted view.
+        still be of type :class:`Data`. However, if ``A``'s rank is different than
+        ``self``'s rank, namely if ``A.ndim != self.ndim``, then the capability of
+        performing logic indexing is lost.
     """
 
     def __new__(cls, shape, dimensions, halo, dtype):
@@ -87,19 +85,16 @@ class Data(np.ndarray):
             return index
 
         index = as_tuple(index)
-        modulo = as_tuple(self.modulo)
-
-        # Do I need to add any new axes?
-        nremainder = len(index) - self.ndim
-        if nremainder > 0:
-            if any(i != np.newaxis for i in index[self.ndim:]):
-                # Let numpy deal with the error
-                return index
-            modulo = modulo + tuple(np.newaxis for i in range(nremainder))
+        if len(index) > self.ndim:
+            # Maybe user code is trying to add a new axis (see np.newaxis),
+            # so the resulting array will have shape larger than `self`'s,
+            # hence I can just let numpy deal with it, as by specification
+            # we're gonna drop modulo indexing anyway
+            return index
 
         # Index conversion
         wrapped = []
-        for i, mod in zip(index, modulo):
+        for i, mod in zip(index, self.modulo):
             if mod is None:
                 # Nothing special to do (no logic indexing)
                 wrapped.append(i)
