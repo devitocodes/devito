@@ -154,9 +154,6 @@ class Operator(Callable):
 
         return arguments
 
-    def _default_args(self):
-        return OrderedDict([(x.name, x.value) for x in self.parameters])
-
     @property
     def elemental_functions(self):
         return tuple(i.root for i in self.func_table.values())
