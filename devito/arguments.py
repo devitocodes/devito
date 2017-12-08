@@ -148,7 +148,8 @@ class ArgumentEngine(object):
 
     def _offset_adjust(self, kwargs):
         for k, v in kwargs.items():
-            kwargs[k] = v + self.offsets.get(k, 0)
+            if k in self.offsets:
+                kwargs[k] = v + self.offsets[k]
         return kwargs
 
     def _build_argument_mapper(self, parameters):
