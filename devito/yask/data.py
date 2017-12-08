@@ -174,7 +174,11 @@ class Data(object):
         cstop = []
         cshape = []
         for i, size, mod in zip(index, self.shape, self._modulo):
-            if isinstance(i, slice):
+            if isinstance(i, type(np.newaxis)):
+                raise NotImplementedError("Unsupported introduction of np.newaxis")
+            elif isinstance(i, (np.ndarray, tuple, list)):
+                raise NotImplementedError("Unsupported numpy advanced indexing")
+            elif isinstance(i, slice):
                 if i.step is not None:
                     raise NotImplementedError("Unsupported stepping != 1.")
                 if i.start is None:
@@ -191,10 +195,7 @@ class Data(object):
                     stop = i.stop - 1
                 shape = stop - start + 1
             else:
-                if i is None:
-                    start = 0
-                    stop = size - 1
-                elif i < 0:
+                if i < 0:
                     start = size + i
                     stop = size + i
                 else:
@@ -278,6 +279,10 @@ class Data(object):
     @property
     def shape(self):
         return self._shape
+
+    @property
+    def ndim(self):
+        return len(self.shape)
 
     @property
     def rawpointer(self):

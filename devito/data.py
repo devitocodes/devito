@@ -83,33 +83,45 @@ class Data(np.ndarray):
 
     def _convert_index(self, index):
         if isinstance(index, np.ndarray):
-            # Using a mask array, nothing we really have to do
+            # Advanced indexing, nothing special to do
             return index
-        else:
-            index = as_tuple(index)
-            wrapped = []
-            for i, mod in zip(index, self.modulo):
-                if mod is None:
-                    wrapped.append(i)
-                elif isinstance(i, slice):
-                    if i.start is None:
-                        start = i.start
-                    elif i.start >= 0:
-                        start = i.start % mod
-                    else:
-                        start = -(i.start % mod)
-                    if i.stop is None:
-                        stop = i.stop
-                    elif i.stop >= 0:
-                        stop = i.stop % (mod + 1)
-                    else:
-                        stop = -(i.stop % (mod + 1))
-                    wrapped.append(slice(start, stop, i.step))
-                elif isinstance(i, (tuple, list)):
-                    wrapped.append([k % mod for k in i])
+
+        index = as_tuple(index)
+        modulo = as_tuple(self.modulo)
+
+        # Do I need to add any new axes?
+        nremainder = len(index) - self.ndim
+        if nremainder > 0:
+            if any(i != np.newaxis for i in index[self.ndim:]):
+                # Let numpy deal with the error
+                return index
+            modulo = modulo + tuple(np.newaxis for i in range(nremainder))
+
+        # Index conversion
+        wrapped = []
+        for i, mod in zip(index, modulo):
+            if mod is None:
+                # Nothing special to do (no logic indexing)
+                wrapped.append(i)
+            elif isinstance(i, slice):
+                if i.start is None:
+                    start = i.start
+                elif i.start >= 0:
+                    start = i.start % mod
                 else:
-                    wrapped.append(i % mod)
-            return wrapped[0] if len(index) == 1 else tuple(wrapped)
+                    start = -(i.start % mod)
+                if i.stop is None:
+                    stop = i.stop
+                elif i.stop >= 0:
+                    stop = i.stop % (mod + 1)
+                else:
+                    stop = -(i.stop % (mod + 1))
+                wrapped.append(slice(start, stop, i.step))
+            elif isinstance(i, (tuple, list)):
+                wrapped.append([k % mod for k in i])
+            else:
+                wrapped.append(i % mod)
+        return wrapped[0] if len(index) == 1 else tuple(wrapped)
 
     @property
     def with_halo(self):
