@@ -134,7 +134,7 @@ class ArgumentEngine(object):
 
         values = self._derive_values(kwargs)
 
-        # The following is only being done to update autotune. The actual value derivation for the
+        # The following is only being done to update the autotune flag. The actual value derivation for the
         # dle arguments has moved inside the above _derive_values method.
         # TODO: Refactor so this is not required
         dim_sizes = dict([(d.name, runtime_dim_extent(d, values)) for d in self.dimensions])
