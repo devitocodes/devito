@@ -1,4 +1,5 @@
 import sympy
+import numpy as np
 from cached_property import cached_property
 
 from devito.types import Symbol
@@ -29,6 +30,11 @@ class Dimension(sympy.Symbol):
 
     def __str__(self):
         return self.name
+    
+    @property
+    def dtype(self):
+        #TODO: Do dimensions really need a dtype?
+        return np.int32
 
     @cached_property
     def symbolic_size(self):
