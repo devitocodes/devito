@@ -410,17 +410,6 @@ def make_stencils(expressions):
     return [i.replace(mapper) for i in stencils]
 
 
-def retrieve_offsets(stencils):
-    """
-    Return a mapper from :class:`Dimension`s to the min/max integer offsets
-    within ``stencils``.
-    """
-    offs = Stencil.union(*stencils)
-    mapper = {d: v for d, v in offs.diameter.items()}
-    mapper.update({d.parent: v for d, v in mapper.items() if d.is_Stepping})
-    return mapper
-
-
 # Misc helpers
 
 
