@@ -385,6 +385,7 @@ class TestArguments(object):
         new_coords = (2., 2.)
         p_dim = Dimension('p_src')
         u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        time = u.indices[0]
         src1 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
                               npoint=1, nt=10, coordinates=original_coords)
         src2 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
