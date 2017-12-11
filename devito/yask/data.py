@@ -39,7 +39,7 @@ class Data(object):
 
     .. note::
 
-        This type supports logic indexing over modulo buffered dimensions.
+        This type supports logical indexing over modulo buffered dimensions.
     """
 
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency

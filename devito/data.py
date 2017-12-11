@@ -31,7 +31,7 @@ class Data(np.ndarray):
 
     .. note::
 
-        This type supports logic indexing over modulo buffered dimensions.
+        This type supports logical indexing over modulo buffered dimensions.
 
     .. note::
 
@@ -39,22 +39,22 @@ class Data(np.ndarray):
         a slice operation or a universal function ("ufunc" in NumPy jargon), will
         still be of type :class:`Data`. However, if ``A``'s rank is different than
         ``self``'s rank, namely if ``A.ndim != self.ndim``, then the capability of
-        performing logic indexing is lost.
+        performing logical indexing is lost.
     """
 
     def __new__(cls, shape, dimensions, halo, dtype):
-        ndarray, data_pointer = malloc_aligned(shape, dtype)
+        ndarray, c_pointer = malloc_aligned(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
-        obj.data_pointer = data_pointer
+        obj._c_pointer = c_pointer
         obj.halo = halo
         obj.modulo = tuple(i.modulo if i.is_Stepping else None for i in dimensions)
         return obj
 
     def __del__(self):
-        if self.data_pointer is not None:
+        if self._c_pointer is not None:
             return
-        free(self.data_pointer)
-        self.data_pointer = None
+        free(self._c_pointer)
+        self._c_pointer = None
 
     def __array_finalize__(self, obj):
         if type(obj) != Data:
@@ -67,9 +67,9 @@ class Data(np.ndarray):
             self.modulo = tuple(None for i in range(self.ndim))
         self.halo = getattr(obj, 'halo', None)
         # Views or references created via operations on `obj` do not get
-        # an explicit reference to the C pointer (`data_pointer`). This makes
+        # an explicit reference to the C pointer (`_c_pointer`). This makes
         # sure that only one object (the "root" Data) will free the C-allocated
-        self.data_pointer = None
+        self._c_pointer = None
 
     def __getitem__(self, index):
         index = self._convert_index(index)
@@ -96,7 +96,7 @@ class Data(np.ndarray):
         wrapped = []
         for i, mod in zip(index, self.modulo):
             if mod is None:
-                # Nothing special to do (no logic indexing)
+                # Nothing special to do (no logical indexing)
                 wrapped.append(i)
             elif isinstance(i, slice):
                 if i.start is None:
@@ -145,36 +145,35 @@ def malloc_aligned(shape, dtype=np.float32, alignment=None):
     :param alignment: number of bytes to align to. Defaults to
                       page size if not set.
 
-    :returns (pointer, data_pointer): the first element of the tuple is the reference
-                                      that can be used to access the data as a ctypes
-                                      object. The second element is the low-level
-                                      reference that is needed only for the call to free.
+    :returns (pointer, c_pointer): the first element of the tuple is the reference
+                                   that can be used to access the data as a ctypes
+                                   object. The second element is the low-level
+                                   reference that is needed only for the call to free.
     """
-    data_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.POINTER(ctypes.c_float))
+    c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.POINTER(ctypes.c_float))
     arraysize = int(reduce(mul, shape))
     ctype = numpy_to_ctypes(dtype)
     if alignment is None:
         alignment = libc.getpagesize()
 
-    ret = libc.posix_memalign(ctypes.byref(data_pointer), alignment,
+    ret = libc.posix_memalign(ctypes.byref(c_pointer), alignment,
                               ctypes.c_ulong(arraysize * ctypes.sizeof(ctype)))
     if not ret == 0:
         error("Unable to allocate memory for shape %s", str(shape))
         return None
 
-    data_pointer = ctypes.cast(data_pointer,
-                               np.ctypeslib.ndpointer(dtype=dtype, shape=shape))
+    c_pointer = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype, shape=shape))
 
-    pointer = np.ctypeslib.as_array(data_pointer, shape=shape)
-    return (pointer, data_pointer)
+    pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
+    return (pointer, c_pointer)
 
 
-def free(pointer):
+def free(c_pointer):
     """
     Use the C function free to free the memory allocated for the
     given pointer.
     """
-    libc.free(pointer)
+    libc.free(c_pointer)
 
 
 def first_touch(array):
@@ -182,6 +181,4 @@ def first_touch(array):
     Uses an Operator to initialize the given array in the same pattern that
     would later be used to access it.
     """
-    exp_init = [Eq(array.indexed[array.indices], 0)]
-    op = devito.Operator(exp_init)
-    op.apply()
+    devito.Operator(Eq(array, 0.))()
