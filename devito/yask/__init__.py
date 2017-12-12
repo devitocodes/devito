@@ -44,7 +44,6 @@ namespace['kernel-path'] = os.path.join(path, 'src', 'kernel')
 namespace['kernel-path-gen'] = os.path.join(namespace['kernel-path'], 'gen')
 namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
                                           namespace['kernel-filename'])
-namespace['time-dim'] = 't'
 namespace['code-soln-type'] = 'yask::yk_solution'
 namespace['code-soln-name'] = 'soln'
 namespace['code-soln-run'] = 'run_solution'
@@ -65,7 +64,8 @@ class YaskCompiler(configuration['compiler'].__class__):
         # Switch to C++
         self.cc = self.cpp_mapper[configuration['compiler'].cc]
         self.ld = self.cpp_mapper[configuration['compiler'].ld]
-        self.cflags = configuration['compiler'].cflags + ['-std=c++11']
+        self.cflags = [i for i in configuration['compiler'].cflags
+                       if not i.startswith('-std')] + ['-std=c++11']
         self.src_ext = 'cpp'
         # Tell the compiler where to get YASK header files and shared objects
         self.include_dirs.append(os.path.join(namespace['path'], 'include'))

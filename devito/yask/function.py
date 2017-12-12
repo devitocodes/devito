@@ -1,7 +1,12 @@
+import ctypes
+import numpy as np
+
 import devito.types as types
 import devito.function as function
+from devito.tools import numpy_to_ctypes
 
-from devito.yask.wrappers import YaskGridConst, contexts
+from devito.yask.data import DataScalar
+from devito.yask.wrappers import contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction']
 
@@ -17,11 +22,11 @@ class Constant(function.Constant):
 
     def __init__(self, *args, **kwargs):
         value = kwargs.pop('value', 0.)
-        super(Constant, self).__init__(*args, value=YaskGridConst(value), **kwargs)
+        super(Constant, self).__init__(*args, value=DataScalar(value), **kwargs)
 
     @function.Constant.data.setter
     def data(self, val):
-        self._value = YaskGridConst(val)
+        self._value = DataScalar(val)
 
 
 class Function(function.Function):
@@ -43,18 +48,25 @@ class Function(function.Function):
 
     @property
     def _data_buffer(self):
-        return super(Function, self).data
+        data = self.data
+        ctype = numpy_to_ctypes(data.dtype)
+        cpointer = ctypes.cast(int(data.grid.get_raw_storage_buffer()),
+                               ctypes.POINTER(ctype))
+        ndpointer = np.ctypeslib.ndpointer(dtype=data.dtype, shape=data.shape)
+        casted = ctypes.cast(cpointer, ndpointer)
+        ndarray = np.ctypeslib.as_array(casted, shape=data.shape)
+        return ndarray
 
     @property
     def data(self):
         """
-        The value of the data object, as a :class:`YaskGrid`.
+        The value of the data object, as a :class:`Data`.
 
         The returned object, which behaves as a :class:`numpy.ndarray`, provides
         a *view* of the actual data, in row-major format. Internally, the data is
         stored in whatever layout adopted by YASK.
 
-        Any read/write from/to the returned :class:`YaskGrid` should be performed
+        Any read/write from/to the returned :class:`Data` should be performed
         assuming a row-major storage layout; behind the scenes, these accesses
         are automatically translated into whatever YASK expects, in order to pick
         the intended values.
@@ -66,8 +78,7 @@ class Function(function.Function):
         as the time spent in running Operators is expected to be vastly greater
         than any user-level data manipulation.
         """
-        super(Function, self).data
-        return self._data_object
+        return super(Function, self).data
 
     def initialize(self):
         raise NotImplementedError
