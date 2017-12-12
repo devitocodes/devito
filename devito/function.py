@@ -100,7 +100,7 @@ class Function(TensorFunction):
     :param name: Name of the symbol
     :param grid: :class:`Grid` object from which to infer the data shape
                  and :class:`Dimension` indices.
-    :param shape: (Optional) shape of the associated data for this symbol.
+    :param shape: (Optional) shape of the domain region in grid points.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param staggered: (Optional) tuple containing staggering offsets.
@@ -141,18 +141,17 @@ class Function(TensorFunction):
             self.grid = kwargs.get('grid', None)
 
             if self.grid is None:
-                self.shape_domain = kwargs.get('shape', None)
+                self._grid_shape_domain = kwargs.get('shape', None)
                 self.dtype = kwargs.get('dtype', np.float32)
-                if self.shape_domain is None:
+                if self._grid_shape_domain is None:
                     error("Creating a Function requires either 'shape'"
                           "or a 'grid' argument")
                     raise ValueError("Unknown symbol dimensions or shape")
             else:
-                self.shape_domain = self.grid.shape_domain
+                self._grid_shape_domain = self.grid.shape_domain
                 self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.indices = self._indices(**kwargs)
-            self.staggered = kwargs.get('staggered',
-                                        tuple(0 for _ in self.indices))
+            self.staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
                 error("Staggering argument needs %s entries for indices %s"
                       % (len(self.indices), self.indices))
@@ -260,15 +259,39 @@ class Function(TensorFunction):
         return dimensions
 
     @property
-    def shape_data(self):
+    def shape(self):
         """
-        Full allocated shape of the data associated with this :class:`Function`.
+        Shape of the domain associated with this :class:`Function`.
+        The domain constitutes the area of the data written to in a
+        stencil update and excludes the read-only stencil boundary.
         """
-        return tuple(i - s for i, s in zip(self.shape_domain, self.staggered))
+        return self.shape_domain
 
     @property
-    def shape(self):
-        return self.shape_data
+    def shape_domain(self):
+        """
+        Shape of the domain associated with this :class:`Function`.
+        The domain constitutes the area of the data written to in a
+        stencil update and excludes the read-only stencil boundary.
+
+        .. note::
+
+            Alias to ``self.shape``.
+        """
+        return tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered))
+
+    @property
+    def shape_with_halo(self):
+        raise NotImplementedError
+
+    @property
+    def shape_allocated(self):
+        """
+        Shape of the allocated data associated with this :class:`Function`.
+        It includes the domain and halo regions, as well as any additional
+        padding outside of the halo.
+        """
+        raise NotImplementedError
 
     @property
     def space_dimensions(self):
@@ -401,17 +424,13 @@ class TimeFunction(Function):
                 self.indices[0].modulo = self.time_size
 
     @property
-    def shape_data(self):
-        """
-        Full allocated shape of the data associated with this :class:`TimeFunction`.
-        """
+    def shape_domain(self):
         if self.save:
             tsize = self.time_size - self.staggered[0]
         else:
             tsize = self.time_order + 1
-        shape_domain = tuple(i - s for i, s in zip(self.shape_domain,
-                                                   self.staggered[1:]))
-        return (tsize, ) + shape_domain
+        return (tsize,) +\
+            tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered[1:]))
 
     def initialize(self):
         if self.initializer is not None:
