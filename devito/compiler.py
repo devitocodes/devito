@@ -175,10 +175,11 @@ class CustomCompiler(Compiler):
     flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.
     """
 
+    CC = environ.get('CC', 'gcc')
+    LD = environ.get('LD', 'gcc')
+
     def __init__(self, *args, **kwargs):
         super(CustomCompiler, self).__init__(*args, **kwargs)
-        self.cc = environ.get('CC', 'gcc')
-        self.ld = environ.get('LD', 'gcc')
         default = '-O3 -g -march=native -fPIC -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
