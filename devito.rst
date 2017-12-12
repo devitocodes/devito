@@ -57,6 +57,14 @@ devito\.compiler module
     :undoc-members:
     :show-inheritance:
 
+devito\.data module
+-------------------
+
+.. automodule:: devito.data
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.dimension module
 ------------------------
 
@@ -101,14 +109,6 @@ devito\.logger module
 ---------------------
 
 .. automodule:: devito.logger
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.memory module
----------------------
-
-.. automodule:: devito.memory
     :members:
     :undoc-members:
     :show-inheritance:

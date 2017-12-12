@@ -111,13 +111,13 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.base">devito.base module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.cgen_utils">devito.cgen_utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.compiler">devito.compiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.dimension">devito.dimension module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.function">devito.function module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.grid">devito.grid module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.logger">devito.logger module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.memory">devito.memory module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.profiling">devito.profiling module</a></li>
@@ -1200,6 +1200,100 @@ derived time dimensions symbol. For example:</p>
 </dd></dl>
 
 </div>
+<div class="section" id="module-devito.data">
+<span id="devito-data-module"></span><h2>devito.data module<a class="headerlink" href="#module-devito.data" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.data.Data">
+<em class="property">class </em><code class="descclassname">devito.data.</code><code class="descname">Data</code><a class="reference internal" href="_modules/devito/data.html#Data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.Data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></p>
+<p>The type <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> is subclassed as indicated at:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">docs</span><span class="o">.</span><span class="n">scipy</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">doc</span><span class="o">/</span><span class="n">numpy</span><span class="o">-</span><span class="mf">1.13</span><span class="o">.</span><span class="mi">0</span><span class="o">/</span><span class="n">user</span><span class="o">/</span><span class="n">basics</span><span class="o">.</span><span class="n">subclassing</span><span class="o">.</span><span class="n">html</span>
+</pre></div>
+</div>
+<p>The new instance takes an existing ndarray as input, casts it to one of
+type <code class="docutils literal"><span class="pre">Data</span></code>, and adds extra attributes (hence the need for subclassing)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>shape</strong> – Shape of the domain region in grid points.</li>
+<li><strong>dimensions</strong> – A tuple of <code class="xref py py-class docutils literal"><span class="pre">Dimension`s,</span> <span class="pre">representing</span> <span class="pre">the</span> <span class="pre">dimensions</span>
+<span class="pre">of</span> <span class="pre">the</span> <span class="pre">``Data`</span></code>.</li>
+<li><strong>halo</strong> – An integer indicating the extent of the halo region.</li>
+<li><strong>dtype</strong> – A <code class="docutils literal"><span class="pre">numpy.dtype</span></code> for the raw data.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This type supports logical indexing over modulo buffered dimensions.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Any view or copy <code class="docutils literal"><span class="pre">A</span></code> created starting from <code class="docutils literal"><span class="pre">self</span></code>, for instance via
+a slice operation or a universal function (“ufunc” in NumPy jargon), will
+still be of type <a class="reference internal" href="#devito.data.Data" title="devito.data.Data"><code class="xref py py-class docutils literal"><span class="pre">Data</span></code></a>. However, if <code class="docutils literal"><span class="pre">A</span></code>’s rank is different than
+<code class="docutils literal"><span class="pre">self</span></code>’s rank, namely if <code class="docutils literal"><span class="pre">A.ndim</span> <span class="pre">!=</span> <span class="pre">self.ndim</span></code>, then the capability of
+performing logical indexing is lost.</p>
+</div>
+<dl class="method">
+<dt id="devito.data.Data.reset">
+<code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#Data.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.Data.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set all grid entries to 0.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.Data.with_halo">
+<code class="descname">with_halo</code><a class="headerlink" href="#devito.data.Data.with_halo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.data.first_touch">
+<code class="descclassname">devito.data.</code><code class="descname">first_touch</code><span class="sig-paren">(</span><em>array</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#first_touch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.first_touch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Uses an Operator to initialize the given array in the same pattern that
+would later be used to access it.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.data.free">
+<code class="descclassname">devito.data.</code><code class="descname">free</code><span class="sig-paren">(</span><em>c_pointer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#free"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.free" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use the C function free to free the memory allocated for the
+given pointer.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.data.malloc_aligned">
+<code class="descclassname">devito.data.</code><code class="descname">malloc_aligned</code><span class="sig-paren">(</span><em>shape</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>alignment=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#malloc_aligned"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.malloc_aligned" title="Permalink to this definition">¶</a></dt>
+<dd><p>Allocate memory using the C function <code class="docutils literal"><span class="pre">malloc_aligned</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>shape</strong> – Shape of the array to allocate</li>
+<li><strong>dtype</strong> – Numpy datatype to allocate. Default to np.float32</li>
+<li><strong>alignment</strong> – number of bytes to align to. Defaults to
+page size if not set.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">Returns (pointer, c_pointer):</th></tr>
+<tr class="field-even field"><td>&#160;</td><td class="field-body"><p class="first last">the first element of the tuple is the reference
+that can be used to access the data as a ctypes
+object. The second element is the low-level
+reference that is needed only for the call to free.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
 <div class="section" id="module-devito.dimension">
 <span id="devito-dimension-module"></span><h2>devito.dimension module<a class="headerlink" href="#module-devito.dimension" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
@@ -2178,48 +2272,6 @@ DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 <dt id="devito.logger.dle_warning">
 <code class="descclassname">devito.logger.</code><code class="descname">dle_warning</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dle_warning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dle_warning" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
-</div>
-<div class="section" id="module-devito.memory">
-<span id="devito-memory-module"></span><h2>devito.memory module<a class="headerlink" href="#module-devito.memory" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.memory.CMemory">
-<em class="property">class </em><code class="descclassname">devito.memory.</code><code class="descname">CMemory</code><span class="sig-paren">(</span><em>shape</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>alignment=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#CMemory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.CMemory" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
-<dl class="method">
-<dt id="devito.memory.CMemory.fill">
-<code class="descname">fill</code><span class="sig-paren">(</span><em>val</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#CMemory.fill"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.CMemory.fill" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.memory.first_touch">
-<code class="descclassname">devito.memory.</code><code class="descname">first_touch</code><span class="sig-paren">(</span><em>array</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#first_touch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.first_touch" title="Permalink to this definition">¶</a></dt>
-<dd><p>Uses the Propagator low-level API to initialize the given array(in Devito types)
-in the same pattern that would later be used to access it.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.memory.free">
-<code class="descclassname">devito.memory.</code><code class="descname">free</code><span class="sig-paren">(</span><em>internal_pointer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#free"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.free" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use the C function free to free the memory allocated for the
-given pointer.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.memory.malloc_aligned">
-<code class="descclassname">devito.memory.</code><code class="descname">malloc_aligned</code><span class="sig-paren">(</span><em>shape</em>, <em>alignment=None</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#malloc_aligned"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.malloc_aligned" title="Permalink to this definition">¶</a></dt>
-<dd><p>Allocate memory using the C function malloc_aligned
-:param shape: Shape of the array to allocate
-:param alignment: number of bytes to align to. Defaults to
-page size if not set.
-:param dtype: Numpy datatype to allocate. Default to np.float32</p>
-<p>:returns (pointer, data_pointer) the first element of the tuple
-is the reference that can be used to access the data as a ctypes
-object. The second element is the low-level reference that is
-needed only for the call to free.</p>
-</dd></dl>
 
 </div>
 <div class="section" id="module-devito.operator">

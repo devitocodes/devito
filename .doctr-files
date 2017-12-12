@@ -35,6 +35,7 @@
 ./_build/html/_modules/devito/compiler.html
 ./_build/html/_modules/devito/core/autotuning.html
 ./_build/html/_modules/devito/core/operator.html
+./_build/html/_modules/devito/data.html
 ./_build/html/_modules/devito/dimension.html
 ./_build/html/_modules/devito/dle/backends/advanced.html
 ./_build/html/_modules/devito/dle/backends/basic.html
@@ -65,7 +66,6 @@
 ./_build/html/_modules/devito/ir/support/basic.html
 ./_build/html/_modules/devito/ir/support/stencil.html
 ./_build/html/_modules/devito/logger.html
-./_build/html/_modules/devito/memory.html
 ./_build/html/_modules/devito/operator.html
 ./_build/html/_modules/devito/parameters.html
 ./_build/html/_modules/devito/profiling.html

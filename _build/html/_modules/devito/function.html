@@ -169,7 +169,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">warning</span>
-<span class="kn">from</span> <span class="nn">devito.memory</span> <span class="k">import</span> <span class="n">CMemory</span><span class="p">,</span> <span class="n">first_touch</span>
+<span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">Data</span><span class="p">,</span> <span class="n">first_touch</span>
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">FLOAT</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">TimeDimension</span>
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ConstantArgProvider</span><span class="p">,</span> <span class="n">TensorFunctionArgProvider</span>
@@ -441,7 +441,7 @@
     <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Allocate memory in terms of numpy ndarrays.&quot;&quot;&quot;</span>
         <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating memory for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="o">=</span> <span class="n">CMemory</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
             <span class="n">first_touch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -453,7 +453,7 @@
 <span class="sd">        elements in the classical row-major storage layout.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_allocate_memory</span><span class="p">()</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span><span class="o">.</span><span class="n">ndpointer</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span>
 
 <div class="viewcode-block" id="Function.initialize"><a class="viewcode-back" href="../../devito.html#devito.function.Function.initialize">[docs]</a>    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Apply the data initilisation function, if it is not None.&quot;&quot;&quot;</span>
