@@ -258,6 +258,20 @@ class Function(TensorFunction):
             dimensions = grid.dimensions
         return dimensions
 
+    def _allocate_memory(self):
+        """Allocate memory in terms of numpy ndarrays."""
+        debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
+        self._data_object = Data(self.shape, self.indices, self.space_order, self.dtype)
+        if self._first_touch:
+            first_touch(self)
+        else:
+            self.data.fill(0)
+
+    def initialize(self):
+        """Apply the data initilisation function, if it is not None."""
+        if self.initializer is not None:
+            self.initializer(self.data)
+
     @property
     def shape(self):
         """
@@ -298,15 +312,6 @@ class Function(TensorFunction):
         """Tuple of index dimensions that define physical space."""
         return tuple(d for d in self.indices if d.is_Space)
 
-    def _allocate_memory(self):
-        """Allocate memory in terms of numpy ndarrays."""
-        debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-        self._data_object = Data(self.shape, self.indices, self.space_order, self.dtype)
-        if self._first_touch:
-            first_touch(self)
-        else:
-            self.data.fill(0)
-
     @property
     def data(self):
         """The value of the data object, as a :class:`numpy.ndarray` storing
@@ -314,11 +319,6 @@ class Function(TensorFunction):
         if self._data_object is None:
             self._allocate_memory()
         return self._data_object
-
-    def initialize(self):
-        """Apply the data initilisation function, if it is not None."""
-        if self.initializer is not None:
-            self.initializer(self.data)
 
     @property
     def laplace(self):
@@ -431,10 +431,6 @@ class TimeFunction(Function):
             tsize = self.time_order + 1
         return (tsize,) +\
             tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered[1:]))
-
-    def initialize(self):
-        if self.initializer is not None:
-            self.initializer(self.data)
 
     @classmethod
     def _indices(cls, **kwargs):
