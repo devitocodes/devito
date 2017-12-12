@@ -14,6 +14,12 @@ project. A general overview of Devito features and capabilities can be
 found [here](http://www.opesci.org/devito-public), including a
 detailed [API documentation](http://www.opesci.org/devito).
 
+## Get in touch
+
+If you're using Devito, we would like to hear from you. Whether you
+are facing issues or just trying it out, join the
+[conversation](https://opesci-slackin.now.sh). 
+
 ## Quickstart
 
 The recommended way to install Devito uses the Conda package manager
@@ -109,4 +115,4 @@ flag `autotune=True` to an `Operator`. Auto-tuning parameters can be set
 through the special environment variable `DEVITO_AUTOTUNING`.
 
 For more information on how to drive Devito for maximum run-time performance,
-the interested reader is invited to refer to `examples/PERFORMANCE.md`.
+see [here](examples/PERFORMANCE.md).
