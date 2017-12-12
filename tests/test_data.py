@@ -116,3 +116,20 @@ def test_logic_indexing():
     assert np.all(v_mod.data[3] == v_mod.data[1])
     assert np.all(v_mod.data[-1] == v_mod.data[1])
     assert np.all(v_mod.data[-2] == v_mod.data[0])
+
+
+def test_domain_vs_halo():
+    """
+    Tests access to domain and halo data.
+    """
+    grid = Grid(shape=(4, 4, 4))
+    u0 = Function(name='u0', grid=grid, space_order=0)
+    u2 = Function(name='u2', grid=grid, space_order=2)
+
+    assert u0.shape == u0.shape_with_halo == u0.shape_allocated
+    assert tuple(i + u2.space_order*2 for i in u2.shape) == u2.shape_with_halo
+
+    padding = (1, 3, 4)
+    u2_pad = Function(name='u2_pad', grid=grid, space_order=2, padding=padding)
+    assert tuple(i + j*2 for i, j in zip(u2.shape_with_halo, padding)) ==\
+        u2_pad.shape_allocated

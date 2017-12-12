@@ -104,6 +104,13 @@ class Function(TensorFunction):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param staggered: (Optional) tuple containing staggering offsets.
+    :param padding: (Optional) allocate extra grid points at a space dimension
+                    boundary. These may be used for non-symmetric stencils
+                    or simply to enforce data alignment. Defaults to 0.
+                    In alternative to an integer, a tuple, indicating
+                    the padding in each dimension, may be passed; in this
+                    case, an error is raised if such tuple has fewer entries
+                    then the number of space dimensions.
     :param dtype: (Optional) data type of the buffered data.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
@@ -139,30 +146,40 @@ class Function(TensorFunction):
         if not self._cached():
             self.name = kwargs.get('name')
             self.grid = kwargs.get('grid', None)
+            self.space_order = kwargs.get('space_order', 1)
 
             if self.grid is None:
                 self._grid_shape_domain = kwargs.get('shape', None)
                 self.dtype = kwargs.get('dtype', np.float32)
                 if self._grid_shape_domain is None:
-                    error("Creating a Function requires either 'shape'"
-                          "or a 'grid' argument")
-                    raise ValueError("Unknown symbol dimensions or shape")
+                    raise ValueError("Function needs either 'shape' or 'grid' argument")
             else:
                 self._grid_shape_domain = self.grid.shape_domain
                 self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.indices = self._indices(**kwargs)
             self.staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
-                error("Staggering argument needs %s entries for indices %s"
-                      % (len(self.indices), self.indices))
-                raise ValueError("Insufficient staggered entries")
+                raise ValueError("Staggering argument needs %s entries for indices %s"
+                                 % (len(self.indices), self.indices))
 
-            self.space_order = kwargs.get('space_order', 1)
             self.initializer = kwargs.get('initializer', None)
             if self.initializer is not None:
                 assert(callable(self.initializer))
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data_object = None
+
+            self._halo = tuple(self.space_order for i in range(self.dim))
+
+            padding = kwargs.get('padding', 0)
+            if isinstance(padding, (int, tuple)):
+                if isinstance(padding, int):
+                    self._padding = tuple(padding for i in range(self.dim))
+                elif len(padding) != self.dim:
+                    raise ValueError("'padding' needs %d entries" % self.dim)
+                else:
+                    self._padding = padding
+            else:
+                raise ValueError("'padding' must be int or tuple of ints")
 
             # Dynamically add derivative short-cuts
             self._initialize_derivatives()
@@ -273,6 +290,11 @@ class Function(TensorFunction):
             self.initializer(self.data)
 
     @property
+    def dim(self):
+        """Return the number of spatial dimensions."""
+        return len(self._grid_shape_domain)
+
+    @property
     def shape(self):
         """
         Shape of the domain associated with this :class:`Function`.
@@ -296,7 +318,11 @@ class Function(TensorFunction):
 
     @property
     def shape_with_halo(self):
-        raise NotImplementedError
+        """
+        Shape of the domain plus the read-only stencil boundary associated
+        with this :class:`Function`.
+        """
+        return tuple(i + 2*j for i, j in zip(self.shape_domain, self._halo))
 
     @property
     def shape_allocated(self):
@@ -305,7 +331,7 @@ class Function(TensorFunction):
         It includes the domain and halo regions, as well as any additional
         padding outside of the halo.
         """
-        raise NotImplementedError
+        return tuple(i + 2*j for i, j in zip(self.shape_with_halo, self._padding))
 
     @property
     def space_dimensions(self):
@@ -359,7 +385,17 @@ class TimeFunction(Function):
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param grid: :class:`Grid` object from which to infer the data shape
                  and :class:`Dimension` indices.
+    :param shape: (Optional) shape of the domain region in grid points.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
     :param staggered: (Optional) tuple containing staggering offsets.
+    :param padding: (Optional) allocate extra grid points at a space dimension
+                    boundary. These may be used for non-symmetric stencils
+                    or simply to enforce data alignment. Defaults to 0.
+                    In alternative to an integer, a tuple, indicating
+                    the padding in each dimension, may be passed; in this
+                    case, an error is raised if such tuple has fewer entries
+                    then the number of space dimensions.
     :param dtype: (Optional) data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to ``None``, indicating the use of alternating buffers. If
@@ -370,6 +406,7 @@ class TimeFunction(Function):
     :param time_order: Order of the time discretization which affects the
                        final size of the leading time dimension of the
                        data buffer.
+    :param time_padding: (Optional) allocate extra points along the time dimension.
 
     .. note::
 
@@ -423,6 +460,9 @@ class TimeFunction(Function):
                 self.time_size = self.time_order + 1
                 self.indices[0].modulo = self.time_size
 
+            self._halo = (0,) + self._halo
+            self._padding = (kwargs.get('time_padding', 0),) + self._padding
+
     @property
     def shape_domain(self):
         if self.save:
@@ -457,11 +497,6 @@ class TimeFunction(Function):
 
         _indices = Function._indices(**kwargs)
         return tuple([time_dim] + list(_indices))
-
-    @property
-    def dim(self):
-        """Returns the spatial dimension of the data object"""
-        return len(self.shape[1:])
 
     @property
     def forward(self):
@@ -573,7 +608,6 @@ class SparseFunction(CompositeFunction):
     def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
-        :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
         dimensions = kwargs.get('dimensions', None)
@@ -583,7 +617,7 @@ class SparseFunction(CompositeFunction):
         return dimensions or indices
 
     @property
-    def shape_data(self):
+    def shape_domain(self):
         """
         Full allocated shape of the data associated with this
         :class:`SparseFunction`.
