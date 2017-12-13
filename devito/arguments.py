@@ -2,7 +2,6 @@ import abc
 
 import numpy as np
 from collections import OrderedDict
-from sympy import Symbol
 from cached_property import cached_property
 from collections import defaultdict, namedtuple, OrderedDict
 from functools import reduce
@@ -13,16 +12,17 @@ from devito.logger import debug, error
 from devito.tools import filter_ordered, flatten, GenericVisitor
 from devito.function import CompositeFunction, SymbolicFunction
 from devito.dimension import Dimension
+from devito.types import Symbol
 from devito.ir.support.stencil import retrieve_offsets
 
 
 """ This module contains a set of classes and functions to deal with runtime arguments
-to Operators. It represents the arguments and their relationships as a DAG (V, E) where
-every vertex (V) is represented by an object of :class:`Parameter` and every edge is an
+to Operators. It represents the arguments and their relationships as a DAG (N, E) where
+every node (N) is represented by an object of :class:`Parameter` and every edge is an
 object of class :class:`Dependency`. 
 
 The various class hierarchies are explained here:
-Parameter: Any vertex of the dependency graph has to necessarily be of this type. The node
+Parameter: Any node of the dependency graph has to necessarily be of this type. The node
            may or may not represent an actual runtime argument passed to the kernel. 
 Argument: Subclass of Parameter. This represents a node in the dependency graph directly
           corresponding to a runtime argument passed to the kernel. 
@@ -58,7 +58,11 @@ UnevaluatedDependency: A "future" object representing an argument derivation tha
 
 class Parameter(object):
     """ Abstract base class for any object that represents a node in the dependency
-        graph. It may or may not represent a runtime argument. 
+        graph. It may or may not represent a runtime argument.
+
+    :param name: Name of the parameter
+    :param dependencies: A list of :class:`Dependency` objects that represent all the
+                         incoming edges into this node of the graph. 
     """
     is_Argument = False
     is_ScalarArgument = False
@@ -100,18 +104,17 @@ class Argument(Parameter):
     """
     is_Argument = True
 
+    def __init__(self, name, dependencies, dtype=np.int32):
+        super(Argument, self).__init__(name, dependencies)
+        self.dtype = dtype
+
 
 class ScalarArgument(Argument):
 
     """ Class representing scalar arguments that a kernel might expect.
         Most commonly used to pass dimension sizes
     """
-
     is_ScalarArgument = True
-
-    def __init__(self, name, dependencies, dtype=np.int32):
-        super(ScalarArgument, self).__init__(name, dependencies)
-        self.dtype = dtype
 
 
 class TensorArgument(Argument):
@@ -119,12 +122,13 @@ class TensorArgument(Argument):
     """ Class representing tensor arguments that a kernel might expect.
         Most commonly used to pass numpy-like multi-dimensional arrays.
     """
-
     is_TensorArgument = True
 
     def __init__(self, provider, dependencies=[]):
-        super(TensorArgument, self).__init__(provider.name, dependencies + [Dependency("gets_value_from", provider)])
-        self.dtype = provider.dtype
+        super(TensorArgument, self).__init__(provider.name,
+                                             dependencies + [Dependency("gets_value_from",
+                                                                        provider)],
+                                             provider.dtype)
         self.provider = provider
 
 
@@ -138,8 +142,9 @@ class PtrArgument(Argument):
     is_PtrArgument = True
 
     def __init__(self, provider):
-        super(PtrArgument, self).__init__(provider.name, [Dependency("gets_value_from", provider)])
-        self.dtype = provider.dtype
+        super(PtrArgument, self).__init__(provider.name,
+                                          [Dependency("gets_value_from", provider)],
+                                          provider.dtype)
 
 
 class ArgumentEngine(object):
@@ -155,6 +160,9 @@ class ArgumentEngine(object):
         self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
 
     def handle(self, **kwargs):
+        """ The main method by which the :class:`Operator` interacts with this class. 
+            The arguments passed into Operator.apply() all end up in kwargs here. 
+        """
 
         user_autotune = kwargs.pop('autotune', False)
 
@@ -191,23 +199,17 @@ class ArgumentEngine(object):
             argument = ArgumentVisitor().visit(f)
             tensor_arguments.append(argument)
             for i, d in enumerate(f.indices):
-                if d not in dimension_dependency_mapper:
-                    dimension_dependency_mapper[d] = []
-                dimension_dependency_mapper[d].append(Dependency("gets_value_from", argument, param=i))
+                dimension_dependency_mapper.setdefault(d, []).append(Dependency("gets_value_from", argument, param=i))
 
         for arg in self.dle_arguments:
             d = arg.argument
-            if d not in dimension_dependency_mapper:
-                    dimension_dependency_mapper[d] = []
-            dimension_dependency_mapper[d].append(Dependency("gets_value_from", derive_dle_argument_value, param=arg))
+            dimension_dependency_mapper.setdefault(d, []).append(Dependency("gets_value_from", derive_dle_argument_value, param=arg))
             
         # Record dependencies in Dimensions
-        dimension_parameter_mapper = {}
-        for dim, deps in dimension_dependency_mapper.items():
-            dimension_parameter_mapper[dim] = DimensionParameter(dim, deps)
+        dimension_parameter_mapper = {k: DimensionParameter(k, v) for k, v in dimension_dependency_mapper.items()}
 
         # Dimensions that are in parameters but not directly referenced in the expressions
-        for dim in [x for x in parameters if isinstance(x, Dimension) and x not in dimension_dependency_mapper.keys()]:
+        for dim in [x for x in parameters if isinstance(x, Dimension) and x not in dimension_dependency_mapper]:
             dimension_parameter_mapper[dim] = DimensionParameter(dim, [])
 
         for dim in [x for x in parameters if isinstance(x, Dimension) and x.is_Stepping]:
@@ -215,10 +217,7 @@ class ArgumentEngine(object):
 
         dimension_parameters = list(dimension_parameter_mapper.values())
         
-        # Pass Dimensions
-        scalar_arguments = []
-        for dimension_parameter in dimension_parameters:
-            scalar_arguments += ArgumentVisitor().visit(dimension_parameter)
+        scalar_arguments = flatten([ArgumentVisitor().visit(x) for x in dimension_parameters])
 
         other_arguments = [ArgumentVisitor().visit(x) for x in parameters if x not in tensor_arguments + scalar_arguments]
             
@@ -266,6 +265,11 @@ class ArgumentEngine(object):
         return dle_arguments, autotune
 
     def _derive_values(self, kwargs):
+        """ Populate values for all the arguments. The values provided in kwargs will
+            be used wherever provided. The values for the rest of the arguments will be 
+            derived from the ones provided. The default values for the tensors come from
+            the data property of the symbols used in the Operator. 
+        """
         # Use kwargs
         values = OrderedDict()
         dimension_values = OrderedDict()
