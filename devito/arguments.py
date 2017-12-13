@@ -17,11 +17,43 @@ from devito.ir.support.stencil import retrieve_offsets
 
 
 """ This module contains a set of classes and functions to deal with runtime arguments
-to Operators. It represents the arguments and their relationships as a DAG (N, E) where
-every node (N) is represented by an object of class Parameter and every edge is an object
-of class Dependency. 
+to Operators. It represents the arguments and their relationships as a DAG (V, E) where
+every vertex (V) is represented by an object of :class:`Parameter` and every edge is an
+object of class :class:`Dependency`. 
+
 The various class hierarchies are explained here:
-Parameter:
+Parameter: Any vertex of the dependency graph has to necessarily be of this type. The node
+           may or may not represent an actual runtime argument passed to the kernel. 
+Argument: Subclass of Parameter. This represents a node in the dependency graph directly
+          corresponding to a runtime argument passed to the kernel. 
+
+             Parameter
+                 |
+        -------------------
+DimensionParameter        |
+                          |
+                       Argument
+                          |
+                          |
+                --------------------
+                |         |        |
+        ScalarArgument    |        |
+                    TensorArgument |
+                                PtrArgument
+
+ArgumentEngine: The main external API for this module. It encapsulates all the argument
+                derivation and verification logic. 
+
+ArgumentVisitor: Visits objects of devito's data types to return appropriate objects 
+                 from the above parameter-argument hierarchy. 
+
+ValueVisitor: Used by the argument derivation method to derive the value of each parameter
+              based on the dependency tree.
+
+Dependency: Edges of the dependency graph are represented by objects of this class.
+
+UnevaluatedDependency: A "future" object representing an argument derivation that is yet
+                       to happen. 
 """
 
 class Parameter(object):
@@ -51,10 +83,10 @@ class Parameter(object):
 
 
 class DimensionParameter(Parameter):
-    """ Parameter object (node in the dependency graph) that represents a Dimension.
-        A dimension object plays an important role in value derivation and verification
-        but does not represent a runtime argument itself (since it provides multiple 
-        ScalarArguments). 
+    """ Parameter object (node in the dependency graph) that represents a
+        :class:`Dimension`. A dimension object plays an important role in value derivation
+        and verification but does not represent a runtime argument itself (since it 
+        provides multiple ScalarArguments). 
     """
     def __init__(self, provider, dependencies):
         super(DimensionParameter, self).__init__(provider.name, dependencies)
@@ -73,8 +105,6 @@ class ScalarArgument(Argument):
 
     """ Class representing scalar arguments that a kernel might expect.
         Most commonly used to pass dimension sizes
-        enforce determines whether any reduction will be performed or not.
-        i.e. if it is a user-provided value, use it directly.
     """
 
     is_ScalarArgument = True
