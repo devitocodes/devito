@@ -182,6 +182,7 @@ class ArgumentEngine(object):
         assert(self._verify(values))
 
         arguments = OrderedDict([(k.name, v) for k, v in values.items()])
+
         return arguments, user_autotune and dle_autotune
 
     def _offset_adjust(self, kwargs):
@@ -347,7 +348,7 @@ class ValueVisitor(GenericVisitor):
     """
     def __init__(self, consumer, known_values):
         self.consumer = consumer
-        self.known_values = known_values
+        self.known_values = dict([(k, v) for k, v in known_values.items() if v is not None])
         super(ValueVisitor, self).__init__()
         
     def visit_Function(self, o, param=None):
@@ -373,10 +374,13 @@ class ValueVisitor(GenericVisitor):
         # We are being asked to provide a default value for dim_start
         if self.consumer.name == o.provider.start_name:
             return 0
-        provided_values = [get_value(o, x, self.known_values) for x in o.gets_value_from]
-        if o in self.known_values and not isinstance(self.known_values[o], UnevaluatedDependency) and self.known_values[o] is not None:
+        
+        if o in self.known_values and not isinstance(self.known_values[o], UnevaluatedDependency):
             provided_values = [self.known_values[o]]
-        if len(provided_values) > 1:
+        else:
+            provided_values = [get_value(o, x, self.known_values) for x in o.gets_value_from]
+
+        if len(provided_values) > 0:
             if not all(x is not None for x in provided_values):
                 unknown_args = [x.obj for x in o.gets_value_from if get_value(o, x, self.known_values) is None]
                 def late_evaluate_dim_size(consumer, known_values, partial_values):
@@ -389,8 +393,6 @@ class ValueVisitor(GenericVisitor):
                     return reduce(max, partial_values + known)
                 return UnevaluatedDependency(o, late_evaluate_dim_size, [x for x in provided_values if x is not None])
             value = reduce(max, provided_values)
-        elif len(provided_values) == 1:
-            value = provided_values[0]
         else:
             value = None
         return value
