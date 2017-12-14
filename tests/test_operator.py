@@ -8,7 +8,8 @@ import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, Backward,
-                    Forward, TimeFunction, SparseFunction, Dimension, configuration)
+                    Forward, TimeFunction, SparseFunction, Dimension, configuration,
+                    error)
 from devito.foreign import Operator as OperatorForeign
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
@@ -265,57 +266,176 @@ class TestArguments(object):
     def setup_class(cls):
         clear_cache()
 
-    def test_override_cache_aliasing(self):
-        """Test that the call-time overriding of Operator arguments works"""
-        i, j, k, l = dimify('i j k l')
-        shape = (3, 5, 7, 6)
-        a = symbol(name='a', dimensions=(i, j, k, l), value=2.,
-                   shape=shape, mode='indexed').base.function
-        a1 = symbol(name='a', dimensions=(i, j, k, l), value=3.,
-                    shape=shape, mode='indexed').base.function
-        a2 = symbol(name='a', dimensions=(i, j, k, l), value=4.,
-                    shape=shape, mode='indexed').base.function
-        eqn = Eq(a, a+3)
-        op = Operator(eqn)
-        op()
-        op(a=a1)
-        op(a=a2)
+    def verify_arguments(self, arguments, expected):
+        """
+        Utility function to verify an argument dictionary against
+        expected values.
+        """
+        for name, value in expected.items():
+            if isinstance(value, np.ndarray):
+                condition = (arguments[name] == value).all()
+            else:
+                condition = arguments[name] == value
 
-        assert(np.allclose(a.data, np.zeros(shape) + 5))
-        assert(np.allclose(a1.data, np.zeros(shape) + 6))
-        assert(np.allclose(a2.data, np.zeros(shape) + 7))
+            if not condition:
+                error('Wrong argument %s: expected %s, got %s' %
+                      (name, value, arguments[name]))
+            assert condition
 
-    def test_override_symbol(self):
-        """Test call-time symbols overrides with other symbols"""
-        i, j, k, l = dimify('i j k l')
-        shape = (3, 5, 7, 6)
-        a = symbol(name='a', dimensions=(i, j, k, l), shape=shape, value=2.)
-        a1 = symbol(name='a1', dimensions=(i, j, k, l), shape=shape, value=3.)
-        a2 = symbol(name='a2', dimensions=(i, j, k, l), shape=shape, value=4.)
+    def test_default_functions(self):
+        """
+        Test the default argument derivation for functions.
+        """
+        grid = Grid(shape=(5, 6, 7))
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        op = Operator(Eq(g, g + f))
+
+        expected = {
+            'x_size': 5, 'x_s': 0, 'x_e': 5,
+            'y_size': 6, 'y_s': 0, 'y_e': 6,
+            'z_size': 7, 'z_s': 0, 'z_e': 7,
+            'f': f.data, 'g': g.data,
+        }
+        self.verify_arguments(op.arguments(), expected)
+
+    def test_default_composite_functions(self):
+        """
+        Test the default argument derivation for composite functions.
+        """
+        grid = Grid(shape=(5, 6, 7))
+        f = TimeFunction(name='f', grid=grid)
+        s = SparseFunction(name='s', grid=grid, npoint=3, nt=4)
+        s.coordinates.data[:, 0] = np.arange(0., 3.)
+        s.coordinates.data[:, 1] = np.arange(1., 4.)
+        s.coordinates.data[:, 2] = np.arange(2., 5.)
+        op = Operator(s.interpolate(f))
+
+        expected = {
+            's': s.data, 's_coords': s.coordinates.data,
+            # Default dimensions of the sparse data
+            'p_size': 3, 'p_s': 0, 'p_e': 3,
+            'd_size': 3, 'p_s': 0, 'p_e': 3,
+            'time_size': 4, 'time_s': 0, 'time_e': 4,
+        }
+        self.verify_arguments(op.arguments(), expected)
+
+    @pytest.mark.xfail(reason='Size-only arguments cause wrong data casts')
+    def test_override_function_size(self):
+        """
+        Test runtime size overrides for :class:`Function` dimensions.
+
+        Note: The current behaviour for size-only arguments seems
+        ambiguous (eg. op(x=3, y=4), as it sets `dim_size` as well as
+        `dim_end`. Since `dim_size` is used for the cast, we can get
+        garbage results if it does not agree with the shape of the
+        provided data. This should error out, or potentially we could
+        set the corresponding size, while aliasing `dim` to `dim_e`?
+
+        The same should be tested for :class:`TimeFunction` once fixed.
+        """
+        grid = Grid(shape=(5, 6, 7))
+        g = Function(name='g', grid=grid)
+
+        op = Operator(Eq(g, 1.))
+        args = {'x': 3, 'y': 4, 'z': 5}
+        arguments = op.arguments(**args)
+        expected = {
+            'x_size': 5, 'x_s': 0, 'x_e': 3,
+            'y_size': 6, 'y_s': 0, 'y_e': 4,
+            'z_size': 7, 'z_s': 0, 'z_e': 5,
+            'g': g.data
+        }
+        self.verify_arguments(arguments, expected)
+        # Verify execution
+        op(**args)
+        assert (g.data[3:, 4:, 5:] == 0.).all()
+        assert (g.data[:3, :4, :5] == 1.).all()
+
+    def test_override_function_subrange(self):
+        """
+        Test runtime start/end override for :class:`Function` dimensions.
+        """
+        grid = Grid(shape=(5, 6, 7))
+        g = Function(name='g', grid=grid)
+
+        op = Operator(Eq(g, 1.))
+        args = {'x_s': 1, 'x_e': 3, 'y_s': 2, 'y_e': 4, 'z_s': 3, 'z_e': 5}
+        arguments = op.arguments(**args)
+        expected = {
+            'x_size': 5, 'x_s': 1, 'x_e': 3,
+            'y_size': 6, 'y_s': 2, 'y_e': 4,
+            'z_size': 7, 'z_s': 3, 'z_e': 5,
+            'g': g.data
+        }
+        self.verify_arguments(arguments, expected)
+        # Verify execution
+        op(**args)
+        assert (g.data[:1, :2, :3] == 0.).all()
+        assert (g.data[3:, 4:, 5:] == 0.).all()
+        assert (g.data[1:3, 2:4, 3:5] == 1.).all()
+
+    def test_override_timefunction_subrange(self):
+        """
+        Test runtime start/end overrides for :class:`TimeFunction` dimensions.
+        """
+        grid = Grid(shape=(5, 6, 7))
+        f = TimeFunction(name='f', grid=grid, time_order=2)
+
+        op = Operator(Eq(f, 1.))
+        # TODO: Currently we require the `time` subrange to be set
+        # explicitly. Ideally `t` would directly alias with `time`,
+        # but this seems broken currently.
+        args = {'x_s': 1, 'x_e': 3, 'y_s': 2, 'y_e': 4,
+                'z_s': 3, 'z_e': 5, 't_s': 1, 't_e': 4,
+                'time_s': 1, 'time_e': 4}
+        arguments = op.arguments(**args)
+        expected = {
+            'x_size': 5, 'x_s': 1, 'x_e': 3,
+            'y_size': 6, 'y_s': 2, 'y_e': 4,
+            'z_size': 7, 'z_s': 3, 'z_e': 5,
+            'time_s': 1, 'time_e': 4,
+            't_s': 1, 't_e': 4,
+            'f': f.data
+        }
+        self.verify_arguments(arguments, expected)
+        # Verify execution
+        op(**args)
+        assert (f.data[:, :1, :2, :3] == 0.).all()
+        assert (f.data[:, 3:, 4:, 5:] == 0.).all()
+        assert (f.data[:, 1:3, 2:4, 3:5] == 1.).all()
+
+    @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
+    def test_override_function_data(self, FunctionType):
+        """
+        Test runtime data overrides for function types.
+        """
+        grid = Grid(shape=(5, 6, 7))
+        a = FunctionType(name='a', grid=grid)
         op = Operator(Eq(a, a + 3))
+
+        # Run with default value
+        a.data[:] = 1.
         op()
+        assert (a.data[:] == 4.).all()
+
+        # Override with symbol (different name)
+        a1 = FunctionType(name='a1', grid=grid)
+        a1.data[:] = 2.
         op(a=a1)
+        assert (a1.data[:] == 5.).all()
+
+        # Override with symbol (same name as original)
+        a2 = FunctionType(name='a', grid=grid)
+        a2.data[:] = 3.
         op(a=a2)
+        assert (a2.data[:] == 6.).all()
 
-        assert(np.allclose(a.data, np.zeros(shape) + 5))
-        assert(np.allclose(a1.data, np.zeros(shape) + 6))
-        assert(np.allclose(a2.data, np.zeros(shape) + 7))
-
-    def test_override_array(self):
-        """Test call-time symbols overrides with numpy arrays"""
-        i, j, k, l = dimify('i j k l')
-        shape = (3, 5, 7, 6)
-        a = symbol(name='a', shape=shape, dimensions=(i, j, k, l), value=2.)
-        a1 = np.zeros(shape=shape, dtype=np.float32) + 3.
-        a2 = np.zeros(shape=shape, dtype=np.float32) + 4.
-        op = Operator(Eq(a, a + 3))
-        op()
-        op(a=a1)
-        op(a=a2)
-
-        assert(np.allclose(a.data, np.zeros(shape) + 5))
-        assert(np.allclose(a1, np.zeros(shape) + 6))
-        assert(np.allclose(a2, np.zeros(shape) + 7))
+        # Override with user-allocated numpy data
+        a3 = np.zeros_like(a.data)
+        a3[:] = 4.
+        op(a=a3)
+        assert (a3[:] == 7.).all()
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
@@ -398,40 +518,6 @@ class TestArguments(object):
         args = op.arguments(src1=src2)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
-
-    def test_start_end_2d(self):
-        """ In a 2D square domain, ask the operator to operate over a smaller square
-        and then ensure that it only operated on the requested region
-        """
-        i, j = dimify('i j')
-        shape = (10, 10)
-        start = 3
-        end = 6
-        a = Function(name='a', shape=shape, dimensions=(i, j))
-        eqn = Eq(a, a + 1)
-        op = Operator(eqn)
-        op(i_s=start, i_e=end, j_s=start, j_e=end)
-        mask = np.ones(shape, np.bool)
-        mask[start:end, start:end] = 0
-        assert(np.allclose(a.data[start:end, start:end], 1))
-        assert(np.allclose(a.data[mask], 0))
-
-    def test_start_end_3d(self):
-        """ In a 3D cubical domain, ask the operator to operate over a smaller cube
-        and then ensure that it only operated on the requested region
-        """
-        i, j, k = dimify('i j k')
-        shape = (10, 10, 10)
-        start = 3
-        end = 6
-        a = Function(name='a', shape=shape, dimensions=(i, j, k))
-        eqn = Eq(a, a + 1)
-        op = Operator(eqn)
-        op(i_s=start, i_e=end, j_s=start, j_e=end, k_s=start, k_e=end)
-        mask = np.ones(shape, np.bool)
-        mask[start:end, start:end, start:end] = 0
-        assert(np.allclose(a.data[start:end, start:end, start:end], 1))
-        assert(np.allclose(a.data[mask], 0))
 
     def test_argument_derivation_order(self, nt=100):
         """ Ensure the precedence order of arguments is respected
