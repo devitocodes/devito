@@ -207,15 +207,21 @@ def test_index_alignment(const):
     u = TimeFunction(name='u', grid=grid, save=nt)
     # Increment one in the forward pass 0 -> 1 -> 2 -> 3
     fwd_op = Operator(Eq(u.forward, u + 1.*const))
+
+    #Invocation 1
     fwd_op(time=nt, constant=1)
+    
     last_time_step_v = (last_time_step_u) % modulo_factor
     # Last time step should be equal to the number of timesteps we ran
     assert(np.allclose(u.data[last_time_step_u, :, :], nt - order_of_eqn))
+    
     v = TimeFunction(name='v', grid=grid, save=None)
     v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
     # Decrement one in the reverse pass 3 -> 2 -> 1 -> 0
     adj_eqn = Eq(v.backward, v - 1.*const)
     adj_op = Operator(adj_eqn, time_axis=Backward)
+
+    #Invocation 2
     adj_op(t=nt, constant=1)
     # Last time step should be back to 0
     assert(np.allclose(v.data[0, :, :], 0))
@@ -227,7 +233,9 @@ def test_index_alignment(const):
     # = 3*3 + 2*2 + 1*1 + 0*0
     prod_eqn = Eq(prod, prod + u * v)
     comb_op = Operator([adj_eqn, prod_eqn], time_axis=Backward)
-    comb_op(time=nt-order_of_eqn, constant=1)
+
+    # Invocation 3
+    comb_op(time=nt, constant=1)
     final_value = sum([n**2 for n in range(nt)])
     # Final value should be sum of squares of first nt natural numbers
     assert(np.allclose(prod.data, final_value))
@@ -245,10 +253,14 @@ def test_index_alignment(const):
 
     prod_eqn_2 = Eq(prod, prod + u_nosave * v)
     comb_op_2 = Operator([adj_eqn, prod_eqn_2], time_axis=Backward)
-    wrap_rev = CheckpointOperator(comb_op_2, time=nt-order_of_eqn, constant=1)
+    wrap_rev = CheckpointOperator(comb_op_2, constant=1)
     wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt-order_of_eqn)
+
+    # Invocation 4
     wrp.apply_forward()
     assert(np.allclose(u_nosave.data[last_time_step_v, :, :], nt - order_of_eqn))
+
+    # Invocation 5
     wrp.apply_reverse()
     assert(np.allclose(v.data[0, :, :], 0))
     assert(np.allclose(prod.data, final_value))
