@@ -1,9 +1,11 @@
 import abc
 
 import numpy as np
-from collections import OrderedDict, Iterable
+from collections import OrderedDict, Iterable, Mapping
 from functools import reduce
 from itertools import chain
+from multidict import MultiDict
+from operator import eq
 
 from devito.exceptions import InvalidArgument
 from devito.tools import filter_ordered, flatten, GenericVisitor
@@ -534,3 +536,40 @@ def derive_dle_arg_value(blocked_dim, known_values, dle_argument):
 
 def get_value(consumer, provider, known_values):
     return ValueVisitor(consumer, known_values).visit(provider)
+
+
+class ArgumentMap(MultiDict):
+    """
+    Specialised :class:`MultiDict` object that maps a single key to a
+    list of potential values and provides a reduction method for
+    retrieval.
+    """
+
+    def update(self, values):
+        """
+        Update internal mapping with standard dictionary semantics.
+        """
+        if isinstance(values, Mapping):
+            self.extend(values)
+        elif isinstance(values, Iterable) and not isinstance(values, str):
+            for v in values:
+                self.extend(v)
+        else:
+            self.extend(values)
+
+    def reduce(self, key, op=None):
+        """
+        Returns a reduction of all candidate values for a given key.
+
+        :param key: Key for which to retrieve candidate values
+        :param op: Operator for reduction among candidate values
+        """
+        if op is None:
+            # Check all values agree and return the first one
+            candidates = self.getall(key)
+            if len(candidates) == 1 or self.reduce(key, op=eq):
+                return candidates[0]
+            else:
+                raise ValueError('Inconsistent values for reduction')
+        else:
+            return reduce(op, self.getall(key))
