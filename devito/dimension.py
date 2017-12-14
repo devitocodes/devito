@@ -97,6 +97,14 @@ class Dimension(AbstractSymbol):
         return super(Dimension, self)._hashable_content() +\
             (self.reverse, self.spacing)
 
+    def argument_defaults(self, size=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param size: Optional, known size as provided by data-carrying symbols
+        """
+        return {self.start_name: 0, self.end_name: size, self.size_name: size}
+
 
 class SpaceDimension(Dimension):
 

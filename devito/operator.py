@@ -7,7 +7,7 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.arguments import ArgumentEngine
+from devito.arguments import ArgumentEngine, ArgumentMap
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import transform
@@ -151,6 +151,22 @@ class Operator(Callable):
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
     def arguments(self, **kwargs):
+        """
+        Process runtime arguments passed to ``.apply()` and derive
+        default values for any remaining arguments.
+        """
+        # First, derive all default values from parameters and reduce
+        # TODO: Should be self.parameters, but that converts to
+        # TensorArgument type, etc...
+        # Also, this part can probably be a cached_property
+        default_args = ArgumentMap()
+        for p in self.input:
+            default_args.update(p.argument_defaults())
+        arguments = {k: default_args.reduce(k) for k in default_args}
+
+        return arguments
+
+    def old_arguments(self, **kwargs):
         """ Process any apply-time arguments passed to apply and derive values for
             any remaining arguments
         """

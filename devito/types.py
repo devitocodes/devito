@@ -165,6 +165,13 @@ class AbstractSymbol(sympy.Symbol, Basic):
     def indexify(self):
         return self
 
+    def argument_defaults(self):
+        """
+        Returns a map of default argument values defined by this symbol.
+        """
+        raise NotImplementedError('%s does not provide any default arguments' %
+                                  self.__class__)
+
 
 class AbstractCachedSymbol(AbstractSymbol, Cached):
     """
@@ -344,6 +351,13 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         subs = dict([(i.spacing, 1) for i in self.indices])
         indices = [a.subs(subs) for a in self.args]
         return Indexed(self.indexed, *indices)
+
+    def argument_defaults(self):
+        """
+        Returns a map of default argument values defined by this symbol.
+        """
+        raise NotImplementedError('%s does not provide any default arguments' %
+                                  self.__class__)
 
 
 class SymbolicData(AbstractCachedFunction):
