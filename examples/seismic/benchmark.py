@@ -183,8 +183,11 @@ def bench(problem, **kwargs):
               help='Directory containing results')
 @click.option('--max-bw', type=float,
               help='Max GB/s of the DRAM')
-@click.option('--max-flops', type=float,
-              help='Max GFLOPS/s of the CPU')
+@click.option('--flop-ceil', type=(float, str), multiple=True,
+              help='Max GFLOPS/s of the CPU. A 2-tuple (float, str)'
+                   'is expected, where the float is the performance'
+                   'ceil (GFLOPS/s) and the str indicates how the'
+                   'ceil was obtained (ideal peak, linpack, ...)')
 @click.option('--point-runtime', is_flag=True, default=True,
               help='Annotate points with runtime values')
 def cli_plot(problem, **kwargs):
@@ -200,10 +203,15 @@ def plot(problem, **kwargs):
     """
     resultsdir = kwargs.pop('resultsdir')
     max_bw = kwargs.pop('max_bw')
-    max_flops = kwargs.pop('max_flops')
+    flop_ceils = kwargs.pop('flop_ceil')
     point_runtime = kwargs.pop('point_runtime')
 
-    # Access opescibench
+    arch = kwargs['arch']
+    space_order = "[%s]" % ",".join(str(i) for i in kwargs['space_order'])
+    time_order = kwargs['time_order']
+    tn = kwargs['tn']
+    shape = "[%s]" % ",".join(str(i) for i in kwargs['shape'])
+
     RooflinePlotter = get_ob_plotter()
     bench = get_ob_bench(problem, resultsdir, kwargs)
 
@@ -216,17 +224,29 @@ def plot(problem, **kwargs):
     oi = bench.lookup(params=kwargs, measure="oi", event='main')
     time = bench.lookup(params=kwargs, measure="timings", event='main')
 
-    name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (problem,
-                                                list(kwargs['shape']),
-                                                kwargs['space_order'],
-                                                kwargs['time_order'],
-                                                kwargs['arch'])
-    problem_styles = {'acoustic': 'Acoustic', 'tti': 'TTI'}
-    title = "%s [grid=%s, TO=%s, duration=%sms], varying <DSE,DLE> on %s" %\
-        (problem_styles[problem], list(kwargs['shape']), kwargs['time_order'],
-         kwargs['tn'], kwargs['arch'])
+    # Filaneme
+    figname = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (
+        problem, shape, space_order, time_order, arch
+    )
 
-    styles = {  # (marker, color)
+    # Plot title
+    name = {'acoustic': 'Acoustic', 'tti': 'TTI'}[problem]
+    problem = "%s<grid=%s, TO=%s, sim=%sms>" % (name, shape, time_order, tn)
+    varying = [i for i in ['dse', 'dle', 'autotune']
+               if len(set(dict(j)[i] for j in gflopss)) > 1]
+    varying = ("varying<%s>" % ",".join(varying)) if varying else None
+    arch = "arch<%s>" % arch
+    title = ", ".join(i for i in [problem, varying, arch] if i)
+
+    # Legend setup. Do not plot a legend if there's no variation in performance
+    # options (dse, dle, autotuning)
+    if varying is not None:
+        legend = {'loc': 'upper left', 'fontsize': 5, 'ncol': 4}
+    else:
+        legend = 'drop'
+
+    # Plot style setup {<dse, dle> -> <marker, color>}
+    styles = {
         # DLE basic
         ('basic', 'basic'): ('D', 'r'),
         ('advanced', 'basic'): ('D', 'g'),
@@ -237,11 +257,6 @@ def plot(problem, **kwargs):
         ('advanced', 'advanced'): ('o', 'g'),
         ('speculative', 'advanced'): ('o', 'y'),
         ('aggressive', 'advanced'): ('o', 'b'),
-        # DLE speculative
-        ('basic', 'speculative'): ('s', 'r'),
-        ('advanced', 'speculative'): ('s', 'g'),
-        ('speculative', 'speculative'): ('s', 'y'),
-        ('aggressive', 'speculative'): ('s', 'b')
     }
 
     # Find min and max runtimes for instances having the same OI
@@ -251,9 +266,9 @@ def plot(problem, **kwargs):
         min_max[i][0] = v if min_max[i][0] == 0 else min(v, min_max[i][0])
         min_max[i][1] = v if min_max[i][1] == sys.maxsize else max(v, min_max[i][1])
 
-    with RooflinePlotter(title=title, figname=name.replace(' ', ''), plotdir=resultsdir,
-                         max_bw=max_bw, max_flops=max_flops,
-                         fancycolor=True, legend={'fontsize': 5, 'ncol': 4}) as plot:
+    with RooflinePlotter(title=title, figname=figname, plotdir=resultsdir,
+                         max_bw=max_bw, flop_ceils=flop_ceils,
+                         fancycolor=True, legend=legend) as plot:
         for key, gflopss in gflopss.items():
             oi_value = oi[key]
             time_value = time[key]
