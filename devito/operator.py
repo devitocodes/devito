@@ -164,6 +164,13 @@ class Operator(Callable):
             default_args.update(p.argument_defaults())
         arguments = {k: default_args.reduce(k) for k in default_args}
 
+        # Next, we insert user-provided overrides
+        for p in self.input + self.dimensions:
+            arguments.update(p.argument_values(**kwargs))
+
+        # HACK ALERT: Add profiler argument from parameters[-1]
+        profiler = self.parameters[-1]
+        arguments[profiler.name] = profiler.value
         return arguments
 
     def old_arguments(self, **kwargs):
@@ -257,7 +264,8 @@ class OperatorRunnable(Operator):
                 raise ValueError("No value found for parameter %s" % p.name)
 
         # Invoke kernel function with args
-        self.cfunction(*list(arguments.values()))
+        arg_values = [arguments[p.name] for p in self.parameters]
+        self.cfunction(*arg_values)
 
         # Output summary of performance achieved
         return self._profile_output(arguments)

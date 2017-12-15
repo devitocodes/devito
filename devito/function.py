@@ -489,6 +489,23 @@ class Function(TensorFunction):
             args.update(i.argument_defaults(size=s))
         return args
 
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        values = {}
+
+        # Add value override for own data if it is provided
+        if self.name in kwargs:
+            values[self.name] = kwargs.pop(self.name)
+
+        # Add value overrides for all associated dimensions
+        for i in self.indices:
+            values.update(i.argument_values(**kwargs))
+        return values
+
 
 class TimeFunction(Function):
     """
