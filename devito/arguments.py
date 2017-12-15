@@ -478,10 +478,10 @@ def log_args(arguments):
 
 
 def find_argument_by_name(name, haystack):
-    filtered = [(k, v) for k, v in haystack.items() if k.name == name]
+    filtered = [v for k, v in haystack.items() if k.name == name]
     assert(len(filtered) < 2)
     if len(filtered) == 1:
-        return filtered[0][1]
+        return filtered[0]
     else:
         return None
 
