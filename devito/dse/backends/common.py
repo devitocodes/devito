@@ -42,17 +42,9 @@ class State(object):
 
     def __init__(self, cluster):
         self.clusters = [cluster]
-        self._has_changed = False
 
     def update(self, clusters):
-        clusters = clusters or self.clusters
-        self._has_changed = len(clusters) != len(self.clusters) or\
-            any(c1.exprs != c2.exprs for c1, c2 in zip(clusters, self.clusters))
-        self.clusters = clusters
-
-    @property
-    def has_changed(self):
-        return self._has_changed
+        self.clusters = clusters or self.clusters
 
 
 class AbstractRewriter(object):
