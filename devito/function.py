@@ -275,14 +275,18 @@ class Function(TensorFunction):
             dimensions = grid.dimensions
         return dimensions
 
-    def _allocate_memory(self):
-        """Allocate memory in terms of numpy ndarrays."""
-        debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-        self._data = Data(self.shape, self.indices, self.space_order, self.dtype)
-        if self._first_touch:
-            first_touch(self)
-        else:
-            self.data.fill(0)
+    def _allocate_memory(func):
+        """Allocate memory as a :class:`Data`."""
+        def wrapper(self):
+            if self._data is None:
+                debug("Allocating memory for %s (%s)" % (self.name, self.shape))
+                self._data = Data(self.shape, self.indices, self.space_order, self.dtype)
+                if self._first_touch:
+                    first_touch(self)
+                else:
+                    self.data.fill(0)
+            return func(self)
+        return wrapper
 
     @property
     def _offset_domain(self):
@@ -358,11 +362,50 @@ class Function(TensorFunction):
 
     @property
     def data(self):
-        """The value of the data object, as a :class:`numpy.ndarray` storing
-        elements in the classical row-major storage layout."""
-        if self._data_object is None:
-            self._allocate_memory()
-        return self._data_object
+        """
+        The domain data values, as a :class:`numpy.ndarray`.
+
+        Elements are stored in row-major format.
+        """
+        return self.data_domain
+
+    @property
+    @_allocate_memory
+    def data_domain(self):
+        """
+        The domain data values, as a :class:`numpy.ndarray`.
+
+        Elements are stored in row-major format.
+
+        .. note::
+
+            Alias to ``self.data``.
+        """
+        # TODO: for the domain-allocation switch, this needs to be turned
+        # into a view of the domain region
+        return self._data
+
+    @property
+    @_allocate_memory
+    def data_with_halo(self):
+        """
+        The domain+halo data values.
+
+        Elements are stored in row-major format.
+        """
+        # TODO: for the domain-allocation switch, this needs to be turned
+        # into a view of the halo region
+        raise NotImplementedError
+
+    @property
+    @_allocate_memory
+    def data_allocated(self):
+        """
+        The allocated data values, that is domain+halo+padding.
+
+        Elements are stored in row-major format.
+        """
+        return self._data
 
     @property
     def laplace(self):

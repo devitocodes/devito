@@ -3,6 +3,7 @@ import ctypes
 import numpy as np
 
 import devito.function as function
+from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
 from devito.yask.data import Data, DataScalar
@@ -32,6 +33,8 @@ class Function(function.Function):
         """Allocate memory in terms of YASK grids."""
         def wrapper(self):
             if self._data is None:
+                log("Allocating memory for %s (%s)" % (self.name, self.shape))
+
                 # Fetch the appropriate context
                 context = contexts.fetch(self.grid, self.dtype)
 
@@ -105,11 +108,6 @@ class Function(function.Function):
     def data_with_halo(self):
         return Data(self._data.grid, self.shape_with_halo, self.indices, self.dtype,
                     offset=self._offset_halo)
-
-    @cached_property
-    @_allocate_memory
-    def data_allocated(self):
-        return self._data
 
     def initialize(self):
         raise NotImplementedError

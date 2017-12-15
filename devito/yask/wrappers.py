@@ -248,7 +248,6 @@ class YaskContext(object):
             exit("Need a Function[x,y,z] to create a YASK grid.")
 
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
-        log("Allocating Data for %s (%s)" % (obj.name, str(obj.shape)))
 
         # Set up the YASK grid and allocate memory
         grid = self.yk_hook.new_grid(name, obj)
