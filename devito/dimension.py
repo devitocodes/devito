@@ -30,10 +30,10 @@ class Dimension(sympy.Symbol):
 
     def __str__(self):
         return self.name
-    
+
     @property
     def dtype(self):
-        #TODO: Do dimensions really need a dtype?
+        # TODO: Do dimensions really need a dtype?
         return np.int32
 
     @cached_property

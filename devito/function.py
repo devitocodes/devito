@@ -77,6 +77,7 @@ class Constant(AbstractSymbol):
     def base(self):
         return self
 
+
 class TensorFunction(SymbolicFunction):
 
     """
