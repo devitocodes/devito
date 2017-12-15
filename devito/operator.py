@@ -251,6 +251,11 @@ class OperatorRunnable(Operator):
         # Build the arguments list to invoke the kernel function
         arguments = self.arguments(**kwargs)
 
+        # Check all argument are present
+        for p in self.parameters:
+            if p.name not in arguments:
+                raise ValueError("No value found for parameter %s" % p.name)
+
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
 
