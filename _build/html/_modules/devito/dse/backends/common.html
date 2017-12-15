@@ -205,17 +205,9 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span> <span class="o">=</span> <span class="p">[</span><span class="n">cluster</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_has_changed</span> <span class="o">=</span> <span class="kc">False</span>
 
 <div class="viewcode-block" id="State.update"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.common.State.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">clusters</span><span class="p">):</span>
-        <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusters</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_has_changed</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">clusters</span><span class="p">)</span> <span class="ow">or</span>\
-            <span class="nb">any</span><span class="p">(</span><span class="n">c1</span><span class="o">.</span><span class="n">exprs</span> <span class="o">!=</span> <span class="n">c2</span><span class="o">.</span><span class="n">exprs</span> <span class="k">for</span> <span class="n">c1</span><span class="p">,</span> <span class="n">c2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span> <span class="o">=</span> <span class="n">clusters</span></div>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">has_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_changed</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span> <span class="o">=</span> <span class="n">clusters</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">clusters</span></div></div>
 
 
 <div class="viewcode-block" id="AbstractRewriter"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.common.AbstractRewriter">[docs]</a><span class="k">class</span> <span class="nc">AbstractRewriter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
