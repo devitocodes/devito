@@ -56,19 +56,19 @@ def option_simulation(f):
 def option_performance(f):
     """Defines options for all aspects of performance tuning"""
 
-    _preset = {'maxperf': {
-        'autotune': True,
-        'dse': 'advanced',
-        'dle': 'advanced'
-    }, 'dse': {
-        'autotune': True,
-        'dse': ['basic', 'advanced', 'speculative', 'aggressive'],
-        'dle': 'advanced',
-    }, 'dle': {
-        'autotune': True,
-        'dse': 'advanced',
-        'dle': ['basic', 'advanced'],
-    }}
+    _preset = {
+        # Fixed
+        'O1': {'autotune': True, 'dse': 'basic', 'dle': 'basic'},
+        'O2': {'autotune': True, 'dse': 'advanced', 'dle': 'advanced'},
+        'O3': {'autotune': True, 'dse': 'aggressive', 'dle': 'advanced'},
+        # Parametric
+        'dse': {'autotune': True,
+                'dse': ['basic', 'advanced', 'speculative', 'aggressive'],
+                'dle': 'advanced'},
+        'dle': {'autotune': True,
+                'dse': 'advanced',
+                'dle': ['basic', 'advanced']}
+    }
 
     def from_preset(ctx, param, value):
         """Set all performance options according to bench-mode preset"""
@@ -81,8 +81,8 @@ def option_performance(f):
 
     options = [
         click.option('-bm', '--bench-mode', is_eager=True,
-                     callback=from_preset, expose_value=False,
-                     type=click.Choice(['maxperf', 'dse', 'dle']), default='maxperf',
+                     callback=from_preset, expose_value=False, default='O2',
+                     type=click.Choice(['O1', 'O2', 'O3', 'dse', 'dle']),
                      help='Choose what to benchmark; ignored if execmode=run'),
         click.option('--arch', default='unknown',
                      help='Architecture on which the simulation is/was run'),
