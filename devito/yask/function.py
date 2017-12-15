@@ -1,10 +1,11 @@
+from cached_property import cached_property
 import ctypes
 import numpy as np
 
 import devito.function as function
 from devito.tools import numpy_to_ctypes
 
-from devito.yask.data import DataScalar
+from devito.yask.data import Data, DataScalar
 from devito.yask.wrappers import contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction']
@@ -27,22 +28,30 @@ class Function(function.Function):
 
     from_YASK = True
 
-    def _allocate_memory(self):
+    def _allocate_memory(func):
         """Allocate memory in terms of YASK grids."""
+        def wrapper(self):
+            if self._data is None:
+                # Fetch the appropriate context
+                context = contexts.fetch(self.grid, self.dtype)
 
-        # TODO: YASK assumes that self.shape == "domain_size" (in YASK jargon)
-        # This is exactly how Devito will work too once the Grid abstraction lands
+                # TODO : the following will fail if not using a SteppingDimension,
+                # eg with save=True one gets /time/ instead /t/
+                data = context.make_grid(self)
+                data.reset()
 
-        # Fetch the appropriate context
-        context = contexts.fetch(self.grid, self.dtype)
+                # TODO : _padding must change due to (from YASK docs):
+                # "The value may be slightly larger [...] due to rounding
+                self._padding = tuple(0 if i.is_Time else data.get_extra_pad_size(i.name)
+                                      for i in self.indices)
 
-        # TODO : the following will fail if not using a SteppingDimension,
-        # eg with save=True one gets /time/ instead /t/
-        self._data_object = context.make_grid(self)
+                self._data = data
+            return func(self)
+        return wrapper
 
     def __del__(self):
-        if self._data_object is not None:
-            self._data_object.release_storage()
+        if self._data is not None:
+            self._data.release_storage()
 
     @property
     def _data_buffer(self):
@@ -58,7 +67,7 @@ class Function(function.Function):
     @property
     def data(self):
         """
-        The value of the data object, as a :class:`Data`.
+        The domain data values, as a :class:`Data`.
 
         The returned object, which behaves as a :class:`numpy.ndarray`, provides
         a *view* of the actual data, in row-major format. Internally, the data is
@@ -75,8 +84,32 @@ class Function(function.Function):
         default Devito backend. Such penalty should however be easily amortizable,
         as the time spent in running Operators is expected to be vastly greater
         than any user-level data manipulation.
+
+        For further information, refer to ``Data.__doc__``.
         """
-        return super(Function, self).data
+        return self.data_domain
+
+    @cached_property
+    @_allocate_memory
+    def data_domain(self):
+        """
+        .. note::
+
+            Alias to ``self.data``.
+        """
+        return Data(self._data.grid, self.shape, self.indices, self.dtype,
+                    offset=self._offset_domain)
+
+    @cached_property
+    @_allocate_memory
+    def data_with_halo(self):
+        return Data(self._data.grid, self.shape_with_halo, self.indices, self.dtype,
+                    offset=self._offset_halo)
+
+    @cached_property
+    @_allocate_memory
+    def data_allocated(self):
+        return self._data
 
     def initialize(self):
         raise NotImplementedError

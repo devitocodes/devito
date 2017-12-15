@@ -166,7 +166,7 @@ class Function(TensorFunction):
             if self.initializer is not None:
                 assert(callable(self.initializer))
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
-            self._data_object = None
+            self._data = None
 
             self._halo = tuple(self.space_order for i in range(self.dim))
 
@@ -278,11 +278,29 @@ class Function(TensorFunction):
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-        self._data_object = Data(self.shape, self.indices, self.space_order, self.dtype)
+        self._data = Data(self.shape, self.indices, self.space_order, self.dtype)
         if self._first_touch:
             first_touch(self)
         else:
             self.data.fill(0)
+
+    @property
+    def _offset_domain(self):
+        """
+        The number of grid points between the first allocated element
+        (possibly in the halo/padding region) and the first domain element,
+        for each dimension.
+        """
+        return tuple(np.add(self._halo, self._padding))
+
+    @property
+    def _offset_halo(self):
+        """
+        The number of grid points between the first allocated element
+        (possibly in the halo/padding region) and the first domain element,
+        for each dimension.
+        """
+        return self._padding
 
     def initialize(self):
         """Apply the data initilisation function, if it is not None."""

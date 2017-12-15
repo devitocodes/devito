@@ -242,15 +242,30 @@ class YaskContext(object):
         Create and return a new :class:`Data`, a YASK grid wrapper. Memory
         is allocated.
 
-        :param obj: The symbolic data object for which a YASK grid is allocated.
+        :param obj: The :class:`Function` for which a YASK grid is allocated.
         """
         if set(obj.indices) < set(self.space_dimensions):
             exit("Need a Function[x,y,z] to create a YASK grid.")
+
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
         log("Allocating Data for %s (%s)" % (obj.name, str(obj.shape)))
+
+        # Set up the YASK grid and allocate memory
         grid = self.yk_hook.new_grid(name, obj)
-        wrapper = Data(grid, obj.shape, obj.indices, obj.space_order, obj.dtype)
+        for i, s, h in zip(obj.indices, obj.shape, obj._halo):
+            if i.is_Time:
+                assert grid.is_dim_used(i.name)
+                assert grid.get_alloc_size(i.name) == s
+            else:
+                # Note, from the YASK docs:
+                # "If the halo is set to a value larger than the padding size,
+                # the padding size will be automatically increase to accomodate it."
+                grid.set_halo_size(i.name, h)
+        grid.alloc_storage()
+
+        wrapper = Data(grid, obj.shape, obj.indices, obj.dtype)
         self.grids[name] = wrapper
+
         return wrapper
 
     def make_yc_solution(self, namer):
