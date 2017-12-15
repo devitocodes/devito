@@ -329,6 +329,9 @@ class ArgumentVisitor(GenericVisitor):
     def visit_SymbolicFunction(self, o):
         return TensorArgument(o)
 
+    def visit_Argument(self, o):
+        return o
+
     def visit_DimensionParameter(self, o):
         dependency = Dependency("gets_value_from", o)
         size = ScalarArgument(o.provider.size_name, [dependency])

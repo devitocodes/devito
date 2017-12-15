@@ -19,6 +19,7 @@ from devito.ir.iet.nodes import Iteration, Node, UnboundedIndex
 from devito.types import Scalar
 from devito.tools import (as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C,
                           GenericVisitor)
+from devito.arguments import runtime_arguments
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
@@ -135,9 +136,6 @@ class CGen(Visitor):
         """Convert an iterable of :class:`Argument` into cgen format."""
         ret = []
         for i in args:
-            if not hasattr(i, "is_ScalarArgument"):
-                from devito.arguments import ArgumentVisitor
-                i = ArgumentVisitor().visit(i)
             if i.is_ScalarArgument:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             elif i.is_TensorArgument:
@@ -151,9 +149,6 @@ class CGen(Visitor):
         """Build cgen type casts for an iterable of :class:`Argument`."""
         ret = []
         for i in args:
-            if not hasattr(i, "is_ScalarArgument"):
-                from devito.arguments import ArgumentVisitor
-                i = ArgumentVisitor().visit(i)
             if i.is_TensorArgument:
                 align = "__attribute__((aligned(64)))"
                 shape = ''.join(["[%s]" % ccode(j)
@@ -244,16 +239,18 @@ class CGen(Visitor):
 
     def visit_Callable(self, o):
         body = flatten(self.visit(i) for i in o.children)
-        decls = self._args_decl(o.parameters)
-        casts = self._args_cast(o.parameters)
+        params = runtime_arguments(o.parameters)
+        decls = self._args_decl(params)
+        casts = self._args_cast(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(casts + body))
 
     def visit_Operator(self, o):
         # Kernel signature and body
         body = flatten(self.visit(i) for i in o.children)
-        decls = self._args_decl(o.parameters)
-        casts = self._args_cast(o.parameters)
+        params = runtime_arguments(o.parameters)
+        decls = self._args_decl(params)
+        casts = self._args_cast(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         retval = [c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(casts + body + retval))
