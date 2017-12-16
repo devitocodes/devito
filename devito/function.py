@@ -341,11 +341,6 @@ class Function(TensorFunction):
             self.initializer(self.data)
 
     @property
-    def dim(self):
-        """Return the number of spatial dimensions."""
-        return len(self._grid_shape_domain)
-
-    @property
     def shape(self):
         """
         Shape of the domain associated with this :class:`Function`.
@@ -389,11 +384,6 @@ class Function(TensorFunction):
         # of the data including the halo and padding regions, ie:
         # `tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))`
         raise NotImplementedError
-
-    @property
-    def space_dimensions(self):
-        """Tuple of index dimensions that define physical space."""
-        return tuple(d for d in self.indices if d.is_Space)
 
     @property
     def data(self):
@@ -445,6 +435,31 @@ class Function(TensorFunction):
         raise NotImplementedError
 
     @property
+    def dim(self):
+        """Return the number of spatial dimensions."""
+        return len(self._grid_shape_domain)
+
+    @property
+    def dimensions(self):
+        """Tuple of :class:`Dimension`s representing the function indices."""
+        return self.indices
+
+    @property
+    def space_dimensions(self):
+        """Tuple of :class:`Dimension`s that define physical space."""
+        return tuple(d for d in self.indices if d.is_Space)
+
+    @property
+    def symbolic_shape(self):
+        """
+        Return the symbolic shape of the object. This is simply the
+        appropriate combination of symbolic dimension sizes shifted
+        according to the ``staggered`` mask.
+        """
+        return tuple(i.symbolic_size - s for i, s in
+                     zip(self.indices, self.staggered))
+
+    @property
     def laplace(self):
         """
         Generates a symbolic expression for the Laplacian, the second
@@ -464,16 +479,6 @@ class Function(TensorFunction):
                      for d in self.space_dimensions])
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
-
-    @property
-    def symbolic_shape(self):
-        """
-        Return the symbolic shape of the object. This is simply the
-        appropriate combination of symbolic dimension sizes shifted
-        according to the ``staggered`` mask.
-        """
-        return tuple(i.symbolic_size - s for i, s in
-                     zip(self.indices, self.staggered))
 
 
 class TimeFunction(Function):
@@ -580,15 +585,6 @@ class TimeFunction(Function):
                 self.time_size = self.time_order + 1
                 self.indices[0].modulo = self.time_size
 
-    @property
-    def shape_domain(self):
-        if self.save:
-            tsize = self.time_size - self.staggered[0]
-        else:
-            tsize = self.time_order + 1
-        return (tsize,) +\
-            tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered[1:]))
-
     @classmethod
     def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
@@ -614,6 +610,15 @@ class TimeFunction(Function):
 
         _indices = Function._indices(**kwargs)
         return tuple([time_dim] + list(_indices))
+
+    @property
+    def shape_domain(self):
+        if self.save:
+            tsize = self.time_size - self.staggered[0]
+        else:
+            tsize = self.time_order + 1
+        return (tsize,) +\
+            tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered[1:]))
 
     @property
     def forward(self):
