@@ -516,7 +516,8 @@ class Function(TensorFunction):
 
         # Add value override for own data if it is provided
         if self.name in kwargs:
-            values[self.name] = kwargs.pop(self.name)
+            new = kwargs.pop(self.name)
+            values[self.name] = new.data if isinstance(new, Function) else new
 
         # Add value overrides for all associated dimensions
         for i in self.indices:
