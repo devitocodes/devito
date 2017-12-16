@@ -346,7 +346,9 @@ class ArgumentVisitor(GenericVisitor):
         return TensorArgument(o)
 
     def visit_Scalar(self, o):
-        return ScalarArgument(o.name, o, dtype=o.dtype)
+        arg = ScalarArgument(o.name, o, dtype=o.dtype)
+        arg.provider = o
+        return arg
 
     def visit_Constant(self, o):
         # TODO: Add option for delayed query of default value
