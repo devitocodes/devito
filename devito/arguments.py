@@ -196,7 +196,7 @@ class ArgumentEngine(object):
     def _build_argument_mapper(self, parameters):
         # Pass through SymbolicFunction
         symbolic_functions = [x for x in parameters if isinstance(x, SymbolicFunction)]
-        dim_dep_mapper = dict()  # Mapper for dependencies between dimensions
+        dim_dep_mapper = OrderedDict()  # Mapper for dependencies between dimensions
         tensor_arguments = []
         for f in symbolic_functions:
             argument = ArgumentVisitor().visit(f)
@@ -212,8 +212,8 @@ class ArgumentEngine(object):
                                                                param=arg))
 
         # Record dependencies in Dimensions
-        dim_param_mapper = {k: DimensionParameter(k, v) for k, v in
-                            dim_dep_mapper.items()}
+        dim_param_mapper = OrderedDict([(k, DimensionParameter(k, v)) for k, v in
+                                        dim_dep_mapper.items()])
 
         # Dimensions that are in parameters but not directly referenced in the expressions
         more = dict([(x, DimensionParameter(x, [])) for x in parameters
