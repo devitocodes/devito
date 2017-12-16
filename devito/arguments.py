@@ -11,6 +11,7 @@ from devito.exceptions import InvalidArgument
 from devito.tools import filter_ordered, flatten, GenericVisitor
 from devito.function import CompositeFunction, SymbolicFunction
 from devito.dimension import Dimension
+from devito.logger import error
 
 
 """ This module contains a set of classes and functions to deal with runtime arguments
@@ -557,19 +558,42 @@ class ArgumentMap(MultiDict):
         else:
             self.extend(values)
 
+    def unique(self, key):
+        """
+        Returns a unique value for a given key, if such a value
+        exists, and raises a ``ValueError`` if it does not.
+
+        :param key: Key for which to retrieve a unique value
+        """
+        candidates = self.getall(key)
+
+        def compare_to_first(v):
+            first = candidates[0]
+            if isinstance(first, np.ndarray) or isinstance(v, np.ndarray):
+                return (first == v).all()
+            else:
+                return first == v
+
+        if len(candidates) == 1:
+            return candidates[0]
+        elif all(map(compare_to_first, candidates)):
+            return candidates[0]
+        else:
+            error("Unable to find unique value for key %s, candidates: %s" %
+                  (key, candidates))
+            raise ValueError('Inconsistent values for argument reduction')
+
     def reduce(self, key, op=None):
         """
         Returns a reduction of all candidate values for a given key.
 
         :param key: Key for which to retrieve candidate values
-        :param op: Operator for reduction among candidate values
+        :param op: Operator for reduction among candidate values.
+                   If not provided, a unique value will be returned,
+                   or a ``ValueError`` raised if no unique value exists.
         """
         if op is None:
-            # Check all values agree and return the first one
-            candidates = self.getall(key)
-            if len(candidates) == 1 or self.reduce(key, op=eq):
-                return candidates[0]
-            else:
-                raise ValueError('Inconsistent values for reduction')
+            # Return a unique value if it exists
+            return self.unique(key)
         else:
             return reduce(op, self.getall(key))
