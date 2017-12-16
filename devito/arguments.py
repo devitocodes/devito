@@ -353,7 +353,9 @@ class ArgumentVisitor(GenericVisitor):
     def visit_Constant(self, o):
         # TODO: Add option for delayed query of default value
         dependency = Dependency("gets_value_from", o)
-        return ScalarArgument(o.name, [dependency], dtype=o.dtype)
+        arg = ScalarArgument(o.name, [dependency], dtype=o.dtype)
+        arg.provider = o
+        return arg
 
 
 class ValueVisitor(GenericVisitor):
