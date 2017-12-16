@@ -1,10 +1,10 @@
 from collections import Iterable, OrderedDict
 
 import sympy
-from sympy import Number, Indexed, Function, Symbol, preorder_traversal
+from sympy import Number, Indexed, Function, Symbol
 
 from devito.symbolics.extended_sympy import Add, Mul, Eq
-from devito.symbolics.search import retrieve_indexed
+from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
 
@@ -184,14 +184,15 @@ def as_symbol(expr):
 
 def indexify(expr):
     """
-    Convert functions into indexed matrix accesses in sympy expression.
-
-    :param expr: sympy function expression to be converted.
+    Given a SymPy expression, return a new SymPy expression in which all
+    :class:`AbstractFunction` objects have been converted into :class:`Indexed`
+    objects.
     """
-    replacements = {}
-
-    for e in preorder_traversal(expr):
-        if hasattr(e, 'indexed'):
-            replacements[e] = e.indexify()
-
-    return expr.xreplace(replacements)
+    mapper = {}
+    for i in retrieve_functions(expr):
+        try:
+            if i.is_AbstractFunction:
+                mapper[i] = i.indexify()
+        except AttributeError:
+            pass
+    return expr.xreplace(mapper)
