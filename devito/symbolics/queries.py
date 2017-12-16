@@ -33,6 +33,10 @@ def q_indexed(expr):
     return expr.is_Indexed
 
 
+def q_function(expr):
+    return expr.is_Function
+
+
 def q_terminal(expr):
     return expr.is_Symbol or expr.is_Indexed
 

@@ -1,7 +1,8 @@
-from devito.symbolics.queries import q_indexed, q_terminal, q_leaf, q_op, q_trigonometry
+from devito.symbolics.queries import (q_indexed, q_function, q_terminal,
+                                      q_leaf, q_op, q_trigonometry)
 
-__all__ = ['retrieve_indexed', 'retrieve_terminals', 'retrieve_ops',
-           'retrieve_trigonometry', 'search']
+__all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_terminals',
+           'retrieve_ops', 'retrieve_trigonometry', 'search']
 
 
 class Search(object):
@@ -106,6 +107,13 @@ def retrieve_indexed(expr, mode='unique'):
     Shorthand to retrieve :class:`Indexed` objects in ``expr``.
     """
     return search(expr, q_indexed, mode, 'dfs')
+
+
+def retrieve_functions(expr, mode='unique'):
+    """
+    Shorthand to retrieve :class:`sympy.Function` objects in ``expr``.
+    """
+    return search(expr, q_function, mode, 'dfs')
 
 
 def retrieve_terminals(expr, mode='unique'):
