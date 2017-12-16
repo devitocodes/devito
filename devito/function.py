@@ -78,6 +78,23 @@ class Constant(AbstractCachedSymbol):
     def base(self):
         return self
 
+    def argument_defaults(self):
+        """
+        Returns a map of default argument values defined by this symbol.
+        """
+        return {self.name: self.data}
+
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        values = {}
+        if self.name in kwargs:
+            values[self.name] = kwargs.pop(self.name)
+        return values
+
 
 class TensorFunction(SymbolicFunction):
 
@@ -699,6 +716,35 @@ class CompositeFunction(Function):
     @property
     def children(self):
         return self._children
+
+    def argument_defaults(self):
+        """
+        Returns a map of default argument values defined by this symbol.
+        """
+        args = super(CompositeFunction, self).argument_defaults()
+        for child in self.children:
+            args.update(child.argument_defaults())
+        return args
+
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        values = super(CompositeFunction, self).argument_values(**kwargs)
+        if self.name in values and isinstance(values[self.name], CompositeFunction):
+            # If we've been replaced with a composite symbol,
+            # we need to re-derive defaults and values...
+            replacement = values[self.name]
+            values.update(replacement.argument_defaults().reduce_all())
+            for child in replacement.children:
+                values.update(child.argument_values(**kwargs))
+        else:
+            # ..., but if not, we simply need to recurse over children.
+            for child in self.children:
+                values.update(child.argument_values(**kwargs))
+        return values
 
 
 class SparseFunction(CompositeFunction):
