@@ -369,7 +369,10 @@ class ValueVisitor(GenericVisitor):
 
     def visit_Function(self, o, param=None):
         assert(isinstance(self.consumer, TensorArgument))
-        return o.data
+        try:
+            return o._data_buffer
+        except AttributeError:
+            return o.data
 
     def visit_Constant(self, o, param=None):
         return o.data
