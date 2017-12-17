@@ -47,10 +47,16 @@ class Dimension(AbstractSymbol):
 
     @cached_property
     def symbolic_start(self):
+        """
+        The symbol defining the iteration start for this dimension.
+        """
         return Scalar(name=self.start_name, dtype=np.int32)
 
     @cached_property
     def symbolic_end(self):
+        """
+        The symbol defining the iteration end for this dimension.
+        """
         return Scalar(name=self.end_name, dtype=np.int32)
 
     @property
@@ -197,6 +203,59 @@ class SteppingDimension(Dimension):
 
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.modulo)
+
+    @property
+    def symbolic_start(self):
+        """
+        The symbol defining the iteration start for this dimension.
+
+        note ::
+
+        Internally we always define symbolic iteration ranges in terms
+        of the parent variable.
+        """
+        return self.parent.symbolic_start
+
+    @property
+    def symbolic_end(self):
+        """
+        The symbol defining the iteration end for this dimension.
+
+        note ::
+
+        Internally we always define symbolic iteration ranges in terms
+        of the parent variable.
+        """
+        return self.parent.symbolic_end
+
+    def argument_defaults(self, size=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param size: Optional, known size as provided by data-carrying symbols
+
+        note ::
+
+        A :class:`SteppingDimension` neither knows it's size nor it's
+        iteration end point. So all we can provide is a starting point.
+        """
+        return {self.parent.start_name: 0}
+
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        values = self.parent.argument_values(**kwargs)
+
+        if self.start_name in kwargs:
+            values[self.parent.start_name] = kwargs.pop(self.start_name)
+
+        if self.end_name in kwargs:
+            values[self.parent.end_name] = kwargs.pop(self.end_name)
+
+        return values
 
 
 class LoweredDimension(Dimension):
