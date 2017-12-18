@@ -1,5 +1,5 @@
 # coding: utf-8
-from devito import TimeFunction, memoized
+from devito import TimeFunction, memoized_meth
 from examples.seismic.tti.operators import ForwardOperator
 from examples.seismic import Receiver
 
@@ -31,7 +31,7 @@ class AnisotropicWaveSolver(object):
         # Cache compiler options
         self._kwargs = kwargs
 
-    @memoized
+    @memoized_meth
     def op_fwd(self, kernel='shifted', save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, source=self.source,
