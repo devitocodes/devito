@@ -334,6 +334,10 @@ def get_ob_exec(func):
 
         def run(self, *args, **kwargs):
             clear_cache()
+            # Temporary hack
+            if configuration['backend'] == 'yask':
+                from devito.yask.wrappers import contexts
+                contexts.dump()
 
             gflopss, oi, timings, _ = self.func(*args, **kwargs)
 
