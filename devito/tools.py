@@ -277,7 +277,9 @@ def infer_cpu():
     # ISA
     isa = configuration._defaults['isa']
     for i in reversed(configuration._accepted['isa']):
-        if i in info['flags']:
+        if any(j.startswith(i) for j in info['flags']):
+            # Using `startswith`, rather than `==`, as a flag such as 'avx512'
+            # appears as 'avx512f, avx512cd, ...'
             isa = i
             break
     # Platform
