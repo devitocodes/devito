@@ -6,7 +6,6 @@ from functools import reduce
 from itertools import chain
 
 from devito.exceptions import InvalidArgument
-from devito.logger import error
 from devito.tools import filter_ordered, flatten, GenericVisitor
 from devito.function import CompositeFunction, SymbolicFunction
 from devito.dimension import Dimension
@@ -216,11 +215,11 @@ class ArgumentEngine(object):
                                         dim_dep_mapper.items()])
 
         # Dimensions that are in parameters but not directly referenced in the expressions
-        more = dict([(x, DimensionParameter(x, [])) for x in parameters
-                     if isinstance(x, Dimension) and x not in dim_dep_mapper])
+        more = dict([(x, DimensionParameter(x, [])) for x in self.dimensions if x not in
+                     dim_dep_mapper])
         dim_param_mapper.update(more)
 
-        for dim in [x for x in parameters if isinstance(x, Dimension) and x.is_Stepping]:
+        for dim in [x for x in self.dimensions if x.is_Stepping]:
             dim_param_mapper[dim.parent].dependencies.append(
                 Dependency(Dependency.GETS_VALUE_FROM, dim_param_mapper[dim]))
 
@@ -263,9 +262,9 @@ class ArgumentEngine(object):
         for i in self.dle_arguments:
             dim_size = dim_sizes.get(i.original_dim.name, None)
             if dim_size is None:
-                error('Unable to derive size of dimension %s from defaults. '
-                      'Please provide an explicit value.' % i.original_dim.name)
-                raise InvalidArgument('Unknown dimension size')
+                raise InvalidArgument('Unable to derive size of dimension %s from '
+                                      'defaults. Please provide an explicit '
+                                      'value.' % i.original_dim.name)
             if i.value:
                 try:
                     dle_arguments[i.argument.name] = i.value(dim_size)
@@ -282,15 +281,12 @@ class ArgumentEngine(object):
             derived from the ones provided. The default values for the tensors come from
             the data property of the symbols used in the Operator.
         """
-        # Use kwargs
         values = OrderedDict()
-        dimension_values = OrderedDict()
 
         for i in self.arguments:
             values[i] = get_value(i, kwargs.pop(i.name, None), values)
 
-        for i in self.dims:
-            dimension_values[i] = kwargs.pop(i.name, None)
+        dimension_values = OrderedDict([(i, kwargs.pop(i.name, None)) for i in self.dims])
 
         # Make sure we've used all arguments passed
         if len(kwargs) > 0:
@@ -384,7 +380,10 @@ class ValueVisitor(GenericVisitor):
         return o(self.consumer, self.known_values, param)
 
     def visit_Object(self, o, param=None):
-        return o.value
+        if callable(o.value):
+            return o.value()
+        else:
+            return o.value
 
     def visit_object(self, o, param=None):
         return o

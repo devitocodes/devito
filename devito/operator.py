@@ -343,7 +343,7 @@ class OperatorRunnable(Operator):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         nodes, profiler = create_profile('timers', nodes)
         self._globals.append(profiler.cdef)
-        parameters.append(Object(profiler.name, profiler.dtype, profiler.new()))
+        parameters.append(Object(profiler.name, profiler.dtype, profiler.new))
         return nodes, profiler
 
 
