@@ -24,9 +24,10 @@ def benchmark():
     Further, this script can generate a roofline plot from a benchmark
     """
 
-    # Make sure that with YASK we run in performance mode
+    # Make sure that with YASK we run in benchmarking mode
     if configuration['backend'] == 'yask':
         configuration.yask['develop-mode'] = False
+        configuration.yask['autotuning'] = 'preemptive'
 
 
 def option_simulation(f):
