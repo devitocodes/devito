@@ -63,7 +63,7 @@ def option_performance(f):
         'O3': {'autotune': True, 'dse': 'aggressive', 'dle': 'advanced'},
         # Parametric
         'dse': {'autotune': True,
-                'dse': ['basic', 'advanced', 'speculative', 'aggressive'],
+                'dse': ['basic', 'advanced', 'aggressive'],
                 'dle': 'advanced'},
         'dle': {'autotune': True,
                 'dse': 'advanced',
@@ -250,12 +250,10 @@ def plot(problem, **kwargs):
         # DLE basic
         ('basic', 'basic'): ('D', 'r'),
         ('advanced', 'basic'): ('D', 'g'),
-        ('speculative', 'basic'): ('D', 'y'),
         ('aggressive', 'basic'): ('D', 'b'),
         # DLE advanced
         ('basic', 'advanced'): ('o', 'r'),
         ('advanced', 'advanced'): ('o', 'g'),
-        ('speculative', 'advanced'): ('o', 'y'),
         ('aggressive', 'advanced'): ('o', 'b'),
     }
 
