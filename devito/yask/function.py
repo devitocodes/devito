@@ -1,7 +1,6 @@
 import ctypes
 import numpy as np
 
-import devito.types as types
 import devito.function as function
 from devito.tools import numpy_to_ctypes
 
@@ -9,11 +8,6 @@ from devito.yask.data import DataScalar
 from devito.yask.wrappers import contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction']
-
-
-types.Basic.from_YASK = False
-
-types.Array.from_YASK = True
 
 
 class Constant(function.Constant):

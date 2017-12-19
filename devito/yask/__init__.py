@@ -109,10 +109,11 @@ env_vars_mapper = {
 
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
-log("Backend successfully initialized!")
-
 
 # The following used by backends.backendSelector
 from devito.yask.function import Constant, Function, TimeFunction  # noqa
 from devito.function import SparseFunction  # noqa
 from devito.yask.operator import Operator  # noqa
+from devito.yask.types import CacheManager  # noqa
+
+log("Backend successfully initialized!")
