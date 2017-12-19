@@ -40,8 +40,8 @@ DimensionParameter        |
 ArgumentEngine: The main external API for this module. It encapsulates all the argument
                 derivation and verification logic.
 
-ArgumentVisitor: Visits objects of devito's data types to return appropriate objects
-                 from the above parameter-argument hierarchy.
+ArgumentVisitor: Visits objects of :class:`function.Basic` types to return appropriate
+                 objects from the above parameter-argument hierarchy.
 
 ValueVisitor: Used by the argument derivation method to derive the value of each parameter
               based on the dependency tree.
@@ -61,6 +61,7 @@ class Parameter(object):
     :param dependencies: A list of :class:`Dependency` objects that represent all the
                          incoming edges into this node of the graph.
     """
+    is_Dimension_Parameter = False
     is_Argument = False
     is_ScalarArgument = False
     is_TensorArgument = False
@@ -74,14 +75,16 @@ class Parameter(object):
 
     @property
     def gets_value_from(self):
-        return [x for x in self.dependencies if x.dependency_type == "gets_value_from"]
+        return [x for x in self.dependencies
+                if x.dependency_type == Dependency.GETS_VALUE_FROM]
 
     @property
     def verified_by(self):
-        return [x for x in self.dependencies if x.dependency_type == "verified_by"]
+        return [x for x in self.dependencies
+                if x.dependency_type == Dependency.VERIFIED_BY]
 
     def __repr__(self):
-        return self.name + ", Depends: " + str(self.dependencies)
+        return "%s, Depends: %s" % (self.name, str(self.dependencies))
 
 
 class DimensionParameter(Parameter):
@@ -90,6 +93,8 @@ class DimensionParameter(Parameter):
         and verification but does not represent a runtime argument itself (since it
         provides multiple ScalarArguments).
     """
+    is_Dimension_Parameter = True
+
     def __init__(self, provider, dependencies):
         super(DimensionParameter, self).__init__(provider.name, dependencies)
         self.provider = provider
@@ -122,10 +127,11 @@ class TensorArgument(Argument):
     """
     is_TensorArgument = True
 
-    def __init__(self, provider, dependencies=[]):
+    def __init__(self, provider, dependencies=None):
+        if dependencies is None:
+            dependencies = []
         super(TensorArgument, self).__init__(provider.name,
-                                             dependencies + [Dependency("gets_value_from",
-                                                                        provider)],
+                                             dependencies + [ValueDependency(provider)],
                                              provider.dtype)
         self.provider = provider
 
@@ -141,22 +147,19 @@ class PtrArgument(Argument):
 
     def __init__(self, provider):
         super(PtrArgument, self).__init__(provider.name,
-                                          [Dependency("gets_value_from", provider)],
-                                          provider.dtype)
+                                          [ValueDependency(provider)], provider.dtype)
 
 
 class ArgumentEngine(object):
     """ Class that encapsulates the argument derivation and verification subsystem
     """
     def __init__(self, stencils, parameters, dle_arguments):
-        self.stencils = stencils
         self.parameters = parameters
         self.dle_arguments = dle_arguments
-        self.argument_mapper = self._build_argument_mapper(parameters)
-        self.arguments = filter_ordered([x for x in self.argument_mapper
-                                         if isinstance(x, Argument)],
+        argument_mapper = self._build_argument_mapper(parameters)
+        self.arguments = filter_ordered([x for x in argument_mapper if x.is_Argument],
                                         key=lambda x: x.name)
-        self.dims = [x for x in self.argument_mapper if isinstance(x, DimensionParameter)]
+        self.dimension_params = [x for x in argument_mapper if x.is_Dimension_Parameter]
         self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
 
     def handle(self, **kwargs):
@@ -201,14 +204,13 @@ class ArgumentEngine(object):
             argument = ArgumentVisitor().visit(f)
             tensor_arguments.append(argument)
             for i, d in enumerate(f.indices):
-                dim_dep_mapper.setdefault(d, []).append(Dependency("gets_value_from",
-                                                                   argument, param=i))
+                dim_dep_mapper.setdefault(d,
+                                          []).append(ValueDependency(argument, param=i))
 
         for arg in self.dle_arguments:
-            d = arg.argument
-            dim_dep_mapper.setdefault(d, []).append(Dependency("gets_value_from",
-                                                               derive_dle_argument_value,
-                                                               param=arg))
+            dim_dep_mapper.setdefault(arg.argument,
+                                      []).append(ValueDependency(derive_dle_arg_value,
+                                                                 param=arg))
 
         # Record dependencies in Dimensions
         dim_param_mapper = OrderedDict([(k, DimensionParameter(k, v)) for k, v in
@@ -220,8 +222,8 @@ class ArgumentEngine(object):
         dim_param_mapper.update(more)
 
         for dim in [x for x in self.dimensions if x.is_Stepping]:
-            dim_param_mapper[dim.parent].dependencies.append(
-                Dependency(Dependency.GETS_VALUE_FROM, dim_param_mapper[dim]))
+            dim_param_mapper[dim.parent].dependencies +=\
+            [ValueDependency(dim_param_mapper[dim])]
 
         dimension_parameters = list(dim_param_mapper.values())
 
@@ -230,6 +232,8 @@ class ArgumentEngine(object):
 
         other_arguments = [ArgumentVisitor().visit(x) for x in parameters
                            if x not in tensor_arguments + scalar_arguments]
+
+        other_arguments = [x for x in other_arguments if x is not None]
 
         return tensor_arguments + dimension_parameters + scalar_arguments +\
             other_arguments
@@ -286,7 +290,8 @@ class ArgumentEngine(object):
         for i in self.arguments:
             values[i] = get_value(i, kwargs.pop(i.name, None), values)
 
-        dimension_values = OrderedDict([(i, kwargs.pop(i.name, None)) for i in self.dims])
+        dimension_values = OrderedDict([(i, kwargs.pop(i.name, None))
+                                        for i in self.dimension_params])
 
         # Make sure we've used all arguments passed
         if len(kwargs) > 0:
@@ -329,7 +334,7 @@ class ArgumentVisitor(GenericVisitor):
         return o
 
     def visit_DimensionParameter(self, o):
-        dependency = Dependency("gets_value_from", o)
+        dependency = ValueDependency(o)
         size = ScalarArgument(o.provider.size_name, [dependency])
         start = ScalarArgument(o.provider.start_name, [dependency])
         end = ScalarArgument(o.provider.end_name, [dependency])
@@ -348,7 +353,7 @@ class ArgumentVisitor(GenericVisitor):
 
     def visit_Constant(self, o):
         # TODO: Add option for delayed query of default value
-        dependency = Dependency("gets_value_from", o)
+        dependency = ValueDependency(o)
         arg = ScalarArgument(o.name, [dependency], dtype=o.dtype)
         arg.provider = o
         return arg
@@ -389,6 +394,11 @@ class ValueVisitor(GenericVisitor):
         return o
 
     def visit_DimensionParameter(self, o, param=None):
+        """ Called when some Argument's value is being derived and the dependency tree
+            was followed till a DimensionParameter object. The Argument for which we are
+            deriving the value is self.consumer
+        """
+
         # We are being asked to provide a default value for dim_start
         if self.consumer.name == o.provider.start_name:
             return 0
@@ -446,7 +456,7 @@ class Dependency(object):
     """
     GETS_VALUE_FROM = "gets_value_from"
     VERIFIED_BY = "verified_by"
-    _types = ["gets_value_from", "verified_by"]
+    _types = [GETS_VALUE_FROM, VERIFIED_BY]
 
     def __init__(self, dependency_type, obj, param=None):
         assert(dependency_type in self._types)
@@ -455,7 +465,19 @@ class Dependency(object):
         self.param = param
 
     def __repr__(self):
-        return "(" + self.dependency_type + ":" + str(self.obj) + ")"
+        return "(%s : %s)" % (self.dependency_type, str(self.obj))
+
+
+class ValueDependency(Dependency):
+    """ Shortcut to make a Dependency of type gets_value_from """
+    def __init__(self, obj, param=None):
+        super(ValueDependency, self).__init__(Dependency.GETS_VALUE_FROM, obj, param)
+
+
+class VerifyDependency(Dependency):
+    """ Shortcut to make a dependency of type verified_by """
+    def __init__(self, obj, param=None):
+        super(ValueDependency, self).__init__(Dependency.VERIFIED_BY, obj, param)
 
 
 class UnevaluatedDependency(object):
@@ -500,10 +522,10 @@ def runtime_dim_extent(dimension, values):
         return None
 
 
-def derive_dle_argument_value(blocked_dim, known_values, dle_argument):
+def derive_dle_arg_value(blocked_dim, known_values, dle_argument):
     dim_size = runtime_dim_extent(dle_argument.original_dim, known_values)
     if dim_size is None:
-        return UnevaluatedDependency(blocked_dim, derive_dle_argument_value, dle_argument)
+        return UnevaluatedDependency(blocked_dim, derive_dle_arg_value, dle_argument)
     value = None
     if dle_argument.value:
         try:
