@@ -191,7 +191,10 @@ class ArgumentEngine(object):
         return arguments, user_autotune and dle_autotune
 
     def _offset_adjust(self, kwargs):
-        return {k: v + self.offsets.get(k, 0) for k, v in kwargs.items()}
+        for k, v in kwargs.items():
+            if k in self.offsets:
+                kwargs[k] = v + self.offsets[k]
+        return kwargs
 
     def _build_argument_mapper(self, parameters):
         # Pass through SymbolicFunction
