@@ -358,19 +358,15 @@ class FindSymbols(Visitor):
 
     :param mode: Drive the search. Accepted values are: ::
 
-        * 'kernel-data' (default): Collect :class:`SymbolicFunction` objects.
         * 'symbolics': Collect :class:`AbstractSymbol` objects.
         * 'symbolics-writes': Collect written :class:`AbstractSymbol` objects.
         * 'free-symbols': Collect all free symbols.
-        * 'dimensions': Collect :class:`Dimension` objects only.
     """
 
     rules = {
-        'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicFunction],
         'symbolics': lambda e: e.functions,
         'symbolics-writes': lambda e: as_tuple(e.write),
-        'free-symbols': lambda e: e.expr.free_symbols,
-        'dimensions': lambda e: e.dimensions,
+        'free-symbols': lambda e: e.free_symbols,
     }
 
     def __init__(self, mode='kernel-data'):
@@ -383,6 +379,7 @@ class FindSymbols(Visitor):
 
     def visit_Iteration(self, o):
         symbols = flatten([self.visit(i) for i in o.children])
+        symbols += self.rule(o)
         return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):

@@ -232,6 +232,11 @@ class Expression(Node):
         """Compute the stencil of the expression."""
         return Stencil(self.expr)
 
+    @property
+    def free_symbols(self):
+        """Return all :class:`Symbol` objects used by this :class:`Stencil`."""
+        return self.expr.free_symbols
+
 
 class Iteration(Node):
     """Implement a for-loop over nodes.
@@ -418,6 +423,22 @@ class Iteration(Node):
     def children(self):
         """Return the traversable children."""
         return (self.nodes,)
+
+    @property
+    def functions(self):
+        """Return all :class:`Function` objects used by this :class:`Iteration`"""
+        return []
+
+    @property
+    def write(self):
+        """Return all :class:`Function` objects written to in this :class:`Iteration`"""
+        return []
+
+    @property
+    def free_symbols(self):
+        """Return all :class:`Symbol` objects used by this :class:`Iteration`."""
+        return list(self.start_symbolic.free_symbols) \
+            + list(self.end_symbolic.free_symbols)
 
 
 class Callable(Node):
