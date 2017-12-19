@@ -91,21 +91,10 @@ def switch_cpu(develop_mode):
     if bool(develop_mode) is False:
         isa, platform = infer_cpu()
         configuration['isa'] = os.environ.get('DEVITO_ISA', isa)
-        platform = os.environ.get('DEVITO_PLATFORM', platform)
-        # Need to map to platforms known to YASK
-        mapper = {'intel64': 'intel64',
-                  'sandybridge': 'snb', 'ivybridge': 'ivb',
-                  'haswell': 'hsw', 'broadwell': 'hsw',
-                  'skylake': 'skx',
-                  'knc': 'knc', 'knl': 'knl'}
-        if platform in mapper.values():
-            configuration['platform'] = platform
-        elif platform in mapper:
-            configuration['platform'] = mapper[platform]
-        else:
-            exit("Unknown platform `%s` to run in optimized mode" % platform)
+        configuration['platform'] = os.environ.get('DEVITO_PLATFORM', platform)
     else:
-        configuration['isa'], configuration['platform'] = 'cpp', 'intel64'
+        configuration['isa'] = 'cpp'
+        configuration['platform'] = 'intel64'
 yask_configuration.add('develop-mode', True, [False, True], switch_cpu)  # noqa
 
 env_vars_mapper = {

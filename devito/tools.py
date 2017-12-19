@@ -341,10 +341,14 @@ def infer_cpu():
         p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
         output, _ = p2.communicate()
         platform = output.decode("utf-8").split()[1]
+        # Full list of possible /platform/ values at this point at:
+        # https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
+        platform = {'sandybridge': 'snb', 'ivybridge': 'ivb', 'haswell': 'hsw',
+                    'broadwell': 'bdw', 'skylake': 'skx', 'knl': 'knl'}[platform]
     except:
         # Then, try infer from the brand name, otherwise fallback to default
         try:
-            mapper = {'v3': 'haswell', 'v4': 'broadwell', 'v5': 'skylake'}
+            mapper = {'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}
             cpu_iteration = info['brand'].split()[4]
             platform = mapper[cpu_iteration]
         except:
