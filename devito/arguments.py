@@ -61,7 +61,7 @@ class Parameter(object):
     :param dependencies: A list of :class:`Dependency` objects that represent all the
                          incoming edges into this node of the graph.
     """
-    is_Dimension_Parameter = False
+    is_DimensionParameter = False
     is_Argument = False
     is_ScalarArgument = False
     is_TensorArgument = False
@@ -75,13 +75,11 @@ class Parameter(object):
 
     @property
     def gets_value_from(self):
-        return [x for x in self.dependencies
-                if x.dependency_type == Dependency.GETS_VALUE_FROM]
+        return [x for x in self.dependencies if x.is_Value]
 
     @property
     def verified_by(self):
-        return [x for x in self.dependencies
-                if x.dependency_type == Dependency.VERIFIED_BY]
+        return [x for x in self.dependencies if x.is_Verify]
 
     def __repr__(self):
         return "%s, Depends: %s" % (self.name, str(self.dependencies))
@@ -93,7 +91,7 @@ class DimensionParameter(Parameter):
         and verification but does not represent a runtime argument itself (since it
         provides multiple ScalarArguments).
     """
-    is_Dimension_Parameter = True
+    is_DimensionParameter = True
 
     def __init__(self, provider, dependencies):
         super(DimensionParameter, self).__init__(provider.name, dependencies)
@@ -156,12 +154,11 @@ class ArgumentEngine(object):
     def __init__(self, stencils, parameters, dle_arguments):
         self.parameters = parameters
         self.dle_arguments = dle_arguments
-        argument_mapper = self._build_argument_mapper(parameters)
-        self.arguments = filter_ordered([x for x in argument_mapper if x.is_Argument],
+        argument_list = self._build_arguments_list(parameters)
+        self.arguments = filter_ordered([x for x in argument_list if x.is_Argument],
                                         key=lambda x: x.name)
-        self.dimension_params = [x for x in argument_mapper if x.is_Dimension_Parameter]
-        self.offsets = {d.end_name: v for
-                        d, v in Stencil.retrieve_offsets(stencils).items()}
+        self.dimension_params = [x for x in argument_list if x.is_DimensionParameter]
+        self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
 
     def handle(self, **kwargs):
         """ The main method by which the :class:`Operator` interacts with this class.
@@ -196,7 +193,7 @@ class ArgumentEngine(object):
                 kwargs[k] = v + self.offsets[k]
         return kwargs
 
-    def _build_argument_mapper(self, parameters):
+    def _build_arguments_list(self, parameters):
         # Pass through SymbolicFunction
         symbolic_functions = [x for x in parameters if isinstance(x, SymbolicFunction)]
         dim_dep_mapper = OrderedDict()  # Mapper for dependencies between dimensions
@@ -205,13 +202,12 @@ class ArgumentEngine(object):
             argument = ArgumentVisitor().visit(f)
             tensor_arguments.append(argument)
             for i, d in enumerate(f.indices):
-                dim_dep_mapper.setdefault(d,
-                                          []).append(ValueDependency(argument, param=i))
+                v = dim_dep_mapper.setdefault(d, [])
+                v.append(ValueDependency(argument, param=i))
 
         for arg in self.dle_arguments:
-            dim_dep_mapper.setdefault(arg.argument,
-                                      []).append(ValueDependency(derive_dle_arg_value,
-                                                                 param=arg))
+            v = dim_dep_mapper.setdefault(arg.argument, [])
+            v.append(ValueDependency(derive_dle_arg_value, param=arg))
 
         # Record dependencies in Dimensions
         dim_param_mapper = OrderedDict([(k, DimensionParameter(k, v)) for k, v in
@@ -223,8 +219,8 @@ class ArgumentEngine(object):
         dim_param_mapper.update(more)
 
         for dim in [x for x in self.dimensions if x.is_Stepping]:
-            dim_param_mapper[dim.parent].dependencies +=\
-                [ValueDependency(dim_param_mapper[dim])]
+            v = dim_param_mapper[dim.parent].dependencies
+            v.append(ValueDependency(dim_param_mapper[dim]))
 
         dimension_parameters = list(dim_param_mapper.values())
 
@@ -354,8 +350,7 @@ class ArgumentVisitor(GenericVisitor):
 
     def visit_Constant(self, o):
         # TODO: Add option for delayed query of default value
-        dependency = ValueDependency(o)
-        arg = ScalarArgument(o.name, [dependency], dtype=o.dtype)
+        arg = ScalarArgument(o.name, [ValueDependency(o)], dtype=o.dtype)
         arg.provider = o
         return arg
 
@@ -396,8 +391,8 @@ class ValueVisitor(GenericVisitor):
 
     def visit_DimensionParameter(self, o, param=None):
         """ Called when some Argument's value is being derived and the dependency tree
-            was followed till a DimensionParameter object. The Argument for which we are
-            deriving the value is self.consumer
+            was followed till a :class:`DimensionParameter` object. The Argument for
+            which we are deriving the value is self.consumer
         """
 
         # We are being asked to provide a default value for dim_start
@@ -441,12 +436,11 @@ class ValueVisitor(GenericVisitor):
 class Dependency(object):
     """ Object that represents an edge between two nodes on a dependency graph
         Dependencies are directional, i.e. A -> B != B -> A
-        :param dependency_type: A dependency can either by of type "gets_value_from"
-               in which case this dependency will be followed for value derivation
-               or it can be of type "verified_by" in which case this dependency will be
-               followed for verification. Both types of dependencies may exist between a
-               pair of nodes. However, only a single dependency of a type may exist
-               between any pair of nodes.
+        A dependency can either by of type :class:`ValueDependency` in which case this
+        dependency will be followed for value derivation or it can be of type
+        :class:`VerifyDependency` in which case this dependency will be followed for
+        verification. Both types of dependencies may exist between a pair of nodes.
+        However, only a single dependency of a type may exist between any pair of nodes.
         :param obj: Dependencies have a source node and a target node. The source node
                     will store the dependency object on itself. The obj referred to here
                     is the target node of the dependency.
@@ -455,30 +449,25 @@ class Dependency(object):
                       derives its value from a SymbolicFunction's shape, this param
                       carries the index of a dimension in the SymbolicFunction's shape.
     """
-    GETS_VALUE_FROM = "gets_value_from"
-    VERIFIED_BY = "verified_by"
-    _types = [GETS_VALUE_FROM, VERIFIED_BY]
+    is_Value = False
+    is_Verify = False
 
-    def __init__(self, dependency_type, obj, param=None):
-        assert(dependency_type in self._types)
-        self.dependency_type = dependency_type
+    def __init__(self, obj, param=None):
         self.obj = obj
         self.param = param
 
     def __repr__(self):
-        return "(%s : %s)" % (self.dependency_type, str(self.obj))
+        return "(%s : %s)" % (str(type(self)), str(self.obj))
 
 
 class ValueDependency(Dependency):
-    """ Shortcut to make a Dependency of type gets_value_from """
-    def __init__(self, obj, param=None):
-        super(ValueDependency, self).__init__(Dependency.GETS_VALUE_FROM, obj, param)
+    """ A Dependency that specifies that one argument gets its value from another """
+    is_Value = True
 
 
 class VerifyDependency(Dependency):
-    """ Shortcut to make a dependency of type verified_by """
-    def __init__(self, obj, param=None):
-        super(ValueDependency, self).__init__(Dependency.VERIFIED_BY, obj, param)
+    """ A Dependency that specifies that one argument verifies the value of another """
+    is_Verify = True
 
 
 class UnevaluatedDependency(object):
@@ -521,6 +510,17 @@ def runtime_dim_extent(dimension, values):
             find_argument_by_name(dimension.start_name, values)
     except (KeyError, TypeError):
         return None
+
+
+def retrieve_offsets(stencils):
+    """
+    Return a mapper from :class:`Dimension`s to the min/max integer offsets
+    within ``stencils``.
+    """
+    offs = Stencil.union(*stencils)
+    mapper = {d: v for d, v in offs.diameter.items()}
+    mapper.update({d.parent: v for d, v in mapper.items() if d.is_Stepping})
+    return mapper
 
 
 def derive_dle_arg_value(blocked_dim, known_values, dle_argument):
