@@ -15,10 +15,11 @@ def benchmark():
     """
     Benchmarking script for seismic forward operators.
 
+    \b
     There are three main 'execution modes':
-    run:   a single run with given DSE/DLE levels
+    run: a single run with given DSE/DLE levels
     bench: complete benchmark with multiple DSE/DLE levels
-    test:  tests numerical correctness with different parameters
+    test: tests numerical correctness with different parameters
 
     Further, this script can generate a roofline plot from a benchmark
     """
@@ -34,7 +35,7 @@ def option_simulation(f):
 
     options = [
         click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti']),
-                     help='Number of grid points along each axis'),
+                     help='Problem name'),
         click.option('-d', '--shape', default=(50, 50, 50),
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),
