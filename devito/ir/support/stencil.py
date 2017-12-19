@@ -106,6 +106,17 @@ class Stencil(DefaultOrderedDict):
                 output[k] |= v
         return output
 
+    @classmethod
+    def retrieve_offsets(cls, stencils):
+        """
+        Return a mapper from :class:`Dimension`s to the min/max integer offsets
+        within ``stencils``.
+        """
+        offs = Stencil.union(*stencils)
+        mapper = {d: v for d, v in offs.diameter.items()}
+        mapper.update({d.parent: v for d, v in mapper.items() if d.is_Stepping})
+        return mapper
+
     @property
     def frozen(self):
         return Stencil([(k, frozenset(v)) for k, v in self.items()])
@@ -265,17 +276,6 @@ class Stencil(DefaultOrderedDict):
     def __setitem__(self, key, val):
         entry = StencilEntry(key, val)  # Type checking
         super(Stencil, self).__setitem__(entry.dim, entry.ofs)
-
-
-def retrieve_offsets(stencils):
-    """
-    Return a mapper from :class:`Dimension`s to the min/max integer offsets
-    within ``stencils``.
-    """
-    offs = Stencil.union(*stencils)
-    mapper = {d: v for d, v in offs.diameter.items()}
-    mapper.update({d.parent: v for d, v in mapper.items() if d.is_Stepping})
-    return mapper
 
 
 StencilEntry = namedtuple('StencilEntry', 'dim ofs')

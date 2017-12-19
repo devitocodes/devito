@@ -9,7 +9,7 @@ from devito.exceptions import InvalidArgument
 from devito.tools import filter_ordered, flatten, GenericVisitor
 from devito.function import CompositeFunction, SymbolicFunction
 from devito.dimension import Dimension
-from devito.ir.support.stencil import retrieve_offsets
+from devito.ir.support.stencil import Stencil
 
 
 """ This module contains a set of classes and functions to deal with runtime arguments
@@ -160,7 +160,8 @@ class ArgumentEngine(object):
         self.arguments = filter_ordered([x for x in argument_mapper if x.is_Argument],
                                         key=lambda x: x.name)
         self.dimension_params = [x for x in argument_mapper if x.is_Dimension_Parameter]
-        self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
+        self.offsets = {d.end_name: v for
+                        d, v in Stencil.retrieve_offsets(stencils).items()}
 
     def handle(self, **kwargs):
         """ The main method by which the :class:`Operator` interacts with this class.
@@ -190,10 +191,7 @@ class ArgumentEngine(object):
         return arguments, user_autotune and dle_autotune
 
     def _offset_adjust(self, kwargs):
-        for k, v in kwargs.items():
-            if k in self.offsets:
-                kwargs[k] = v + self.offsets[k]
-        return kwargs
+        return {k: v + self.offsets.get(k, 0) for k, v in kwargs.items()}
 
     def _build_argument_mapper(self, parameters):
         # Pass through SymbolicFunction
@@ -223,7 +221,7 @@ class ArgumentEngine(object):
 
         for dim in [x for x in self.dimensions if x.is_Stepping]:
             dim_param_mapper[dim.parent].dependencies +=\
-            [ValueDependency(dim_param_mapper[dim])]
+                [ValueDependency(dim_param_mapper[dim])]
 
         dimension_parameters = list(dim_param_mapper.values())
 
@@ -287,8 +285,8 @@ class ArgumentEngine(object):
         """
         values = OrderedDict()
 
-        for i in self.arguments:
-            values[i] = get_value(i, kwargs.pop(i.name, None), values)
+        values = OrderedDict([(i, get_value(i, kwargs.pop(i.name, None), values))
+                              for i in self.arguments])
 
         dimension_values = OrderedDict([(i, kwargs.pop(i.name, None))
                                         for i in self.dimension_params])

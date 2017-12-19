@@ -443,7 +443,7 @@ def sweep(parameters, keys=None):
 class GenericVisitor(object):
 
     """
-    A generic visitor.
+    A generic visitor for tree data structures.
 
     To define handlers, subclasses should define :data:`visit_Foo`
     methods for each class :data:`Foo` they want to handle.
