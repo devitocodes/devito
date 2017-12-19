@@ -14,6 +14,6 @@ class CacheManager(types.CacheManager):
 
     @classmethod
     def clear(cls):
-        super(CacheManager, cls).clear()
-        log("Dumping all contexts")
+        log("Dumping contexts and symbol caches")
         contexts.dump()
+        super(CacheManager, cls).clear()

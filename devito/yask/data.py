@@ -92,10 +92,6 @@ class Data(object):
             # array, i.e., it's not a view
             self.base = None
 
-    def __del__(self):
-        if self.base is None:
-            self.grid.release_storage()
-
     def __getitem__(self, index):
         start, stop, shape = self._convert_index(index)
         if not shape:

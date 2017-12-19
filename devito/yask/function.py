@@ -40,6 +40,10 @@ class Function(function.Function):
         # eg with save=True one gets /time/ instead /t/
         self._data_object = context.make_grid(self)
 
+    def __del__(self):
+        if self._data_object is not None:
+            self._data_object.release_storage()
+
     @property
     def _data_buffer(self):
         data = self.data
