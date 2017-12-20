@@ -348,9 +348,8 @@ def infer_cpu():
     except:
         # Then, try infer from the brand name, otherwise fallback to default
         try:
-            mapper = {'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}
-            cpu_iteration = info['brand'].split()[4]
-            platform = mapper[cpu_iteration]
+            platform = info['brand'].split()[4]
+            platform = {'v2': 'ivb', 'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}[platform]
         except:
             platform = None
     # Is it a known platform?
