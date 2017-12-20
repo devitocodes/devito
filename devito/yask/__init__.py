@@ -60,13 +60,10 @@ namespace['type-grid'] = ctypes_pointer('yask::yk_grid_ptr')
 class YaskCompiler(configuration['compiler'].__class__):
 
     def __init__(self, *args, **kwargs):
+        kwargs['cpp'] = True
         super(YaskCompiler, self).__init__(*args, **kwargs)
-        # Switch to C++
-        self.cc = self.cpp_mapper[configuration['compiler'].cc]
-        self.ld = self.cpp_mapper[configuration['compiler'].ld]
         self.cflags = [i for i in configuration['compiler'].cflags
                        if not i.startswith('-std')] + ['-std=c++11']
-        self.src_ext = 'cpp'
         # Tell the compiler where to get YASK header files and shared objects
         self.include_dirs.append(os.path.join(namespace['path'], 'include'))
         self.library_dirs.append(os.path.join(namespace['path'], 'lib'))
