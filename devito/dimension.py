@@ -125,6 +125,9 @@ class Dimension(AbstractSymbol):
         if self.end_name in kwargs:
             values[self.end_name] = kwargs.pop(self.end_name)
 
+        if self.name in kwargs:
+            values[self.end_name] = kwargs.pop(self.name)
+
         return values
 
 
@@ -254,6 +257,10 @@ class SteppingDimension(Dimension):
 
         if self.end_name in kwargs:
             values[self.parent.end_name] = kwargs.pop(self.end_name)
+
+        # Let the dimension name be an alias for `dim_e`
+        if self.name in kwargs:
+            values[self.parent.end_name] = kwargs.pop(self.name)
 
         return values
 
