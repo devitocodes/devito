@@ -377,6 +377,7 @@ def retrieve_symbols(expressions):
     input = filter_sorted(input, key=attrgetter('name'))
 
     output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
+    output = filter_sorted(output, key=attrgetter('name'))
 
     indexeds = [i for i in terms if i.is_Indexed]
     dimensions = []
