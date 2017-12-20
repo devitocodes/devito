@@ -21,7 +21,7 @@ matrix:
       env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
     - os: linux
       python: "3.6"
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 DEVITO_BACKEND=yask
+      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask
   allow_failures:
     - os: linux
       python: "2.7"
@@ -33,12 +33,14 @@ matrix:
 addons:
   apt:
     sources:
-      - ubuntu-toolchain-r-test     # For gcc 4.9 and 5
+      - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
     packages:
       - gcc-4.9
       - g++-4.9
       - gcc-5
       - g++-5
+      - gcc-7
+      - g++-7
 
 before_install:
   # Setup anaconda
