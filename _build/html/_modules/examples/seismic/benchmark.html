@@ -176,17 +176,19 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Benchmarking script for seismic forward operators.</span>
 
+<span class="sd">    \b</span>
 <span class="sd">    There are three main &#39;execution modes&#39;:</span>
-<span class="sd">    run:   a single run with given DSE/DLE levels</span>
+<span class="sd">    run: a single run with given DSE/DLE levels</span>
 <span class="sd">    bench: complete benchmark with multiple DSE/DLE levels</span>
-<span class="sd">    test:  tests numerical correctness with different parameters</span>
+<span class="sd">    test: tests numerical correctness with different parameters</span>
 
 <span class="sd">    Further, this script can generate a roofline plot from a benchmark</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="c1"># Make sure that with YASK we run in performance mode</span>
+    <span class="c1"># Make sure that with YASK we run in benchmarking mode</span>
     <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;backend&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;yask&#39;</span><span class="p">:</span>
         <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;develop-mode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;preemptive&#39;</span>
 
 
 <div class="viewcode-block" id="option_simulation"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.benchmark.option_simulation">[docs]</a><span class="k">def</span> <span class="nf">option_simulation</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
@@ -195,7 +197,7 @@
 
     <span class="n">options</span> <span class="o">=</span> <span class="p">[</span>
         <span class="n">click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-P&#39;</span><span class="p">,</span> <span class="s1">&#39;--problem&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">Choice</span><span class="p">([</span><span class="s1">&#39;acoustic&#39;</span><span class="p">,</span> <span class="s1">&#39;tti&#39;</span><span class="p">]),</span>
-                     <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Number of grid points along each axis&#39;</span><span class="p">),</span>
+                     <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Problem name&#39;</span><span class="p">),</span>
         <span class="n">click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-d&#39;</span><span class="p">,</span> <span class="s1">&#39;--shape&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span>
                      <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Number of grid points along each axis&#39;</span><span class="p">),</span>
         <span class="n">click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-s&#39;</span><span class="p">,</span> <span class="s1">&#39;--spacing&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">(</span><span class="mf">20.</span><span class="p">,</span> <span class="mf">20.</span><span class="p">,</span> <span class="mf">20.</span><span class="p">),</span>
@@ -224,7 +226,7 @@
         <span class="s1">&#39;O3&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;autotune&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">},</span>
         <span class="c1"># Parametric</span>
         <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;autotune&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-                <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;speculative&#39;</span><span class="p">,</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">],</span>
+                <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">],</span>
                 <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">},</span>
         <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;autotune&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
                 <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span>
@@ -334,7 +336,10 @@
 
     <span class="n">bench</span> <span class="o">=</span> <span class="n">get_ob_bench</span><span class="p">(</span><span class="n">problem</span><span class="p">,</span> <span class="n">resultsdir</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
     <span class="n">bench</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">get_ob_exec</span><span class="p">(</span><span class="n">run</span><span class="p">),</span> <span class="n">warmups</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">repeats</span><span class="o">=</span><span class="n">repeats</span><span class="p">)</span>
-    <span class="n">bench</span><span class="o">.</span><span class="n">save</span><span class="p">()</span></div>
+    <span class="n">bench</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="c1"># Final clean up, just in case the benchmarker is used from external Python modules</span>
+    <span class="n">clear_cache</span><span class="p">()</span></div>
 
 
 <span class="nd">@benchmark</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;plot&#39;</span><span class="p">)</span>
@@ -411,12 +416,10 @@
         <span class="c1"># DLE basic</span>
         <span class="p">(</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">),</span>
         <span class="p">(</span><span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;g&#39;</span><span class="p">),</span>
-        <span class="p">(</span><span class="s1">&#39;speculative&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">),</span>
         <span class="p">(</span><span class="s1">&#39;aggressive&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">),</span>
         <span class="c1"># DLE advanced</span>
         <span class="p">(</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">),</span>
         <span class="p">(</span><span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="s1">&#39;g&#39;</span><span class="p">),</span>
-        <span class="p">(</span><span class="s1">&#39;speculative&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">),</span>
         <span class="p">(</span><span class="s1">&#39;aggressive&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">),</span>
     <span class="p">}</span>
 
@@ -475,7 +478,8 @@
             <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;to&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;time_order&#39;</span><span class="p">]</span>
             <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">]</span>
             <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">]</span>
-            <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;at&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">configuration</span><span class="o">.</span><span class="n">core</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span>
+            <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;at&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span> <span class="ow">and</span>
+                                   <span class="n">configuration</span><span class="o">.</span><span class="n">backend</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">])</span>
             <span class="k">return</span> <span class="s1">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">[</span><span class="si">%s</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">devito_params</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
 
     <span class="k">return</span> <span class="n">DevitoBenchmark</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">problem</span><span class="p">,</span> <span class="n">resultsdir</span><span class="o">=</span><span class="n">resultsdir</span><span class="p">,</span> <span class="n">parameters</span><span class="o">=</span><span class="n">parameters</span><span class="p">)</span></div>
@@ -496,14 +500,14 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">func</span>
 
         <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">clear_cache</span><span class="p">()</span>
+
             <span class="n">gflopss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">timings</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
             <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">timings</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">gflopss</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">measure</span><span class="o">=</span><span class="s2">&quot;gflopss&quot;</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">oi</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">measure</span><span class="o">=</span><span class="s2">&quot;oi&quot;</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">timings</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">measure</span><span class="o">=</span><span class="s2">&quot;timings&quot;</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
-
-            <span class="n">clear_cache</span><span class="p">()</span>
 
     <span class="k">return</span> <span class="n">DevitoExecutor</span><span class="p">(</span><span class="n">func</span><span class="p">)</span></div>
 

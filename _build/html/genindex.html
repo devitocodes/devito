@@ -301,6 +301,8 @@
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.base.CacheManager">CacheManager (class in devito.base)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Call">Call (class in devito.ir.iet.nodes)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Callable">Callable (class in devito.ir.iet.nodes)</a>
@@ -327,8 +329,6 @@
         <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.children">(devito.ir.iet.nodes.Node attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.clear_cache">clear_cache() (in module devito)</a>
-</li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster">Cluster (class in devito.ir.clusters.cluster)</a>
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup">ClusterGroup (class in devito.ir.clusters.cluster)</a>
@@ -343,10 +343,10 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.manipulation.collect_nested">collect_nested() (in module devito.dse.manipulation)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.html#devito.dse.manipulation.common_subexprs_elimination">common_subexprs_elimination() (in module devito.dse.manipulation)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.html#devito.dse.manipulation.compact_temporaries">compact_temporaries() (in module devito.dse.manipulation)</a>
 </li>
       <li><a href="devito.html#devito.exceptions.CompilationError">CompilationError</a>
@@ -378,6 +378,8 @@
       <li><a href="devito.ir.iet.html#devito.ir.iet.utils.copy_arrays">copy_arrays() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.inspection.count">count() (in module devito.symbolics.inspection)</a>
+</li>
+      <li><a href="devito.html#devito.compiler.GNUCompiler.CPP">CPP (devito.compiler.GNUCompiler attribute)</a>
 </li>
       <li><a href="devito.html#devito.profiling.create_profile">create_profile() (in module devito.profiling)</a>
 </li>
@@ -414,6 +416,8 @@
       <li><a href="devito.html#devito.base.Array.default_assumptions">default_assumptions (devito.base.Array attribute)</a>
 
       <ul>
+        <li><a href="devito.html#devito.base.CacheManager.default_assumptions">(devito.base.CacheManager attribute)</a>
+</li>
         <li><a href="devito.html#devito.base.Constant.default_assumptions">(devito.base.Constant attribute)</a>
 </li>
         <li><a href="devito.html#devito.base.Function.default_assumptions">(devito.base.Function attribute)</a>
@@ -535,10 +539,10 @@
 </li>
       <li><a href="devito.dse.html#module-devito.dse">devito.dse (module)</a>
 </li>
-      <li><a href="devito.dse.html#module-devito.dse.aliases">devito.dse.aliases (module)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.dse.html#module-devito.dse.aliases">devito.dse.aliases (module)</a>
+</li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends">devito.dse.backends (module)</a>
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.advanced">devito.dse.backends.advanced (module)</a>
@@ -973,10 +977,18 @@
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.queries.iq_timevarying">iq_timevarying() (in module devito.symbolics.queries)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_algebraic">is_algebraic (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_algebraic">is_algebraic (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_algebraic">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_antihermitian">is_antihermitian (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_antihermitian">is_antihermitian (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_antihermitian">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.types.Indexed.is_Atom">is_Atom (devito.types.Indexed attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Block.is_Block">is_Block (devito.ir.iet.nodes.Block attribute)</a>
@@ -999,16 +1011,26 @@
       </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Closed">is_Closed (devito.ir.iet.nodes.Iteration attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_commutative">is_commutative (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_commutative">is_commutative (devito.base.CacheManager attribute)</a>
 
       <ul>
+        <li><a href="devito.html#devito.base.Operator.is_commutative">(devito.base.Operator attribute)</a>
+</li>
         <li><a href="devito.html#devito.types.Indexed.is_commutative">(devito.types.Indexed attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.base.Operator.is_complex">is_complex (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_complex">is_complex (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_complex">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_composite">is_composite (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_composite">is_composite (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_composite">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.function.Constant.is_Constant">is_Constant (devito.function.Constant attribute)</a>
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.is_dense">is_dense (devito.ir.clusters.cluster.Cluster attribute)</a>
@@ -1021,24 +1043,40 @@
       </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Elementizable">is_Elementizable (devito.ir.iet.nodes.Iteration attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_even">is_even (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_even">is_even (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_even">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.is_Expression">is_Expression (devito.ir.iet.nodes.Expression attribute)</a>
 
       <ul>
         <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.is_Expression">(devito.ir.iet.nodes.Node attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.base.Operator.is_finite">is_finite (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_finite">is_finite (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_finite">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.utils.is_foldable">is_foldable() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="devito.html#devito.function.Function.is_Function">is_Function (devito.function.Function attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_hermitian">is_hermitian (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_hermitian">is_hermitian (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_hermitian">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_imaginary">is_imaginary (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_imaginary">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Eq.is_Increment">is_Increment (devito.symbolics.extended_sympy.Eq attribute)</a>
 
       <ul>
@@ -1047,14 +1085,26 @@
       </ul></li>
       <li><a href="devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.is_index">is_index() (devito.ir.dfg.graph.TemporariesGraph method)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_infinite">is_infinite (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_infinite">is_infinite (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_infinite">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_integer">is_integer (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_integer">is_integer (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_integer">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_irrational">is_irrational (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_irrational">(devito.base.Operator attribute)</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.base.Operator.is_irrational">is_irrational (devito.base.Operator attribute)</a>
-</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Iteration">is_Iteration (devito.ir.iet.nodes.Iteration attribute)</a>
 
       <ul>
@@ -1075,40 +1125,84 @@
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations.is_mergable">is_mergable() (devito.ir.iet.visitors.MergeOuterIterations method)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_negative">is_negative (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_negative">is_negative (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_negative">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.is_Node">is_Node (devito.ir.iet.nodes.Node attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_noninteger">is_noninteger (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_noninteger">is_noninteger (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_noninteger">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_nonnegative">is_nonnegative (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_nonnegative">is_nonnegative (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_nonnegative">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_nonpositive">is_nonpositive (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_nonpositive">is_nonpositive (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_nonpositive">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_nonzero">is_nonzero (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_nonzero">is_nonzero (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_nonzero">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_odd">is_odd (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_odd">is_odd (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_odd">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Open">is_Open (devito.ir.iet.nodes.Iteration attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Parallel">is_Parallel (devito.ir.iet.nodes.Iteration attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_polar">is_polar (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_polar">is_polar (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_polar">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_positive">is_positive (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_positive">is_positive (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_positive">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_prime">is_prime (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_prime">is_prime (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_prime">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.arguments.Argument.is_PtrArgument">is_PtrArgument (devito.arguments.Argument attribute)</a>
 
       <ul>
         <li><a href="devito.html#devito.arguments.PtrArgument.is_PtrArgument">(devito.arguments.PtrArgument attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.base.Operator.is_rational">is_rational (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_rational">is_rational (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_rational">(devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_real">is_real (devito.base.Operator attribute)</a>
+      </ul></li>
+      <li><a href="devito.html#devito.base.CacheManager.is_real">is_real (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_real">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Remainder">is_Remainder (devito.ir.iet.nodes.Iteration attribute)</a>
 </li>
       <li><a href="devito.html#devito.function.Constant.is_Scalar">is_Scalar (devito.function.Constant attribute)</a>
@@ -1161,14 +1255,22 @@
       </ul></li>
       <li><a href="devito.html#devito.function.TimeFunction.is_TimeFunction">is_TimeFunction (devito.function.TimeFunction attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_transcendental">is_transcendental (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_transcendental">is_transcendental (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_transcendental">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Vectorizable">is_Vectorizable (devito.ir.iet.nodes.Iteration attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.is_Wrappable">is_Wrappable (devito.ir.iet.nodes.Iteration attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_zero">is_zero (devito.base.Operator attribute)</a>
+      <li><a href="devito.html#devito.base.CacheManager.is_zero">is_zero (devito.base.CacheManager attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.base.Operator.is_zero">(devito.base.Operator attribute)</a>
 </li>
+      </ul></li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.iso_stencil">iso_stencil() (in module examples.seismic.acoustic.operators)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.IsPerfectIteration">IsPerfectIteration (class in devito.ir.iet.visitors)</a>
@@ -1213,8 +1315,6 @@
 </li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.laplacian">laplacian() (in module examples.seismic.acoustic.operators)</a>
 </li>
-      <li><a href="devito.html#devito.compiler.GNUCompiler.LD">LD (devito.compiler.GNUCompiler attribute)</a>
-</li>
       <li><a href="devito.html#devito.dimension.Dimension.limits">limits (devito.dimension.Dimension attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.List">List (class in devito.ir.iet.nodes)</a>
@@ -1249,10 +1349,12 @@
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MapIteration">MapIteration (class in devito.ir.iet.visitors)</a>
 </li>
-      <li><a href="devito.html#devito.tools.memoized">memoized (class in devito.tools)</a>
+      <li><a href="devito.html#devito.tools.memoized_func">memoized_func (class in devito.tools)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.tools.memoized_meth">memoized_meth (class in devito.tools)</a>
+</li>
       <li><a href="devito.html#devito.profiling.Profile.memory">memory (devito.profiling.Profile attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.MergeOuterIterations.merge">merge() (devito.ir.iet.visitors.MergeOuterIterations method)</a>
@@ -1303,17 +1405,17 @@
 </li>
       <li><a href="devito.html#devito.cgen_utils.Allocator.onstack">onstack (devito.cgen_utils.Allocator attribute)</a>
 </li>
-      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_adj">op_adj (examples.seismic.acoustic.wavesolver.AcousticWaveSolver attribute)</a>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_adj">op_adj() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 </li>
-      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_born">op_born (examples.seismic.acoustic.wavesolver.AcousticWaveSolver attribute)</a>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_born">op_born() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 </li>
-      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_fwd">op_fwd (examples.seismic.acoustic.wavesolver.AcousticWaveSolver attribute)</a>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_fwd">op_fwd() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 
       <ul>
-        <li><a href="examples.seismic.tti.html#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.op_fwd">(examples.seismic.tti.wavesolver.AnisotropicWaveSolver attribute)</a>
+        <li><a href="examples.seismic.tti.html#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.op_fwd">(examples.seismic.tti.wavesolver.AnisotropicWaveSolver method)</a>
 </li>
       </ul></li>
-      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_grad">op_grad (examples.seismic.acoustic.wavesolver.AcousticWaveSolver attribute)</a>
+      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.op_grad">op_grad() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>

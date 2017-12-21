@@ -36,7 +36,7 @@
               href="../../genindex.html"/>
         <link rel="search" title="Search" href="../../search.html"/>
     <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
-        <link rel="up" title="devito" href="../devito.html"/> 
+        <link rel="up" title="Module code" href="../index.html"/> 
 
   
   <script src="../../_static/js/modernizr.min.js"></script>
@@ -141,8 +141,6 @@
         
           <li><a href="../index.html">Module code</a> &raquo;</li>
         
-          <li><a href="../devito.html">devito</a> &raquo;</li>
-        
       <li>devito.data</li>
     
     
@@ -214,7 +212,7 @@
         <span class="k">return</span> <span class="n">obj</span>
 
     <span class="k">def</span> <span class="nf">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_c_pointer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_c_pointer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span>
         <span class="n">free</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_c_pointer</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_c_pointer</span> <span class="o">=</span> <span class="kc">None</span>
@@ -229,9 +227,9 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">halo</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="c1"># Views or references created via operations on `obj` do not get</span>
-        <span class="c1"># an explicit reference to the C pointer (`_c_pointer`). This makes</span>
-        <span class="c1"># sure that only one object (the &quot;root&quot; Data) will free the C-allocated</span>
+        <span class="c1"># Views or references created via operations on `obj` do not get an</span>
+        <span class="c1"># explicit reference to the C pointer (`_c_pointer`). This makes sure</span>
+        <span class="c1"># that only one object (the &quot;root&quot; Data) will free the C-allocated memory</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_c_pointer</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>

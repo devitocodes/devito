@@ -36,7 +36,7 @@
               href="../../genindex.html"/>
         <link rel="search" title="Search" href="../../search.html"/>
     <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
-        <link rel="up" title="devito" href="../devito.html"/> 
+        <link rel="up" title="Module code" href="../index.html"/> 
 
   
   <script src="../../_static/js/modernizr.min.js"></script>
@@ -141,8 +141,6 @@
         
           <li><a href="../index.html">Module code</a> &raquo;</li>
         
-          <li><a href="../devito.html">devito</a> &raquo;</li>
-        
       <li>devito.compiler</li>
     
     
@@ -205,32 +203,46 @@
 <span class="sd">        * :data:`self.src_ext`</span>
 <span class="sd">        * :data:`self.lib_ext`</span>
 <span class="sd">        * :data:`self.undefines`</span>
-<span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">cpp_mapper</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;gcc&#39;</span><span class="p">:</span> <span class="s1">&#39;g++&#39;</span><span class="p">,</span> <span class="s1">&#39;clang&#39;</span><span class="p">:</span> <span class="s1">&#39;clang++&#39;</span><span class="p">,</span> <span class="s1">&#39;icc&#39;</span><span class="p">:</span> <span class="s1">&#39;icpc&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;gcc-4.9&#39;</span><span class="p">:</span> <span class="s1">&#39;g++-4.9&#39;</span><span class="p">,</span> <span class="s1">&#39;gcc-5&#39;</span><span class="p">:</span> <span class="s1">&#39;g++-5&#39;</span><span class="p">,</span> <span class="s1">&#39;gcc-6&#39;</span><span class="p">:</span> <span class="s1">&#39;g++-6&#39;</span><span class="p">}</span>
+<span class="sd">    Two additional parameters may be passed.</span>
+<span class="sd">    :param suffix: A string indicating a specific compiler version available on</span>
+<span class="sd">                   the system. For example, assuming ``compiler=gcc`` and</span>
+<span class="sd">                   ``suffix=&#39;4.9&#39;``, then the ``gcc-4.9`` program will be used</span>
+<span class="sd">                   to compile the generated code.</span>
+<span class="sd">    :param cpp: Defaults to False. Pass True to set up for C++ compilation,</span>
+<span class="sd">                instead of C compilation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">fields</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cc&#39;</span><span class="p">,</span> <span class="s1">&#39;ld&#39;</span><span class="p">}</span>
 
     <span class="n">CC</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
-    <span class="n">LD</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
+    <span class="n">CPP</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">Compiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;suffix&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">CC</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">-</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">CC</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">LD</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">-</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">LD</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">CC</span> <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cpp&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">CPP</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">-</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc</span>  <span class="c1"># Wanted by the superclass</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">,</span> <span class="s1">&#39;-std=c99&#39;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">include_dirs</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">libraries</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">library_dirs</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">defines</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">undefines</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">src_ext</span> <span class="o">=</span> <span class="s1">&#39;c&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">src_ext</span> <span class="o">=</span> <span class="s1">&#39;c&#39;</span> <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cpp&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span> <span class="k">else</span> <span class="s1">&#39;cpp&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">lib_ext</span> <span class="o">=</span> <span class="s1">&#39;so&#39;</span>
+
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">suffix</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">version</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">StrictVersion</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">suffix</span><span class="p">)))</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">version</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">LooseVersion</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Knowing the version may still be useful to pick supported flags</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">version</span> <span class="o">=</span> <span class="n">sniff_compiler_version</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">CC</span><span class="p">)</span>
@@ -246,7 +258,7 @@
     <span class="sd">&quot;&quot;&quot;Set of standard compiler flags for the GCC toolchain.&quot;&quot;&quot;</span>
 
     <span class="n">CC</span> <span class="o">=</span> <span class="s1">&#39;gcc&#39;</span>
-    <span class="n">LD</span> <span class="o">=</span> <span class="s1">&#39;gcc&#39;</span>
+    <span class="n">CPP</span> <span class="o">=</span> <span class="s1">&#39;g++&#39;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -284,7 +296,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">CC</span> <span class="o">=</span> <span class="s1">&#39;clang&#39;</span>
-    <span class="n">LD</span> <span class="o">=</span> <span class="s1">&#39;clang&#39;</span>
+    <span class="n">CPP</span> <span class="o">=</span> <span class="s1">&#39;clang++&#39;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">ClangCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -298,12 +310,12 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">CC</span> <span class="o">=</span> <span class="s1">&#39;icc&#39;</span>
-    <span class="n">LD</span> <span class="o">=</span> <span class="s1">&#39;icc&#39;</span>
+    <span class="n">CPP</span> <span class="o">=</span> <span class="s1">&#39;icpc&#39;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">IntelCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;-xhost&quot;</span><span class="p">]</span>
-        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;skylake&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;skx&#39;</span><span class="p">:</span>
             <span class="c1"># Systematically use 512-bit vectors on skylake</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;-qopt-zmm-usage=high&quot;</span><span class="p">]</span>
         <span class="k">try</span><span class="p">:</span>
@@ -333,13 +345,13 @@
 
 <span class="sd">    :param openmp: Boolean indicating if openmp is enabled. False by default</span>
 
-<span class="sd">    Note: Currently honours CC, CFLAGS, LD and LDFLAGS, with defaults similar</span>
+<span class="sd">    Note: Currently honours CC, CFLAGS and LDFLAGS, with defaults similar</span>
 <span class="sd">    to the default GNU settings. If DEVITO_ARCH is enabled, the OpenMP linker</span>
 <span class="sd">    flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">CC</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CC&#39;</span><span class="p">,</span> <span class="s1">&#39;gcc&#39;</span><span class="p">)</span>
-    <span class="n">LD</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;LD&#39;</span><span class="p">,</span> <span class="s1">&#39;gcc&#39;</span><span class="p">)</span>
+    <span class="n">CPP</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CPP&#39;</span><span class="p">,</span> <span class="s1">&#39;g++&#39;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">CustomCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -435,8 +447,6 @@
     <span class="s1">&#39;custom&#39;</span><span class="p">:</span> <span class="n">CustomCompiler</span><span class="p">,</span>
     <span class="s1">&#39;gnu&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span>
     <span class="s1">&#39;gcc&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span>
-    <span class="s1">&#39;gcc-4.9&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">suffix</span><span class="o">=</span><span class="s1">&#39;4.9&#39;</span><span class="p">),</span>
-    <span class="s1">&#39;gcc-5&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">suffix</span><span class="o">=</span><span class="s1">&#39;5&#39;</span><span class="p">),</span>
     <span class="s1">&#39;gcc-noavx&#39;</span><span class="p">:</span> <span class="n">GNUCompilerNoAVX</span><span class="p">,</span>
     <span class="s1">&#39;gnu-noavx&#39;</span><span class="p">:</span> <span class="n">GNUCompilerNoAVX</span><span class="p">,</span>
     <span class="s1">&#39;clang&#39;</span><span class="p">:</span> <span class="n">ClangCompiler</span><span class="p">,</span>
@@ -447,6 +457,8 @@
     <span class="s1">&#39;intel-knl&#39;</span><span class="p">:</span> <span class="n">IntelKNLCompiler</span><span class="p">,</span>
     <span class="s1">&#39;knl&#39;</span><span class="p">:</span> <span class="n">IntelKNLCompiler</span><span class="p">,</span>
 <span class="p">}</span>
+<span class="n">compiler_registry</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;gcc-</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">suffix</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+                          <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;4.9&#39;</span><span class="p">,</span> <span class="s1">&#39;5&#39;</span><span class="p">,</span> <span class="s1">&#39;6&#39;</span><span class="p">,</span> <span class="s1">&#39;7&#39;</span><span class="p">]})</span>
 </pre></div>
 
            </div>
