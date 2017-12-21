@@ -29,13 +29,13 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
 
 
 @skipif_yask
-class TestAPI(object):
+class TestCodeGen(object):
 
     @classmethod
     def setup_class(cls):
         clear_cache()
 
-    def test_code_generation(self, const, a_dense):
+    def test_parameters(self, const, a_dense):
         """
         Tests that we can actually generate code for a trivial operator
         using constant and array data objects.

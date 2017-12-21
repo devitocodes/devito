@@ -11,6 +11,7 @@ dependencies:
   - matplotlib
   - pytest
   - flake8>=2.1.0
+  - parso==0.1.0
   - nbval
   - cached-property
   - psutil>=5.1.0

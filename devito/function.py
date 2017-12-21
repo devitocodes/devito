@@ -6,7 +6,7 @@ from psutil import virtual_memory
 
 from devito.parameters import configuration
 from devito.logger import debug, error, warning
-from devito.memory import CMemory, first_touch
+from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import Dimension, TimeDimension
 from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
@@ -278,7 +278,7 @@ class Function(TensorFunction):
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-        self._data_object = CMemory(self.shape, dtype=self.dtype)
+        self._data_object = Data(self.shape, self.indices, self.space_order, self.dtype)
         if self._first_touch:
             first_touch(self)
         else:
@@ -290,7 +290,7 @@ class Function(TensorFunction):
         elements in the classical row-major storage layout."""
         if self._data_object is None:
             self._allocate_memory()
-        return self._data_object.ndpointer
+        return self._data_object
 
     def initialize(self):
         """Apply the data initilisation function, if it is not None."""

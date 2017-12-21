@@ -36,3 +36,7 @@ class SparseFunction(with_metaclass(_BackendSelector, function.SparseFunction)):
 
 class Operator(with_metaclass(_BackendSelector, operator.Operator)):
     pass
+
+
+class CacheManager(with_metaclass(_BackendSelector, types.CacheManager)):
+    pass

@@ -5,7 +5,115 @@ from pyrevolve import Revolver
 import numpy as np
 from conftest import skipif_yask
 import pytest
+from functools import reduce
+
 from devito import Grid, TimeFunction, Operator, Backward, Function, Eq, silencio
+
+
+@silencio(log_level='WARNING')
+@skipif_yask
+def test_segmented_incremment():
+    """
+    Test for segmented operator execution of a one-sided first order
+    function (increment). The corresponding set of stencil offsets in
+    the time domain is (1, 0)
+    """
+    grid = Grid(shape=(5, 5))
+    x, y = grid.dimensions
+    t = grid.stepping_dim
+    f = TimeFunction(name='f', grid=grid, time_order=1)
+    fi = f.indexed
+    op = Operator(Eq(fi[t, x, y], fi[t-1, x, y] + 1.))
+
+    # Reference solution with a single invocation, 20 timesteps.
+    # ==========================================================
+    # Developer note: With the current absolute indexing scheme
+    # the final time dimension index is 21, and the "write range"
+    # is [1 - 20] or [1, 21).
+    f_ref = TimeFunction(name='f', grid=grid, time_order=1)
+    op(f=f_ref, time=21)
+    assert (f_ref.data[19] == 19.).all()
+    assert (f_ref.data[20] == 20.).all()
+
+    # Now run with 5 invocations of 4 timesteps each
+    nsteps = 4
+    for i in range(5):
+        op(f=f, time_s=i*nsteps, time_e=(i+1)*nsteps)
+    assert (f.data[19] == 19.).all()
+    assert (f.data[20] == 20.).all()
+
+
+@silencio(log_level='WARNING')
+@skipif_yask
+def test_segmented_fibonacci():
+    """
+    Test for segmented operator execution of a one-sided second order
+    function (fibonacci). The corresponding set of stencil offsets in
+    the time domain is (2, 0)
+    """
+    # Reference Fibonacci solution from:
+    # https://stackoverflow.com/questions/4935957/fibonacci-numbers-with-an-one-liner-in-python-3
+    fib = lambda n: reduce(lambda x, n: [x[1], x[0] + x[1]], range(n), [0, 1])[0]
+
+    grid = Grid(shape=(5, 5))
+    x, y = grid.dimensions
+    t = grid.stepping_dim
+    f = TimeFunction(name='f', grid=grid, time_order=2)
+    fi = f.indexed
+    op = Operator(Eq(fi[t, x, y], fi[t-1, x, y] + fi[t-2, x, y]))
+
+    # Reference solution with a single invocation, 12 timesteps.
+    # ==========================================================
+    # Developer note: the 13th Fibonacci number resides at logical
+    # index 12, but we need to give a final index of 13 due to the
+    # current convention of computing [t_s+offset(t), t_end).
+    f_ref = TimeFunction(name='f', grid=grid, time_order=2)
+    f_ref.data[:] = 1.
+    op(f=f_ref, time=13)
+    assert (f_ref.data[11] == fib(12)).all()
+    assert (f_ref.data[12] == fib(13)).all()
+
+    # Now run with 5 invocations of 4 timesteps each
+    nsteps = 4
+    f.data[:] = 1.
+    for i in range(3):
+        op(f=f, time_s=i*nsteps, time_e=(i+1)*nsteps)
+    assert (f.data[11] == fib(12)).all()
+    assert (f.data[12] == fib(13)).all()
+
+
+@silencio(log_level='WARNING')
+@skipif_yask
+def test_segmented_averaging():
+    """
+    Test for segmented operator execution of a two-sided, second order
+    function (averaging) in space. The corresponding set of stencil
+    offsets in the x domain are (1, 1).
+    """
+    grid = Grid(shape=(20, 20))
+    x, y = grid.dimensions
+    t = grid.stepping_dim
+    f = TimeFunction(name='f', grid=grid)
+    fi = f.indexed
+    op = Operator(Eq(f, f.backward + (fi[t-1, x+1, y] + fi[t-1, x-1, y]) / 2.))
+
+    # We add the average to the point itself, so the grid "interior"
+    # (domain) is updated only.
+    f_ref = TimeFunction(name='f', grid=grid)
+    f_ref.data[:] = 1.
+    op(f=f_ref, time=2)
+    assert (f_ref.data[1, 0, :] == 1.).all()
+    assert (f_ref.data[1, 19, :] == 1.).all()
+    assert (f_ref.data[1, 1:19, :] == 2.).all()
+
+    # Now we sweep the x direction in 3 segmented steps
+    nsteps = 6
+    f.data[:] = 1.
+    for i in range(3):
+        op(f=f, time=2, x_s=i*nsteps, x_e=(i+1)*nsteps)
+    assert (f.data[1, 0, :] == 1.).all()
+    assert (f.data[1, 19, :] == 1.).all()
+    assert (f.data[1, 1:19, :] == 2.).all()
 
 
 @silencio(log_level='WARNING')

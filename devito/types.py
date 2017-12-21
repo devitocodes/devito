@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import weakref
 import abc
+import gc
 
 import numpy as np
 import sympy
@@ -499,3 +500,22 @@ class Indexed(sympy.Indexed):
 
     def _hashable_content(self):
         return super(Indexed, self)._hashable_content() + (self.base.function,)
+
+
+# Utilities
+
+
+class CacheManager(object):
+
+    """
+    Drop unreferenced objects from the SymPy and Devito caches. The associated
+    data is lost (and thus memory is freed).
+    """
+
+    @classmethod
+    def clear(cls):
+        sympy.cache.clear_cache()
+        gc.collect()
+        for key, val in list(_SymbolCache.items()):
+            if val() is None:
+                del _SymbolCache[key]
