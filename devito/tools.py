@@ -10,7 +10,7 @@ from distutils import version
 
 from devito.parameters import configuration
 
-__all__ = ['memoized', 'infer_cpu', 'sweep', 'silencio']
+__all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
 
 
 def as_tuple(item, type=None, length=None):
@@ -231,11 +231,13 @@ class change_directory(object):
         os.chdir(self.savedPath)
 
 
-class memoized(object):
+class memoized_func(object):
     """
     Decorator. Caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned
-    (not reevaluated).
+    (not reevaluated). This decorator may also be used on class methods,
+    but it will cache at the class level; to cache at the instance level,
+    use ``memoized_meth``.
 
     Adapted from: ::
 
@@ -267,6 +269,55 @@ class memoized(object):
         return partial(self.__call__, obj)
 
 
+class memoized_meth(object):
+    """
+    Decorator. Cache the return value of a class method.
+
+    Unlike ``memoized_func``, the return value of a given method invocation
+    will be cached on the instance whose method was invoked. All arguments
+    passed to a method decorated with memoize must be hashable.
+
+    If a memoized method is invoked directly on its class the result will not
+    be cached. Instead the method will be invoked like a static method: ::
+
+        class Obj(object):
+            @memoize
+            def add_to(self, arg):
+                return self + arg
+        Obj.add_to(1) # not enough arguments
+        Obj.add_to(1, 2) # returns 3, result is not cached
+
+    Adapted from: ::
+
+        code.activestate.com/recipes/577452-a-memoize-decorator-for-instance-methods/
+    """
+
+    def __init__(self, func):
+        self.func = func
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self.func
+        return partial(self, obj)
+
+    def __call__(self, *args, **kw):
+        if not isinstance(args, Hashable):
+            # Uncacheable, a list, for instance.
+            # Better to not cache than blow up.
+            return self.func(*args)
+        obj = args[0]
+        try:
+            cache = obj.__cache
+        except AttributeError:
+            cache = obj.__cache = {}
+        key = (self.func, args[1:], frozenset(kw.items()))
+        try:
+            res = cache[key]
+        except KeyError:
+            res = cache[key] = self.func(*args, **kw)
+        return res
+
+
 def infer_cpu():
     """
     Detect the highest Instruction Set Architecture and the platform
@@ -277,7 +328,9 @@ def infer_cpu():
     # ISA
     isa = configuration._defaults['isa']
     for i in reversed(configuration._accepted['isa']):
-        if i in info['flags']:
+        if any(j.startswith(i) for j in info['flags']):
+            # Using `startswith`, rather than `==`, as a flag such as 'avx512'
+            # appears as 'avx512f, avx512cd, ...'
             isa = i
             break
     # Platform
@@ -288,12 +341,15 @@ def infer_cpu():
         p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
         output, _ = p2.communicate()
         platform = output.decode("utf-8").split()[1]
+        # Full list of possible /platform/ values at this point at:
+        # https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
+        platform = {'sandybridge': 'snb', 'ivybridge': 'ivb', 'haswell': 'hsw',
+                    'broadwell': 'bdw', 'skylake': 'skx', 'knl': 'knl'}[platform]
     except:
         # Then, try infer from the brand name, otherwise fallback to default
         try:
-            mapper = {'v3': 'haswell', 'v4': 'broadwell', 'v5': 'skylake'}
-            cpu_iteration = info['brand'].split()[4]
-            platform = mapper[cpu_iteration]
+            platform = info['brand'].split()[4]
+            platform = {'v2': 'ivb', 'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}[platform]
         except:
             platform = None
     # Is it a known platform?

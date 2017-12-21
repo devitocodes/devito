@@ -1,14 +1,10 @@
 from __future__ import absolute_import
-import gc
-
-from sympy.core import cache
 
 from devito.base import *  # noqa
 from devito.finite_difference import *  # noqa
 from devito.dimension import *  # noqa
 from devito.grid import *  # noqa
 from devito.function import Forward, Backward  # noqa
-from devito.types import _SymbolCache  # noqa
 from devito.logger import error, warning, info  # noqa
 from devito.parameters import *  # noqa
 from devito.symbolics import *  # noqa
@@ -16,15 +12,6 @@ from devito.tools import *  # noqa
 
 from devito.compiler import compiler_registry
 from devito.backends import backends_registry, init_backend
-
-
-def clear_cache():
-    cache.clear_cache()
-    gc.collect()
-
-    for key, val in list(_SymbolCache.items()):
-        if val() is None:
-            del _SymbolCache[key]
 
 
 from ._version import get_versions  # noqa
@@ -51,16 +38,18 @@ configuration.add('backend', 'core', list(backends_registry),
                   callback=init_backend)
 
 # Set the Instruction Set Architecture (ISA)
-ISAs = [None, 'cpp', 'avx', 'avx2', 'avx512', 'knc']
+ISAs = ['cpp', 'avx', 'avx2', 'avx512']
 configuration.add('isa', 'cpp', ISAs)
 
 # Set the CPU architecture (only codename)
-PLATFORMs = [None, 'intel64', 'sandybridge', 'ivybridge', 'haswell',
-             'broadwell', 'skylake', 'knc', 'knl']
-# TODO: switch arch to actual architecture names; use the mapper in /YASK/
+PLATFORMs = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
 configuration.add('platform', 'intel64', PLATFORMs)
 
 
 # Initialize the configuration, either from the environment or
 # defaults. This will also trigger the backend initialization
 init_configuration()
+
+
+# Expose a mechanism to clean up the symbol caches (SymPy's, Devito's)
+clear_cache = CacheManager().clear  # noqa

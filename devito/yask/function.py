@@ -1,7 +1,6 @@
 import ctypes
 import numpy as np
 
-import devito.types as types
 import devito.function as function
 from devito.tools import numpy_to_ctypes
 
@@ -9,11 +8,6 @@ from devito.yask.data import DataScalar
 from devito.yask.wrappers import contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction']
-
-
-types.Basic.from_YASK = False
-
-types.Array.from_YASK = True
 
 
 class Constant(function.Constant):
@@ -45,6 +39,10 @@ class Function(function.Function):
         # TODO : the following will fail if not using a SteppingDimension,
         # eg with save=True one gets /time/ instead /t/
         self._data_object = context.make_grid(self)
+
+    def __del__(self):
+        if self._data_object is not None:
+            self._data_object.release_storage()
 
     @property
     def _data_buffer(self):

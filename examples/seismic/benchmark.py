@@ -15,17 +15,19 @@ def benchmark():
     """
     Benchmarking script for seismic forward operators.
 
+    \b
     There are three main 'execution modes':
-    run:   a single run with given DSE/DLE levels
+    run: a single run with given DSE/DLE levels
     bench: complete benchmark with multiple DSE/DLE levels
-    test:  tests numerical correctness with different parameters
+    test: tests numerical correctness with different parameters
 
     Further, this script can generate a roofline plot from a benchmark
     """
 
-    # Make sure that with YASK we run in performance mode
+    # Make sure that with YASK we run in benchmarking mode
     if configuration['backend'] == 'yask':
         configuration.yask['develop-mode'] = False
+        configuration.yask['autotuning'] = 'preemptive'
 
 
 def option_simulation(f):
@@ -34,7 +36,7 @@ def option_simulation(f):
 
     options = [
         click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti']),
-                     help='Number of grid points along each axis'),
+                     help='Problem name'),
         click.option('-d', '--shape', default=(50, 50, 50),
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),
@@ -63,7 +65,7 @@ def option_performance(f):
         'O3': {'autotune': True, 'dse': 'aggressive', 'dle': 'advanced'},
         # Parametric
         'dse': {'autotune': True,
-                'dse': ['basic', 'advanced', 'speculative', 'aggressive'],
+                'dse': ['basic', 'advanced', 'aggressive'],
                 'dle': 'advanced'},
         'dle': {'autotune': True,
                 'dse': 'advanced',
@@ -175,6 +177,9 @@ def bench(problem, **kwargs):
     bench.execute(get_ob_exec(run), warmups=0, repeats=repeats)
     bench.save()
 
+    # Final clean up, just in case the benchmarker is used from external Python modules
+    clear_cache()
+
 
 @benchmark.command(name='plot')
 @option_simulation
@@ -250,12 +255,10 @@ def plot(problem, **kwargs):
         # DLE basic
         ('basic', 'basic'): ('D', 'r'),
         ('advanced', 'basic'): ('D', 'g'),
-        ('speculative', 'basic'): ('D', 'y'),
         ('aggressive', 'basic'): ('D', 'b'),
         # DLE advanced
         ('basic', 'advanced'): ('o', 'r'),
         ('advanced', 'advanced'): ('o', 'g'),
-        ('speculative', 'advanced'): ('o', 'y'),
         ('aggressive', 'advanced'): ('o', 'b'),
     }
 
@@ -314,7 +317,8 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['to'] = params['time_order']
             devito_params['dse'] = params['dse']
             devito_params['dle'] = params['dle']
-            devito_params['at'] = params['autotune'] and configuration.core['autotuning']
+            devito_params['at'] = (params['autotune'] and
+                                   configuration.backend['autotuning'])
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
     return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)
@@ -335,14 +339,14 @@ def get_ob_exec(func):
             self.func = func
 
         def run(self, *args, **kwargs):
+            clear_cache()
+
             gflopss, oi, timings, _ = self.func(*args, **kwargs)
 
             for key in timings.keys():
                 self.register(gflopss[key], measure="gflopss", event=key)
                 self.register(oi[key], measure="oi", event=key)
                 self.register(timings[key], measure="timings", event=key)
-
-            clear_cache()
 
     return DevitoExecutor(func)
 

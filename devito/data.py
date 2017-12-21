@@ -51,7 +51,7 @@ class Data(np.ndarray):
         return obj
 
     def __del__(self):
-        if self._c_pointer is not None:
+        if self._c_pointer is None:
             return
         free(self._c_pointer)
         self._c_pointer = None
@@ -66,9 +66,9 @@ class Data(np.ndarray):
         else:
             self.modulo = tuple(None for i in range(self.ndim))
         self.halo = getattr(obj, 'halo', None)
-        # Views or references created via operations on `obj` do not get
-        # an explicit reference to the C pointer (`_c_pointer`). This makes
-        # sure that only one object (the "root" Data) will free the C-allocated
+        # Views or references created via operations on `obj` do not get an
+        # explicit reference to the C pointer (`_c_pointer`). This makes sure
+        # that only one object (the "root" Data) will free the C-allocated memory
         self._c_pointer = None
 
     def __getitem__(self, index):

@@ -1,4 +1,4 @@
-from devito import Function, TimeFunction, memoized
+from devito import Function, TimeFunction, memoized_meth
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -42,28 +42,28 @@ class AcousticWaveSolver(object):
         # Cache compiler options
         self._kwargs = kwargs
 
-    @memoized
+    @memoized_meth
     def op_fwd(self, save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @memoized
+    @memoized_meth
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=False, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @memoized
+    @memoized_meth
     def op_grad(self):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=True, source=self.source,
                                 receiver=self.receiver, time_order=self.time_order,
                                 space_order=self.space_order, **self._kwargs)
 
-    @memoized
+    @memoized_meth
     def op_born(self):
         """Cached operator for born runs"""
         return BornOperator(self.model, save=False, source=self.source,
