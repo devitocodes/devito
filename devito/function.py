@@ -280,7 +280,7 @@ class Function(TensorFunction):
         def wrapper(self):
             if self._data is None:
                 debug("Allocating memory for %s (%s)" % (self.name, self.shape))
-                self._data = Data(self.shape, self.indices, self.space_order, self.dtype)
+                self._data = Data(self.shape, self.indices, self.dtype)
                 if self._first_touch:
                     first_touch(self)
                 else:
@@ -301,7 +301,7 @@ class Function(TensorFunction):
     def _offset_halo(self):
         """
         The number of grid points between the first allocated element
-        (possibly in the halo/padding region) and the first domain element,
+        (possibly in the halo/padding region) and the first halo element,
         for each dimension.
         """
         return self._padding
