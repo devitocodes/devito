@@ -61,6 +61,7 @@ class YaskCompiler(configuration['compiler'].__class__):
 
     def __init__(self, *args, **kwargs):
         kwargs['cpp'] = True
+        kwargs['suffix'] = configuration['compiler'].suffix
         super(YaskCompiler, self).__init__(*args, **kwargs)
         self.cflags = [i for i in configuration['compiler'].cflags
                        if not i.startswith('-std')] + ['-std=c++11']
@@ -89,11 +90,9 @@ def switch_cpu(develop_mode):
         isa, platform = infer_cpu()
         configuration['isa'] = os.environ.get('DEVITO_ISA', isa)
         configuration['platform'] = os.environ.get('DEVITO_PLATFORM', platform)
-        print('AAAAAAAAAAAAAAAAa', isa, platform)
     else:
         configuration['isa'] = 'cpp'
         configuration['platform'] = 'intel64'
-        print('BBBBBBBBBBBBBBBBBB')
 yask_configuration.add('develop-mode', True, [False, True], switch_cpu)  # noqa
 
 env_vars_mapper = {

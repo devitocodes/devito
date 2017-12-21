@@ -71,10 +71,6 @@ before_script:
     fi
 
 script:
-  - cat /proc/cpuinfo
-  - lscpu
-  - gcc -march=native -Q --help=target
-  - gcc -march=native -Q --help=target | grep march
   - flake8 --builtins=ArgumentError .
   - py.test -vs tests/
 

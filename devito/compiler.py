@@ -271,8 +271,7 @@ def make(loc, args):
                 log.write(" ".join(command))
                 log.write("\n\n")
                 try:
-                    #subprocess.check_call(command, stderr=err, stdout=log)
-                    subprocess.check_call(command, stderr=subprocess.STDOUT)
+                    subprocess.check_call(command, stderr=err, stdout=log)
                 except subprocess.CalledProcessError as e:
                     raise CompilationError('Command "%s" return error status %d. '
                                            'Unable to compile code.\n'
