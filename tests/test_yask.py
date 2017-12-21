@@ -81,9 +81,12 @@ class TestOperatorSimple(object):
         # Chech that the domain size has actually been written to
         assert np.all(u.data[1] == 1.)
         # Check that the halo planes are still 0
-        assert all(np.all(u.data_with_halo[1, i, :, :] == 0) for i in range(space_order))
-        assert all(np.all(u.data_with_halo[1, :, i, :] == 0) for i in range(space_order))
-        assert all(np.all(u.data_with_halo[1, :, :, i] == 0) for i in range(space_order))
+        assert all(np.all(u.data_with_halo[1, i, :, :] == 0)
+                   for i in range(u._extent_halo_left[1]))
+        assert all(np.all(u.data_with_halo[1, :, i, :] == 0)
+                   for i in range(u._extent_halo_left[2]))
+        assert all(np.all(u.data_with_halo[1, :, :, i] == 0)
+                   for i in range(u._extent_halo_left[3]))
 
     def test_increasing_multi_steps(self):
         """
@@ -122,9 +125,12 @@ class TestOperatorSimple(object):
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 6.)
         # Check that the halo planes are untouched
-        assert all(np.all(v.data_with_halo[1, i, :, :] == 1) for i in range(space_order))
-        assert all(np.all(v.data_with_halo[1, :, i, :] == 1) for i in range(space_order))
-        assert all(np.all(v.data_with_halo[1, :, :, i] == 1) for i in range(space_order))
+        assert all(np.all(v.data_with_halo[1, i, :, :] == 1)
+                   for i in range(v._extent_halo_left[1]))
+        assert all(np.all(v.data_with_halo[1, :, i, :] == 1)
+                   for i in range(v._extent_halo_left[2]))
+        assert all(np.all(v.data_with_halo[1, :, :, i] == 1)
+                   for i in range(v._extent_halo_left[3]))
 
     def test_mixed_space_order(self):
         """

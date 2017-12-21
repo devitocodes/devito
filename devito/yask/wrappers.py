@@ -256,10 +256,14 @@ class YaskContext(object):
                 assert grid.is_dim_used(i.name)
                 assert grid.get_alloc_size(i.name) == s
             else:
-                # Note, from the YASK docs:
-                # "If the halo is set to a value larger than the padding size,
-                # the padding size will be automatically increase to accomodate it."
-                grid.set_halo_size(i.name, h)
+                # Note:
+                # 1) The halo is set to a value which is the max between the number
+                # of points on the left and the number of points on the right of
+                # the approximation (the same with a centered approximation)
+                # 2) from the YASK docs: "If the halo is set to a value larger than
+                # the padding size, the padding size will be automatically increased
+                # to accomodate it
+                grid.set_halo_size(i.name, max(h))
         grid.alloc_storage()
 
         wrapper = Data(grid, obj.shape, obj.indices, obj.dtype)

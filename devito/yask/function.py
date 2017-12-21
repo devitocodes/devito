@@ -43,10 +43,11 @@ class Function(function.Function):
                 data = context.make_grid(self)
                 data.reset()
 
-                # TODO : _padding must change due to (from YASK docs):
-                # "The value may be slightly larger [...] due to rounding
-                self._padding = tuple(0 if i.is_Time else data.get_extra_pad_size(i.name)
-                                      for i in self.indices)
+                # /self._padding/ must be updated as (from the YASK docs):
+                # "The value may be slightly larger [...] due to rounding"
+                padding = [0 if i.is_Time else data.get_extra_pad_size(i.name)
+                           for i in self.indices]
+                self._padding = tuple((i,)*2 for i in padding)
 
                 self._data = data
             return func(self)
@@ -116,3 +117,8 @@ class Function(function.Function):
 class TimeFunction(function.TimeFunction, Function):
 
     from_YASK = True
+
+    def __init__(self, *args, **kwargs):
+        super(TimeFunction, self).__init__(*args, **kwargs)
+        # TODO: YASK does not support halo in time stepping dimensions yet
+        self._halo = ((0, 0),) + self._halo[1:]

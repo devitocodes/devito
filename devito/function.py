@@ -1,7 +1,9 @@
-import numpy as np
-import sympy
 from collections import OrderedDict
 from functools import partial
+from math import ceil
+
+import sympy
+import numpy as np
 from psutil import virtual_memory
 
 from devito.parameters import configuration
@@ -107,12 +109,20 @@ class Function(TensorFunction):
     :param padding: (Optional) allocate extra grid points at a space dimension
                     boundary. These may be used for non-symmetric stencils
                     or simply to enforce data alignment. Defaults to 0.
-                    In alternative to an integer, a tuple, indicating
+                    In alternative to an integer, an iterable, indicating
                     the padding in each dimension, may be passed; in this
-                    case, an error is raised if such tuple has fewer entries
+                    case, an error is raised if such iterable has fewer entries
                     then the number of space dimensions.
     :param dtype: (Optional) data type of the buffered data.
-    :param space_order: Discretisation order for space derivatives
+    :param space_order: Discretisation order for space derivatives. By default,
+                        space derivatives are expressed in terms of centered
+                        approximations, with ``ceil(space_order/2)`` points
+                        on each side of the point of interest. For asymmetric
+                        approximations, one may pass a 3-tuple ``(o, lp, rp)``
+                        instead of a single integer. Here, ``o`` is the
+                        approximation order, while ``lp`` and ``rp`` indicate
+                        the maximum number of points that an approximation can
+                        use on the two sides of the point of interest.
     :param initializer: Function to initialize the data, optional
 
     .. note::
@@ -145,9 +155,8 @@ class Function(TensorFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.name = kwargs.get('name')
-            self.grid = kwargs.get('grid', None)
-            self.space_order = kwargs.get('space_order', 1)
 
+            self.grid = kwargs.get('grid', None)
             if self.grid is None:
                 self._grid_shape_domain = kwargs.get('shape', None)
                 self.dtype = kwargs.get('dtype', np.float32)
@@ -159,7 +168,7 @@ class Function(TensorFunction):
             self.indices = self._indices(**kwargs)
             self.staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
-                raise ValueError("Staggering argument needs %s entries for indices %s"
+                raise ValueError("'staggered' needs %s entries for indices %s"
                                  % (len(self.indices), self.indices))
 
             self.initializer = kwargs.get('initializer', None)
@@ -168,18 +177,25 @@ class Function(TensorFunction):
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data = None
 
-            self._halo = tuple(self.space_order for i in range(self.dim))
+            space_order = kwargs.get('space_order', 1)
+            if isinstance(space_order, int):
+                self.space_order = space_order
+                self._halo = tuple((ceil(space_order/2),)*2 for i in range(self.dim))
+            elif isinstance(space_order, tuple) and len(space_order) == 3:
+                space_order, left_points, right_points = space_order
+                self.space_order = space_order
+                self._halo = tuple((left_points, right_points) for i in range(self.dim))
+            else:
+                raise ValueError("'space_order' must be int or 3-tuple of ints")
 
             padding = kwargs.get('padding', 0)
-            if isinstance(padding, (int, tuple)):
-                if isinstance(padding, int):
-                    self._padding = tuple(padding for i in range(self.dim))
-                elif len(padding) != self.dim:
-                    raise ValueError("'padding' needs %d entries" % self.dim)
-                else:
-                    self._padding = padding
+            if isinstance(padding, int):
+                self._padding = tuple((padding,)*2 for i in range(self.dim))
+            elif isinstance(padding, tuple) and len(padding) == self.dim:
+                self._padding = tuple((i,)*2 if isinstance(i, int) else i
+                                      for i in padding)
             else:
-                raise ValueError("'padding' must be int or tuple of ints")
+                raise ValueError("'padding' must be int or %d-tuple of ints" % self.dim)
 
             # Dynamically add derivative short-cuts
             self._initialize_derivatives()
@@ -295,7 +311,7 @@ class Function(TensorFunction):
         (possibly in the halo/padding region) and the first domain element,
         for each dimension.
         """
-        return tuple(np.add(self._halo, self._padding))
+        return tuple(np.add(list(zip(*self._halo))[0], list(zip(*self._padding))[0]))
 
     @property
     def _offset_halo(self):
@@ -304,7 +320,21 @@ class Function(TensorFunction):
         (possibly in the halo/padding region) and the first halo element,
         for each dimension.
         """
-        return self._padding
+        return tuple(zip(*self._padding))[0]
+
+    @property
+    def _extent_halo_left(self):
+        """
+        The number of grid points in the halo region on the left side.
+        """
+        return tuple(zip(*self._halo))[0]
+
+    @property
+    def _extent_padding_left(self):
+        """
+        The number of grid points in the padding region on the left side.
+        """
+        return self._offset_halo
 
     def initialize(self):
         """Apply the data initilisation function, if it is not None."""
@@ -344,7 +374,7 @@ class Function(TensorFunction):
         Shape of the domain plus the read-only stencil boundary associated
         with this :class:`Function`.
         """
-        return tuple(i + 2*j for i, j in zip(self.shape_domain, self._halo))
+        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
 
     @property
     def shape_allocated(self):
@@ -353,7 +383,7 @@ class Function(TensorFunction):
         It includes the domain and halo regions, as well as any additional
         padding outside of the halo.
         """
-        return tuple(i + 2*j for i, j in zip(self.shape_with_halo, self._padding))
+        return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
 
     @property
     def space_dimensions(self):
@@ -458,6 +488,15 @@ class TimeFunction(Function):
                     case, an error is raised if such tuple has fewer entries
                     then the number of space dimensions.
     :param dtype: (Optional) data type of the buffered data
+    :param space_order: Discretisation order for space derivatives. By default,
+                        space derivatives are expressed in terms of centered
+                        approximations, with ``ceil(space_order/2)`` points
+                        on each side of the point of interest. For asymmetric
+                        approximations, one may pass a 3-tuple ``(o, lp, rp)``
+                        instead of a single integer. Here, ``o`` is the
+                        approximation order, while ``lp`` and ``rp`` indicate
+                        the maximum number of points that an approximation can
+                        use on the two sides of the point of interest.
     :param save: Save the intermediate results to the data buffer. Defaults
                  to ``None``, indicating the use of alternating buffers. If
                  intermediate results are required, the value of save must
@@ -466,7 +505,8 @@ class TimeFunction(Function):
                      symbol. Defaults to the time dimension provided by the :class:`Grid`.
     :param time_order: Order of the time discretization which affects the
                        final size of the leading time dimension of the
-                       data buffer.
+                       data buffer. Like ``space_order``, this can be a single
+                       integer or a 3-tuple.
     :param time_padding: (Optional) allocate extra points along the time dimension.
 
     .. note::
@@ -504,8 +544,20 @@ class TimeFunction(Function):
         if not self._cached():
             super(TimeFunction, self).__init__(*args, **kwargs)
             self.time_dim = kwargs.get('time_dim', None)
-            self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', None)
+
+            time_order = kwargs.get('time_order', 1)
+            if isinstance(time_order, int):
+                self.time_order = time_order
+                self._halo = ((time_order, 0),) + self._halo
+            elif isinstance(time_order, tuple) and len(time_order) == 3:
+                time_order, left_points, right_points = time_order
+                self.time_order = time_order
+                self._halo = ((left_points, right_points),) + self._halo
+            else:
+                raise ValueError("'space_order' must be int or 3-tuple of ints")
+
+            self._padding = (kwargs.get('time_padding', (0, 0)),) + self._padding
 
             if self.save is not None:
                 if not isinstance(self.save, int):
@@ -520,9 +572,6 @@ class TimeFunction(Function):
             else:
                 self.time_size = self.time_order + 1
                 self.indices[0].modulo = self.time_size
-
-            self._halo = (0,) + self._halo
-            self._padding = (kwargs.get('time_padding', 0),) + self._padding
 
     @property
     def shape_domain(self):
