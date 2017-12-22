@@ -127,9 +127,11 @@ def test_domain_vs_halo():
     u2 = Function(name='u2', grid=grid, space_order=2)
 
     assert u0.shape == u0.shape_with_halo == u0.shape_allocated
-    assert tuple(i + u2.space_order*2 for i in u2.shape) == u2.shape_with_halo
+    assert len(u2.shape) == len(u2._extent_halo_left)
+    assert tuple(i + j*2 for i, j in zip(u2.shape, u2._extent_halo_left)) ==\
+        u2.shape_with_halo
 
-    padding = (1, 3, 4)
-    u2_pad = Function(name='u2_pad', grid=grid, space_order=2, padding=padding)
-    assert tuple(i + j*2 for i, j in zip(u2.shape_with_halo, padding)) ==\
-        u2_pad.shape_allocated
+    v = Function(name='v', grid=grid, space_order=2, padding=(1, 3, 4))
+    assert len(v.shape_allocated) == len(u2._extent_padding_left)
+    assert tuple(i + j + k for i, (j, k) in zip(v.shape_with_halo, v._padding)) ==\
+        v.shape_allocated
