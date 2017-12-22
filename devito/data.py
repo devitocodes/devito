@@ -51,7 +51,7 @@ class Data(np.ndarray):
         return obj
 
     def __del__(self):
-        if self._c_pointer is None:
+        if getattr(self, '_c_pointer', None) is None:
             return
         free(self._c_pointer)
         self._c_pointer = None
