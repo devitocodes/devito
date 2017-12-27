@@ -9,7 +9,6 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
-from devito.yask.data import Data
 from devito.yask.utils import rawpointer
 
 
@@ -266,10 +265,9 @@ class YaskContext(object):
                 grid.set_halo_size(i.name, max(h))
         grid.alloc_storage()
 
-        wrapper = Data(grid, obj.shape, obj.indices, obj.dtype)
-        self.grids[name] = wrapper
+        self.grids[name] = grid
 
-        return wrapper
+        return grid
 
     def make_yc_solution(self, namer):
         """
@@ -317,7 +315,7 @@ class YaskContext(object):
                 "- domain: %s\n"
                 "- grids: [%s]\n"
                 "- solns: [%s]\n") % (self.name, str(self.space_dimensions),
-                                      ', '.join([i for i in list(self.grids)]),
+                                      ', '.join([i.get_name() for i in list(self.grids)]),
                                       ', '.join([i.name for i in self.solutions]))
 
 
