@@ -44,7 +44,7 @@ class Function(function.Function):
         """Allocate memory in terms of YASK grids."""
         def wrapper(self):
             if self._data is None:
-                log("Allocating memory for %s (%s)" % (self.name, self.shape))
+                log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
 
                 # Fetch the appropriate context
                 context = contexts.fetch(self.grid, self.dtype)
@@ -70,35 +70,13 @@ class Function(function.Function):
 
     @property
     def _data_buffer(self):
-        data = self.data
-        ctype = numpy_to_ctypes(data.dtype)
-        cpointer = ctypes.cast(int(data.grid.get_raw_storage_buffer()),
+        ctype = numpy_to_ctypes(self.dtype)
+        cpointer = ctypes.cast(int(self._data.grid.get_raw_storage_buffer()),
                                ctypes.POINTER(ctype))
-        ndpointer = np.ctypeslib.ndpointer(dtype=data.dtype, shape=data.shape)
+        ndpointer = np.ctypeslib.ndpointer(dtype=self.dtype, shape=self.shape_allocated)
         casted = ctypes.cast(cpointer, ndpointer)
-        ndarray = np.ctypeslib.as_array(casted, shape=data.shape)
+        ndarray = np.ctypeslib.as_array(casted, shape=self.shape_allocated)
         return ndarray
-
-    @property
-    def shape_with_halo(self):
-        """
-        Shape of the domain plus the read-only stencil boundary associated
-        with this :class:`Function`.
-        """
-        # TODO: Drop me after the domain-allocation switch, as this method
-        # will be provided by the superclass
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
-
-    @property
-    def shape_allocated(self):
-        """
-        Shape of the allocated data associated with this :class:`Function`.
-        It includes the domain and halo regions, as well as any additional
-        padding outside of the halo.
-        """
-        # TODO: Drop me after the domain-allocation switch, as this method
-        # will be provided by the superclass
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
 
     @property
     def data(self):

@@ -513,11 +513,26 @@ class SymbolicFunction(AbstractCachedFunction):
     def _data_buffer(self):
         """Reference to the actual data. This is *not* a view of the data.
         This method is for internal use only."""
-        return self.data
+        return self.data_allocated
 
     @abc.abstractproperty
     def data(self):
-        """The value of the data object."""
+        """The domain data values."""
+        return
+
+    @abc.abstractproperty
+    def data_domain(self):
+        """The domain data values."""
+        return
+
+    @abc.abstractproperty
+    def data_with_halo(self):
+        """The domain+halo data values."""
+        return
+
+    @abc.abstractproperty
+    def data_allocated(self):
+        """The domain+halo+padding data values."""
         return
 
 
