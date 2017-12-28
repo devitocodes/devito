@@ -177,17 +177,15 @@
 <div class="viewcode-block" id="Data"><a class="viewcode-back" href="../../devito.html#devito.data.Data">[docs]</a><span class="k">class</span> <span class="nc">Data</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A special :class:`numpy.ndarray` allowing logical indexing.</span>
+
 <span class="sd">    The type :class:`numpy.ndarray` is subclassed as indicated at: ::</span>
 
 <span class="sd">        https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html</span>
 
-<span class="sd">    The new instance takes an existing ndarray as input, casts it to one of</span>
-<span class="sd">    type ``Data``, and adds extra attributes (hence the need for subclassing)</span>
-
 <span class="sd">    :param shape: Shape of the domain region in grid points.</span>
 <span class="sd">    :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions</span>
 <span class="sd">                       of the ``Data``.</span>
-<span class="sd">    :param halo: An integer indicating the extent of the halo region.</span>
 <span class="sd">    :param dtype: A ``numpy.dtype`` for the raw data.</span>
 
 <span class="sd">    .. note::</span>
@@ -203,11 +201,10 @@
 <span class="sd">        performing logical indexing is lost.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">halo</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
         <span class="n">ndarray</span><span class="p">,</span> <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">malloc_aligned</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ndarray</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_c_pointer</span> <span class="o">=</span> <span class="n">c_pointer</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">halo</span> <span class="o">=</span> <span class="n">halo</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">modulo</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">obj</span>
 
@@ -226,7 +223,6 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;modulo&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">halo</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="c1"># Views or references created via operations on `obj` do not get an</span>
         <span class="c1"># explicit reference to the C pointer (`_c_pointer`). This makes sure</span>
         <span class="c1"># that only one object (the &quot;root&quot; Data) will free the C-allocated memory</span>
@@ -278,11 +274,6 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">wrapped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="n">mod</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">wrapped</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">index</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">wrapped</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># TODO: Implement contextually to the domain-allocation switch</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
 <div class="viewcode-block" id="Data.reset"><a class="viewcode-back" href="../../devito.html#devito.data.Data.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>

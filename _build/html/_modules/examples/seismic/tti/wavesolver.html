@@ -219,7 +219,7 @@
 
         <span class="c1"># Space order needs to be halved in the shifted case to have an</span>
         <span class="c1"># overall space_order discretization</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">/</span> <span class="mi">2</span> <span class="k">if</span> <span class="n">kernel</span> <span class="o">==</span> <span class="s1">&#39;shifted&#39;</span> \
+        <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">//</span> <span class="mi">2</span> <span class="k">if</span> <span class="n">kernel</span> <span class="o">==</span> <span class="s1">&#39;shifted&#39;</span> \
             <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span>
         <span class="c1"># Source term is read-only, so re-use the default</span>
         <span class="k">if</span> <span class="n">src</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>

@@ -159,10 +159,12 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.function</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">sympy</span>
-<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="k">import</span> <span class="n">ceil</span>
+
+<span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">psutil</span> <span class="k">import</span> <span class="n">virtual_memory</span>
 
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
@@ -261,12 +263,27 @@
 <span class="sd">    :param name: Name of the symbol</span>
 <span class="sd">    :param grid: :class:`Grid` object from which to infer the data shape</span>
 <span class="sd">                 and :class:`Dimension` indices.</span>
-<span class="sd">    :param shape: (Optional) shape of the associated data for this symbol.</span>
+<span class="sd">    :param shape: (Optional) shape of the domain region in grid points.</span>
 <span class="sd">    :param dimensions: (Optional) symbolic dimensions that define the</span>
 <span class="sd">                       data layout and function indices of this symbol.</span>
 <span class="sd">    :param staggered: (Optional) tuple containing staggering offsets.</span>
+<span class="sd">    :param padding: (Optional) allocate extra grid points at a space dimension</span>
+<span class="sd">                    boundary. These may be used for non-symmetric stencils</span>
+<span class="sd">                    or simply to enforce data alignment. Defaults to 0.</span>
+<span class="sd">                    In alternative to an integer, an iterable, indicating</span>
+<span class="sd">                    the padding in each dimension, may be passed; in this</span>
+<span class="sd">                    case, an error is raised if such iterable has fewer entries</span>
+<span class="sd">                    then the number of space dimensions.</span>
 <span class="sd">    :param dtype: (Optional) data type of the buffered data.</span>
-<span class="sd">    :param space_order: Discretisation order for space derivatives</span>
+<span class="sd">    :param space_order: Discretisation order for space derivatives. By default,</span>
+<span class="sd">                        space derivatives are expressed in terms of centered</span>
+<span class="sd">                        approximations, with ``ceil(space_order/2)`` points</span>
+<span class="sd">                        on each side of the point of interest. For asymmetric</span>
+<span class="sd">                        approximations, one may pass a 3-tuple ``(o, lp, rp)``</span>
+<span class="sd">                        instead of a single integer. Here, ``o`` is the</span>
+<span class="sd">                        approximation order, while ``lp`` and ``rp`` indicate</span>
+<span class="sd">                        the maximum number of points that an approximation can</span>
+<span class="sd">                        use on the two sides of the point of interest.</span>
 <span class="sd">    :param initializer: Function to initialize the data, optional</span>
 
 <span class="sd">    .. note::</span>
@@ -299,32 +316,47 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_grid_shape_domain</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Creating a Function requires either &#39;shape&#39;&quot;</span>
-                          <span class="s2">&quot;or a &#39;grid&#39; argument&quot;</span><span class="p">)</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown symbol dimensions or shape&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid_shape_domain</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Function needs either &#39;shape&#39; or &#39;grid&#39; argument&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">shape_domain</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_grid_shape_domain</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">shape_domain</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;staggered&#39;</span><span class="p">,</span>
-                                        <span class="nb">tuple</span><span class="p">(</span><span class="mi">0</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="mi">0</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">))</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
-                <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Staggering argument needs </span><span class="si">%s</span><span class="s2"> entries for indices </span><span class="si">%s</span><span class="s2">&quot;</span>
-                      <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">))</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Insufficient staggered entries&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;staggered&#39; needs </span><span class="si">%s</span><span class="s2"> entries for indices </span><span class="si">%s</span><span class="s2">&quot;</span>
+                                 <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">))</span>
 
-            <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;initializer&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">assert</span><span class="p">(</span><span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first_touch&#39;</span><span class="p">])</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="n">space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">space_order</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="n">space_order</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">ceil</span><span class="p">(</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),)</span><span class="o">*</span><span class="mi">2</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">space_order</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">space_order</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">space_order</span><span class="p">,</span> <span class="n">left_points</span><span class="p">,</span> <span class="n">right_points</span> <span class="o">=</span> <span class="n">space_order</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="n">space_order</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">left_points</span><span class="p">,</span> <span class="n">right_points</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;space_order&#39; must be int or 3-tuple of ints&quot;</span><span class="p">)</span>
+
+            <span class="n">padding</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;padding&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">padding</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">padding</span><span class="p">,)</span><span class="o">*</span><span class="mi">2</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">padding</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">padding</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">i</span><span class="p">,)</span><span class="o">*</span><span class="mi">2</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span>
+                                      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">padding</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;padding&#39; must be int or </span><span class="si">%d</span><span class="s2">-tuple of ints&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
 
             <span class="c1"># Dynamically add derivative short-cuts</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_derivatives</span><span class="p">()</span>
@@ -420,43 +452,159 @@
             <span class="n">dimensions</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
         <span class="k">return</span> <span class="n">dimensions</span>
 
+    <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Allocate memory as a :class:`Data`.&quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating memory for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
+                    <span class="n">first_touch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">shape_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_offset_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Full allocated shape of the data associated with this :class:`Function`.</span>
+<span class="sd">        The number of grid points between the first allocated element</span>
+<span class="sd">        (possibly in the halo/padding region) and the first domain element,</span>
+<span class="sd">        for each dimension.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="n">s</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">))[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))[</span><span class="mi">0</span><span class="p">]))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_offset_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The number of grid points between the first allocated element</span>
+<span class="sd">        (possibly in the halo/padding region) and the first halo element,</span>
+<span class="sd">        for each dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_extent_halo_left</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The number of grid points in the halo region on the left side.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_extent_padding_left</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The number of grid points in the padding region on the left side.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span>
+
+<div class="viewcode-block" id="Function.initialize"><a class="viewcode-back" href="../../devito.html#devito.function.Function.initialize">[docs]</a>    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Apply the data initilisation function, if it is not None.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the number of spatial dimensions.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_grid_shape_domain</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_data</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the domain associated with this :class:`Function`.</span>
+<span class="sd">        The domain constitutes the area of the data written to in a</span>
+<span class="sd">        stencil update and excludes the read-only stencil boundary.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the domain associated with this :class:`Function`.</span>
+<span class="sd">        The domain constitutes the area of the data written to in a</span>
+<span class="sd">        stencil update and excludes the read-only stencil boundary.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            Alias to ``self.shape``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_grid_shape_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the domain plus the read-only stencil boundary associated</span>
+<span class="sd">        with this :class:`Function`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: for the domain-allocation switch, this needs to return the shape</span>
+        <span class="c1"># of the data including the halo region, ie:</span>
+        <span class="c1"># `tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))`</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the allocated data associated with this :class:`Function`.</span>
+<span class="sd">        It includes the domain and halo regions, as well as any additional</span>
+<span class="sd">        padding outside of the halo.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: for the domain-allocation switch, this needs to return the shape</span>
+        <span class="c1"># of the data including the halo and padding regions, ie:</span>
+        <span class="c1"># `tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))`</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Tuple of index dimensions that define physical space.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Space</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Allocate memory in terms of numpy ndarrays.&quot;&quot;&quot;</span>
-        <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating memory for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
-            <span class="n">first_touch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The value of the data object, as a :class:`numpy.ndarray` storing</span>
-<span class="sd">        elements in the classical row-major storage layout.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_allocate_memory</span><span class="p">()</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The domain data values, as a :class:`numpy.ndarray`.</span>
 
-<div class="viewcode-block" id="Function.initialize"><a class="viewcode-back" href="../../devito.html#devito.function.Function.initialize">[docs]</a>    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Apply the data initilisation function, if it is not None.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div>
+<span class="sd">        Elements are stored in row-major format.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_domain</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The domain data values, as a :class:`numpy.ndarray`.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            Alias to ``self.data``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: for the domain-allocation switch, this needs to be turned</span>
+        <span class="c1"># into a view of the domain region</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The domain+halo data values.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: for the domain-allocation switch, this needs to be turned</span>
+        <span class="c1"># into a view of the halo region</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The allocated data values, that is domain+halo+padding.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: for the domain-allocation switch, this needs to return all</span>
+        <span class="c1"># allocated data values, i.e. self._data</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">laplace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -497,8 +645,27 @@
 <span class="sd">    :param name: Name of the resulting :class:`sympy.Function` symbol</span>
 <span class="sd">    :param grid: :class:`Grid` object from which to infer the data shape</span>
 <span class="sd">                 and :class:`Dimension` indices.</span>
+<span class="sd">    :param shape: (Optional) shape of the domain region in grid points.</span>
+<span class="sd">    :param dimensions: (Optional) symbolic dimensions that define the</span>
+<span class="sd">                       data layout and function indices of this symbol.</span>
 <span class="sd">    :param staggered: (Optional) tuple containing staggering offsets.</span>
+<span class="sd">    :param padding: (Optional) allocate extra grid points at a space dimension</span>
+<span class="sd">                    boundary. These may be used for non-symmetric stencils</span>
+<span class="sd">                    or simply to enforce data alignment. Defaults to 0.</span>
+<span class="sd">                    In alternative to an integer, a tuple, indicating</span>
+<span class="sd">                    the padding in each dimension, may be passed; in this</span>
+<span class="sd">                    case, an error is raised if such tuple has fewer entries</span>
+<span class="sd">                    then the number of space dimensions.</span>
 <span class="sd">    :param dtype: (Optional) data type of the buffered data</span>
+<span class="sd">    :param space_order: Discretisation order for space derivatives. By default,</span>
+<span class="sd">                        space derivatives are expressed in terms of centered</span>
+<span class="sd">                        approximations, with ``ceil(space_order/2)`` points</span>
+<span class="sd">                        on each side of the point of interest. For asymmetric</span>
+<span class="sd">                        approximations, one may pass a 3-tuple ``(o, lp, rp)``</span>
+<span class="sd">                        instead of a single integer. Here, ``o`` is the</span>
+<span class="sd">                        approximation order, while ``lp`` and ``rp`` indicate</span>
+<span class="sd">                        the maximum number of points that an approximation can</span>
+<span class="sd">                        use on the two sides of the point of interest.</span>
 <span class="sd">    :param save: Save the intermediate results to the data buffer. Defaults</span>
 <span class="sd">                 to ``None``, indicating the use of alternating buffers. If</span>
 <span class="sd">                 intermediate results are required, the value of save must</span>
@@ -507,7 +674,9 @@
 <span class="sd">                     symbol. Defaults to the time dimension provided by the :class:`Grid`.</span>
 <span class="sd">    :param time_order: Order of the time discretization which affects the</span>
 <span class="sd">                       final size of the leading time dimension of the</span>
-<span class="sd">                       data buffer.</span>
+<span class="sd">                       data buffer. Like ``space_order``, this can be a single</span>
+<span class="sd">                       integer or a 3-tuple.</span>
+<span class="sd">    :param time_padding: (Optional) allocate extra points along the time dimension.</span>
 
 <span class="sd">    .. note::</span>
 
@@ -544,8 +713,20 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
             <span class="nb">super</span><span class="p">(</span><span class="n">TimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_dim&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+            <span class="n">time_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">time_order</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">=</span> <span class="n">time_order</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="p">((</span><span class="n">time_order</span><span class="p">,</span> <span class="mi">0</span><span class="p">),)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">time_order</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">time_order</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">time_order</span><span class="p">,</span> <span class="n">left_points</span><span class="p">,</span> <span class="n">right_points</span> <span class="o">=</span> <span class="n">time_order</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">=</span> <span class="n">time_order</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="p">((</span><span class="n">left_points</span><span class="p">,</span> <span class="n">right_points</span><span class="p">),)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;space_order&#39; must be int or 3-tuple of ints&quot;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_padding&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span>
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
@@ -562,21 +743,13 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_size</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">shape_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Full allocated shape of the data associated with this :class:`TimeFunction`.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">shape_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">:</span>
             <span class="n">tsize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_size</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">tsize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">+</span> <span class="mi">1</span>
-        <span class="n">shape_domain</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="n">s</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span><span class="p">,</span>
-                                                   <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
-        <span class="k">return</span> <span class="p">(</span><span class="n">tsize</span><span class="p">,</span> <span class="p">)</span> <span class="o">+</span> <span class="n">shape_domain</span>
-
-<div class="viewcode-block" id="TimeFunction.initialize"><a class="viewcode-back" href="../../devito.html#devito.function.TimeFunction.initialize">[docs]</a>    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="n">tsize</span><span class="p">,)</span> <span class="o">+</span>\
+            <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_grid_shape_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -603,11 +776,6 @@
 
         <span class="n">_indices</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_indices</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">time_dim</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">_indices</span><span class="p">))</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns the spatial dimension of the data object&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -719,7 +887,6 @@
     <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the default dimension indices for a given data shape</span>
 
-<span class="sd">        :param shape: Shape of the spatial data</span>
 <span class="sd">        :return: indices used for axis.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
@@ -729,7 +896,7 @@
         <span class="k">return</span> <span class="n">dimensions</span> <span class="ow">or</span> <span class="n">indices</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">shape_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">shape_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Full allocated shape of the data associated with this</span>
 <span class="sd">        :class:`SparseFunction`.</span>

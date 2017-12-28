@@ -823,12 +823,27 @@ symbolic function.</p>
 <li><strong>name</strong> – Name of the symbol</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
 and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
-<li><strong>shape</strong> – (Optional) shape of the associated data for this symbol.</li>
+<li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
+<li><strong>padding</strong> – (Optional) allocate extra grid points at a space dimension
+boundary. These may be used for non-symmetric stencils
+or simply to enforce data alignment. Defaults to 0.
+In alternative to an integer, an iterable, indicating
+the padding in each dimension, may be passed; in this
+case, an error is raised if such iterable has fewer entries
+then the number of space dimensions.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
-<li><strong>space_order</strong> – Discretisation order for space derivatives</li>
+<li><strong>space_order</strong> – Discretisation order for space derivatives. By default,
+space derivatives are expressed in terms of centered
+approximations, with <code class="docutils literal"><span class="pre">ceil(space_order/2)</span></code> points
+on each side of the point of interest. For asymmetric
+approximations, one may pass a 3-tuple <code class="docutils literal"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
+instead of a single integer. Here, <code class="docutils literal"><span class="pre">o</span></code> is the
+approximation order, while <code class="docutils literal"><span class="pre">lp</span></code> and <code class="docutils literal"><span class="pre">rp</span></code> indicate
+the maximum number of points that an approximation can
+use on the two sides of the point of interest.</li>
 <li><strong>initializer</strong> – Function to initialize the data, optional</li>
 </ul>
 </td>
@@ -1094,8 +1109,27 @@ symbolic function.</p>
 <li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
 and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout and function indices of this symbol.</li>
 <li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
+<li><strong>padding</strong> – (Optional) allocate extra grid points at a space dimension
+boundary. These may be used for non-symmetric stencils
+or simply to enforce data alignment. Defaults to 0.
+In alternative to an integer, a tuple, indicating
+the padding in each dimension, may be passed; in this
+case, an error is raised if such tuple has fewer entries
+then the number of space dimensions.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
+<li><strong>space_order</strong> – Discretisation order for space derivatives. By default,
+space derivatives are expressed in terms of centered
+approximations, with <code class="docutils literal"><span class="pre">ceil(space_order/2)</span></code> points
+on each side of the point of interest. For asymmetric
+approximations, one may pass a 3-tuple <code class="docutils literal"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
+instead of a single integer. Here, <code class="docutils literal"><span class="pre">o</span></code> is the
+approximation order, while <code class="docutils literal"><span class="pre">lp</span></code> and <code class="docutils literal"><span class="pre">rp</span></code> indicate
+the maximum number of points that an approximation can
+use on the two sides of the point of interest.</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
 to <code class="docutils literal"><span class="pre">None</span></code>, indicating the use of alternating buffers. If
 intermediate results are required, the value of save must
@@ -1104,7 +1138,9 @@ be set to the required size of the time dimension.</li>
 symbol. Defaults to the time dimension provided by the <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code>.</li>
 <li><strong>time_order</strong> – Order of the time discretization which affects the
 final size of the leading time dimension of the
-data buffer.</li>
+data buffer. Like <code class="docutils literal"><span class="pre">space_order</span></code>, this can be a single
+integer or a 3-tuple.</li>
+<li><strong>time_padding</strong> – (Optional) allocate extra points along the time dimension.</li>
 </ul>
 </td>
 </tr>
@@ -1344,12 +1380,11 @@ derived time dimensions symbol. For example:</p>
 <dt id="devito.data.Data">
 <em class="property">class </em><code class="descclassname">devito.data.</code><code class="descname">Data</code><a class="reference internal" href="_modules/devito/data.html#Data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.Data" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></p>
+<p>A special <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> allowing logical indexing.</p>
 <p>The type <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> is subclassed as indicated at:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">docs</span><span class="o">.</span><span class="n">scipy</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">doc</span><span class="o">/</span><span class="n">numpy</span><span class="o">-</span><span class="mf">1.13</span><span class="o">.</span><span class="mi">0</span><span class="o">/</span><span class="n">user</span><span class="o">/</span><span class="n">basics</span><span class="o">.</span><span class="n">subclassing</span><span class="o">.</span><span class="n">html</span>
 </pre></div>
 </div>
-<p>The new instance takes an existing ndarray as input, casts it to one of
-type <code class="docutils literal"><span class="pre">Data</span></code>, and adds extra attributes (hence the need for subclassing)</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1358,7 +1393,6 @@ type <code class="docutils literal"><span class="pre">Data</span></code>, and ad
 <li><strong>shape</strong> – Shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – A tuple of <code class="xref py py-class docutils literal"><span class="pre">Dimension`s,</span> <span class="pre">representing</span> <span class="pre">the</span> <span class="pre">dimensions</span>
 <span class="pre">of</span> <span class="pre">the</span> <span class="pre">``Data`</span></code>.</li>
-<li><strong>halo</strong> – An integer indicating the extent of the halo region.</li>
 <li><strong>dtype</strong> – A <code class="docutils literal"><span class="pre">numpy.dtype</span></code> for the raw data.</li>
 </ul>
 </td>
@@ -1382,11 +1416,6 @@ performing logical indexing is lost.</p>
 <code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#Data.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.Data.reset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Set all grid entries to 0.</p>
 </dd></dl>
-
-<dl class="attribute">
-<dt id="devito.data.Data.with_halo">
-<code class="descname">with_halo</code><a class="headerlink" href="#devito.data.Data.with_halo" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 </dd></dl>
 
@@ -1872,12 +1901,27 @@ symbolic function.</p>
 <li><strong>name</strong> – Name of the symbol</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
 and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
-<li><strong>shape</strong> – (Optional) shape of the associated data for this symbol.</li>
+<li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
+<li><strong>padding</strong> – (Optional) allocate extra grid points at a space dimension
+boundary. These may be used for non-symmetric stencils
+or simply to enforce data alignment. Defaults to 0.
+In alternative to an integer, an iterable, indicating
+the padding in each dimension, may be passed; in this
+case, an error is raised if such iterable has fewer entries
+then the number of space dimensions.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
-<li><strong>space_order</strong> – Discretisation order for space derivatives</li>
+<li><strong>space_order</strong> – Discretisation order for space derivatives. By default,
+space derivatives are expressed in terms of centered
+approximations, with <code class="docutils literal"><span class="pre">ceil(space_order/2)</span></code> points
+on each side of the point of interest. For asymmetric
+approximations, one may pass a 3-tuple <code class="docutils literal"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
+instead of a single integer. Here, <code class="docutils literal"><span class="pre">o</span></code> is the
+approximation order, while <code class="docutils literal"><span class="pre">lp</span></code> and <code class="docutils literal"><span class="pre">rp</span></code> indicate
+the maximum number of points that an approximation can
+use on the two sides of the point of interest.</li>
 <li><strong>initializer</strong> – Function to initialize the data, optional</li>
 </ul>
 </td>
@@ -1910,14 +1954,35 @@ entry that should be staggered, and <code class="docutils literal"><span class="
 <dl class="attribute">
 <dt id="devito.function.Function.data">
 <code class="descname">data</code><a class="headerlink" href="#devito.function.Function.data" title="Permalink to this definition">¶</a></dt>
-<dd><p>The value of the data object, as a <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> storing
-elements in the classical row-major storage layout.</p>
+<dd><p>The domain data values, as a <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code>.</p>
+<p>Elements are stored in row-major format.</p>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.Function.data_allocated">
+<code class="descname">data_allocated</code><a class="headerlink" href="#devito.function.Function.data_allocated" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.Function.data_domain">
+<code class="descname">data_domain</code><a class="headerlink" href="#devito.function.Function.data_domain" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.Function.data_with_halo">
+<code class="descname">data_with_halo</code><a class="headerlink" href="#devito.function.Function.data_with_halo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.function.Function.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.function.Function.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.Function.dim">
+<code class="descname">dim</code><a class="headerlink" href="#devito.function.Function.dim" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the number of spatial dimensions.</p>
+</dd></dl>
 
 <dl class="method">
 <dt id="devito.function.Function.initialize">
@@ -1947,12 +2012,36 @@ wrt. all spatial dimensions.</p>
 <dl class="attribute">
 <dt id="devito.function.Function.shape">
 <code class="descname">shape</code><a class="headerlink" href="#devito.function.Function.shape" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Shape of the domain associated with this <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a>.
+The domain constitutes the area of the data written to in a
+stencil update and excludes the read-only stencil boundary.</p>
+</dd></dl>
 
 <dl class="attribute">
-<dt id="devito.function.Function.shape_data">
-<code class="descname">shape_data</code><a class="headerlink" href="#devito.function.Function.shape_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Full allocated shape of the data associated with this <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a>.</p>
+<dt id="devito.function.Function.shape_allocated">
+<code class="descname">shape_allocated</code><a class="headerlink" href="#devito.function.Function.shape_allocated" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shape of the allocated data associated with this <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a>.
+It includes the domain and halo regions, as well as any additional
+padding outside of the halo.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.Function.shape_domain">
+<code class="descname">shape_domain</code><a class="headerlink" href="#devito.function.Function.shape_domain" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shape of the domain associated with this <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a>.
+The domain constitutes the area of the data written to in a
+stencil update and excludes the read-only stencil boundary.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Alias to <code class="docutils literal"><span class="pre">self.shape</span></code>.</p>
+</div>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.Function.shape_with_halo">
+<code class="descname">shape_with_halo</code><a class="headerlink" href="#devito.function.Function.shape_with_halo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shape of the domain plus the read-only stencil boundary associated
+with this <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a>.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -1984,8 +2073,27 @@ according to the <code class="docutils literal"><span class="pre">staggered</spa
 <li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
 and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout and function indices of this symbol.</li>
 <li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
+<li><strong>padding</strong> – (Optional) allocate extra grid points at a space dimension
+boundary. These may be used for non-symmetric stencils
+or simply to enforce data alignment. Defaults to 0.
+In alternative to an integer, a tuple, indicating
+the padding in each dimension, may be passed; in this
+case, an error is raised if such tuple has fewer entries
+then the number of space dimensions.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
+<li><strong>space_order</strong> – Discretisation order for space derivatives. By default,
+space derivatives are expressed in terms of centered
+approximations, with <code class="docutils literal"><span class="pre">ceil(space_order/2)</span></code> points
+on each side of the point of interest. For asymmetric
+approximations, one may pass a 3-tuple <code class="docutils literal"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
+instead of a single integer. Here, <code class="docutils literal"><span class="pre">o</span></code> is the
+approximation order, while <code class="docutils literal"><span class="pre">lp</span></code> and <code class="docutils literal"><span class="pre">rp</span></code> indicate
+the maximum number of points that an approximation can
+use on the two sides of the point of interest.</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
 to <code class="docutils literal"><span class="pre">None</span></code>, indicating the use of alternating buffers. If
 intermediate results are required, the value of save must
@@ -1994,7 +2102,9 @@ be set to the required size of the time dimension.</li>
 symbol. Defaults to the time dimension provided by the <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code>.</li>
 <li><strong>time_order</strong> – Order of the time discretization which affects the
 final size of the leading time dimension of the
-data buffer.</li>
+data buffer. Like <code class="docutils literal"><span class="pre">space_order</span></code>, this can be a single
+integer or a 3-tuple.</li>
+<li><strong>time_padding</strong> – (Optional) allocate extra points along the time dimension.</li>
 </ul>
 </td>
 </tr>
@@ -2037,12 +2147,6 @@ derived time dimensions symbol. For example:</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.function.TimeFunction.dim">
-<code class="descname">dim</code><a class="headerlink" href="#devito.function.TimeFunction.dim" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the spatial dimension of the data object</p>
-</dd></dl>
-
-<dl class="attribute">
 <dt id="devito.function.TimeFunction.dt">
 <code class="descname">dt</code><a class="headerlink" href="#devito.function.TimeFunction.dt" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for the first derivative wrt the time dimension</p>
@@ -2060,21 +2164,15 @@ derived time dimensions symbol. For example:</p>
 <dd><p>Symbol for the time-forward state of the function</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="devito.function.TimeFunction.initialize">
-<code class="descname">initialize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#TimeFunction.initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.TimeFunction.initialize" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="attribute">
 <dt id="devito.function.TimeFunction.is_TimeFunction">
 <code class="descname">is_TimeFunction</code><em class="property"> = True</em><a class="headerlink" href="#devito.function.TimeFunction.is_TimeFunction" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.function.TimeFunction.shape_data">
-<code class="descname">shape_data</code><a class="headerlink" href="#devito.function.TimeFunction.shape_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Full allocated shape of the data associated with this <a class="reference internal" href="#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal"><span class="pre">TimeFunction</span></code></a>.</p>
-</dd></dl>
+<dt id="devito.function.TimeFunction.shape_domain">
+<code class="descname">shape_domain</code><a class="headerlink" href="#devito.function.TimeFunction.shape_domain" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
@@ -2211,8 +2309,8 @@ the sparse point data.</li>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.function.SparseFunction.shape_data">
-<code class="descname">shape_data</code><a class="headerlink" href="#devito.function.SparseFunction.shape_data" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.function.SparseFunction.shape_domain">
+<code class="descname">shape_domain</code><a class="headerlink" href="#devito.function.SparseFunction.shape_domain" title="Permalink to this definition">¶</a></dt>
 <dd><p>Full allocated shape of the data associated with this
 <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal"><span class="pre">SparseFunction</span></code></a>.</p>
 </dd></dl>

@@ -413,6 +413,12 @@
         <li><a href="devito.html#devito.function.Function.data">(devito.function.Function attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.html#devito.function.Function.data_allocated">data_allocated (devito.function.Function attribute)</a>
+</li>
+      <li><a href="devito.html#devito.function.Function.data_domain">data_domain (devito.function.Function attribute)</a>
+</li>
+      <li><a href="devito.html#devito.function.Function.data_with_halo">data_with_halo (devito.function.Function attribute)</a>
+</li>
       <li><a href="devito.html#devito.base.Array.default_assumptions">default_assumptions (devito.base.Array attribute)</a>
 
       <ul>
@@ -537,10 +543,10 @@
 </li>
       <li><a href="devito.dle.html#module-devito.dle.transformer">devito.dle.transformer (module)</a>
 </li>
-      <li><a href="devito.dse.html#module-devito.dse">devito.dse (module)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.dse.html#module-devito.dse">devito.dse (module)</a>
+</li>
       <li><a href="devito.dse.html#module-devito.dse.aliases">devito.dse.aliases (module)</a>
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends">devito.dse.backends (module)</a>
@@ -635,7 +641,7 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.diameter">diameter (devito.ir.support.stencil.Stencil attribute)</a>
 </li>
-      <li><a href="devito.html#devito.function.TimeFunction.dim">dim (devito.function.TimeFunction attribute)</a>
+      <li><a href="devito.html#devito.function.Function.dim">dim (devito.function.Function attribute)</a>
 
       <ul>
         <li><a href="devito.html#devito.grid.Grid.dim">(devito.grid.Grid attribute)</a>
@@ -958,11 +964,7 @@
       <li><a href="devito.html#devito.backends.initialised_backend">initialised_backend() (in module devito.backends)</a>
 </li>
       <li><a href="devito.html#devito.function.Function.initialize">initialize() (devito.function.Function method)</a>
-
-      <ul>
-        <li><a href="devito.html#devito.function.TimeFunction.initialize">(devito.function.TimeFunction method)</a>
 </li>
-      </ul></li>
       <li><a href="devito.html#devito.function.SparseFunction.inject">inject() (devito.function.SparseFunction method)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.INT">INT (class in devito.cgen_utils)</a>
@@ -1669,20 +1671,22 @@
         <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.shape">(devito.ir.iet.nodes.Expression attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.function.Function.shape_data">shape_data (devito.function.Function attribute)</a>
+      <li><a href="devito.html#devito.function.Function.shape_allocated">shape_allocated (devito.function.Function attribute)</a>
+</li>
+      <li><a href="devito.html#devito.function.Function.shape_domain">shape_domain (devito.function.Function attribute)</a>
 
       <ul>
-        <li><a href="devito.html#devito.function.SparseFunction.shape_data">(devito.function.SparseFunction attribute)</a>
+        <li><a href="devito.html#devito.function.SparseFunction.shape_domain">(devito.function.SparseFunction attribute)</a>
 </li>
-        <li><a href="devito.html#devito.function.TimeFunction.shape_data">(devito.function.TimeFunction attribute)</a>
+        <li><a href="devito.html#devito.function.TimeFunction.shape_domain">(devito.function.TimeFunction attribute)</a>
 </li>
-      </ul></li>
-      <li><a href="devito.html#devito.grid.Grid.shape_domain">shape_domain (devito.grid.Grid attribute)</a>
-
-      <ul>
+        <li><a href="devito.html#devito.grid.Grid.shape_domain">(devito.grid.Grid attribute)</a>
+</li>
         <li><a href="examples.seismic.html#examples.seismic.model.Model.shape_domain">(examples.seismic.model.Model attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.html#devito.function.Function.shape_with_halo">shape_with_halo (devito.function.Function attribute)</a>
+</li>
       <li><a href="examples.seismic.html#examples.seismic.source.Shot">Shot (in module examples.seismic.source)</a>
 </li>
       <li><a href="devito.html#devito.tools.silencio">silencio (class in devito.tools)</a>
@@ -2033,8 +2037,6 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.data.Data.with_halo">with_halo (devito.data.Data attribute)</a>
-</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.properties.WRAPPABLE">WRAPPABLE (in module devito.ir.iet.properties)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.write">write (devito.ir.iet.nodes.Expression attribute)</a>
