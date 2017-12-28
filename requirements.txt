@@ -15,4 +15,5 @@ dask
 distributed
 scikit-image
 click
+codecov
 git+https://github.com/opesci/pyrevolve

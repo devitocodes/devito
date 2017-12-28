@@ -89,6 +89,9 @@ script:
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/cfd; fi
 
+  # Code coverage
+  - codecov
+
   # Docs generation
   - sphinx-apidoc -f -o docs/ examples
   - sphinx-apidoc -f -o docs/ devito devito/yask/*
