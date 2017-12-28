@@ -72,7 +72,7 @@ before_script:
 
 script:
   - flake8 --builtins=ArgumentError .
-  - py.test -vs tests/
+  - py.test -vs --cov devito tests/
 
   # Additional seismic operator tests
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then

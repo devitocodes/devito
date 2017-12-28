@@ -16,4 +16,5 @@ distributed
 scikit-image
 click
 codecov
+pytest-cov
 git+https://github.com/opesci/pyrevolve
