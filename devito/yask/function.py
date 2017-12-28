@@ -69,6 +69,27 @@ class Function(function.Function):
         return ndarray
 
     @property
+    def shape_with_halo(self):
+        """
+        Shape of the domain plus the read-only stencil boundary associated
+        with this :class:`Function`.
+        """
+        # TODO: Drop me after the domain-allocation switch, as this method
+        # will be provided by the superclass
+        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
+
+    @property
+    def shape_allocated(self):
+        """
+        Shape of the allocated data associated with this :class:`Function`.
+        It includes the domain and halo regions, as well as any additional
+        padding outside of the halo.
+        """
+        # TODO: Drop me after the domain-allocation switch, as this method
+        # will be provided by the superclass
+        return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
+
+    @property
     def data(self):
         """
         The domain data values, as a :class:`Data`.

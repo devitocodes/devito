@@ -374,7 +374,10 @@ class Function(TensorFunction):
         Shape of the domain plus the read-only stencil boundary associated
         with this :class:`Function`.
         """
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
+        # TODO: for the domain-allocation switch, this needs to return the shape
+        # of the data including the halo region, ie:
+        # `tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))`
+        raise NotImplementedError
 
     @property
     def shape_allocated(self):
@@ -383,7 +386,10 @@ class Function(TensorFunction):
         It includes the domain and halo regions, as well as any additional
         padding outside of the halo.
         """
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
+        # TODO: for the domain-allocation switch, this needs to return the shape
+        # of the data including the halo and padding regions, ie:
+        # `tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))`
+        raise NotImplementedError
 
     @property
     def space_dimensions(self):
@@ -435,7 +441,9 @@ class Function(TensorFunction):
 
         Elements are stored in row-major format.
         """
-        return self._data
+        # TODO: for the domain-allocation switch, this needs to return all
+        # allocated data values, i.e. self._data
+        raise NotImplementedError
 
     @property
     def laplace(self):
