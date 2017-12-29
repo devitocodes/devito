@@ -1,7 +1,7 @@
 import abc
 
 import numpy as np
-from collections import OrderedDict
+from collections import OrderedDict, Iterable
 from functools import reduce
 from itertools import chain
 
@@ -69,9 +69,11 @@ class Parameter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, name, dependencies):
+    def __init__(self, name, provider, dependencies):
         self.name = name
+        assert(isinstance(dependencies, Iterable))
         self.dependencies = dependencies
+        self.provider = provider
 
     @property
     def gets_value_from(self):
@@ -94,8 +96,7 @@ class DimensionParameter(Parameter):
     is_DimensionParameter = True
 
     def __init__(self, provider, dependencies):
-        super(DimensionParameter, self).__init__(provider.name, dependencies)
-        self.provider = provider
+        super(DimensionParameter, self).__init__(provider.name, provider, dependencies)
 
 
 class Argument(Parameter):
@@ -105,8 +106,8 @@ class Argument(Parameter):
     """
     is_Argument = True
 
-    def __init__(self, name, dependencies, dtype=np.int32):
-        super(Argument, self).__init__(name, dependencies)
+    def __init__(self, name, provider, dependencies, dtype=np.int32):
+        super(Argument, self).__init__(name, provider, dependencies)
         self.dtype = dtype
 
 
@@ -128,10 +129,9 @@ class TensorArgument(Argument):
     def __init__(self, provider, dependencies=None):
         if dependencies is None:
             dependencies = []
-        super(TensorArgument, self).__init__(provider.name,
+        super(TensorArgument, self).__init__(provider.name, provider,
                                              dependencies + [ValueDependency(provider)],
                                              provider.dtype)
-        self.provider = provider
 
 
 class PtrArgument(Argument):
@@ -144,7 +144,7 @@ class PtrArgument(Argument):
     is_PtrArgument = True
 
     def __init__(self, provider):
-        super(PtrArgument, self).__init__(provider.name,
+        super(PtrArgument, self).__init__(provider.name, provider,
                                           [ValueDependency(provider)], provider.dtype)
 
 
@@ -332,9 +332,9 @@ class ArgumentVisitor(GenericVisitor):
 
     def visit_DimensionParameter(self, o):
         dependency = ValueDependency(o)
-        size = ScalarArgument(o.provider.size_name, [dependency])
-        start = ScalarArgument(o.provider.start_name, [dependency])
-        end = ScalarArgument(o.provider.end_name, [dependency])
+        size = ScalarArgument(o.provider.size_name, o, [dependency])
+        start = ScalarArgument(o.provider.start_name, o, [dependency])
+        end = ScalarArgument(o.provider.end_name, o, [dependency])
         return [size, start, end]
 
     def visit_Object(self, o):
@@ -344,15 +344,11 @@ class ArgumentVisitor(GenericVisitor):
         return TensorArgument(o)
 
     def visit_Scalar(self, o):
-        arg = ScalarArgument(o.name, o, dtype=o.dtype)
-        arg.provider = o
-        return arg
+        return ScalarArgument(o.name, o, [], dtype=o.dtype)
 
     def visit_Constant(self, o):
         # TODO: Add option for delayed query of default value
-        arg = ScalarArgument(o.name, [ValueDependency(o)], dtype=o.dtype)
-        arg.provider = o
-        return arg
+        return ScalarArgument(o.name, o, [ValueDependency(o)], dtype=o.dtype)
 
 
 class ValueVisitor(GenericVisitor):
