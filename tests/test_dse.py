@@ -7,7 +7,7 @@ from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito import Eq  # noqa
 from devito.operator import make_stencils
-from devito.ir import Stencil, clusterize, TemporariesGraph
+from devito.ir import Stencil, clusterize, FlowGraph
 from devito.dse import rewrite, common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul, indexify)
@@ -194,7 +194,7 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
     make = lambda i: Scalar(name='r%d' % i).indexify()
     processed, found = xreplace_constrained(exprs, make,
-                                            iq_timeinvariant(TemporariesGraph(exprs)),
+                                            iq_timeinvariant(FlowGraph(exprs)),
                                             lambda i: estimate_cost(i) > 0)
     assert len(found) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
@@ -220,7 +220,7 @@ def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
     make = lambda i: Scalar(name='r%d' % i).indexify()
     processed, found = xreplace_constrained(exprs, make,
-                                            iq_timevarying(TemporariesGraph(exprs)),
+                                            iq_timevarying(FlowGraph(exprs)),
                                             lambda i: estimate_cost(i) > 0)
     assert len(found) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
@@ -256,7 +256,7 @@ def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expect
 tw: {ti0, ti1, t1, tw}, ti0: {ti0, t0}, ti1: {ti1, t1, t0}, t0: {t0}, t1: {t1}}'),
 ])
 def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
-    g = TemporariesGraph(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1))
+    g = FlowGraph(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1))
     mapper = eval(expected)
     for i in [tu, tv, tw, ti0, ti1, t0, t1]:
         assert set([j.lhs for j in g.trace(i)]) == mapper[i]
@@ -281,7 +281,7 @@ def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
                       '{t0: True, t1: False}')),
 ])
 def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
-    g = TemporariesGraph(EVAL(exprs, fa, fb, fc, t0, t1, t2))
+    g = FlowGraph(EVAL(exprs, fa, fb, fc, t0, t1, t2))
     mapper = eval(expected)
     for k, v in mapper.items():
         assert g.is_index(k) == v

@@ -4,15 +4,14 @@ from itertools import islice
 from cached_property import cached_property
 
 from devito.dimension import Dimension
-from devito.exceptions import DSEException
 from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminals,
                               q_inc, q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
 
-__all__ = ['TemporariesGraph']
+__all__ = ['FlowGraph']
 
 
-class Temporary(Eq):
+class Node(Eq):
 
     """
     A special :class:`sympy.Eq` which keeps track of: ::
@@ -25,7 +24,7 @@ class Temporary(Eq):
         reads = kwargs.pop('reads', [])
         readby = kwargs.pop('readby', [])
         inc = kwargs.pop('inc', False)
-        obj = super(Temporary, cls).__new__(cls, lhs, rhs, **kwargs)
+        obj = super(Node, cls).__new__(cls, lhs, rhs, **kwargs)
         obj._is_Increment = inc
         obj._reads = set(reads)
         obj._readby = set(readby)
@@ -60,14 +59,14 @@ class Temporary(Eq):
         reads = reads % ('' if len(self.reads) <= 2 else ', ...')
         readby = '[%s%s]' % (', '.join([str(i) for i in self.readby][:2]), '%s')
         readby = readby % ('' if len(self.readby) <= 2 else ', ...')
-        return "Temp(key=%s, reads=%s, readby=%s)" % (self.lhs, reads, readby)
+        return "Node(key=%s, reads=%s, readby=%s)" % (self.lhs, reads, readby)
 
 
-class TemporariesGraph(OrderedDict):
+class FlowGraph(OrderedDict):
 
     """
-    A temporaries graph represents an ordered sequence of operations. Operations,
-    of type :class:`Temporary`, are the nodes of the graph. An edge from ``n0`` to
+    A FlowGraph represents an ordered sequence of operations. Operations,
+    of type :class:`Node`, are the nodes of the graph. An edge from ``n0`` to
     ``n1`` indicates that ``n1`` reads from ``n0``. For example, the sequence: ::
 
         temp0 = a*b
@@ -75,7 +74,7 @@ class TemporariesGraph(OrderedDict):
         temp2 = temp0*d
         temp3 = temp1 + temp2
 
-    is represented by the following TemporariesGraph: ::
+    is represented by the following FlowGraph: ::
 
         temp0 ---> temp1
           |          |
@@ -94,9 +93,9 @@ class TemporariesGraph(OrderedDict):
         # Check input legality
         mapper = OrderedDict([(i.lhs, i) for i in exprs])
         if len(set(mapper)) != len(mapper):
-            raise DSEException("Found redundant node, cannot build TemporariesGraph.")
+            raise ValueError("Found redundant node, cannot build a FlowGraph.")
 
-        # Construct Temporaries, tracking reads and readby
+        # Construct the Nodes, tracking reads and readby
         tensor_map = DefaultOrderedDict(list)
         for i in mapper:
             tensor_map[as_symbol(i)].append(i)
@@ -126,11 +125,11 @@ class TemporariesGraph(OrderedDict):
             else:
                 queue.append(k)
 
-        # Build up the TemporariesGraph
-        temporaries = [(i, Temporary(*mapper[i].args, inc=q_inc(mapper[i]),
-                                     reads=reads[i], readby=readby[i]))
+        # Build up the FlowGraph
+        temporaries = [(i, Node(*mapper[i].args, inc=q_inc(mapper[i]),
+                                reads=reads[i], readby=readby[i]))
                        for i in processed]
-        super(TemporariesGraph, self).__init__(temporaries, **kwargs)
+        super(FlowGraph, self).__init__(temporaries, **kwargs)
 
         # Determine indices along the space and time dimensions
         terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
@@ -173,9 +172,9 @@ class TemporariesGraph(OrderedDict):
     def time_invariant(self, expr=None):
         """
         Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``
-        explicitly tracked by the TemporariesGraph or even a generic subexpression
+        explicitly tracked by the FlowGraph or even a generic subexpression
         of ``e``. If no ``expr`` is provided, then time invariance of the entire
-        TemporariesGraph is assessed.
+        FlowGraph is assessed.
         """
         if expr is None:
             return all(self.time_invariant(v) for v in self.values())
@@ -207,7 +206,7 @@ class TemporariesGraph(OrderedDict):
     def is_index(self, key):
         """
         Return True if ``key`` is used as array index in an expression of the
-        TemporariesGraph, False otherwise.
+        FlowGraph, False otherwise.
         """
         if key not in self:
             return False
@@ -237,7 +236,7 @@ class TemporariesGraph(OrderedDict):
             t2 = ...
 
         Assuming ``key == v`` and ``readby is False`` (as by default), return
-        the following list of :class:`Temporary` objects: ::
+        the following list of :class:`Node` objects: ::
 
             [t1, t0, u[i, j], u[3, j]]
 
@@ -256,7 +255,7 @@ class TemporariesGraph(OrderedDict):
 
     def __getitem__(self, key):
         if not isinstance(key, slice):
-            return super(TemporariesGraph, self).__getitem__(key)
+            return super(FlowGraph, self).__getitem__(key)
         offset = key.step or 0
         try:
             start = list(self.keys()).index(key.start) + offset
@@ -266,7 +265,7 @@ class TemporariesGraph(OrderedDict):
             stop = list(self.keys()).index(key.stop) + offset
         except ValueError:
             stop = None
-        return TemporariesGraph(islice(list(self.items()), start, stop))
+        return FlowGraph(islice(list(self.items()), start, stop))
 
     @cached_property
     def unknown(self):
