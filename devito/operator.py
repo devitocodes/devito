@@ -7,26 +7,26 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.exceptions import InvalidOperator
+from devito.arguments import ArgumentEngine
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
+from devito.exceptions import InvalidOperator
 from devito.function import Forward, Backward
 from devito.logger import bar, info
+from devito.ir.equations import Eq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Element, Expression, Callable, Iteration, List,
                            LocalExpression, MapExpressions, ResolveTimeStepping,
                            SubstituteExpression, Transformer, NestedTransformer,
                            analyze_iterations, compose_nodes, filter_iterations)
-from devito.ir.support import Stencil
 from devito.parameters import configuration
 from devito.profiling import create_profile
-from devito.symbolics import indexify, retrieve_terminals
+from devito.symbolics import retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
 from devito.types import Object
-from devito.arguments import ArgumentEngine
 
 
 class Operator(Callable):
@@ -78,14 +78,10 @@ class Operator(Callable):
         # References to local or external routines
         self.func_table = OrderedDict()
 
-        # Expression lowering
-        expressions = [indexify(s) for s in expressions]
-        expressions = [s.xreplace(subs) for s in expressions]
-
-        # Analysis
+        # Expression lowering and analysis
+        expressions = [Eq(e, subs=subs) for e in expressions]
         self.dtype = retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = retrieve_symbols(expressions)
-        stencils = make_stencils(expressions)
 
         # Set the direction of time acoording to the given TimeAxis
         for time in [d for d in self.dimensions if d.is_Time]:
@@ -95,10 +91,9 @@ class Operator(Callable):
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = self.input + self.dimensions
 
-        # Group expressions based on their Stencil and data dependences
-        clusters = clusterize(expressions, stencils)
-
-        # Apply the Devito Symbolic Engine (DSE) for symbolic optimization
+        # Group expressions based on their iteration space and data dependences,
+        # and apply the Devito Symbolic Engine (DSE) for flop optimization
+        clusters = clusterize(expressions)
         clusters = rewrite(clusters, mode=set_dse_mode(dse))
 
         # Wrap expressions with Iterations according to dimensions
@@ -133,8 +128,9 @@ class Operator(Callable):
         # Introduce all required C declarations
         nodes = self._insert_declarations(dle_state.nodes)
 
-        # Initialise Argument Engine
-        self.argument_engine = ArgumentEngine(stencils, parameters, self.dle_arguments)
+        # Initialise ArgumentEngine
+        self.argument_engine = ArgumentEngine(clusters.ispace, parameters,
+                                              self.dle_arguments)
 
         parameters = self.argument_engine.arguments
 
@@ -217,9 +213,9 @@ class Operator(Callable):
             expressions = [Expression(v, np.int32 if i.trace.is_index(k) else self.dtype)
                            for k, v in i.trace.items()]
 
-            if not i.stencil.empty:
+            if not i.ispace.empty:
                 root = None
-                entries = i.stencil.entries
+                entries = i.ispace.intervals
 
                 # Can I reuse any of the previously scheduled Iterations ?
                 index = 0
@@ -231,8 +227,8 @@ class Operator(Callable):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.limits, offsets=j.ofs) for j in
-                         needed]
+                iters = [Iteration([], j.dim, j.dim.limits, offsets=j.limits)
+                         for j in needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:
@@ -392,21 +388,6 @@ def retrieve_symbols(expressions):
     dimensions = filter_sorted(dimensions, key=attrgetter('name'))
 
     return input, output, dimensions
-
-
-def make_stencils(expressions):
-    """
-    Create a :class:`Stencil` for each of the provided expressions. The following
-    rules apply: ::
-
-        * A :class:`SteppingDimension` ``d`` is replaced by its parent ``d.parent``.
-    """
-    stencils = [Stencil(i) for i in expressions]
-    dimensions = set.union(*[set(i.dimensions) for i in stencils])
-
-    # Filter out aliasing stepping dimensions
-    mapper = {d.parent: d for d in dimensions if d.is_Stepping}
-    return [i.replace(mapper) for i in stencils]
 
 
 # Misc helpers

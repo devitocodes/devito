@@ -9,7 +9,6 @@ from devito.exceptions import InvalidArgument
 from devito.tools import filter_ordered, flatten, GenericVisitor
 from devito.function import CompositeFunction, SymbolicFunction
 from devito.dimension import Dimension
-from devito.ir.support.stencil import Stencil
 
 
 """ This module contains a set of classes and functions to deal with runtime arguments
@@ -151,14 +150,14 @@ class PtrArgument(Argument):
 class ArgumentEngine(object):
     """ Class that encapsulates the argument derivation and verification subsystem
     """
-    def __init__(self, stencils, parameters, dle_arguments):
+    def __init__(self, ispace, parameters, dle_arguments):
         self.parameters = parameters
         self.dle_arguments = dle_arguments
         argument_list = self._build_arguments_list(parameters)
         self.arguments = filter_ordered([x for x in argument_list if x.is_Argument],
                                         key=lambda x: x.name)
         self.dimension_params = [x for x in argument_list if x.is_DimensionParameter]
-        self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
+        self.offsets = retrieve_offsets(ispace)
 
     def handle(self, **kwargs):
         """ The main method by which the :class:`Operator` interacts with this class.
@@ -508,15 +507,14 @@ def runtime_dim_extent(dimension, values):
         return None
 
 
-def retrieve_offsets(stencils):
+def retrieve_offsets(ispace):
     """
     Return a mapper from :class:`Dimension`s to the min/max integer offsets
-    within ``stencils``.
+    within ``ispace``.
     """
-    offs = Stencil.union(*stencils)
-    mapper = {d: v for d, v in offs.diameter.items()}
+    mapper = {i.dim: i.min_extent for i in ispace.intervals}
     mapper.update({d.parent: v for d, v in mapper.items() if d.is_Stepping})
-    return mapper
+    return {d.end_name: v for d, v in mapper.items()}
 
 
 def derive_dle_arg_value(blocked_dim, known_values, dle_argument):

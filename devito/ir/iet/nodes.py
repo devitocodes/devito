@@ -241,7 +241,7 @@ class Iteration(Node):
     :param limits: Limits for the iteration space, either the loop size or a
                    tuple of the form (start, finish, stepping).
     :param index: Symbol to be used as iteration variable.
-    :param offsets: Optional map list of offsets to honour in the loop.
+    :param offsets: A 2-tuple of start and end offsets to honour in the loop.
     :param properties: A bag of :class:`IterationProperty` objects, decorating
                        the Iteration (sequential, parallel, vectorizable, ...).
     :param pragmas: A bag of pragmas attached to this Iteration.
@@ -271,15 +271,13 @@ class Iteration(Node):
         # Generate loop limits
         if isinstance(limits, Iterable):
             assert(len(limits) == 3)
-            self.limits = list(limits)
+            self.limits = tuple(limits)
         else:
-            self.limits = list((0, limits, 1))
+            self.limits = (0, limits, 1)
 
         # Record offsets to later adjust loop limits accordingly
-        self.offsets = [0, 0]
-        for off in (offsets or {}):
-            self.offsets[0] = min(self.offsets[0], int(off))
-            self.offsets[1] = max(self.offsets[1], int(off))
+        self.offsets = (0, 0) if offsets is None else as_tuple(offsets)
+        assert len(self.offsets) == 2
 
         # Track this Iteration's properties, pragmas and unbounded indices
         properties = as_tuple(properties)
@@ -361,7 +359,7 @@ class Iteration(Node):
         except TypeError:
             # Already a symbolic expression
             pass
-        return (start - as_symbol(self.offsets[0]), end - as_symbol(self.offsets[1]))
+        return (start + as_symbol(self.offsets[0]), end + as_symbol(self.offsets[1]))
 
     @property
     def extent_symbolic(self):
@@ -392,8 +390,8 @@ class Iteration(Node):
         lower = start if start is not None else self.limits[0]
         upper = finish if finish is not None else self.limits[1]
 
-        lower = lower - self.offsets[0]
-        upper = upper - self.offsets[1]
+        lower = lower + self.offsets[0]
+        upper = upper + self.offsets[1]
 
         return (lower, upper)
 

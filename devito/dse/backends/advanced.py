@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from devito.ir import clusterize
+from devito.ir import Cluster, ClusterGroup, groupby
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
 from devito.symbolics import Eq, estimate_cost, xreplace_constrained, iq_timeinvariant
@@ -130,33 +130,28 @@ class AdvancedRewriter(BasicRewriter):
             else:
                 processed.append(Eq(k, v.rhs))
 
-        # Create temporaries capturing redundant computation
-        expressions = []
-        stencils = []
+        # Create alias Clusters and all necessary substitution rules
+        # for the new temporaries
+        alias_clusters = ClusterGroup()
         rules = OrderedDict()
         for c, (origin, alias) in enumerate(aliases.items()):
             if all(i not in candidates for i in alias.aliased):
                 continue
-            # Build alias expression
             function = make(c)
-            expressions.append(Eq(Indexed(function, *indices), origin))
-            # Build substitution rules
+            # Build new Cluster
+            expression = Eq(Indexed(function, *indices), origin)
+            ispace = cluster.ispace.subtract(alias.anti_stencil.boxify().negate())
+            if all(time_invariants[i] for i in alias.aliased):
+                ispace = ispace.drop(g.time_indices)
+            alias_clusters.append(Cluster([expression], ispace))
+            # Update substitution rules
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
                 temporary = Indexed(function, *tuple(coordinates))
                 rules[candidates[aliased]] = temporary
                 rules[aliased] = temporary
-            # Build cluster stencil
-            stencil = alias.anti_stencil.anti(cluster.stencil)
-            if all(time_invariants[i] for i in alias.aliased):
-                # Optimization: drop time dimension if time-invariant and the
-                # alias involves a complex calculation
-                stencil = stencil.section(g.time_indices)
-            stencils.append(stencil)
-
-        # Create the alias clusters
-        alias_clusters = clusterize(expressions, stencils)
-        alias_clusters = sorted(alias_clusters, key=lambda i: i.is_dense)
+        alias_clusters = groupby(alias_clusters).finalize()
+        alias_clusters.sort(key=lambda i: i.is_dense)
 
         # Switch temporaries in the expression trees
         processed = [e.xreplace(rules) for e in processed]

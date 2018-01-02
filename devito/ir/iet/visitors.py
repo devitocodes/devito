@@ -193,7 +193,7 @@ class CGen(Visitor):
 
         # Start
         if o.offsets[0] != 0:
-            start = "%s + %s" % (o.limits[0], -o.offsets[0])
+            start = str(o.limits[0] + o.offsets[0])
             try:
                 start = eval(start)
             except (NameError, TypeError):
@@ -203,7 +203,7 @@ class CGen(Visitor):
 
         # Bound
         if o.offsets[1] != 0:
-            end = "%s - %s" % (o.limits[1], o.offsets[1])
+            end = str(o.limits[1] + o.offsets[1])
             try:
                 end = eval(end)
             except (NameError, TypeError):

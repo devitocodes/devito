@@ -1,9 +1,10 @@
 from collections import defaultdict
 
+from sympy import Eq
 from cached_property import cached_property
 
+from devito.ir.support import Box
 from devito.ir.clusters.graph import FlowGraph
-from devito.tools import as_tuple
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -11,32 +12,27 @@ __all__ = ["Cluster", "ClusterGroup"]
 class PartialCluster(object):
 
     """
-    A PartialCluster is an ordered sequence of expressions that result in the
-    computation of a tensor, plus the tensor expression itself.
+    A PartialCluster is an ordered sequence of scalar expressions that contribute
+    to the computation of a tensor, plus the tensor expression itself.
 
-    PartialClusters are mutable -- in particular, their stencil as well as
-    the embedded sequence of expressions are subjected to modifications.
+    A PartialCluster is mutable.
+
+    :param exprs: The ordered sequence of expressions computing a tensor.
+    :param ispace: An object of type :class:`Box`, representing the iteration
+                   space of the cluster.
     """
 
-    def __init__(self, exprs, stencil):
-        """
-        Initialize a PartialCluster.
-
-        :param exprs: The ordered sequence of expressions computing a tensor.
-        :param stencil: An object of type :class:`Stencil`, which provides
-                        information about the points accessed along each dimension
-                        to compute the output tensor.
-        """
+    def __init__(self, exprs, ispace):
         self._exprs = list(exprs)
-        self._stencil = stencil
+        self._ispace = ispace
 
     @property
     def exprs(self):
         return self._exprs
 
     @property
-    def stencil(self):
-        return self._stencil
+    def ispace(self):
+        return self._ispace
 
     @property
     def trace(self):
@@ -54,25 +50,25 @@ class PartialCluster(object):
     def exprs(self, val):
         self._exprs = val
 
-    @stencil.setter
-    def stencil(self, val):
-        self._stencil = val
+    @ispace.setter
+    def ispace(self, val):
+        raise AttributeError
 
     def squash(self, other):
         """Concatenate the expressions in ``other`` to those in ``self``.
-        ``self`` and ``other`` must have same ``stencil``. Duplicate
+        ``self`` and ``other`` must have same ``ispace``. Duplicate
         expressions are dropped."""
-        assert self.stencil == other.stencil
+        assert self.ispace == other.ispace
         self.exprs.extend([i for i in other.exprs if i not in self.exprs])
 
 
 class Cluster(PartialCluster):
 
-    """A Cluster is an immutable PartialCluster."""
+    """A Cluster is an immutable :class:`PartialCluster`."""
 
-    def __init__(self, exprs, stencil):
-        self._exprs = as_tuple(exprs)
-        self._stencil = stencil.frozen
+    def __init__(self, exprs, ispace):
+        self._exprs = tuple(Eq(*i.args, evaluate=False) for i in exprs)
+        self._ispace = ispace
 
     @cached_property
     def trace(self):
@@ -88,16 +84,13 @@ class Cluster(PartialCluster):
 
     def rebuild(self, exprs):
         """
-        Build a new cluster with expressions ``exprs`` having same stencil as ``self``.
+        Build a new cluster with expressions ``exprs`` having same iteration
+        space as ``self``.
         """
-        return Cluster(exprs, self.stencil)
+        return Cluster(exprs, self.ispace)
 
     @PartialCluster.exprs.setter
     def exprs(self, val):
-        raise AttributeError
-
-    @PartialCluster.stencil.setter
-    def stencil(self, val):
         raise AttributeError
 
     def squash(self, other):
@@ -106,24 +99,34 @@ class Cluster(PartialCluster):
 
 class ClusterGroup(list):
 
+    """
+    An iterable of Clusters, which also tracks the atomic dimensions
+    of each of its elements; that is, those dimensions that a Cluster
+    cannot share with an adjacent cluster, to honor data dependences.
+    """
+
     def __init__(self, *clusters):
-        """
-        An iterable of Clusters, which also tracks the atomic dimensions
-        of each of its elements; that is, those dimensions that a Cluster
-        cannot share with an adjacent cluster, to honor data dependences.
-        """
         super(ClusterGroup, self).__init__(*clusters)
         self.atomics = defaultdict(set)
+
+    @property
+    def ispace(self):
+        """
+        Return the union of all Clusters' iteration spaces.
+        """
+        if not self:
+            return Box([])
+        return Box.intersection_update(*[i.ispace for i in self])
 
     def unfreeze(self):
         """
         Return a new ClusterGroup in which all of ``self``'s Clusters have
         been promoted to PartialClusters. The ``atomics`` information is lost.
         """
-        return ClusterGroup([PartialCluster(i.exprs, i.stencil)
+        return ClusterGroup([PartialCluster(i.exprs, i.ispace)
                              if isinstance(i, Cluster) else i for i in self])
 
-    def freeze(self):
+    def finalize(self):
         """
         Return a new ClusterGroup in which all of ``self``'s PartialClusters
         have been turned into actual Clusters.
@@ -131,7 +134,7 @@ class ClusterGroup(list):
         clusters = ClusterGroup()
         for i in self:
             if isinstance(i, PartialCluster):
-                cluster = Cluster(i.exprs, i.stencil)
+                cluster = Cluster(i.exprs, i.ispace)
                 clusters.append(cluster)
                 clusters.atomics[cluster] = self.atomics[i]
             else:
