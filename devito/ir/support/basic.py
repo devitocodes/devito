@@ -599,6 +599,32 @@ class Scope(object):
         return [i for group in groups for i in group]
 
     @cached_property
+    def has_dep(self):
+        """Return True if at least a dependency is detected, False otherwise."""
+        for k, v in self.writes.items():
+            for w1 in v:
+                for r in self.reads.get(k, []):
+                    try:
+                        is_flow = (r < w1) or (r == w1 and r.lex_ge(w1))
+                        is_anti = (r > w1) or (r == w1 and r.lex_lt(w1))
+                    except TypeError:
+                        # Non-integer vectors are not comparable.
+                        # Conservatively, we assume it is a dependence
+                        is_flow = is_anti = True
+                    if is_flow or is_anti:
+                        return True
+                for w2 in self.writes.get(k, []):
+                    try:
+                        is_output = (w2 > w1) or (w2 == w1 and w2.lex_gt(w1))
+                    except TypeError:
+                        # Non-integer vectors are not comparable.
+                        # Conservatively, we assume it is a dependence
+                        is_output = True
+                    if is_output:
+                        return True
+        return False
+
+    @cached_property
     def d_flow(self):
         """Retrieve the flow dependencies, or true dependencies, or read-after-write."""
         found = DependenceGroup()
