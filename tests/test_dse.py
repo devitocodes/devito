@@ -6,11 +6,10 @@ import pytest
 from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito import Eq  # noqa
-from devito.operator import make_stencils
-from devito.ir import Stencil, clusterize, FlowGraph
+from devito.ir import Stencil, clusterize, FlowGraph, Eq as ir_Eq
 from devito.dse import rewrite, common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
-                              estimate_cost, pow_to_mul, indexify)
+                              estimate_cost, pow_to_mul)
 from devito.types import Scalar
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, RickerSource, GaborSource, Receiver
@@ -108,10 +107,8 @@ def test_tti_clusters_to_graph():
 
     expressions = solver.op_fwd('centered').args['expressions']
     subs = solver.op_fwd('centered').args['subs']
-    expressions = [indexify(s) for s in expressions]
-    expressions = [s.xreplace(subs) for s in expressions]
-    stencils = make_stencils(expressions)
-    clusters = clusterize(expressions, stencils)
+    expressions = [ir_Eq(e, subs=subs) for e in expressions]
+    clusters = clusterize(expressions)
     assert len(clusters) == 3
 
     main_cluster = clusters[0]
