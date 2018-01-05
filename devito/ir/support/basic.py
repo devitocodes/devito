@@ -3,9 +3,8 @@ from cached_property import cached_property
 from sympy import Basic, Eq
 
 from devito.dimension import Dimension
-from devito.symbolics import retrieve_indexed, q_affine, q_inc
+from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import as_tuple, is_integer, filter_sorted
-from devito.types import Indexed
 
 __all__ = ['Scope']
 
@@ -171,7 +170,6 @@ class IterationInstance(Vector):
     """
 
     def __new__(cls, indexed):
-        assert isinstance(indexed, Indexed)
         obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
         obj.findices = tuple(indexed.base.function.indices)
         if len(obj.findices) != len(set(obj.findices)):
@@ -237,7 +235,8 @@ class IterationInstance(Vector):
 class Access(IterationInstance):
 
     """
-    A representation of the access performed by a :class:`Indexed` object.
+    A representation of the access performed by a :class:`Indexed` object
+    (a scalar in the degenerate case).
 
     Notes on Access comparison
     ==========================
@@ -252,7 +251,6 @@ class Access(IterationInstance):
     """
 
     def __new__(cls, indexed, mode):
-        assert isinstance(indexed, Indexed)
         assert mode in ['R', 'W', 'RI', 'WI']
         obj = super(Access, cls).__new__(cls, indexed)
         obj.function = indexed.base.function
@@ -548,15 +546,14 @@ class Scope(object):
         self.writes = {}
         for i, e in enumerate(exprs):
             # reads
-            for j in retrieve_indexed(e.rhs):
+            for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.base.function, [])
                 mode = 'R' if not q_inc(e) else 'RI'
                 v.append(TimedAccess(j, mode, i))
             # write
-            if e.lhs.is_Indexed:
-                v = self.writes.setdefault(e.lhs.base.function, [])
-                mode = 'W' if not q_inc(e) else 'WI'
-                v.append(TimedAccess(e.lhs, mode, i))
+            v = self.writes.setdefault(e.lhs.base.function, [])
+            mode = 'W' if not q_inc(e) else 'WI'
+            v.append(TimedAccess(e.lhs, mode, i))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
