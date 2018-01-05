@@ -113,7 +113,7 @@ def autotune(operator, arguments, tunable):
         timer = operator.profiler.new()
         at_arguments[operator.profiler.name] = timer
 
-        operator.apply(**at_arguments)
+        operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(getattr(timer._obj, i) for i, _ in timer._obj._fields_)
         timings[tuple(bs.items())] = elapsed
         info_at("Block shape <%s> took %f (s) in %d time steps" %
