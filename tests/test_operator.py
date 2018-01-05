@@ -371,8 +371,9 @@ class TestArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        assert (g.data[:1, :2, :3] == 0.).all()
-        assert (g.data[3:, 4:, 5:] == 0.).all()
+        mask = np.ones((5, 6, 7), dtype=np.bool)
+        mask[1:3, 2:4, 3:5] = False
+        assert (g.data[mask] == 0.).all()
         assert (g.data[1:3, 2:4, 3:5] == 1.).all()
 
     def test_override_timefunction_subrange(self):
@@ -401,8 +402,9 @@ class TestArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        assert (f.data[:, :1, :2, :3] == 0.).all()
-        assert (f.data[:, 3:, 4:, 5:] == 0.).all()
+        mask = np.ones((3, 5, 6, 7), dtype=np.bool)
+        mask[:, 1:3, 2:4, 3:5] = False
+        assert (f.data[mask] == 0.).all()
         assert (f.data[:, 1:3, 2:4, 3:5] == 1.).all()
 
     def test_override_function_data(self):
