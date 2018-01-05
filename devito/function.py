@@ -11,7 +11,7 @@ from devito.logger import debug, error, warning
 from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import Dimension, TimeDimension
-from devito.types import SymbolicFunction, AbstractSymbol
+from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
@@ -44,7 +44,7 @@ Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
 
 
-class Constant(AbstractSymbol):
+class Constant(AbstractCachedSymbol):
 
     """
     Symbol representing constant values in symbolic equations.
@@ -710,7 +710,7 @@ class SparseFunction(CompositeFunction):
                 raise ValueError('No grid provided for SparseFunction.')
 
             # Allocate and copy coordinate data
-            d = Dimension('d')
+            d = Dimension(name='d')
             self.coordinates = Function(name='%s_coords' % self.name,
                                         dimensions=[self.indices[-1], d],
                                         shape=(self.npoint, self.grid.dim))
@@ -735,7 +735,8 @@ class SparseFunction(CompositeFunction):
         dimensions = kwargs.get('dimensions', None)
         grid = kwargs.get('grid', None)
         nt = kwargs.get('nt', 0)
-        indices = [grid.time_dim, Dimension('p')] if nt > 0 else [Dimension('p')]
+        dim = Dimension(name='p')
+        indices = [grid.time_dim, dim] if nt > 0 else [dim]
         return dimensions or indices
 
     @property

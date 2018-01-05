@@ -641,7 +641,7 @@ class ResolveTimeStepping(Transformer):
                 vname = Scalar(name="%s%d" % (o.dim.name, i), dtype=np.int32)
                 value = (o.dim.parent + off) % o.dim.modulo
                 init.append(UnboundedIndex(vname, value, value))
-                subs[o.dim + off] = LoweredDimension(vname.name, o.dim, off)
+                subs[o.dim + off] = LoweredDimension(name=vname.name, origin=o.dim + off)
             # Always lower to symbol
             subs[o.dim.parent] = Scalar(name=o.dim.parent.name, dtype=np.int32)
             return o._rebuild(index=o.dim.parent.name, uindices=init,

@@ -83,11 +83,11 @@ class Grid(object):
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
-            self.time_dim = TimeDimension('time', spacing=Constant(name='dt'))
-            self.stepping_dim = SteppingDimension('t', parent=self.time_dim)
+            self.time_dim = TimeDimension(name='time', spacing=Constant(name='dt'))
+            self.stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
         else:
             self.time_dim = time_dimension
-            self.stepping_dim = SteppingDimension('%s_s' % time_dimension.name,
+            self.stepping_dim = SteppingDimension(name='%s_s' % time_dimension.name,
                                                   parent=self.time_dim)
 
     def __repr__(self):

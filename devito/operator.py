@@ -371,9 +371,11 @@ def retrieve_symbols(expressions):
     input = []
     for i in terms:
         try:
-            input.append(i.base.function)
+            function = i.base.function
         except AttributeError:
-            pass
+            continue
+        if function.is_Constant or function.is_TensorFunction:
+            input.append(function)
     input = filter_sorted(input, key=attrgetter('name'))
 
     output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
