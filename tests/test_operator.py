@@ -282,6 +282,22 @@ class TestArguments(object):
                       (name, value, arguments[name]))
             assert condition
 
+    def verify_parameters(self, parameters, expected):
+        """
+        Utility function to verify a parameter set against expected
+        values.
+        """
+        boilerplate = ['timers']
+        parameters = [p.name for p in parameters]
+        for exp in expected:
+            if exp not in parameters + boilerplate:
+                error("Missing parameter: %s" % exp)
+            assert exp in parameters + boilerplate
+        extra = [p for p in parameters if p not in expected and p not in boilerplate]
+        if len(extra) > 0:
+            error("Redundant parameters: %s" % str(extra))
+        assert len(extra) == 0
+
     def test_default_functions(self):
         """
         Test the default argument derivation for functions.
@@ -298,6 +314,10 @@ class TestArguments(object):
             'f': f.data, 'g': g.data,
         }
         self.verify_arguments(op.arguments(), expected)
+        exp_parameters = ['f', 'g', 'x_s', 'x_e', 'x_size', 'y_s',
+                          'y_e', 'y_size', 'z_s', 'z_e', 'z_size',
+                          't_s', 't_e']
+        self.verify_parameters(op.parameters, exp_parameters)
 
     def test_default_composite_functions(self):
         """
