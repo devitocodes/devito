@@ -5,7 +5,6 @@ from operator import attrgetter
 
 import cgen as c
 import numpy as np
-from sympy import Symbol
 
 from devito.cgen_utils import ccode
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
@@ -73,7 +72,8 @@ class BasicRewriter(AbstractRewriter):
                 ufunc = [Scalar(name='%s_ub%d' % (name, j), dtype=np.int32)
                          for j in range(len(i.uindices))]
                 args.extend(zip([ccode(j.start) for j in i.uindices], ufunc))
-                limits = [Symbol(start.name), Symbol(finish.name), 1]
+                limits = [Scalar(name=start.name, dtype=np.int32),
+                          Scalar(name=finish.name, dtype=np.int32), 1]
                 uindices = [UnboundedIndex(j.index, i.dim + as_symbol(k))
                             for j, k in zip(i.uindices, ufunc)]
                 free.append(i._rebuild(limits=limits, offsets=None, uindices=uindices))

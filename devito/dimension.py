@@ -43,15 +43,15 @@ class Dimension(AbstractSymbol):
     @cached_property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        return Symbol(name=self.size_name)
+        return Scalar(name=self.size_name, dtype=np.int32)
 
     @cached_property
     def symbolic_start(self):
-        return Symbol(name=self.start_name)
+        return Scalar(name=self.start_name, dtype=np.int32)
 
     @cached_property
     def symbolic_end(self):
-        return Symbol(name=self.end_name)
+        return Scalar(name=self.end_name, dtype=np.int32)
 
     @property
     def symbolic_extent(self):
