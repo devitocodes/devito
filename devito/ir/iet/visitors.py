@@ -367,6 +367,7 @@ class FindSymbols(Visitor):
         'symbolics': lambda e: e.functions,
         'symbolics-writes': lambda e: as_tuple(e.write),
         'free-symbols': lambda e: e.free_symbols,
+        'defines': lambda e: as_tuple(e.defines),
     }
 
     def __init__(self, mode='kernel-data'):

@@ -200,6 +200,13 @@ class Expression(Node):
         return self.expr.lhs
 
     @property
+    def defines(self):
+        """
+        Return any symbols an :class:`Expression` may define.
+        """
+        return ()
+
+    @property
     def write(self):
         """
         Return the function written by this Expression.
@@ -301,6 +308,13 @@ class Iteration(Node):
         if self.uindices:
             index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
         return "<%sIteration %s; %s>" % (properties, index, self.limits)
+
+    @property
+    def defines(self):
+        """
+        Return any symbols an :class:`Iteration` may define.
+        """
+        return tuple(i.name for i in self.uindices)
 
     @property
     def is_Linear(self):
@@ -536,6 +550,13 @@ class LocalExpression(Expression):
         super(LocalExpression, self).__init__(expr)
         self.dtype = dtype
 
+    @property
+    def defines(self):
+        """
+        Return any symbols an :class:`LocalExpression` may define.
+        """
+        return (self.write, )
+
 
 class UnboundedIndex(object):
 
@@ -545,6 +566,7 @@ class UnboundedIndex(object):
     """
 
     def __init__(self, index, start=0, step=None, dim=None, expr=None):
+        self.name = index
         self.index = index
         self.start = start
         self.step = index + 1 if step is None else step
