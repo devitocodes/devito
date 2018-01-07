@@ -241,7 +241,8 @@ def plot(problem, **kwargs):
                if len(set(dict(j)[i] for j in gflopss)) > 1]
     varying = ("varying<%s>" % ",".join(varying)) if varying else None
     arch = "arch<%s>" % arch
-    title = ", ".join(i for i in [problem, varying, arch] if i)
+    backend = "backend<%s>" % configuration['backend']
+    title = ", ".join(i for i in [problem, varying, arch, backend] if i)
 
     # Legend setup. Do not plot a legend if there's no variation in performance
     # options (dse, dle, autotuning)

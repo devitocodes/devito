@@ -11,13 +11,18 @@ from devito.yask.utils import rawpointer
 class Data(object):
 
     """
-    A ``Data`` wraps a YASK grid.
+    A view of a YASK grid.
 
-    A ``Data`` implements a subset of the ``numpy.ndarray`` API. The subset of
-    API implemented should suffice to transition between Devito backends w/o changes
-    to the user code. It was not possible to subclass ``numpy.ndarray``, as this
-    would have led to shadow data copies, since YASK employs a storage layout
-    different than what users expect (row-major).
+    A ``Data`` implements a subset of the ``numpy.ndarray`` API. The subset
+    of API implemented should suffice to transition between Devito backends
+    w/o changes to the user code.
+
+    From the user level, YASK grids can only be accessed through views.
+    Subclassing ``numpy.ndarray`` is theoretically possible, but it's in
+    practice very difficult and inefficient, as multiple data copies would
+    have to be maintained. This is because YASK's storage layout is different
+    than Devito's, and in particular different than what users want to see
+    (a very standard row-majot format).
 
     The storage layout of a YASK grid looks as follows: ::
 
@@ -29,13 +34,14 @@ class Data(object):
         |                         allocation                         |
         --------------------------------------------------------------
 
-    :param grid: The YASK yk::grid that will be wrapped. Data storage will be
-                 allocated if not yet allocated.
-    :param shape: Shape of the domain region in grid points.
-    :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
-                       of the ``Data``.
-    :param halo: An integer indicating the extent of the halo region.
-    :param dtype: A ``numpy.dtype`` for the raw data.
+    :param grid: The viewed YASK grid.
+    :param shape: Shape of the data view in grid points.
+    :param dimensions: A tuple of :class:`Dimension`s, representing the
+                       dimensions of the grid.
+    :param dtype: The ``numpy.dtype`` of the raw data.
+    :param offset: (Optional) a tuple of integers representing the offset of
+                   the data view from the first allocated grid item (one item
+                   for each dimension).
 
     .. note::
 
@@ -45,52 +51,18 @@ class Data(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, shape, dimensions, halo, dtype):
+    def __init__(self, grid, shape, dimensions, dtype, offset=None):
         self.grid = grid
         self.dimensions = dimensions
+        self.shape = shape
         self.dtype = dtype
 
         self._modulo = tuple(i.modulo if i.is_Stepping else None for i in dimensions)
 
-        # TODO: the initialization below will (slightly) change after the
-        # domain-allocation switch will have happened in Devito. E.g.,
-        # currently shape == domain
-
-        if not grid.is_storage_allocated():
-            # Set up halo sizes
-            for i, j in zip(dimensions, shape):
-                if i.is_Time:
-                    assert self.grid.is_dim_used(i.name)
-                    assert self.grid.get_alloc_size(i.name) == j
-                else:
-                    # Note, from the YASK docs:
-                    # "If the halo is set to a value larger than the padding size,
-                    # the padding size will be automatically increase to accomodate it."
-                    self.grid.set_halo_size(i.name, halo)
-
-            # Allocate memory
-            self.grid.alloc_storage()
-
-            self._halo = []
-            self._ofs = [0 if i.is_Time else self.get_first_rank_domain_index(i.name)
-                         for i in dimensions]
-            self._shape = shape
-
-            # `self` will actually act as a view of `self.base`
-            self.base = Data(grid, shape, dimensions, 0, dtype)
-
-            # Initialize memory to 0
-            self.reset()
-        else:
-            self._halo = [0 if i.is_Time else self.get_halo_size(i.name)
-                          for i in dimensions]
-            self._ofs = [0 if i.is_Time else (self.get_first_rank_domain_index(i.name)-j)
-                         for i, j in zip(dimensions, self._halo)]
-            self._shape = [i + 2*j for i, j in zip(shape, self._halo)]
-
-            # Like numpy.ndarray, `base = None` indicates that this is the real
-            # array, i.e., it's not a view
-            self.base = None
+        offset = offset or tuple(0 for _ in dimensions)
+        assert len(offset) == len(dimensions)
+        self._offset = [0 if i.is_Time else (self.get_first_rank_alloc_index(i.name)+j)
+                        for i, j in zip(dimensions, offset)]
 
     def __getitem__(self, index):
         start, stop, shape = self._convert_index(index)
@@ -218,11 +190,11 @@ class Data(object):
         cstop.extend([self.shape[len(index) + j] - 1 for j in range(nremainder)])
         cshape.extend([self.shape[len(index) + j] for j in range(nremainder)])
 
-        assert len(self.shape) == len(cstart) == len(cstop) == len(self._ofs)
+        assert len(self.shape) == len(cstart) == len(cstop) == len(self._offset)
 
         # Shift by the specified offsets
-        cstart = [int(j + i) for i, j in zip(self._ofs, cstart)]
-        cstop = [int(j + i) for i, j in zip(self._ofs, cstop)]
+        cstart = [int(j + i) for i, j in zip(self._offset, cstart)]
+        cstop = [int(j + i) for i, j in zip(self._offset, cstop)]
 
         return cstart, cstop, cshape
 
@@ -269,16 +241,6 @@ class Data(object):
     __rtruediv__ = __meta_op__('__truediv__', True)
     __mod__ = __meta_op__('__mod__')
     __rmod__ = __meta_op__('__mod__', True)
-
-    @property
-    def with_halo(self):
-        if self.base is None:
-            raise ValueError("Cannot access the halo of a non-view Data")
-        return self.base
-
-    @property
-    def shape(self):
-        return self._shape
 
     @property
     def ndim(self):
