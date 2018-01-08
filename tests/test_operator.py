@@ -856,6 +856,7 @@ class TestLoopScheduler(object):
 
 
 @skipif_yask
+@pytest.mark.xfail
 @pytest.mark.skipif(configuration['backend'] != 'foreign',
                     reason="'foreign' wasn't selected as backend on startup")
 class TestForeign(object):
