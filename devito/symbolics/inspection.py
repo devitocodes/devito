@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import Counter, defaultdict
 
 from sympy import Indexed, cos, sin
 
@@ -7,18 +7,14 @@ from devito.symbolics.queries import q_timedimension
 from devito.logger import warning
 from devito.tools import flatten
 
-
 def count(exprs, query):
     """
     Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``
     matching ``query`` and ``v`` is the number of its occurrences.
     """
-    mapper = OrderedDict()
+    mapper = {}
     for expr in exprs:
-        found = search(expr, query, 'all', 'bfs')
-        for i in found:
-            mapper.setdefault(i, 0)
-            mapper[i] += 1
+        mapper.update(Counter(search(expr, query, 'all', 'bfs')))
     return mapper
 
 
