@@ -124,16 +124,23 @@ class Operator(Callable):
 
         parameters = self.argument_engine.arguments
 
-        # Pick all used symbols from the kernel, but exclude raw Dimensions
+        # Pick all free symbols and symbolic functions from the kernel
         free_symbols = FindSymbols('free-symbols').visit(nodes)
-        symbols = [s for s in free_symbols if not isinstance(s, Dimension)]
+        symbolics = FindSymbols('symbolics').visit(nodes)
+        symbolics_names = [s.name for s in symbolics]
 
-        # Derive parameters as symbols not defined in the kernel
-        # itself.  TODO: The filtering is currently name-based as the
+        # Filter out raw Dimension objects and function base symbols
+        symbols = [s for s in free_symbols
+                   if not isinstance(s, Dimension) and s.name not in symbolics_names]
+        # Put real function objects back to get all symbols used by kernel
+        symbols = symbolics + symbols
+
+        # Derive parameters as symbols not defined in the kernel itself.
+        # TODO: The filtering is currently name-based as the
         # LoweredDimension objects used in expressions for
         # SteppingDimension indices do not match the corresponding
         # UnboundedIndex objects in the IR-AST hierarchy.
-        # This should really should be fixed!
+        # This really should be fixed!
         defines = [s.name for s in FindSymbols('defines').visit(nodes)]
         parameters = tuple(s for s in symbols if s.name not in defines)
 
