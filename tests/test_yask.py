@@ -74,16 +74,19 @@ class TestOperatorSimple(object):
 
         grid = Grid(shape=(16, 16, 16))
         u = TimeFunction(name='yu4D', grid=grid, space_order=space_order)
-        u.data.with_halo[:] = 0.
+        u.data_with_halo[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
         op(yu4D=u, t=2)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(u.data[1] == 1.)
         # Check that the halo planes are still 0
-        assert all(np.all(u.data.with_halo[1, i, :, :] == 0) for i in range(space_order))
-        assert all(np.all(u.data.with_halo[1, :, i, :] == 0) for i in range(space_order))
-        assert all(np.all(u.data.with_halo[1, :, :, i] == 0) for i in range(space_order))
+        assert all(np.all(u.data_with_halo[1, i, :, :] == 0)
+                   for i in range(u._extent_halo_left[1]))
+        assert all(np.all(u.data_with_halo[1, :, i, :] == 0)
+                   for i in range(u._extent_halo_left[2]))
+        assert all(np.all(u.data_with_halo[1, :, :, i] == 0)
+                   for i in range(u._extent_halo_left[3]))
 
     def test_increasing_multi_steps(self):
         """
@@ -93,7 +96,7 @@ class TestOperatorSimple(object):
         """
         grid = Grid(shape=(8, 8, 8))
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
-        u.data.with_halo[:] = 0.
+        u.data_with_halo[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
         op(yu4D=u, t=12)
         assert 'run_solution' in str(op)
@@ -115,16 +118,19 @@ class TestOperatorSimple(object):
         """
         grid = Grid(shape=(16, 16, 16))
         v = TimeFunction(name='yv4D', grid=grid, space_order=space_order)
-        v.data.with_halo[:] = 1.
+        v.data_with_halo[:] = 1.
         op = Operator(Eq(v.forward, v.laplace + 6*v), subs=grid.spacing_map)
         op(yv4D=v, t=2)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 6.)
         # Check that the halo planes are untouched
-        assert all(np.all(v.data.with_halo[1, i, :, :] == 1) for i in range(space_order))
-        assert all(np.all(v.data.with_halo[1, :, i, :] == 1) for i in range(space_order))
-        assert all(np.all(v.data.with_halo[1, :, :, i] == 1) for i in range(space_order))
+        assert all(np.all(v.data_with_halo[1, i, :, :] == 1)
+                   for i in range(v._extent_halo_left[1]))
+        assert all(np.all(v.data_with_halo[1, :, i, :] == 1)
+                   for i in range(v._extent_halo_left[2]))
+        assert all(np.all(v.data_with_halo[1, :, :, i] == 1)
+                   for i in range(v._extent_halo_left[3]))
 
     def test_mixed_space_order(self):
         """
@@ -134,17 +140,17 @@ class TestOperatorSimple(object):
         grid = Grid(shape=(8, 8, 8))
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         v = TimeFunction(name='yv4D', grid=grid, space_order=1)
-        u.data.with_halo[:] = 1.
-        v.data.with_halo[:] = 2.
+        u.data_with_halo[:] = 1.
+        v.data_with_halo[:] = 2.
         op = Operator(Eq(v.forward, u + v))
         op(yu4D=u, yv4D=v, t=2)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 3.)
         # Check that the halo planes are untouched
-        assert np.all(v.data.with_halo[1, 0, :, :] == 2)
-        assert np.all(v.data.with_halo[1, :, 0, :] == 2)
-        assert np.all(v.data.with_halo[1, :, :, 0] == 2)
+        assert np.all(v.data_with_halo[1, 0, :, :] == 2)
+        assert np.all(v.data_with_halo[1, :, 0, :] == 2)
+        assert np.all(v.data_with_halo[1, :, :, 0] == 2)
 
     def test_multiple_loop_nests(self):
         """

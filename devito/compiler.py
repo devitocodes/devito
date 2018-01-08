@@ -42,32 +42,46 @@ class Compiler(GCCToolchain):
         * :data:`self.src_ext`
         * :data:`self.lib_ext`
         * :data:`self.undefines`
-    """
 
-    cpp_mapper = {'gcc': 'g++', 'clang': 'clang++', 'icc': 'icpc',
-                  'gcc-4.9': 'g++-4.9', 'gcc-5': 'g++-5', 'gcc-6': 'g++-6'}
+    Two additional parameters may be passed.
+    :param suffix: A string indicating a specific compiler version available on
+                   the system. For example, assuming ``compiler=gcc`` and
+                   ``suffix='4.9'``, then the ``gcc-4.9`` program will be used
+                   to compile the generated code.
+    :param cpp: Defaults to False. Pass True to set up for C++ compilation,
+                instead of C compilation.
+    """
 
     fields = {'cc', 'ld'}
 
     CC = 'unknown'
-    LD = 'unknown'
+    CPP = 'unknown'
 
     def __init__(self, **kwargs):
         super(Compiler, self).__init__(**kwargs)
+
         self.suffix = kwargs.get('suffix')
-        self.cc = self.CC if self.suffix is None else ('%s-%s' % (self.CC, self.suffix))
-        self.ld = self.LD if self.suffix is None else ('%s-%s' % (self.LD, self.suffix))
+        self.cc = self.CC if kwargs.get('cpp', False) is False else self.CPP
+        self.cc = self.cc if self.suffix is None else ('%s-%s' % (self.cc, self.suffix))
+        self.ld = self.cc  # Wanted by the superclass
+
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
         self.ldflags = ['-shared']
+
         self.include_dirs = []
         self.libraries = []
         self.library_dirs = []
         self.defines = []
         self.undefines = []
-        self.src_ext = 'c'
+
+        self.src_ext = 'c' if kwargs.get('cpp', False) is False else 'cpp'
         self.lib_ext = 'so'
+
         if self.suffix is not None:
-            self.version = self.suffix
+            try:
+                self.version = version.StrictVersion(str(float(self.suffix)))
+            except (TypeError, ValueError):
+                self.version = version.LooseVersion(self.suffix)
         else:
             # Knowing the version may still be useful to pick supported flags
             self.version = sniff_compiler_version(self.CC)
@@ -83,7 +97,7 @@ class GNUCompiler(Compiler):
     """Set of standard compiler flags for the GCC toolchain."""
 
     CC = 'gcc'
-    LD = 'gcc'
+    CPP = 'g++'
 
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
@@ -121,7 +135,7 @@ class ClangCompiler(Compiler):
     """
 
     CC = 'clang'
-    LD = 'clang'
+    CPP = 'clang++'
 
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
@@ -135,12 +149,12 @@ class IntelCompiler(Compiler):
     """
 
     CC = 'icc'
-    LD = 'icc'
+    CPP = 'icpc'
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
         self.cflags += ["-xhost"]
-        if configuration['platform'] == 'skylake':
+        if configuration['platform'] == 'skx':
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]
         try:
@@ -170,13 +184,13 @@ class CustomCompiler(Compiler):
 
     :param openmp: Boolean indicating if openmp is enabled. False by default
 
-    Note: Currently honours CC, CFLAGS, LD and LDFLAGS, with defaults similar
+    Note: Currently honours CC, CFLAGS and LDFLAGS, with defaults similar
     to the default GNU settings. If DEVITO_ARCH is enabled, the OpenMP linker
     flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.
     """
 
     CC = environ.get('CC', 'gcc')
-    LD = environ.get('LD', 'gcc')
+    CPP = environ.get('CPP', 'g++')
 
     def __init__(self, *args, **kwargs):
         super(CustomCompiler, self).__init__(*args, **kwargs)
@@ -272,8 +286,6 @@ compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
-    'gcc-4.9': partial(GNUCompiler, suffix='4.9'),
-    'gcc-5': partial(GNUCompiler, suffix='5'),
     'gcc-noavx': GNUCompilerNoAVX,
     'gnu-noavx': GNUCompilerNoAVX,
     'clang': ClangCompiler,
@@ -284,3 +296,5 @@ compiler_registry = {
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
 }
+compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
+                          for i in ['4.9', '5', '6', '7']})

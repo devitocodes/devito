@@ -1,6 +1,7 @@
 # Devito: Fast Finite Difference Computation from Symbolic Specification
 
 ![Build Status](https://travis-ci.org/opesci/devito.svg?branch=master)
+![Code Coverage](https://codecov.io/gh/opesci/devito/branch/master/graph/badge.svg)
 
 [Devito](http://www.opesci.org/devito-public) is a tool to
 perform optimised finite difference (FD) computation from
