@@ -314,7 +314,8 @@ class Iteration(Node):
         """
         Return any symbols an :class:`Iteration` may define.
         """
-        return tuple(i.name for i in self.uindices)
+        dim = self.dim.parent if self.dim.is_Stepping else self.dim
+        return (dim, ) + tuple(i.name for i in self.uindices)
 
     @property
     def is_Linear(self):

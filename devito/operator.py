@@ -127,12 +127,10 @@ class Operator(Callable):
         # Pick all free symbols and symbolic functions from the kernel
         free_symbols = FindSymbols('free-symbols').visit(nodes)
         symbolics = FindSymbols('symbolics').visit(nodes)
-        symbolics_names = [s.name for s in symbolics]
 
-        # Filter out raw Dimension objects and function base symbols
-        symbols = [s for s in free_symbols
-                   if not isinstance(s, Dimension) and s.name not in symbolics_names]
-        # Put real function objects back to get all symbols used by kernel
+        # Filter out function base symbols and use real function objects
+        symbolics_names = [s.name for s in symbolics]
+        symbols = [s for s in free_symbols if s.name not in symbolics_names]
         symbols = symbolics + symbols
 
         # Derive parameters as symbols not defined in the kernel itself.
@@ -140,7 +138,6 @@ class Operator(Callable):
         # LoweredDimension objects used in expressions for
         # SteppingDimension indices do not match the corresponding
         # UnboundedIndex objects in the IR-AST hierarchy.
-        # This really should be fixed!
         defines = [s.name for s in FindSymbols('defines').visit(nodes)]
         parameters = tuple(s for s in symbols if s.name not in defines)
 
