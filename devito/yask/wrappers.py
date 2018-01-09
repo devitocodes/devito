@@ -9,7 +9,6 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
-from devito.yask.data import Data
 from devito.yask.utils import rawpointer
 
 
@@ -242,16 +241,33 @@ class YaskContext(object):
         Create and return a new :class:`Data`, a YASK grid wrapper. Memory
         is allocated.
 
-        :param obj: The symbolic data object for which a YASK grid is allocated.
+        :param obj: The :class:`Function` for which a YASK grid is allocated.
         """
         if set(obj.indices) < set(self.space_dimensions):
             exit("Need a Function[x,y,z] to create a YASK grid.")
+
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
-        log("Allocating Data for %s (%s)" % (obj.name, str(obj.shape)))
+
+        # Set up the YASK grid and allocate memory
         grid = self.yk_hook.new_grid(name, obj)
-        wrapper = Data(grid, obj.shape, obj.indices, obj.space_order, obj.dtype)
-        self.grids[name] = wrapper
-        return wrapper
+        for i, s, h in zip(obj.indices, obj.shape, obj._halo):
+            if i.is_Time:
+                assert grid.is_dim_used(i.name)
+                assert grid.get_alloc_size(i.name) == s
+            else:
+                # Note:
+                # 1) The halo is set to a value which is the max between the number
+                # of points on the left and the number of points on the right of
+                # the approximation (the same with a centered approximation)
+                # 2) from the YASK docs: "If the halo is set to a value larger than
+                # the padding size, the padding size will be automatically increased
+                # to accomodate it
+                grid.set_halo_size(i.name, max(h))
+        grid.alloc_storage()
+
+        self.grids[name] = grid
+
+        return grid
 
     def make_yc_solution(self, namer):
         """
@@ -299,7 +315,7 @@ class YaskContext(object):
                 "- domain: %s\n"
                 "- grids: [%s]\n"
                 "- solns: [%s]\n") % (self.name, str(self.space_dimensions),
-                                      ', '.join([i for i in list(self.grids)]),
+                                      ', '.join([i.get_name() for i in list(self.grids)]),
                                       ', '.join([i.name for i in self.solutions]))
 
 

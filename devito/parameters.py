@@ -30,9 +30,16 @@ class Parameters(OrderedDict):
             for key, value in kwargs.items():
                 self[key] = value
 
-    def __setitem__(self, key, value):
-        super(Parameters, self).__setitem__(key, value)
-        self._updated(key, value)
+    def _check_key_value(func):
+        def wrapper(self, key, value):
+            accepted = self._accepted[key]
+            if accepted is not None:
+                tocheck = list(value) if isinstance(value, dict) else [value]
+                if any(i not in accepted for i in tocheck):
+                    raise ValueError("Illegal configuration parameter (%s, %s). "
+                                     "Accepted: %s" % (key, value, str(accepted)))
+            func(self, key, value)
+        return wrapper
 
     def _updated(self, key, value):
         """
@@ -43,6 +50,19 @@ class Parameters(OrderedDict):
             retval = self._update_functions[key](value)
             if retval is not None:
                 super(Parameters, self).__setitem__(key, retval)
+
+    @_check_key_value
+    def __setitem__(self, key, value):
+        super(Parameters, self).__setitem__(key, value)
+        self._updated(key, value)
+
+    @_check_key_value
+    def update(self, key, value):
+        """
+        Update the parameter ``key`` to ``value``. This is different from
+        ``self[key] = value`` as the callback, if any, is bypassed.
+        """
+        super(Parameters, self).__setitem__(key, value)
 
     def add(self, key, value, accepted=None, callback=None):
         """
@@ -58,14 +78,6 @@ class Parameters(OrderedDict):
         self._defaults[key] = value
         if callable(callback):
             self._update_functions[key] = callback
-
-    def update(self, key, value):
-        """
-        Update the parameter ``key`` to ``value``. This is different from
-        ``self[key] = value`` as the callback, if any, is bypassed.
-        """
-        assert key in self
-        super(Parameters, self).__setitem__(key, value)
 
     def initialize(self):
         """
@@ -102,14 +114,14 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
     # Populate /configuration/ with user-provided options
     if environ.get('DEVITO_CONFIG') is None:
         # Try env variables, otherwise stick to defaults
-        for k, v in sorted(env_vars_mapper.items()):
-            configuration.update(v, environ.get(k, configuration._defaults[v]))
+        unprocessed = OrderedDict([(v, environ.get(k, configuration._defaults[v]))
+                                   for k, v in sorted(env_vars_mapper.items())])
     else:
         # Attempt reading from the specified configuration file
         raise NotImplementedError("Devito doesn't support configuration via file yet.")
 
     # Parameters validation
-    for k, v in list(configuration.items()):
+    for k, v in unprocessed.items():
         try:
             items = v.split(';')
             # Env variable format: 'var=k1:v1;k2:v2:k3:v3:...'
@@ -130,10 +142,6 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
                     keys[i] = int(j)
                 except (TypeError, ValueError):
                     keys[i] = j
-        accepted = configuration._accepted[k]
-        if accepted is not None and any(i not in accepted for i in keys):
-            raise ValueError("Illegal configuration parameter (%s, %s). "
-                             "Accepted: %s" % (k, v, str(accepted)))
         if len(keys) == len(values):
             configuration.update(k, dict(zip(keys, values)))
         elif len(keys) == 1:
@@ -146,7 +154,11 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
 
 def add_sub_configuration(sub_configuration, sub_env_vars_mapper=None):
     init_configuration(sub_configuration, sub_env_vars_mapper or {})
+    # For use from within a backend (i.e., inside Devito)
     setattr(configuration, sub_configuration.name, sub_configuration)
+    # For use in user code, when the backend is a runtime choice and some
+    # options are in common between the supported backends
+    setattr(configuration, 'backend', sub_configuration)
 
 
 def print_defaults():

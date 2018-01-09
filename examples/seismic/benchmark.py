@@ -1,4 +1,6 @@
+from collections import OrderedDict
 import sys
+
 import numpy as np
 import click
 
@@ -13,17 +15,19 @@ def benchmark():
     """
     Benchmarking script for seismic forward operators.
 
+    \b
     There are three main 'execution modes':
-    run:   a single run with given DSE/DLE levels
+    run: a single run with given DSE/DLE levels
     bench: complete benchmark with multiple DSE/DLE levels
-    test:  tests numerical correctness with different parameters
+    test: tests numerical correctness with different parameters
 
     Further, this script can generate a roofline plot from a benchmark
     """
 
-    # Make sure that with YASK we run in performance mode
+    # Make sure that with YASK we run in benchmarking mode
     if configuration['backend'] == 'yask':
         configuration.yask['develop-mode'] = False
+        configuration.yask['autotuning'] = 'preemptive'
 
 
 def option_simulation(f):
@@ -32,7 +36,7 @@ def option_simulation(f):
 
     options = [
         click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti']),
-                     help='Number of grid points along each axis'),
+                     help='Problem name'),
         click.option('-d', '--shape', default=(50, 50, 50),
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),
@@ -54,19 +58,19 @@ def option_simulation(f):
 def option_performance(f):
     """Defines options for all aspects of performance tuning"""
 
-    _preset = {'maxperf': {
-        'autotune': True,
-        'dse': 'advanced',
-        'dle': 'advanced'
-    }, 'dse': {
-        'autotune': True,
-        'dse': ['basic', 'advanced', 'speculative', 'aggressive'],
-        'dle': 'advanced',
-    }, 'dle': {
-        'autotune': True,
-        'dse': 'advanced',
-        'dle': ['basic', 'advanced'],
-    }}
+    _preset = {
+        # Fixed
+        'O1': {'autotune': True, 'dse': 'basic', 'dle': 'basic'},
+        'O2': {'autotune': True, 'dse': 'advanced', 'dle': 'advanced'},
+        'O3': {'autotune': True, 'dse': 'aggressive', 'dle': 'advanced'},
+        # Parametric
+        'dse': {'autotune': True,
+                'dse': ['basic', 'advanced', 'aggressive'],
+                'dle': 'advanced'},
+        'dle': {'autotune': True,
+                'dse': 'advanced',
+                'dle': ['basic', 'advanced']}
+    }
 
     def from_preset(ctx, param, value):
         """Set all performance options according to bench-mode preset"""
@@ -79,9 +83,11 @@ def option_performance(f):
 
     options = [
         click.option('-bm', '--bench-mode', is_eager=True,
-                     callback=from_preset, expose_value=False,
-                     type=click.Choice(['maxperf', 'dse', 'dle']), default='maxperf',
+                     callback=from_preset, expose_value=False, default='O2',
+                     type=click.Choice(['O1', 'O2', 'O3', 'dse', 'dle']),
                      help='Choose what to benchmark; ignored if execmode=run'),
+        click.option('--arch', default='unknown',
+                     help='Architecture on which the simulation is/was run'),
         click.option('--dse', callback=from_value,
                      type=click.Choice(['noop'] + configuration._accepted['dse']),
                      help='Devito symbolic engine (DSE) mode'),
@@ -163,32 +169,16 @@ def bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
-    try:
-        from opescibench import Benchmark, Executor
-    except:
-        raise ImportError('Could not import opescibench utility package.\n'
-                          'Please install https://github.com/opesci/opescibench')
-
     run = tti_run if problem == 'tti' else acoustic_run
     resultsdir = kwargs.pop('resultsdir')
     repeats = kwargs.pop('repeats')
 
-    class BenchExecutor(Executor):
-        """Executor class that defines how to run the benchmark"""
-
-        def run(self, *args, **kwargs):
-            gflopss, oi, timings, _ = run(*args, **kwargs)
-
-            for key in timings.keys():
-                self.register(gflopss[key], measure="gflopss", event=key)
-                self.register(oi[key], measure="oi", event=key)
-                self.register(timings[key], measure="timings", event=key)
-
-            clear_cache()
-
-    bench = Benchmark(name=problem, resultsdir=resultsdir, parameters=kwargs)
-    bench.execute(BenchExecutor(), warmups=0, repeats=repeats)
+    bench = get_ob_bench(problem, resultsdir, kwargs)
+    bench.execute(get_ob_exec(run), warmups=0, repeats=repeats)
     bench.save()
+
+    # Final clean up, just in case the benchmarker is used from external Python modules
+    clear_cache()
 
 
 @benchmark.command(name='plot')
@@ -196,15 +186,14 @@ def bench(problem, **kwargs):
 @option_performance
 @click.option('-r', '--resultsdir', default='results',
               help='Directory containing results')
-@click.option('-p', '--plotdir', default='plots',
-              help='Directory containing plots')
-@click.option('--arch', default='unknown',
-              help='Architecture on which the simulation is/was run')
-@click.option('--max_bw', type=float,
+@click.option('--max-bw', type=float,
               help='Max GB/s of the DRAM')
-@click.option('--max_flops', type=float,
-              help='Max GFLOPS/s of the CPU')
-@click.option('--point_runtime', is_flag=True,
+@click.option('--flop-ceil', type=(float, str), multiple=True,
+              help='Max GFLOPS/s of the CPU. A 2-tuple (float, str)'
+                   'is expected, where the float is the performance'
+                   'ceil (GFLOPS/s) and the str indicates how the'
+                   'ceil was obtained (ideal peak, linpack, ...)')
+@click.option('--point-runtime', is_flag=True, default=True,
               help='Annotate points with runtime values')
 def cli_plot(problem, **kwargs):
     """
@@ -217,20 +206,20 @@ def plot(problem, **kwargs):
     """
     Plotting mode to generate plots for performance analysis.
     """
-    try:
-        from opescibench import Benchmark, RooflinePlotter
-    except:
-        raise ImportError("Could not import opescibench utility package.\n"
-                          "Please install https://github.com/opesci/opescibench "
-                          "and Matplotlib to plot performance results")
     resultsdir = kwargs.pop('resultsdir')
-    plotdir = kwargs.pop('plotdir')
-    arch = kwargs.pop('arch')
     max_bw = kwargs.pop('max_bw')
-    max_flops = kwargs.pop('max_flops')
+    flop_ceils = kwargs.pop('flop_ceil')
     point_runtime = kwargs.pop('point_runtime')
 
-    bench = Benchmark(name=problem, resultsdir=resultsdir, parameters=kwargs)
+    arch = kwargs['arch']
+    space_order = "[%s]" % ",".join(str(i) for i in kwargs['space_order'])
+    time_order = kwargs['time_order']
+    tn = kwargs['tn']
+    shape = "[%s]" % ",".join(str(i) for i in kwargs['shape'])
+
+    RooflinePlotter = get_ob_plotter()
+    bench = get_ob_bench(problem, resultsdir, kwargs)
+
     bench.load()
     if not bench.loaded:
         warning("Could not load any results, nothing to plot. Exiting...")
@@ -240,33 +229,38 @@ def plot(problem, **kwargs):
     oi = bench.lookup(params=kwargs, measure="oi", event='main')
     time = bench.lookup(params=kwargs, measure="timings", event='main')
 
-    name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (problem,
-                                                kwargs['shape'],
-                                                kwargs['space_order'],
-                                                kwargs['time_order'],
-                                                arch)
-    name = name.replace(' ', '')
-    problem_styles = {'acoustic': 'Acoustic', 'tti': 'TTI'}
-    title = "%s [grid=%s, TO=%s, duration=%sms], varying <DSE,DLE> on %s" %\
-        (problem_styles[problem], list(kwargs['shape']), kwargs['time_order'],
-         kwargs['tn'], arch)
+    # Filaneme
+    figname = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (
+        problem, shape, space_order, time_order, arch
+    )
 
-    styles = {  # (marker, color)
+    # Plot title
+    name = {'acoustic': 'Acoustic', 'tti': 'TTI'}[problem]
+    problem = "%s<grid=%s, TO=%s, sim=%sms>" % (name, shape, time_order, tn)
+    varying = [i for i in ['dse', 'dle', 'autotune']
+               if len(set(dict(j)[i] for j in gflopss)) > 1]
+    varying = ("varying<%s>" % ",".join(varying)) if varying else None
+    arch = "arch<%s>" % arch
+    backend = "backend<%s>" % configuration['backend']
+    title = ", ".join(i for i in [problem, varying, arch, backend] if i)
+
+    # Legend setup. Do not plot a legend if there's no variation in performance
+    # options (dse, dle, autotuning)
+    if varying is not None:
+        legend = {'loc': 'upper left', 'fontsize': 5, 'ncol': 4}
+    else:
+        legend = 'drop'
+
+    # Plot style setup {<dse, dle> -> <marker, color>}
+    styles = {
         # DLE basic
         ('basic', 'basic'): ('D', 'r'),
         ('advanced', 'basic'): ('D', 'g'),
-        ('speculative', 'basic'): ('D', 'y'),
         ('aggressive', 'basic'): ('D', 'b'),
         # DLE advanced
         ('basic', 'advanced'): ('o', 'r'),
         ('advanced', 'advanced'): ('o', 'g'),
-        ('speculative', 'advanced'): ('o', 'y'),
         ('aggressive', 'advanced'): ('o', 'b'),
-        # DLE speculative
-        ('basic', 'speculative'): ('s', 'r'),
-        ('advanced', 'speculative'): ('s', 'g'),
-        ('speculative', 'speculative'): ('s', 'y'),
-        ('aggressive', 'speculative'): ('s', 'b')
     }
 
     # Find min and max runtimes for instances having the same OI
@@ -276,9 +270,9 @@ def plot(problem, **kwargs):
         min_max[i][0] = v if min_max[i][0] == 0 else min(v, min_max[i][0])
         min_max[i][1] = v if min_max[i][1] == sys.maxsize else max(v, min_max[i][1])
 
-    with RooflinePlotter(title=title, figname=name, plotdir=plotdir,
-                         max_bw=max_bw, max_flops=max_flops,
-                         fancycolor=True, legend={'fontsize': 5, 'ncol': 4}) as plot:
+    with RooflinePlotter(title=title, figname=figname, plotdir=resultsdir,
+                         max_bw=max_bw, flop_ceils=flop_ceils,
+                         fancycolor=True, legend=legend) as plot:
         for key, gflopss in gflopss.items():
             oi_value = oi[key]
             time_value = time[key]
@@ -302,6 +296,71 @@ def plot(problem, **kwargs):
                            color=styles[run][1], oi_line=oi_line, label=label,
                            perf_annotate=perf_annotate, oi_annotate=oi_annotate,
                            point_annotate=point_annotate)
+
+
+def get_ob_bench(problem, resultsdir, parameters):
+    """Return a special :class:`opescibench.Benchmark` to manage performance runs."""
+    try:
+        from opescibench import Benchmark
+    except:
+        raise ImportError('Could not import opescibench utility package.\n'
+                          'Please install https://github.com/opesci/opescibench')
+
+    class DevitoBenchmark(Benchmark):
+
+        def param_string(self, params):
+            devito_params, params = OrderedDict(), dict(params)
+            devito_params['arch'] = params['arch']
+            devito_params['shape'] = ",".join(str(i) for i in params['shape'])
+            devito_params['nbpml'] = params['nbpml']
+            devito_params['tn'] = params['tn']
+            devito_params['so'] = params['space_order']
+            devito_params['to'] = params['time_order']
+            devito_params['dse'] = params['dse']
+            devito_params['dle'] = params['dle']
+            devito_params['at'] = (params['autotune'] and
+                                   configuration.backend['autotuning'])
+            return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
+
+    return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)
+
+
+def get_ob_exec(func):
+    """Return a special :class:`opescibench.Executor` to execute performance runs."""
+    try:
+        from opescibench import Executor
+    except:
+        raise ImportError('Could not import opescibench utility package.\n'
+                          'Please install https://github.com/opesci/opescibench')
+
+    class DevitoExecutor(Executor):
+
+        def __init__(self, func):
+            super(DevitoExecutor, self).__init__()
+            self.func = func
+
+        def run(self, *args, **kwargs):
+            clear_cache()
+
+            gflopss, oi, timings, _ = self.func(*args, **kwargs)
+
+            for key in timings.keys():
+                self.register(gflopss[key], measure="gflopss", event=key)
+                self.register(oi[key], measure="oi", event=key)
+                self.register(timings[key], measure="timings", event=key)
+
+    return DevitoExecutor(func)
+
+
+def get_ob_plotter():
+    try:
+        from opescibench import RooflinePlotter
+    except:
+        raise ImportError('Could not import opescibench utility package.\n'
+                          'Please install https://github.com/opesci/opescibench'
+                          'To plot performance results, make sure to have the'
+                          'Matplotlib package installed')
+    return RooflinePlotter
 
 
 if __name__ == "__main__":

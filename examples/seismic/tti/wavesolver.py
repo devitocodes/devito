@@ -1,5 +1,5 @@
 # coding: utf-8
-from devito import TimeFunction, memoized
+from devito import TimeFunction, memoized_meth
 from examples.seismic.tti.operators import ForwardOperator
 from examples.seismic import Receiver
 
@@ -31,7 +31,7 @@ class AnisotropicWaveSolver(object):
         # Cache compiler options
         self._kwargs = kwargs
 
-    @memoized
+    @memoized_meth
     def op_fwd(self, kernel='shifted', save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, source=self.source,
@@ -58,7 +58,7 @@ class AnisotropicWaveSolver(object):
 
         # Space order needs to be halved in the shifted case to have an
         # overall space_order discretization
-        self.space_order = self.space_order / 2 if kernel == 'shifted' \
+        self.space_order = self.space_order // 2 if kernel == 'shifted' \
             else self.space_order
         # Source term is read-only, so re-use the default
         if src is None:

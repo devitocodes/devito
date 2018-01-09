@@ -16,17 +16,15 @@ import devito
 class Data(np.ndarray):
 
     """
+    A special :class:`numpy.ndarray` allowing logical indexing.
+
     The type :class:`numpy.ndarray` is subclassed as indicated at: ::
 
         https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 
-    The new instance takes an existing ndarray as input, casts it to one of
-    type ``Data``, and adds extra attributes (hence the need for subclassing)
-
     :param shape: Shape of the domain region in grid points.
     :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
                        of the ``Data``.
-    :param halo: An integer indicating the extent of the halo region.
     :param dtype: A ``numpy.dtype`` for the raw data.
 
     .. note::
@@ -42,16 +40,15 @@ class Data(np.ndarray):
         performing logical indexing is lost.
     """
 
-    def __new__(cls, shape, dimensions, halo, dtype):
+    def __new__(cls, shape, dimensions, dtype):
         ndarray, c_pointer = malloc_aligned(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
         obj._c_pointer = c_pointer
-        obj.halo = halo
         obj.modulo = tuple(i.modulo if i.is_Stepping else None for i in dimensions)
         return obj
 
     def __del__(self):
-        if self._c_pointer is not None:
+        if self._c_pointer is None:
             return
         free(self._c_pointer)
         self._c_pointer = None
@@ -65,10 +62,9 @@ class Data(np.ndarray):
             self.modulo = getattr(obj, 'modulo', tuple(None for i in range(self.ndim)))
         else:
             self.modulo = tuple(None for i in range(self.ndim))
-        self.halo = getattr(obj, 'halo', None)
-        # Views or references created via operations on `obj` do not get
-        # an explicit reference to the C pointer (`_c_pointer`). This makes
-        # sure that only one object (the "root" Data) will free the C-allocated
+        # Views or references created via operations on `obj` do not get an
+        # explicit reference to the C pointer (`_c_pointer`). This makes sure
+        # that only one object (the "root" Data) will free the C-allocated memory
         self._c_pointer = None
 
     def __getitem__(self, index):
@@ -117,11 +113,6 @@ class Data(np.ndarray):
             else:
                 wrapped.append(i % mod)
         return wrapped[0] if len(index) == 1 else tuple(wrapped)
-
-    @property
-    def with_halo(self):
-        # TODO: Implement contextually to the domain-allocation switch
-        raise NotImplementedError
 
     def reset(self):
         """
