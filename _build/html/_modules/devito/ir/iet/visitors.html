@@ -167,7 +167,6 @@
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
 
-<span class="kn">import</span> <span class="nn">inspect</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">defaultdict</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span>
 
@@ -179,7 +178,9 @@
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">VisitorException</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet.nodes</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">Node</span><span class="p">,</span> <span class="n">UnboundedIndex</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">ctypes_to_C</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">ctypes_to_C</span><span class="p">,</span>
+                          <span class="n">GenericVisitor</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">runtime_arguments</span>
 
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FindNodes&#39;</span><span class="p">,</span> <span class="s1">&#39;FindSections&#39;</span><span class="p">,</span> <span class="s1">&#39;FindSymbols&#39;</span><span class="p">,</span> <span class="s1">&#39;MapExpressions&#39;</span><span class="p">,</span>
@@ -188,105 +189,7 @@
            <span class="s1">&#39;FindAdjacentIterations&#39;</span><span class="p">,</span> <span class="s1">&#39;MergeOuterIterations&#39;</span><span class="p">,</span> <span class="s1">&#39;MapIteration&#39;</span><span class="p">]</span>
 
 
-<span class="k">class</span> <span class="nc">Visitor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A generic visitor for an Expression/Iteration tree.</span>
-
-<span class="sd">    To define handlers, subclasses should define :data:`visit_Foo`</span>
-<span class="sd">    methods for each class :data:`Foo` they want to handle.</span>
-<span class="sd">    If a specific method for a class :data:`Foo` is not found, the MRO</span>
-<span class="sd">    of the class is walked in order until a matching method is found.</span>
-
-<span class="sd">    The method signature is:</span>
-
-<span class="sd">        .. code-block::</span>
-<span class="sd">           def visit_Foo(self, o, [*args, **kwargs]):</span>
-<span class="sd">               pass</span>
-
-<span class="sd">    The handler is responsible for visiting the children (if any) of</span>
-<span class="sd">    the node :data:`o`.  :data:`*args` and :data:`**kwargs` may be</span>
-<span class="sd">    used to pass information up and down the call stack.  You can also</span>
-<span class="sd">    pass named keyword arguments, e.g.:</span>
-
-<span class="sd">        .. code-block::</span>
-<span class="sd">           def visit_Foo(self, o, parent=None, *args, **kwargs):</span>
-<span class="sd">               pass</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">handlers</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="c1"># visit methods are spelt visit_Foo.</span>
-        <span class="n">prefix</span> <span class="o">=</span> <span class="s2">&quot;visit_&quot;</span>
-        <span class="c1"># Inspect the methods on this instance to find out which</span>
-        <span class="c1"># handlers are defined.</span>
-        <span class="k">for</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">meth</span><span class="p">)</span> <span class="ow">in</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmembers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">):</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">prefix</span><span class="p">):</span>
-                <span class="k">continue</span>
-            <span class="c1"># Check the argument specification</span>
-            <span class="c1"># Valid options are:</span>
-            <span class="c1">#    visit_Foo(self, o, [*args, **kwargs])</span>
-            <span class="n">argspec</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">meth</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">argspec</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Visit method signature must be &quot;</span>
-                                   <span class="s2">&quot;visit_Foo(self, o, [*args, **kwargs])&quot;</span><span class="p">)</span>
-            <span class="n">handlers</span><span class="p">[</span><span class="n">name</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">prefix</span><span class="p">):]]</span> <span class="o">=</span> <span class="n">meth</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span> <span class="o">=</span> <span class="n">handlers</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    :attr:`default_args`. A dict of default keyword arguments for the visitor.</span>
-<span class="sd">    These are not used by default in :meth:`visit`, however, a caller may pass</span>
-<span class="sd">    them explicitly to :meth:`visit` by accessing :attr:`default_args`.</span>
-<span class="sd">    For example::</span>
-
-<span class="sd">        .. code-block::</span>
-<span class="sd">           v = FooVisitor()</span>
-<span class="sd">           v.visit(node, **v.default_args)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">default_args</span> <span class="o">=</span> <span class="p">{}</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">default_retval</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A method that returns an object to use to populate return values.</span>
-
-<span class="sd">        If your visitor combines values in a tree-walk, it may be useful to</span>
-<span class="sd">        provide a object to combine the results into. :meth:`default_retval`</span>
-<span class="sd">        may be defined by the visitor to be called to provide an empty object</span>
-<span class="sd">        of appropriate type.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="k">def</span> <span class="nf">lookup_method</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Look up a handler method for a visitee.</span>
-
-<span class="sd">        :param instance: The instance to look up a method for.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">cls</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="vm">__class__</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="c1"># Do we have a method handler defined for this type name</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span>
-        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-            <span class="c1"># No, walk the MRO.</span>
-            <span class="k">for</span> <span class="n">klass</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">mro</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]:</span>
-                <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">klass</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">entry</span><span class="p">:</span>
-                    <span class="c1"># Save it on this type name for faster lookup next time</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry</span>
-                    <span class="k">return</span> <span class="n">entry</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No handler found for class </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Apply this :class:`Visitor` to an AST.</span>
-
-<span class="sd">            :param o: The :class:`Node` to visit.</span>
-<span class="sd">            :param args: Optional arguments to pass to the visit methods.</span>
-<span class="sd">            :param kwargs: Optional keyword arguments to pass to the visit methods.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">meth</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_method</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">meth</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">visit_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
+<span class="k">class</span> <span class="nc">Visitor</span><span class="p">(</span><span class="n">GenericVisitor</span><span class="p">):</span>
 
     <span class="k">def</span> <span class="nf">visit_Node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -497,16 +400,18 @@
 
 <div class="viewcode-block" id="CGen.visit_Callable"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Callable">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Callable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
-        <span class="n">decls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_decl</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
-        <span class="n">casts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_cast</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">runtime_arguments</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">decls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_decl</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+        <span class="n">casts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_cast</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
         <span class="n">signature</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">retval</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">decls</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionBody</span><span class="p">(</span><span class="n">signature</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">casts</span> <span class="o">+</span> <span class="n">body</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="CGen.visit_Operator"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Operator">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Operator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="c1"># Kernel signature and body</span>
         <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
-        <span class="n">decls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_decl</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
-        <span class="n">casts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_cast</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">runtime_arguments</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">decls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_decl</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+        <span class="n">casts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_cast</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
         <span class="n">signature</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">retval</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">decls</span><span class="p">)</span>
         <span class="n">retval</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;return 0&quot;</span><span class="p">)]</span>
         <span class="n">kernel</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionBody</span><span class="p">(</span><span class="n">signature</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">casts</span> <span class="o">+</span> <span class="n">body</span> <span class="o">+</span> <span class="n">retval</span><span class="p">))</span>
@@ -900,7 +805,8 @@
                 <span class="n">subs</span><span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span> <span class="o">+</span> <span class="n">off</span><span class="p">]</span> <span class="o">=</span> <span class="n">LoweredDimension</span><span class="p">(</span><span class="n">vname</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">off</span><span class="p">)</span>
             <span class="c1"># Always lower to symbol</span>
             <span class="n">subs</span><span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="p">]</span> <span class="o">=</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">uindices</span><span class="o">=</span><span class="n">init</span><span class="p">),</span> <span class="n">subs</span>
+            <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">uindices</span><span class="o">=</span><span class="n">init</span><span class="p">,</span>
+                              <span class="n">limits</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">limits</span><span class="p">),</span> <span class="n">subs</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="o">*</span><span class="n">nodes</span><span class="p">),</span> <span class="n">subs</span></div>
 

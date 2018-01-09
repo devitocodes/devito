@@ -169,7 +169,6 @@
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
 
-<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ScalarArgProvider</span><span class="p">,</span> <span class="n">ArrayArgProvider</span><span class="p">,</span> <span class="n">ObjectArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">single_or</span>
 
@@ -499,7 +498,7 @@
         <span class="k">return</span>
 
 
-<span class="k">class</span> <span class="nc">Scalar</span><span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">ScalarArgProvider</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Scalar</span><span class="p">(</span><span class="n">Symbol</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Symbolic object representing a scalar.</span>
 
 <span class="sd">    :param name: Name of the symbol</span>
@@ -522,7 +521,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
 
 
-<span class="k">class</span> <span class="nc">Array</span><span class="p">(</span><span class="n">SymbolicData</span><span class="p">,</span> <span class="n">ArrayArgProvider</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Array</span><span class="p">(</span><span class="n">SymbolicData</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Symbolic object representing a tensor.</span>
 
 <span class="sd">    :param name: Name of the symbol</span>
@@ -606,7 +605,7 @@
 <span class="c1"># that need to be passed to external libraries</span>
 
 
-<span class="k">class</span> <span class="nc">Object</span><span class="p">(</span><span class="n">ObjectArgProvider</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Object</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Represent a generic pointer object.</span>

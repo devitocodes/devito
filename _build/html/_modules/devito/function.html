@@ -172,7 +172,6 @@
 <span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">Data</span><span class="p">,</span> <span class="n">first_touch</span>
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">FLOAT</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">TimeDimension</span>
-<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ConstantArgProvider</span><span class="p">,</span> <span class="n">TensorFunctionArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">SymbolicFunction</span><span class="p">,</span> <span class="n">AbstractSymbol</span>
 <span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="p">(</span><span class="n">centered</span><span class="p">,</span> <span class="n">cross_derivative</span><span class="p">,</span>
                                       <span class="n">first_derivative</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span>
@@ -181,7 +180,7 @@
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_indexed</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Constant&#39;</span><span class="p">,</span> <span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;SparseFunction&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="s1">&#39;Backward&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="s1">&#39;Backward&#39;</span><span class="p">,</span> <span class="s1">&#39;CompositeFunction&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">TimeAxis</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -206,7 +205,7 @@
 <span class="n">Backward</span> <span class="o">=</span> <span class="n">TimeAxis</span><span class="p">(</span><span class="s1">&#39;Backward&#39;</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="Constant"><a class="viewcode-back" href="../../devito.html#devito.function.Constant">[docs]</a><span class="k">class</span> <span class="nc">Constant</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">ConstantArgProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="Constant"><a class="viewcode-back" href="../../devito.html#devito.function.Constant">[docs]</a><span class="k">class</span> <span class="nc">Constant</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol representing constant values in symbolic equations.</span>
@@ -240,7 +239,7 @@
         <span class="k">return</span> <span class="bp">self</span></div>
 
 
-<span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">,</span> <span class="n">TensorFunctionArgProvider</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Utility class to encapsulate all symbolic :class:`Function` types</span>
@@ -816,7 +815,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indt</span><span class="p">)</span></div>
 
 
-<span class="k">class</span> <span class="nc">CompositeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+<div class="viewcode-block" id="CompositeFunction"><a class="viewcode-back" href="../../devito.html#devito.function.CompositeFunction">[docs]</a><span class="k">class</span> <span class="nc">CompositeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class for Function classes that have Function children</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -829,7 +828,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_children</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_children</span></div>
 
 
 <div class="viewcode-block" id="SparseFunction"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseFunction</span><span class="p">(</span><span class="n">CompositeFunction</span><span class="p">):</span>
