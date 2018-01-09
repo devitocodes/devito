@@ -82,6 +82,7 @@ script:
       python examples/seismic/acoustic/acoustic_example.py --full;
       python examples/seismic/acoustic/acoustic_example.py --constant --full;
       python examples/seismic/acoustic/gradient_example.py;
+      python examples/seismic/tti/tti_example.py -a;
       python examples/checkpointing/checkpointing_example.py;
     fi
 

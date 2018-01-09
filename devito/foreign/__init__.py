@@ -8,3 +8,4 @@ Further, with the ``foreign`` backed, Devito doesn't allocate any data.
 # The following used by backends.backendSelector
 from devito.function import Constant, Function, TimeFunction, SparseFunction  # noqa
 from devito.foreign.operator import Operator  # noqa
+from devito.types import CacheManager  # noqa

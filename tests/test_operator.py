@@ -45,13 +45,13 @@ class TestCodeGen(object):
         assert len(op.parameters) == 6
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_TensorArgument
-        assert op.parameters[1].name == 'constant'
+        assert op.parameters[1].name == 'i_size'
         assert op.parameters[1].is_ScalarArgument
-        assert op.parameters[2].name == 'i_size'
+        assert op.parameters[2].name == 'i_s'
         assert op.parameters[2].is_ScalarArgument
-        assert op.parameters[3].name == 'i_s'
+        assert op.parameters[3].name == 'i_e'
         assert op.parameters[3].is_ScalarArgument
-        assert op.parameters[4].name == 'i_e'
+        assert op.parameters[4].name == 'constant'
         assert op.parameters[4].is_ScalarArgument
         assert op.parameters[5].name == 'timers'
         assert op.parameters[5].is_PtrArgument
@@ -385,6 +385,7 @@ class TestArguments(object):
         new_coords = (2., 2.)
         p_dim = Dimension('p_src')
         u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        time = u.indices[0]
         src1 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
                               npoint=1, nt=10, coordinates=original_coords)
         src2 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
@@ -394,7 +395,6 @@ class TestArguments(object):
         # Move the source from the location where the setup put it so we can test
         # whether the override picks up the original coordinates or the changed ones
 
-        # Operator.arguments() returns a tuple of (data, dimension_sizes)
         args = op.arguments(src1=src2)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
@@ -856,6 +856,7 @@ class TestLoopScheduler(object):
 
 
 @skipif_yask
+@pytest.mark.xfail
 @pytest.mark.skipif(configuration['backend'] != 'foreign',
                     reason="'foreign' wasn't selected as backend on startup")
 class TestForeign(object):

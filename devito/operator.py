@@ -7,15 +7,14 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.arguments import infer_dimension_values_tuple
+from devito.exceptions import InvalidOperator
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
-from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.function import Forward, Backward, CompositeFunction
-from devito.logger import bar, error, info
+from devito.function import Forward, Backward
+from devito.logger import bar, info
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Element, Expression, Callable, Iteration, List,
                            LocalExpression, MapExpressions, ResolveTimeStepping,
@@ -27,6 +26,7 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify, retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
 from devito.types import Object
+from devito.arguments import ArgumentEngine
 
 
 class Operator(Callable):
@@ -86,7 +86,6 @@ class Operator(Callable):
         self.dtype = retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = retrieve_symbols(expressions)
         stencils = make_stencils(expressions)
-        self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
 
         # Set the direction of time acoording to the given TimeAxis
         for time in [d for d in self.dimensions if d.is_Time]:
@@ -134,6 +133,11 @@ class Operator(Callable):
         # Introduce all required C declarations
         nodes = self._insert_declarations(dle_state.nodes)
 
+        # Initialise Argument Engine
+        self.argument_engine = ArgumentEngine(stencils, parameters, self.dle_arguments)
+
+        parameters = self.argument_engine.arguments
+
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
@@ -141,104 +145,13 @@ class Operator(Callable):
         """ Process any apply-time arguments passed to apply and derive values for
             any remaining arguments
         """
-        new_params = {}
-        # If we've been passed CompositeFunction objects as kwargs,
-        # they might have children that need to be substituted as well.
-        for k, v in kwargs.items():
-            if isinstance(v, CompositeFunction):
-                orig_param_l = [i for i in self.input if i.name == k]
-                # If I have been passed a parameter, I must have seen it before
-                if len(orig_param_l) == 0:
-                    raise InvalidArgument("Parameter %s does not exist in expressions " +
-                                          "passed to this Operator" % k)
-                # We've made sure the list isn't empty. Names should be unique so it
-                # should have exactly one entry
-                assert(len(orig_param_l) == 1)
-                orig_param = orig_param_l[0]
-                # Pull out the children and add them to kwargs
-                for orig_child, new_child in zip(orig_param.children, v.children):
-                    new_params[orig_child.name] = new_child
-        kwargs.update(new_params)
 
-        # Derivation. It must happen in the order [tensors -> dimensions -> scalars]
-        for i in self.parameters:
-            if i.is_TensorArgument:
-                assert(i.verify(kwargs.pop(i.name, None)))
-        for d in self.dimensions:
-            user_provided_value = kwargs.pop(d.name, None)
-            if user_provided_value is not None:
-                user_provided_value = infer_dimension_values_tuple(user_provided_value,
-                                                                   d.rtargs,
-                                                                   self.offsets)
-            d.verify(user_provided_value, enforce=True)
-        for i in self.parameters:
-            if i.is_ScalarArgument:
-                user_provided_value = kwargs.pop(i.name, None)
-                if user_provided_value is not None:
-                    user_provided_value += self.offsets.get(i.name, 0)
-                i.verify(user_provided_value, enforce=True)
-        dim_sizes = {}
-        for d in self.dimensions:
-            if d.value is not None:
-                _, d_start, d_end = d.value
-                # Calculte loop extent
-                d_extent = d_end - d_start
-            else:
-                d_extent = None
-            dim_sizes[d.name] = d_extent
-        dle_arguments, autotune = self._dle_arguments(dim_sizes)
-        dim_sizes.update(dle_arguments)
-
-        autotune = autotune and kwargs.pop('autotune', False)
-
-        # Make sure we've used all arguments passed
-        if len(kwargs) > 0:
-            raise InvalidArgument("Unknown arguments passed: " + ", ".join(kwargs.keys()))
-
-        mapper = OrderedDict([(d.name, d) for d in self.dimensions])
-        for d, v in dim_sizes.items():
-            assert(mapper[d].verify(v))
-
-        arguments = self._default_args()
+        arguments, autotune = self.argument_engine.handle(**kwargs)
 
         if autotune:
             arguments = self._autotune(arguments)
 
-        # Clear the temp values we stored in the arg objects since we've pulled them out
-        # into the OrderedDict object above
-        self._reset_args()
-
         return arguments
-
-    def _default_args(self):
-        return OrderedDict([(x.name, x.value) for x in self.parameters])
-
-    def _reset_args(self):
-        """
-        Reset any runtime argument derivation information from a previous run.
-        """
-        for x in list(self.parameters) + self.dimensions:
-            x.reset()
-
-    def _dle_arguments(self, dim_sizes):
-        # Add user-provided block sizes, if any
-        dle_arguments = OrderedDict()
-        autotune = True
-        for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name, None)
-            if dim_size is None:
-                error('Unable to derive size of dimension %s from defaults. '
-                      'Please provide an explicit value.' % i.original_dim.name)
-                raise InvalidArgument('Unknown dimension size')
-            if i.value:
-                try:
-                    dle_arguments[i.argument.name] = i.value(dim_size)
-                except TypeError:
-                    dle_arguments[i.argument.name] = i.value
-                    autotune = False
-            else:
-                dle_arguments[i.argument.name] = dim_size
-        return dle_arguments, autotune
 
     @property
     def elemental_functions(self):
@@ -491,17 +404,6 @@ def make_stencils(expressions):
     # Filter out aliasing stepping dimensions
     mapper = {d.parent: d for d in dimensions if d.is_Stepping}
     return [i.replace(mapper) for i in stencils]
-
-
-def retrieve_offsets(stencils):
-    """
-    Return a mapper from :class:`Dimension`s to the min/max integer offsets
-    within ``stencils``.
-    """
-    offs = Stencil.union(*stencils)
-    mapper = {d: v for d, v in offs.diameter.items()}
-    mapper.update({d.parent: v for d, v in mapper.items() if d.is_Stepping})
-    return mapper
 
 
 # Misc helpers
