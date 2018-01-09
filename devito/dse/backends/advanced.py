@@ -142,7 +142,7 @@ class AdvancedRewriter(BasicRewriter):
             expression = Eq(Indexed(function, *indices), origin)
             ispace = cluster.ispace.subtract(alias.anti_stencil.boxify().negate())
             if all(time_invariants[i] for i in alias.aliased):
-                ispace = ispace.drop(g.time_indices)
+                ispace = ispace.drop([i.dim for i in ispace.intervals if i.dim.is_Time])
             alias_clusters.append(Cluster([expression], ispace))
             # Update substitution rules
             for aliased, distance in alias.with_distance:

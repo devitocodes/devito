@@ -6,26 +6,22 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 
 from __future__ import absolute_import
 
-from collections import Iterable, OrderedDict, defaultdict
+from collections import Iterable, OrderedDict
 from operator import attrgetter
 
 import cgen as c
-import numpy as np
 
-from devito.cgen_utils import blankline, ccode
-from devito.dimension import LoweredDimension
-from devito.exceptions import VisitorException
-from devito.ir.iet.nodes import Node, UnboundedIndex
-from devito.types import Scalar
-from devito.tools import (as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C,
-                          GenericVisitor)
 from devito.arguments import runtime_arguments
+from devito.cgen_utils import blankline, ccode
+from devito.exceptions import VisitorException
+from devito.ir.iet.nodes import Node
+from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C, GenericVisitor
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
-           'ResolveTimeStepping', 'Transformer', 'NestedTransformer',
-           'FindAdjacentIterations', 'MapIteration']
+           'Transformer', 'NestedTransformer', 'FindAdjacentIterations',
+           'MapIteration']
 
 
 class Visitor(GenericVisitor):
@@ -597,69 +593,6 @@ class SubstituteExpression(Transformer):
     def visit_Expression(self, o):
         o.substitute(self.subs)
         return o._rebuild(expr=o.expr)
-
-
-class ResolveTimeStepping(Transformer):
-    """
-    :class:`Transformer` class that creates a substitution dictionary
-    for replacing :class:`Dimension` instances with explicit loop
-    variables in :class:`Iteration` nodes. For stepping dimensions it
-    also inserts the relevant definitions for buffer index variables,
-    for exaple.:
-
-        .. code-block:: c
-
-           for (int t = 0; t < t_size; t += 1)
-           {
-               int t0 = (t) % 2;
-               int t1 = (t + 1) % 2;
-    """
-
-    def visit_object(self, o, subs, **kwargs):
-        return o, subs
-
-    def visit_tuple(self, o, subs, **kwargs):
-        visited = []
-        for i in o:
-            handle, subs = self.visit(i, subs, **kwargs)
-            visited.append(handle)
-        return tuple(visited), subs
-
-    visit_list = visit_object
-
-    def visit_Node(self, o, subs, **kwargs):
-        rebuilt, _ = zip(*[self.visit(i, subs, **kwargs) for i in o.children])
-        return o._rebuild(*rebuilt, **o.args_frozen), subs
-
-    def visit_Iteration(self, o, subs, offsets=defaultdict(set)):
-        nodes, subs = self.visit(o.children, subs, offsets=offsets)
-        if o.dim.is_Stepping:
-            # For SteppingDimension insert the explicit
-            # definition of buffered variables, eg. t+1 => t1
-            init = []
-            for i, off in enumerate(filter_ordered(offsets[o.dim])):
-                vname = Scalar(name="%s%d" % (o.dim.name, i), dtype=np.int32)
-                value = (o.dim.parent + off) % o.dim.modulo
-                init.append(UnboundedIndex(vname, value, value))
-                subs[o.dim + off] = LoweredDimension(name=vname.name, origin=o.dim + off)
-            # Always lower to symbol
-            subs[o.dim.parent] = Scalar(name=o.dim.parent.name, dtype=np.int32)
-            return o._rebuild(index=o.dim.parent.name, uindices=init,
-                              limits=o.dim.parent.limits), subs
-        else:
-            return o._rebuild(*nodes), subs
-
-    def visit_Expression(self, o, subs, offsets=defaultdict(set)):
-        """Collect all offsets used with a dimension"""
-        for dim, offs in o.stencil.entries:
-            offsets[dim].update(offs)
-        return o, subs
-
-    def visit(self, o, subs=None, **kwargs):
-        if subs is None:
-            subs = {}
-        obj, subs = super(ResolveTimeStepping, self).visit(o, subs, **kwargs)
-        return obj, subs
 
 
 def printAST(node, verbose=True):

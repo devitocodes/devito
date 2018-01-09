@@ -3,7 +3,7 @@
 from __future__ import absolute_import
 
 import inspect
-from collections import Iterable, OrderedDict
+from collections import Iterable, OrderedDict, namedtuple
 
 import cgen as c
 from sympy import Eq, Indexed, Symbol
@@ -19,7 +19,7 @@ import devito.types as types
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Iteration', 'List', 'LocalExpression', 'TimedList',
-           'UnboundedIndex']
+           'UnboundedIndex', 'MetaCall']
 
 
 class Node(object):
@@ -523,7 +523,17 @@ class UnboundedIndex(object):
     add a non-linear traversal of the iteration space.
     """
 
-    def __init__(self, index, start=0, step=None):
+    def __init__(self, index, start=0, step=None, dim=None, expr=None):
         self.index = index
         self.start = start
         self.step = index + 1 if step is None else step
+        self.dim = dim
+        self.expr = expr
+
+
+MetaCall = namedtuple('MetaCall', 'root local')
+"""
+Metadata for :class:`Callable`s. ``root`` is a pointer to the callable
+Iteration/Expression tree. ``local`` is a boolean indicating whether the
+definition of the callable is known or not.
+"""
