@@ -470,6 +470,16 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 2)
 
+    def test_no_value(self, const):
+        grid = Grid(shape=(3, 5))
+        a = TimeFunction(name='a', grid=grid)
+        eqn = Eq(a, a + 1.*const)
+        op = Operator(eqn)
+        with pytest.raises(ValueError):
+            # This should raise an exception because we don't have a value for constant
+            op(t=12)
+        op(t=12, constant=1)
+
 
 @skipif_yask
 class TestDeclarator(object):
