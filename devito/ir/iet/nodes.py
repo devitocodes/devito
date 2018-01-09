@@ -19,7 +19,7 @@ import devito.types as types
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Iteration', 'List', 'LocalExpression', 'TimedList',
-           'UnboundedIndex', 'MetaCall']
+           'UnboundedIndex', 'MetaCall', 'ArrayCast']
 
 
 class Node(object):
@@ -538,6 +538,35 @@ class Denormals(List):
 
     def __repr__(self):
         return "<DenormalsMacro>"
+
+
+class ArrayCast(Node):
+
+    """
+    A node encapsulating a cast of a raw C pointer to a
+    multi-dimensional array.
+    """
+
+    def __init__(self, function):
+        self.function = function
+
+    @property
+    def defines(self):
+        """
+        Return the base symbol an :class:`ArrayCast` defines.
+        """
+        return ()
+
+    @property
+    def free_symbols(self):
+        """
+        Return the symbols required to perform an :class:`ArrayCast`.
+
+        This includes the :class:`AbstractFunction` object that
+        defines the data, as well as the dimension sizes.
+        """
+        sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
+        return (self.function, ) + as_tuple(sizes)
 
 
 class LocalExpression(Expression):

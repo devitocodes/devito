@@ -18,7 +18,7 @@ from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
-                           FindSymbols)
+                           FindSymbols, ArrayCast)
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import retrieve_terminals
@@ -124,14 +124,18 @@ class Operator(Callable):
 
         parameters = self.argument_engine.arguments
 
+        # Insert data casts for all multi-dimensional function parameters
+        functions = FindSymbols('symbolics').visit(nodes)
+        casts = tuple(ArrayCast(param) for param in functions)
+        nodes = (List(body=casts), nodes)
+
         # Pick all free symbols and symbolic functions from the kernel
         free_symbols = FindSymbols('free-symbols').visit(nodes)
-        symbolics = FindSymbols('symbolics').visit(nodes)
 
         # Filter out function base symbols and use real function objects
-        symbolics_names = [s.name for s in symbolics]
-        symbols = [s for s in free_symbols if s.name not in symbolics_names]
-        symbols = symbolics + symbols
+        function_names = [s.name for s in functions]
+        symbols = [s for s in free_symbols if s.name not in function_names]
+        symbols = functions + symbols
 
         # Derive parameters as symbols not defined in the kernel itself.
         # TODO: The filtering is currently name-based as the

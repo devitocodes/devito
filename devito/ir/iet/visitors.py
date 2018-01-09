@@ -141,24 +141,16 @@ class CGen(Visitor):
                 ret.append(c.Value('void', '*_%s' % i.name))
         return ret
 
-    def _args_cast(self, args):
-        """Build cgen type casts for an iterable of :class:`Argument`."""
-        ret = []
-        for i in args:
-            if i.is_TensorArgument:
-                align = "__attribute__((aligned(64)))"
-                shape = ''.join(["[%s]" % ccode(j)
-                                 for j in i.provider.symbolic_shape[1:]])
-                lvalue = c.POD(i.dtype, '(*restrict %s)%s %s' % (i.name, shape, align))
-                rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(i.dtype), shape,
-                                            '%s_vec' % i.name)
-                ret.append(c.Initializer(lvalue, rvalue))
-            elif i.is_PtrArgument:
-                ctype = ctypes_to_C(i.dtype)
-                lvalue = c.Pointer(c.Value(ctype, i.name))
-                rvalue = '(%s*) %s' % (ctype, '_%s' % i.name)
-                ret.append(c.Initializer(lvalue, rvalue))
-        return ret
+    def visit_ArrayCast(self, o):
+        """
+        Build cgen type casts for an iterable of :class:`AbstractFunction`.
+        """
+        f = o.function
+        align = "__attribute__((aligned(64)))"
+        shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
+        lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
+        rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(f.dtype), shape, '%s_vec' % f.name)
+        return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
         return tuple(self.visit(i) for i in o)
@@ -237,19 +229,17 @@ class CGen(Visitor):
         body = flatten(self.visit(i) for i in o.children)
         params = runtime_arguments(o.parameters)
         decls = self._args_decl(params)
-        casts = self._args_cast(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
-        return c.FunctionBody(signature, c.Block(casts + body))
+        return c.FunctionBody(signature, c.Block(body))
 
     def visit_Operator(self, o):
         # Kernel signature and body
         body = flatten(self.visit(i) for i in o.children)
         params = runtime_arguments(o.parameters)
         decls = self._args_decl(params)
-        casts = self._args_cast(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         retval = [c.Statement("return 0")]
-        kernel = c.FunctionBody(signature, c.Block(casts + body + retval))
+        kernel = c.FunctionBody(signature, c.Block(body + retval))
 
         # Elemental functions
         efuncs = [i.root.ccode for i in o.func_table.values() if i.local] + [blankline]
@@ -384,6 +374,9 @@ class FindSymbols(Visitor):
         return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):
+        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
+
+    def visit_ArrayCast(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
 
