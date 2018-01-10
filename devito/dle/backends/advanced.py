@@ -18,12 +18,10 @@ from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
 from devito.ir.iet import (Block, Expression, Iteration, List,
                            PARALLEL, ELEMENTAL, REMAINDER, tagger,
-                           FindNodes, FindSymbols, IsPerfectIteration,
-                           SubstituteExpression, Transformer, compose_nodes,
-                           retrieve_iteration_tree, filter_iterations, copy_arrays)
+                           FindSymbols, IsPerfectIteration, Transformer,
+                           compose_nodes, retrieve_iteration_tree, filter_iterations)
 from devito.logger import dle_warning
-from devito.tools import as_tuple, grouper, roundm
-from devito.types import Array
+from devito.tools import as_tuple, grouper
 
 
 class DevitoRewriter(BasicRewriter):
@@ -417,7 +415,6 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._loop_fission(state)
-        self._padding(state)
         self._loop_blocking(state)
         self._simdize(state)
         self._nontemporal_stores(state)
@@ -425,61 +422,6 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
             self._ompize(state)
         self._create_elemental_functions(state)
         self._minimize_remainders(state)
-
-    @dle_pass
-    def _padding(self, nodes, state):
-        """
-        Introduce temporary buffers padded to the nearest multiple of the vector
-        length, to maximize data alignment. At the bottom of the kernel, the
-        values in the padded temporaries will be copied back into the input arrays.
-        """
-        mapper = OrderedDict()
-
-        # Assess feasibility of the transformation
-        handle = FindSymbols('symbolics-writes').visit(nodes)
-        if not handle:
-            return nodes, {}
-        shape = max([i.shape for i in handle], key=len)
-        if not shape:
-            return nodes, {}
-        candidates = [i for i in handle if i.shape[-1] == shape[-1]]
-        if not candidates:
-            return nodes, {}
-
-        # Retrieve the maximum number of items in a SIMD register when processing
-        # the expressions in /node/
-        exprs = FindNodes(Expression).visit(nodes)
-        exprs = [e for e in exprs if e.write in candidates]
-        assert len(exprs) > 0
-        dtype = exprs[0].dtype
-        assert all(e.dtype == dtype for e in exprs)
-        try:
-            simd_items = get_simd_items(dtype)
-        except KeyError:
-            # Fallback to 16 (maximum expectable padding, for AVX512 registers)
-            simd_items = simdinfo['avx512f'] / np.dtype(dtype).itemsize
-
-        shapes = {k: k.shape[:-1] + (roundm(k.shape[-1], simd_items),)
-                  for k in candidates}
-        mapper.update(OrderedDict([(k.indexed,
-                                    Array(name='p%s' % k.name,
-                                          shape=shapes[k],
-                                          dimensions=k.indices,
-                                          onstack=k._mem_stack).indexed)
-                      for k in candidates]))
-
-        # Substitute original arrays with padded buffers
-        processed = SubstituteExpression(mapper).visit(nodes)
-
-        # Build Iteration trees for initialization and copy-back of padded arrays
-        mapper = OrderedDict([(k, v) for k, v in mapper.items()
-                              if k.function.is_SymbolicFunction])
-        init = copy_arrays(mapper, reverse=True)
-        copyback = copy_arrays(mapper)
-
-        processed = List(body=init + as_tuple(processed) + copyback)
-
-        return processed, {}
 
     @dle_pass
     def _nontemporal_stores(self, nodes, state):
@@ -518,7 +460,6 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
         'openmp': DevitoSpeculativeRewriter._ompize,
         'simd': DevitoSpeculativeRewriter._simdize,
         'fission': DevitoSpeculativeRewriter._loop_fission,
-        'padding': DevitoSpeculativeRewriter._padding,
         'split': DevitoSpeculativeRewriter._create_elemental_functions
     }
 
