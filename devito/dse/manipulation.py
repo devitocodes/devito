@@ -70,6 +70,9 @@ def collect_nested(expr, aggressive=False):
             rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
             rebuilt = collect_const(expr.func(*rebuilt))
             return rebuilt, flatten(candidates)
+        elif expr.is_Equality:
+            rebuilt, candidates = zip(*[run(expr.lhs), run(expr.rhs)])
+            return expr.func(*rebuilt, evaluate=False), flatten(candidates)
         else:
             rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
             return expr.func(*rebuilt), flatten(candidates)

@@ -122,7 +122,7 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
             if repeat and ret != root:
                 root = ret
             else:
-                rebuilt.append(expr.func(expr.lhs, ret))
+                rebuilt.append(expr.func(expr.lhs, ret, evaluate=False))
                 break
 
     # Post-process the output
