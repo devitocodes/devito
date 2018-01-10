@@ -122,6 +122,7 @@ class Operator(OperatorRunnable):
         # generated kernels, but what we actually need and thus going to
         # provide are pointers to the wrapped YASK grids.
         toshare = {}
+        more_args = {}
         for i in self.parameters:
             grid_arg = mapper.get(namespace['code-grid-name'](i.name))
             if grid_arg is not None:
@@ -135,11 +136,11 @@ class Operator(OperatorRunnable):
                     wrapper = obj.data
                     toshare[obj] = wrapper
                 # Add C-level pointer to the YASK grids
-                assert grid_arg.verify(wrapper.rawpointer)
+                more_args[grid_arg.name] = wrapper.rawpointer
             elif i.name in local_grids_mapper:
                 # Add C-level pointer to the temporary YASK grids
-                assert i.verify(rawpointer(local_grids_mapper[i.name]))
-
+                more_args[i.name] = rawpointer(local_grids_mapper[i.name])
+        kwargs.update(more_args)
         return super(Operator, self).arguments(**kwargs), toshare
 
     def apply(self, **kwargs):

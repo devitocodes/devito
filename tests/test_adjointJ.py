@@ -50,6 +50,7 @@ def test_acousticJ(shape, space_order):
 
     # Compute initial born perturbation from m - m0
     dm = model.m.data - model0.m.data
+
     du, _, _, _ = solver.born(dm, m=model0.m)
 
     # Compute gradientfrom initial perturbation
