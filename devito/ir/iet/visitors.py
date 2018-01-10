@@ -11,7 +11,6 @@ from operator import attrgetter
 
 import cgen as c
 
-from devito.arguments import runtime_arguments
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node
@@ -132,9 +131,11 @@ class CGen(Visitor):
         """Convert an iterable of :class:`Argument` into cgen format."""
         ret = []
         for i in args:
-            if i.is_ScalarArgument:
+            if i.is_Object:
+                ret.append(c.Value('void', '*_%s' % i.name))
+            elif i.is_Scalar:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
-            elif i.is_TensorArgument:
+            elif i.is_Tensor:
                 ret.append(c.Value(c.dtype_to_ctype(i.dtype),
                                    '*restrict %s_vec' % i.name))
             else:
@@ -236,7 +237,7 @@ class CGen(Visitor):
 
     def visit_Callable(self, o):
         body = flatten(self.visit(i) for i in o.children)
-        params = runtime_arguments(o.parameters)
+        params = o.parameters
         decls = self._args_decl(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
@@ -244,7 +245,7 @@ class CGen(Visitor):
     def visit_Operator(self, o):
         # Kernel signature and body
         body = flatten(self.visit(i) for i in o.children)
-        params = runtime_arguments(o.parameters)
+        params = o.parameters
         decls = self._args_decl(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         retval = [c.Statement("return 0")]

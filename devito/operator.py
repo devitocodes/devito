@@ -7,7 +7,7 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.arguments import ArgumentEngine, ArgumentMap
+from devito.arguments import ArgumentMap
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import transform
@@ -119,12 +119,6 @@ class Operator(Callable):
         # Introduce the required symbol declarations
         nodes = iet_insert_C_decls(dle_state.nodes, self.func_table)
 
-        # Initialise ArgumentEngine
-        self.argument_engine = ArgumentEngine(clusters.ispace, parameters,
-                                              self.dle_arguments)
-
-        parameters = self.argument_engine.arguments
-
         # Insert data and pointer casts for array parameters and profiling structs
         functions = FindSymbols('symbolics').visit(nodes)
         casts = [ArrayCast(param) for param in functions]
@@ -169,21 +163,8 @@ class Operator(Callable):
         for p in self.input + self.dimensions:
             arguments.update(p.argument_values(**kwargs))
 
-        # HACK ALERT: Add profiler argument from parameters[-1]
-        profiler = self.parameters[-1]
-        arguments[profiler.name] = profiler.value
-        return arguments
-
-    def old_arguments(self, **kwargs):
-        """ Process any apply-time arguments passed to apply and derive values for
-            any remaining arguments
-        """
-
-        arguments, autotune = self.argument_engine.handle(**kwargs)
-
-        if autotune:
-            arguments = self._autotune(arguments)
-
+        # Add in the profiler argument
+        arguments[self.profiler.name] = self.profiler.new()
         return arguments
 
     @property
@@ -219,9 +200,11 @@ class Operator(Callable):
             # Associate a C type to each argument for runtime type check
             argtypes = []
             for i in self.parameters:
-                if i.is_ScalarArgument:
+                if i.is_Object:
+                    argtypes.append(ctypes.c_void_p)
+                elif i.is_Scalar:
                     argtypes.append(numpy_to_ctypes(i.dtype))
-                elif i.is_TensorArgument:
+                elif i.is_Tensor:
                     argtypes.append(np.ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
                 else:
                     argtypes.append(ctypes.c_void_p)
