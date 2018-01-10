@@ -18,7 +18,7 @@ from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
-                           FindSymbols, ArrayCast)
+                           FindSymbols, ArrayCast, PointerCast)
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import retrieve_terminals
@@ -124,9 +124,11 @@ class Operator(Callable):
 
         parameters = self.argument_engine.arguments
 
-        # Insert data casts for all multi-dimensional function parameters
+        # Insert data and pointer casts for array parameters and profiling structs
         functions = FindSymbols('symbolics').visit(nodes)
-        casts = tuple(ArrayCast(param) for param in functions)
+        casts = [ArrayCast(param) for param in functions]
+        profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
+        casts.append(PointerCast(profiler))
         nodes = (List(body=casts), nodes)
 
         # Pick all free symbols and symbolic functions from the kernel
@@ -254,7 +256,6 @@ class OperatorRunnable(Operator):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         nodes, profiler = create_profile('timers', nodes)
         self._globals.append(profiler.cdef)
-        parameters.append(Object(profiler.name, profiler.dtype, profiler.new))
         return nodes, profiler
 
 

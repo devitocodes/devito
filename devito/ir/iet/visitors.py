@@ -143,13 +143,22 @@ class CGen(Visitor):
 
     def visit_ArrayCast(self, o):
         """
-        Build cgen type casts for an iterable of :class:`AbstractFunction`.
+        Build cgen type casts for an :class:`AbstractFunction`.
         """
         f = o.function
         align = "__attribute__((aligned(64)))"
         shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
         lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
         rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(f.dtype), shape, '%s_vec' % f.name)
+        return c.Initializer(lvalue, rvalue)
+
+    def visit_PointerCast(self, o):
+        """
+        Build cgen pointer casts for an :class:`Object`.
+        """
+        ctype = ctypes_to_C(o.object.dtype)
+        lvalue = c.Pointer(c.Value(ctype, o.object.name))
+        rvalue = '(%s*) %s' % (ctype, '_%s' % o.object.name)
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
@@ -377,6 +386,9 @@ class FindSymbols(Visitor):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
     def visit_ArrayCast(self, o):
+        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
+
+    def visit_PointerCast(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
 
