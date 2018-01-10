@@ -13,7 +13,7 @@ class CheckpointOperator(Operator):
                     automatically include these cached arguments in the call to the
                     underlying devito.Operator.apply().
     """
-    t_arg_names = {'t_start': 't_s', 't_end': 't_e'}
+    t_arg_names = {'t_start': 'time_s', 't_end': 'time_e'}
 
     def __init__(self, op, **kwargs):
         self.op = op

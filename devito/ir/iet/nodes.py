@@ -15,7 +15,6 @@ from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
 from devito.ir.support import Stencil
 from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
-from devito.arguments import ArgumentProvider, Argument
 import devito.types as types
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
@@ -454,13 +453,7 @@ class Callable(Node):
         self.body = as_tuple(body)
         self.retval = retval
         self.prefix = prefix
-
-        if all(isinstance(i, ArgumentProvider) for i in parameters):
-            args = flatten([i.rtargs for i in parameters])
-        else:
-            assert(all(isinstance(i, Argument) for i in parameters))
-            args = parameters
-        self.parameters = as_tuple(args)
+        self.parameters = as_tuple(parameters)
 
     def __repr__(self):
         parameters = ",".join(['void*' if i.is_PtrArgument else c.dtype_to_ctype(i.dtype)

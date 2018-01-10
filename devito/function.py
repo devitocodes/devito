@@ -11,7 +11,6 @@ from devito.logger import debug, error, warning
 from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import Dimension, TimeDimension
-from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
 from devito.types import SymbolicFunction, AbstractSymbol
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
@@ -20,7 +19,7 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'Forward', 'Backward']
+           'Forward', 'Backward', 'CompositeFunction']
 
 
 class TimeAxis(object):
@@ -45,7 +44,7 @@ Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
 
 
-class Constant(AbstractSymbol, ConstantArgProvider):
+class Constant(AbstractSymbol):
 
     """
     Symbol representing constant values in symbolic equations.
@@ -79,7 +78,7 @@ class Constant(AbstractSymbol, ConstantArgProvider):
         return self
 
 
-class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
+class TensorFunction(SymbolicFunction):
 
     """
     Utility class to encapsulate all symbolic :class:`Function` types
