@@ -75,16 +75,14 @@ script:
   - py.test -vs --cov devito tests/
 
   # Additional seismic operator tests
-  - if [[ $DEVITO_BACKEND != 'yask' ]]; then
-      DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign;
-      python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5;
-      python examples/seismic/benchmark.py test -P acoustic -a;
-      python examples/seismic/acoustic/acoustic_example.py --full;
-      python examples/seismic/acoustic/acoustic_example.py --constant --full;
-      python examples/seismic/acoustic/gradient_example.py;
-      python examples/seismic/tti/tti_example.py -a;
-      python examples/checkpointing/checkpointing_example.py;
-    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/gradient_example.py; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/tti/tti_example.py -a; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/checkpointing/checkpointing_example.py; fi
 
   # Test tutorial notebooks for the website using nbval
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
