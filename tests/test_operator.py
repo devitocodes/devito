@@ -316,7 +316,7 @@ class TestArguments(object):
         self.verify_arguments(op.arguments(), expected)
         exp_parameters = ['f', 'g', 'x_s', 'x_e', 'x_size', 'y_s',
                           'y_e', 'y_size', 'z_s', 'z_e', 'z_size',
-                          't_s', 't_e']
+                          'time_s', 'time_e']
         self.verify_parameters(op.parameters, exp_parameters)
 
     def test_default_composite_functions(self):
@@ -340,7 +340,6 @@ class TestArguments(object):
         }
         self.verify_arguments(op.arguments(), expected)
 
-    @pytest.mark.xfail(reason='Size-only arguments cause wrong data casts')
     def test_override_function_size(self):
         """
         Test runtime size overrides for :class:`Function` dimensions.
@@ -410,15 +409,13 @@ class TestArguments(object):
         # explicitly. Ideally `t` would directly alias with `time`,
         # but this seems broken currently.
         args = {'x_s': 1, 'x_e': 3, 'y_s': 2, 'y_e': 4,
-                'z_s': 3, 'z_e': 5, 't_s': 1, 't_e': 4,
-                'time_s': 1, 'time_e': 4}
+                'z_s': 3, 'z_e': 5, 't_s': 1, 't_e': 4}
         arguments = op.arguments(**args)
         expected = {
             'x_size': 5, 'x_s': 1, 'x_e': 3,
             'y_size': 6, 'y_s': 2, 'y_e': 4,
             'z_size': 7, 'z_s': 3, 'z_e': 5,
             'time_s': 1, 'time_e': 4,
-            't_s': 1, 't_e': 4,
             'f': f.data
         }
         self.verify_arguments(arguments, expected)
