@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from functools import partial
 from math import ceil
 
@@ -18,6 +18,7 @@ from devito.finite_difference import (centered, cross_derivative,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
 from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
+from devito.tools import EnrichedTuple
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'Forward', 'Backward', 'CompositeFunction']
@@ -327,34 +328,58 @@ class Function(TensorFunction):
     @property
     def _offset_domain(self):
         """
-        The number of grid points between the first allocated element
-        (possibly in the halo/padding region) and the first domain element,
+        The number of grid points between the first (last) allocated element
+        (possibly in the halo/padding region) and the first (last) domain element,
         for each dimension.
         """
-        return tuple(np.add(list(zip(*self._halo))[0], list(zip(*self._padding))[0]))
+        left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
+        right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
+
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
+
+        return EnrichedTuple(*offsets, left=left, right=right)
 
     @property
     def _offset_halo(self):
         """
-        The number of grid points between the first allocated element
-        (possibly in the halo/padding region) and the first halo element,
+        The number of grid points between the first (last) allocated element
+        (possibly in the halo/padding region) and the first (last) halo element,
         for each dimension.
         """
-        return tuple(zip(*self._padding))[0]
+        left = self._extent_padding.left
+        right = self._extent_padding.right
+
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in self._padding)
+
+        return EnrichedTuple(*offsets, left=left, right=right)
 
     @property
-    def _extent_halo_left(self):
+    def _extent_halo(self):
         """
-        The number of grid points in the halo region on the left side.
+        The number of grid points in the halo region.
         """
-        return tuple(zip(*self._halo))[0]
+        left = tuple(zip(*self._halo))[0]
+        right = tuple(zip(*self._halo))[1]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in self._halo)
+
+        return EnrichedTuple(*extents, left=left, right=right)
 
     @property
-    def _extent_padding_left(self):
+    def _extent_padding(self):
         """
-        The number of grid points in the padding region on the left side.
+        The number of grid points in the padding region.
         """
-        return self._offset_halo
+        left = tuple(zip(*self._padding))[0]
+        right = tuple(zip(*self._padding))[1]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in self._padding)
+
+        return EnrichedTuple(*extents, left=left, right=right)
 
     @property
     def shape(self):
