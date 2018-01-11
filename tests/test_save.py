@@ -20,7 +20,7 @@ def initializer(data):
     data[0, :] = initial()
 
 
-def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
+def run_simulation(save=None, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     nx, ny = int(1 / dx), int(1 / dy)
     dx2, dy2 = dx**2, dy**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
@@ -30,18 +30,21 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
         name='u', grid=grid, save=timesteps, initializer=initializer,
         time_order=1, space_order=2
     )
-
+    # u.data[0, :] = initial()
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
     op = Operator(Eq(u.forward, stencil), time_axis=Forward)
+    print(op.arguments())
     op.apply(time=timesteps, dt=dt)
 
     if save:
+        print(np.max(u.data[timesteps - 1, :]))
         return u.data[timesteps - 1, :]
     else:
+        print(np.max(u.data[(timesteps+1) % 2, :]))
         return u.data[(timesteps+1) % 2, :]
 
 
 @skipif_yask
 def test_save():
-    assert(np.array_equal(run_simulation(True), run_simulation()))
+    assert(np.array_equal(run_simulation(None), run_simulation()))
