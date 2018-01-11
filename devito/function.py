@@ -179,22 +179,22 @@ class Function(TensorFunction):
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 self.space_order = space_order
-                self._halo = tuple((ceil(space_order/2),)*2 for i in range(self.dim))
+                self._halo = tuple((ceil(space_order/2),)*2 for i in range(self.ndim))
             elif isinstance(space_order, tuple) and len(space_order) == 3:
                 space_order, left_points, right_points = space_order
                 self.space_order = space_order
-                self._halo = tuple((left_points, right_points) for i in range(self.dim))
+                self._halo = tuple((left_points, right_points) for i in range(self.ndim))
             else:
                 raise ValueError("'space_order' must be int or 3-tuple of ints")
 
             padding = kwargs.get('padding', 0)
             if isinstance(padding, int):
-                self._padding = tuple((padding,)*2 for i in range(self.dim))
-            elif isinstance(padding, tuple) and len(padding) == self.dim:
+                self._padding = tuple((padding,)*2 for i in range(self.ndim))
+            elif isinstance(padding, tuple) and len(padding) == self.ndim:
                 self._padding = tuple((i,)*2 if isinstance(i, int) else i
                                       for i in padding)
             else:
-                raise ValueError("'padding' must be int or %d-tuple of ints" % self.dim)
+                raise ValueError("'padding' must be int or %d-tuple of ints" % self.ndim)
 
             # Dynamically add derivative short-cuts
             self._initialize_derivatives()
@@ -435,7 +435,7 @@ class Function(TensorFunction):
         raise NotImplementedError
 
     @property
-    def dim(self):
+    def ndim(self):
         """Return the number of spatial dimensions."""
         return len(self._grid_shape_domain)
 
@@ -467,7 +467,7 @@ class Function(TensorFunction):
         """
         derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
 
-        return sum([getattr(self, d) for d in derivs[:self.dim]])
+        return sum([getattr(self, d) for d in derivs[:self.ndim]])
 
     def laplace2(self, weight=1):
         """
