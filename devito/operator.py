@@ -121,7 +121,7 @@ class Operator(Callable):
 
         # Insert data and pointer casts for array parameters and profiling structs
         functions = FindSymbols('symbolics').visit(nodes)
-        casts = [ArrayCast(param) for param in functions]
+        casts = [ArrayCast(f) for f in functions if f.is_Tensor and f._mem_external]
         profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
         casts.append(PointerCast(profiler))
         nodes = (List(body=casts), nodes)
