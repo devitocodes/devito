@@ -85,10 +85,12 @@ class Grid(object):
         if time_dimension is None:
             self.time_dim = TimeDimension(name='time', spacing=Constant(name='dt'))
             self.stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
-        else:
+        elif isinstance(time_dimension, TimeDimension):
             self.time_dim = time_dimension
             self.stepping_dim = SteppingDimension(name='%s_s' % time_dimension.name,
                                                   parent=self.time_dim)
+        else:
+            raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
