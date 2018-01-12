@@ -164,9 +164,8 @@
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Eq</span>
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">q_affine</span><span class="p">,</span> <span class="n">q_inc</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_terminals</span><span class="p">,</span> <span class="n">q_affine</span><span class="p">,</span> <span class="n">q_inc</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span> <span class="n">filter_sorted</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Scope&#39;</span><span class="p">]</span>
 
@@ -332,7 +331,6 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">):</span>
-        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indexed</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">findices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">)):</span>
@@ -398,7 +396,8 @@
 <span class="k">class</span> <span class="nc">Access</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A representation of the access performed by a :class:`Indexed` object.</span>
+<span class="sd">    A representation of the access performed by a :class:`Indexed` object</span>
+<span class="sd">    (a scalar in the degenerate case).</span>
 
 <span class="sd">    Notes on Access comparison</span>
 <span class="sd">    ==========================</span>
@@ -413,7 +412,6 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
-        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indexed</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span>
         <span class="k">assert</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="s1">&#39;RI&#39;</span><span class="p">,</span> <span class="s1">&#39;WI&#39;</span><span class="p">]</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Access</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
@@ -709,15 +707,14 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">writes</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
             <span class="c1"># reads</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="p">):</span>
                 <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="p">[])</span>
                 <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;R&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">q_inc</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;RI&#39;</span>
                 <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
             <span class="c1"># write</span>
-            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
-                <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="p">[])</span>
-                <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;W&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">q_inc</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;WI&#39;</span>
-                <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;W&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">q_inc</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;WI&#39;</span>
+            <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
 
 <div class="viewcode-block" id="Scope.getreads"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.Scope.getreads">[docs]</a>    <span class="k">def</span> <span class="nf">getreads</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">as_tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">function</span><span class="p">))</span></div>
@@ -758,6 +755,32 @@
     <span class="k">def</span> <span class="nf">accesses</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">groups</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">has_dep</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if at least a dependency is detected, False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">w1</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[]):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">is_flow</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="n">w1</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">r</span> <span class="o">==</span> <span class="n">w1</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">lex_ge</span><span class="p">(</span><span class="n">w1</span><span class="p">))</span>
+                        <span class="n">is_anti</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="o">&gt;</span> <span class="n">w1</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">r</span> <span class="o">==</span> <span class="n">w1</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">lex_lt</span><span class="p">(</span><span class="n">w1</span><span class="p">))</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="c1"># Non-integer vectors are not comparable.</span>
+                        <span class="c1"># Conservatively, we assume it is a dependence</span>
+                        <span class="n">is_flow</span> <span class="o">=</span> <span class="n">is_anti</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">if</span> <span class="n">is_flow</span> <span class="ow">or</span> <span class="n">is_anti</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="kc">True</span>
+                <span class="k">for</span> <span class="n">w2</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[]):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">is_output</span> <span class="o">=</span> <span class="p">(</span><span class="n">w2</span> <span class="o">&gt;</span> <span class="n">w1</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">w2</span> <span class="o">==</span> <span class="n">w1</span> <span class="ow">and</span> <span class="n">w2</span><span class="o">.</span><span class="n">lex_gt</span><span class="p">(</span><span class="n">w1</span><span class="p">))</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="c1"># Non-integer vectors are not comparable.</span>
+                        <span class="c1"># Conservatively, we assume it is a dependence</span>
+                        <span class="n">is_output</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">if</span> <span class="n">is_output</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">d_flow</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

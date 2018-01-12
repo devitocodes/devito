@@ -248,6 +248,136 @@
 <code class="descname">getwrites</code><span class="sig-paren">(</span><em>function</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/basic.html#Scope.getwrites"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.basic.Scope.getwrites" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="devito.ir.support.basic.Scope.has_dep">
+<code class="descname">has_dep</code><a class="headerlink" href="#devito.ir.support.basic.Scope.has_dep" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if at least a dependency is detected, False otherwise.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.ir.support.domain">
+<span id="devito-ir-support-domain-module"></span><h2>devito.ir.support.domain module<a class="headerlink" href="#module-devito.ir.support.domain" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.ir.support.domain.NullInterval">
+<em class="property">class </em><code class="descclassname">devito.ir.support.domain.</code><code class="descname">NullInterval</code><span class="sig-paren">(</span><em>dim</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#NullInterval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.NullInterval" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.ir.support.domain.AbstractInterval</span></code></p>
+<dl class="attribute">
+<dt id="devito.ir.support.domain.NullInterval.is_Null">
+<code class="descname">is_Null</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.support.domain.NullInterval.is_Null" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.NullInterval.overlap">
+<code class="descname">overlap</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#NullInterval.overlap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.NullInterval.overlap" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.NullInterval.union">
+<code class="descname">union</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#NullInterval.union"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.NullInterval.union" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.support.domain.Interval">
+<em class="property">class </em><code class="descclassname">devito.ir.support.domain.</code><code class="descname">Interval</code><span class="sig-paren">(</span><em>dim</em>, <em>lower</em>, <em>upper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Interval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Interval" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.ir.support.domain.AbstractInterval</span></code></p>
+<p>Create an <a class="reference internal" href="#devito.ir.support.domain.Interval" title="devito.ir.support.domain.Interval"><code class="xref py py-class docutils literal"><span class="pre">Interval</span></code></a> of extent:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">dim</span><span class="o">.</span><span class="n">extent</span> <span class="o">+</span> <span class="nb">abs</span><span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="devito.ir.support.domain.Interval.intersection">
+<code class="descname">intersection</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Interval.intersection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Interval.intersection" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.support.domain.Interval.is_Defined">
+<code class="descname">is_Defined</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.support.domain.Interval.is_Defined" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.support.domain.Interval.limits">
+<code class="descname">limits</code><a class="headerlink" href="#devito.ir.support.domain.Interval.limits" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.Interval.negate">
+<code class="descname">negate</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Interval.negate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Interval.negate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.Interval.overlap">
+<code class="descname">overlap</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Interval.overlap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Interval.overlap" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.Interval.subtract">
+<code class="descname">subtract</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Interval.subtract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Interval.subtract" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.Interval.union">
+<code class="descname">union</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Interval.union"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Interval.union" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.support.domain.Space">
+<em class="property">class </em><code class="descclassname">devito.ir.support.domain.</code><code class="descname">Space</code><span class="sig-paren">(</span><em>intervals</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Space"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Space" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A bag of :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Interval`s.</p>
+<p>The intervals input ordering is honored.</p>
+<dl class="method">
+<dt id="devito.ir.support.domain.Space.drop">
+<code class="descname">drop</code><span class="sig-paren">(</span><em>d</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Space.drop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Space.drop" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.support.domain.Space.empty">
+<code class="descname">empty</code><a class="headerlink" href="#devito.ir.support.domain.Space.empty" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.Space.intersection">
+<code class="descname">intersection</code><span class="sig-paren">(</span><em>*spaces</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Space.intersection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Space.intersection" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.ir.support.domain.Space.intersection_update">
+<em class="property">classmethod </em><code class="descname">intersection_update</code><span class="sig-paren">(</span><em>*spaces</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Space.intersection_update"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Space.intersection_update" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the intersection of an iterable of <code class="xref py py-class docutils literal"><span class="pre">Space`s.</span> <span class="pre">The</span> <span class="pre">returned</span>
+<span class="pre">:class:`Space</span></code> contains one <a class="reference internal" href="#devito.ir.support.domain.Interval" title="devito.ir.support.domain.Interval"><code class="xref py py-class docutils literal"><span class="pre">Interval</span></code></a> for each unique
+<code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> found in <code class="docutils literal"><span class="pre">spaces</span></code>.</p>
+<p>space0 = Space([Interval(x, 1, -1)])
+space1 = Space([Interval(x, 2, -2), Interval(y, 3, -3)])
+space2 = Space([Interval(y, 2, -2), Interval(z, 1, -1)])</p>
+<p>res = Space.intersection_update(space0, space1, space2)
+res –&gt; Space([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.Space.negate">
+<code class="descname">negate</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Space.negate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Space.negate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.domain.Space.subtract">
+<code class="descname">subtract</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#Space.subtract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.Space.subtract" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.support.domain.IterationSpace">
+<em class="property">class </em><code class="descclassname">devito.ir.support.domain.</code><code class="descname">IterationSpace</code><span class="sig-paren">(</span><em>intervals</em>, <em>sub_iterators</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/domain.html#IterationSpace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.domain.IterationSpace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.support.domain.Space" title="devito.ir.support.domain.Space"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.support.domain.Space</span></code></a></p>
+<p>A <a class="reference internal" href="#devito.ir.support.domain.Space" title="devito.ir.support.domain.Space"><code class="xref py py-class docutils literal"><span class="pre">Space</span></code></a> associating one or more <code class="xref py py-class docutils literal"><span class="pre">Dimension`s</span> <span class="pre">to</span> <span class="pre">a</span>
+<span class="pre">:class:`Interval</span></code>. The interval is the data space, whereas the dimensions
+are the objects used to traverse the data space.</p>
 </dd></dl>
 
 </div>

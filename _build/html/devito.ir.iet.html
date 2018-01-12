@@ -38,7 +38,7 @@
     <link rel="top" title="Devito 1 documentation" href="index.html"/>
         <link rel="up" title="devito.ir package" href="devito.ir.html"/>
         <link rel="next" title="devito.ir.support package" href="devito.ir.support.html"/>
-        <link rel="prev" title="devito.ir.dfg package" href="devito.ir.dfg.html"/> 
+        <link rel="prev" title="devito.ir.clusters package" href="devito.ir.clusters.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -534,11 +534,6 @@ if a limit is unknown.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.ir.iet.nodes.Iteration.is_Closed">
-<code class="descname">is_Closed</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Closed" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Iteration.is_Elementizable">
 <code class="descname">is_Elementizable</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Elementizable" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -551,11 +546,6 @@ if a limit is unknown.</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Iteration.is_Linear">
 <code class="descname">is_Linear</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Linear" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.Iteration.is_Open">
-<code class="descname">is_Open</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Open" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -779,15 +769,6 @@ objects, False otherwise.</p>
 <dd><p>Build an Iteration/Expression tree by nesting the nodes in <code class="docutils literal"><span class="pre">nodes</span></code>.</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="devito.ir.iet.utils.copy_arrays">
-<code class="descclassname">devito.ir.iet.utils.</code><code class="descname">copy_arrays</code><span class="sig-paren">(</span><em>mapper</em>, <em>reverse=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/utils.html#copy_arrays"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.utils.copy_arrays" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build an Iteration/Expression tree performing the copy <code class="docutils literal"><span class="pre">k</span> <span class="pre">=</span> <span class="pre">v</span></code>, or
-<code class="docutils literal"><span class="pre">v</span> <span class="pre">=</span> <span class="pre">k</span></code> if reverse=True, for each (k, v) in mapper. (k, v) are expected
-to be of type <code class="xref py py-class docutils literal"><span class="pre">IndexedData</span></code>. The loop bounds are inferred from
-the dimensions used in <code class="docutils literal"><span class="pre">k</span></code>.</p>
-</dd></dl>
-
 </div>
 <div class="section" id="module-devito.ir.iet.visitors">
 <span id="devito-ir-iet-visitors-module"></span><h2>devito.ir.iet.visitors module<a class="headerlink" href="#module-devito.ir.iet.visitors" title="Permalink to this headline">¶</a></h2>
@@ -804,7 +785,7 @@ the dimensions used in <code class="docutils literal"><span class="pre">k</span>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'type': &lt;function FindNodes.&lt;lambda&gt;&gt;, 'scope': &lt;function FindNodes.&lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14bb15b49d08&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14bb15b49c80&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -876,7 +857,7 @@ the dimensions used in <code class="docutils literal"><span class="pre">k</span>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'kernel-data': &lt;function FindSymbols.&lt;lambda&gt;&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt;&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt;&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt;&gt;, 'dimensions': &lt;function FindSymbols.&lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'dimensions': &lt;function FindSymbols.&lt;lambda&gt; at 0x14bb15b49950&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14bb15b498c8&gt;, 'kernel-data': &lt;function FindSymbols.&lt;lambda&gt; at 0x14bb15b49730&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14bb15b497b8&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x14bb15b49840&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1053,13 +1034,13 @@ for exaple.:</p>
 
 <dl class="method">
 <dt id="devito.ir.iet.visitors.ResolveTimeStepping.visit_Expression">
-<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>offsets=defaultdict(&lt;class 'set'&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#ResolveTimeStepping.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.ResolveTimeStepping.visit_Expression" title="Permalink to this definition">¶</a></dt>
+<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>offsets={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#ResolveTimeStepping.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.ResolveTimeStepping.visit_Expression" title="Permalink to this definition">¶</a></dt>
 <dd><p>Collect all offsets used with a dimension</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.iet.visitors.ResolveTimeStepping.visit_Iteration">
-<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>offsets=defaultdict(&lt;class 'set'&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#ResolveTimeStepping.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.ResolveTimeStepping.visit_Iteration" title="Permalink to this definition">¶</a></dt>
+<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em>, <em>subs</em>, <em>offsets={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#ResolveTimeStepping.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.ResolveTimeStepping.visit_Iteration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1171,45 +1152,6 @@ replacements in a depth-first fashion.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.ir.iet.visitors.MergeOuterIterations">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">MergeOuterIterations</code><span class="sig-paren">(</span><em>mapper={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MergeOuterIterations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MergeOuterIterations" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.visitors.Transformer" title="devito.ir.iet.visitors.Transformer"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.visitors.Transformer</span></code></a></p>
-<p><a class="reference internal" href="#devito.ir.iet.visitors.Transformer" title="devito.ir.iet.visitors.Transformer"><code class="xref py py-class docutils literal"><span class="pre">Transformer</span></code></a> that merges subsequent <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code>
-objects iff their dimenions agree.</p>
-<dl class="method">
-<dt id="devito.ir.iet.visitors.MergeOuterIterations.is_mergable">
-<code class="descname">is_mergable</code><span class="sig-paren">(</span><em>iter1</em>, <em>iter2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MergeOuterIterations.is_mergable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MergeOuterIterations.is_mergable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines if two <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> objects are mergeable.</p>
-<p>Note: This currently does not(!) consider data dependencies
-between the loops. A deeper analysis is required for this that
-will be added soon.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.ir.iet.visitors.MergeOuterIterations.merge">
-<code class="descname">merge</code><span class="sig-paren">(</span><em>iter1</em>, <em>iter2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MergeOuterIterations.merge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MergeOuterIterations.merge" title="Permalink to this definition">¶</a></dt>
-<dd><p>Creates a new merged <code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code> object from two
-loops along the same dimension.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.ir.iet.visitors.MergeOuterIterations.visit_Iteration">
-<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MergeOuterIterations.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MergeOuterIterations.visit_Iteration" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="devito.ir.iet.visitors.MergeOuterIterations.visit_list">
-<code class="descname">visit_list</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MergeOuterIterations.visit_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MergeOuterIterations.visit_list" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="devito.ir.iet.visitors.MergeOuterIterations.visit_tuple">
-<code class="descname">visit_tuple</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.MergeOuterIterations.visit_tuple" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
 <dt id="devito.ir.iet.visitors.MapIteration">
 <em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">MapIteration</code><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#MapIteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.MapIteration" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.visitors.FindSections" title="devito.ir.iet.visitors.FindSections"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.visitors.FindSections</span></code></a></p>
@@ -1251,7 +1193,7 @@ enclosed <code class="xref py py-class docutils literal"><span class="pre">Expre
         <a href="devito.ir.support.html" class="btn btn-neutral float-right" title="devito.ir.support package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="devito.ir.dfg.html" class="btn btn-neutral" title="devito.ir.dfg package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="devito.ir.clusters.html" class="btn btn-neutral" title="devito.ir.clusters package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

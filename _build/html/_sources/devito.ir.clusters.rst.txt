@@ -20,6 +20,14 @@ devito\.ir\.clusters\.cluster module
     :undoc-members:
     :show-inheritance:
 
+devito\.ir\.clusters\.graph module
+----------------------------------
+
+.. automodule:: devito.ir.clusters.graph
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

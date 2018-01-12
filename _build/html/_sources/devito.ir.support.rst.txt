@@ -12,6 +12,14 @@ devito\.ir\.support\.basic module
     :undoc-members:
     :show-inheritance:
 
+devito\.ir\.support\.domain module
+----------------------------------
+
+.. automodule:: devito.ir.support.domain
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.ir\.support\.stencil module
 -----------------------------------
 

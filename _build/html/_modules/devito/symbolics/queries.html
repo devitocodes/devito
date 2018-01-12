@@ -194,6 +194,10 @@
     <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Indexed</span></div>
 
 
+<span class="k">def</span> <span class="nf">q_function</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Function</span>
+
+
 <div class="viewcode-block" id="q_terminal"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_terminal">[docs]</a><span class="k">def</span> <span class="nf">q_terminal</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Symbol</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Indexed</span></div>
 

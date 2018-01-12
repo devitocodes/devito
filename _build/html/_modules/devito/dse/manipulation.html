@@ -163,7 +163,7 @@
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">collect</span><span class="p">,</span> <span class="n">collect_const</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir.dfg</span> <span class="k">import</span> <span class="n">TemporariesGraph</span>
+<span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">FlowGraph</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_leaf</span><span class="p">,</span> <span class="n">xreplace_constrained</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Array</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
@@ -179,9 +179,8 @@
     <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="c1"># Fist promote the LHS</span>
-    <span class="n">graph</span> <span class="o">=</span> <span class="n">TemporariesGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">FlowGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
             <span class="c1"># Create a new function symbol</span>
             <span class="n">data</span> <span class="o">=</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
@@ -231,6 +230,9 @@
             <span class="n">rebuilt</span><span class="p">,</span> <span class="n">candidates</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">run</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
             <span class="n">rebuilt</span> <span class="o">=</span> <span class="n">collect_const</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt</span><span class="p">))</span>
             <span class="k">return</span> <span class="n">rebuilt</span><span class="p">,</span> <span class="n">flatten</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span><span class="p">:</span>
+            <span class="n">rebuilt</span><span class="p">,</span> <span class="n">candidates</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">),</span> <span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">)])</span>
+            <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">flatten</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">rebuilt</span><span class="p">,</span> <span class="n">candidates</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">run</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
             <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt</span><span class="p">),</span> <span class="n">flatten</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
@@ -296,7 +298,7 @@
     <span class="n">exprs</span> <span class="o">=</span> <span class="n">temporaries</span> <span class="o">+</span> <span class="n">leaves</span>
     <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">leaves</span><span class="p">}</span>
 
-    <span class="n">g</span> <span class="o">=</span> <span class="n">TemporariesGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">FlowGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
 
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
               <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_scalar</span> <span class="ow">and</span>

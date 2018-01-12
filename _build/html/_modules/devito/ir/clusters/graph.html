@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.ir.dfg.graph &mdash; Devito 1 documentation</title>
+  <title>devito.ir.clusters.graph &mdash; Devito 1 documentation</title>
   
 
   
@@ -141,7 +141,7 @@
         
           <li><a href="../../../index.html">Module code</a> &raquo;</li>
         
-      <li>devito.ir.dfg.graph</li>
+      <li>devito.ir.clusters.graph</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -158,22 +158,21 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for devito.ir.dfg.graph</h1><div class="highlight"><pre>
+  <h1>Source code for devito.ir.clusters.graph</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">islice</span>
 
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
-<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span><span class="p">,</span>
                               <span class="n">q_inc</span><span class="p">,</span> <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TemporariesGraph&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FlowGraph&#39;</span><span class="p">]</span>
 
 
-<span class="k">class</span> <span class="nc">Temporary</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Node</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A special :class:`sympy.Eq` which keeps track of: ::</span>
@@ -186,7 +185,7 @@
         <span class="n">reads</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;reads&#39;</span><span class="p">,</span> <span class="p">[])</span>
         <span class="n">readby</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;readby&#39;</span><span class="p">,</span> <span class="p">[])</span>
         <span class="n">inc</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;inc&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Temporary</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Node</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_is_Increment</span> <span class="o">=</span> <span class="n">inc</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_readby</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">readby</span><span class="p">)</span>
@@ -221,14 +220,14 @@
         <span class="n">reads</span> <span class="o">=</span> <span class="n">reads</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="s1">&#39;, ...&#39;</span><span class="p">)</span>
         <span class="n">readby</span> <span class="o">=</span> <span class="s1">&#39;[</span><span class="si">%s%s</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">readby</span><span class="p">][:</span><span class="mi">2</span><span class="p">]),</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="n">readby</span> <span class="o">=</span> <span class="n">readby</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">readby</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="s1">&#39;, ...&#39;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="s2">&quot;Temp(key=</span><span class="si">%s</span><span class="s2">, reads=</span><span class="si">%s</span><span class="s2">, readby=</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">reads</span><span class="p">,</span> <span class="n">readby</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;Node(key=</span><span class="si">%s</span><span class="s2">, reads=</span><span class="si">%s</span><span class="s2">, readby=</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">reads</span><span class="p">,</span> <span class="n">readby</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="TemporariesGraph"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph">[docs]</a><span class="k">class</span> <span class="nc">TemporariesGraph</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
+<div class="viewcode-block" id="FlowGraph"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph">[docs]</a><span class="k">class</span> <span class="nc">FlowGraph</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A temporaries graph represents an ordered sequence of operations. Operations,</span>
-<span class="sd">    of type :class:`Temporary`, are the nodes of the graph. An edge from ``n0`` to</span>
+<span class="sd">    A FlowGraph represents an ordered sequence of operations. Operations,</span>
+<span class="sd">    of type :class:`Node`, are the nodes of the graph. An edge from ``n0`` to</span>
 <span class="sd">    ``n1`` indicates that ``n1`` reads from ``n0``. For example, the sequence: ::</span>
 
 <span class="sd">        temp0 = a*b</span>
@@ -236,7 +235,7 @@
 <span class="sd">        temp2 = temp0*d</span>
 <span class="sd">        temp3 = temp1 + temp2</span>
 
-<span class="sd">    is represented by the following TemporariesGraph: ::</span>
+<span class="sd">    is represented by the following FlowGraph: ::</span>
 
 <span class="sd">        temp0 ---&gt; temp1</span>
 <span class="sd">          |          |</span>
@@ -255,9 +254,9 @@
         <span class="c1"># Check input legality</span>
         <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">DSEException</span><span class="p">(</span><span class="s2">&quot;Found redundant node, cannot build TemporariesGraph.&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Found redundant node, cannot build a FlowGraph.&quot;</span><span class="p">)</span>
 
-        <span class="c1"># Construct Temporaries, tracking reads and readby</span>
+        <span class="c1"># Construct the Nodes, tracking reads and readby</span>
         <span class="n">tensor_map</span> <span class="o">=</span> <span class="n">DefaultOrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">:</span>
             <span class="n">tensor_map</span><span class="p">[</span><span class="n">as_symbol</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
@@ -287,11 +286,11 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
 
-        <span class="c1"># Build up the TemporariesGraph</span>
-        <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">Temporary</span><span class="p">(</span><span class="o">*</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">inc</span><span class="o">=</span><span class="n">q_inc</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
-                                     <span class="n">reads</span><span class="o">=</span><span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="c1"># Build up the FlowGraph</span>
+        <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">Node</span><span class="p">(</span><span class="o">*</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">inc</span><span class="o">=</span><span class="n">q_inc</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                                <span class="n">reads</span><span class="o">=</span><span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">TemporariesGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">temporaries</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FlowGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">temporaries</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Determine indices along the space and time dimensions</span>
         <span class="n">terms</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">q_indirect</span><span class="p">(</span><span class="n">k</span><span class="p">)]</span>
@@ -299,7 +298,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">space_indices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Space</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">time_indices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Time</span><span class="p">)</span>
 
-<div class="viewcode-block" id="TemporariesGraph.trace"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.trace">[docs]</a>    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="FlowGraph.trace"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.trace">[docs]</a>    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the sequence of operations required to compute the temporary ``key``.</span>
 <span class="sd">        If ``readby = True``, then return the sequence of operations that will</span>
@@ -331,12 +330,12 @@
             <span class="n">found</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">values</span><span class="p">())</span></div>
 
-<div class="viewcode-block" id="TemporariesGraph.time_invariant"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.time_invariant">[docs]</a>    <span class="k">def</span> <span class="nf">time_invariant</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="FlowGraph.time_invariant"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.time_invariant">[docs]</a>    <span class="k">def</span> <span class="nf">time_invariant</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``</span>
-<span class="sd">        explicitly tracked by the TemporariesGraph or even a generic subexpression</span>
+<span class="sd">        explicitly tracked by the FlowGraph or even a generic subexpression</span>
 <span class="sd">        of ``e``. If no ``expr`` is provided, then time invariance of the entire</span>
-<span class="sd">        TemporariesGraph is assessed.</span>
+<span class="sd">        FlowGraph is assessed.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">expr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
@@ -365,10 +364,10 @@
             <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">temporaries</span> <span class="k">if</span> <span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="o">!=</span> <span class="n">item</span><span class="p">])</span>
         <span class="k">return</span> <span class="kc">True</span></div>
 
-<div class="viewcode-block" id="TemporariesGraph.is_index"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.is_index">[docs]</a>    <span class="k">def</span> <span class="nf">is_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+<div class="viewcode-block" id="FlowGraph.is_index"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.is_index">[docs]</a>    <span class="k">def</span> <span class="nf">is_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return True if ``key`` is used as array index in an expression of the</span>
-<span class="sd">        TemporariesGraph, False otherwise.</span>
+<span class="sd">        FlowGraph, False otherwise.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
@@ -379,7 +378,7 @@
                     <span class="k">return</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="kc">False</span></div>
 
-<div class="viewcode-block" id="TemporariesGraph.extract"><a class="viewcode-back" href="../../../../devito.ir.dfg.html#devito.ir.dfg.graph.TemporariesGraph.extract">[docs]</a>    <span class="k">def</span> <span class="nf">extract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="FlowGraph.extract"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.extract">[docs]</a>    <span class="k">def</span> <span class="nf">extract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the list of nodes appearing in ``key.reads``, in program order</span>
 <span class="sd">        (ie, based on the order in which the temporaries appear in ``self``). If</span>
@@ -398,7 +397,7 @@
 <span class="sd">            t2 = ...</span>
 
 <span class="sd">        Assuming ``key == v`` and ``readby is False`` (as by default), return</span>
-<span class="sd">        the following list of :class:`Temporary` objects: ::</span>
+<span class="sd">        the following list of :class:`Node` objects: ::</span>
 
 <span class="sd">            [t1, t0, u[i, j], u[3, j]]</span>
 
@@ -417,7 +416,7 @@
 
     <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
-            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TemporariesGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">FlowGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
         <span class="n">offset</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">step</span> <span class="ow">or</span> <span class="mi">0</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">start</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">start</span><span class="p">)</span> <span class="o">+</span> <span class="n">offset</span>
@@ -427,7 +426,7 @@
             <span class="n">stop</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">stop</span><span class="p">)</span> <span class="o">+</span> <span class="n">offset</span>
         <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
             <span class="n">stop</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="k">return</span> <span class="n">TemporariesGraph</span><span class="p">(</span><span class="n">islice</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">FlowGraph</span><span class="p">(</span><span class="n">islice</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">))</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">unknown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

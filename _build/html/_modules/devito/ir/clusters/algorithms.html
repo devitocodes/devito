@@ -163,7 +163,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Scope</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters.cluster</span> <span class="k">import</span> <span class="n">PartialCluster</span><span class="p">,</span> <span class="n">ClusterGroup</span>
-<span class="kn">from</span> <span class="nn">devito.ir.dfg</span> <span class="k">import</span> <span class="n">TemporariesGraph</span>
+<span class="kn">from</span> <span class="nn">devito.ir.clusters.graph</span> <span class="k">import</span> <span class="n">FlowGraph</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">xreplace_indices</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
@@ -390,7 +390,7 @@
 
     <span class="c1"># Create a PartialCluster for each sequence of expressions computing a tensor</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-    <span class="n">g</span> <span class="o">=</span> <span class="n">TemporariesGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">FlowGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
     <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">stencils</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">:</span>
             <span class="n">exprs</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>

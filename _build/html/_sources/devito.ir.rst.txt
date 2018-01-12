@@ -7,7 +7,6 @@ Subpackages
 .. toctree::
 
     devito.ir.clusters
-    devito.ir.dfg
     devito.ir.iet
     devito.ir.support
 

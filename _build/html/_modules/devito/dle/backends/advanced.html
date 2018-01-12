@@ -179,12 +179,10 @@
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
                            <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span>
-                           <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
-                           <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">compose_nodes</span><span class="p">,</span>
-                           <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">copy_arrays</span><span class="p">)</span>
+                           <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
+                           <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">grouper</span><span class="p">,</span> <span class="n">roundm</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Array</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">grouper</span>
 
 
 <div class="viewcode-block" id="DevitoRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
@@ -318,7 +316,7 @@
                 <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">_block&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span>
 
                 <span class="c1"># Build Iteration over blocks</span>
-                <span class="n">dim</span> <span class="o">=</span> <span class="n">blocked</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+                <span class="n">dim</span> <span class="o">=</span> <span class="n">blocked</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">))</span>
                 <span class="n">block_size</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span>
                 <span class="n">iter_size</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_extent</span>
                 <span class="n">start</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">i</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -578,7 +576,6 @@
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_nontemporal_stores</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
@@ -586,61 +583,6 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-
-    <span class="nd">@dle_pass</span>
-    <span class="k">def</span> <span class="nf">_padding</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Introduce temporary buffers padded to the nearest multiple of the vector</span>
-<span class="sd">        length, to maximize data alignment. At the bottom of the kernel, the</span>
-<span class="sd">        values in the padded temporaries will be copied back into the input arrays.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-
-        <span class="c1"># Assess feasibility of the transformation</span>
-        <span class="n">handle</span> <span class="o">=</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics-writes&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">handle</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">nodes</span><span class="p">,</span> <span class="p">{}</span>
-        <span class="n">shape</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">],</span> <span class="n">key</span><span class="o">=</span><span class="nb">len</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">shape</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">nodes</span><span class="p">,</span> <span class="p">{}</span>
-        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">candidates</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">nodes</span><span class="p">,</span> <span class="p">{}</span>
-
-        <span class="c1"># Retrieve the maximum number of items in a SIMD register when processing</span>
-        <span class="c1"># the expressions in /node/</span>
-        <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-        <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">write</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">]</span>
-        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
-        <span class="n">dtype</span> <span class="o">=</span> <span class="n">exprs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span>
-        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">dtype</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">simd_items</span> <span class="o">=</span> <span class="n">get_simd_items</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-            <span class="c1"># Fallback to 16 (maximum expectable padding, for AVX512 registers)</span>
-            <span class="n">simd_items</span> <span class="o">=</span> <span class="n">simdinfo</span><span class="p">[</span><span class="s1">&#39;avx512f&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span>
-
-        <span class="n">shapes</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">roundm</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">simd_items</span><span class="p">),)</span>
-                  <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">}</span>
-        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span>
-                                    <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
-                                          <span class="n">shape</span><span class="o">=</span><span class="n">shapes</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
-                                          <span class="n">dimensions</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span>
-                                          <span class="n">onstack</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">)</span><span class="o">.</span><span class="n">indexed</span><span class="p">)</span>
-                      <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">]))</span>
-
-        <span class="c1"># Substitute original arrays with padded buffers</span>
-        <span class="n">processed</span> <span class="o">=</span> <span class="n">SubstituteExpression</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-
-        <span class="c1"># Build Iteration trees for initialization and copy-back of padded arrays</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-                              <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_SymbolicFunction</span><span class="p">])</span>
-        <span class="n">init</span> <span class="o">=</span> <span class="n">copy_arrays</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="n">copyback</span> <span class="o">=</span> <span class="n">copy_arrays</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
-
-        <span class="n">processed</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">init</span> <span class="o">+</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span> <span class="o">+</span> <span class="n">copyback</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{}</span>
 
     <span class="nd">@dle_pass</span>
     <span class="k">def</span> <span class="nf">_nontemporal_stores</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
@@ -679,7 +621,6 @@
         <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_ompize</span><span class="p">,</span>
         <span class="s1">&#39;simd&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_simdize</span><span class="p">,</span>
         <span class="s1">&#39;fission&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">,</span>
-        <span class="s1">&#39;padding&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_padding</span><span class="p">,</span>
         <span class="s1">&#39;split&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_create_elemental_functions</span>
     <span class="p">}</span>
 

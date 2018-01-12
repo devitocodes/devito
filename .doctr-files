@@ -8,7 +8,6 @@
 ./_build/doctrees/devito.dse.doctree
 ./_build/doctrees/devito.foreign.doctree
 ./_build/doctrees/devito.ir.clusters.doctree
-./_build/doctrees/devito.ir.dfg.doctree
 ./_build/doctrees/devito.ir.doctree
 ./_build/doctrees/devito.ir.iet.doctree
 ./_build/doctrees/devito.ir.support.doctree
@@ -54,13 +53,14 @@
 ./_build/html/_modules/devito/grid.html
 ./_build/html/_modules/devito/ir/clusters/algorithms.html
 ./_build/html/_modules/devito/ir/clusters/cluster.html
-./_build/html/_modules/devito/ir/dfg/graph.html
+./_build/html/_modules/devito/ir/clusters/graph.html
 ./_build/html/_modules/devito/ir/iet/analysis.html
 ./_build/html/_modules/devito/ir/iet/nodes.html
 ./_build/html/_modules/devito/ir/iet/properties.html
 ./_build/html/_modules/devito/ir/iet/utils.html
 ./_build/html/_modules/devito/ir/iet/visitors.html
 ./_build/html/_modules/devito/ir/support/basic.html
+./_build/html/_modules/devito/ir/support/domain.html
 ./_build/html/_modules/devito/ir/support/stencil.html
 ./_build/html/_modules/devito/logger.html
 ./_build/html/_modules/devito/operator.html
@@ -96,7 +96,6 @@
 ./_build/html/_sources/devito.dse.rst.txt
 ./_build/html/_sources/devito.foreign.rst.txt
 ./_build/html/_sources/devito.ir.clusters.rst.txt
-./_build/html/_sources/devito.ir.dfg.rst.txt
 ./_build/html/_sources/devito.ir.iet.rst.txt
 ./_build/html/_sources/devito.ir.rst.txt
 ./_build/html/_sources/devito.ir.support.rst.txt
@@ -154,7 +153,6 @@
 ./_build/html/devito.foreign.html
 ./_build/html/devito.html
 ./_build/html/devito.ir.clusters.html
-./_build/html/devito.ir.dfg.html
 ./_build/html/devito.ir.html
 ./_build/html/devito.ir.iet.html
 ./_build/html/devito.ir.support.html
@@ -182,7 +180,6 @@
 ./devito.dse.rst
 ./devito.foreign.rst
 ./devito.ir.clusters.rst
-./devito.ir.dfg.rst
 ./devito.ir.iet.rst
 ./devito.ir.rst
 ./devito.ir.support.rst
