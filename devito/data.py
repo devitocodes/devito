@@ -54,14 +54,15 @@ class Data(np.ndarray):
         self._c_pointer = None
 
     def __array_finalize__(self, obj):
-        if type(obj) != Data:
-            return
         # `self` is the newly created object
         # `obj` is the object from which `self` was created
-        if self.ndim == obj.ndim:
-            self.modulo = getattr(obj, 'modulo', tuple(None for i in range(self.ndim)))
-        else:
+        if obj is None:
+            # `self` was created through __new__()
+            return
+        if type(obj) != Data or self.ndim != obj.ndim:
             self.modulo = tuple(None for i in range(self.ndim))
+        else:
+            self.modulo = obj.modulo
         # Views or references created via operations on `obj` do not get an
         # explicit reference to the C pointer (`_c_pointer`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
