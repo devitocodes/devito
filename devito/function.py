@@ -300,6 +300,8 @@ class Function(TensorFunction):
                     first_touch(self)
                 else:
                     self.data.fill(0)
+                if self.initializer is not None:
+                    self.initializer(self.data)
             return func(self)
         return wrapper
 
@@ -334,11 +336,6 @@ class Function(TensorFunction):
         The number of grid points in the padding region on the left side.
         """
         return self._offset_halo
-
-    def initialize(self):
-        """Apply the data initilisation function, if it is not None."""
-        if self.initializer is not None:
-            self.initializer(self.data)
 
     @property
     def shape(self):

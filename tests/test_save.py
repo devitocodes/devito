@@ -27,7 +27,8 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
 
     grid = Grid(shape=(nx, ny))
     u = TimeFunction(
-        name='u', grid=grid, save=timesteps, initializer=initializer,
+        name='u', grid=grid, save=timesteps if save else None,
+        initializer=initializer,
         time_order=1, space_order=2
     )
 
