@@ -285,12 +285,24 @@ class TensorFunction(SymbolicFunction):
     @property
     def symbolic_shape(self):
         """
-        Return the symbolic shape of the object. This is simply the
-        appropriate combination of symbolic dimension sizes shifted
-        according to the ``staggered`` mask.
+        Return the symbolic shape of the object. This includes: ::
+
+            * the padding, halo, and domain regions. While halo and padding are
+              known quantities (integers), the domain size is represented by a symbol.
+            * the shifting induced by the ``staggered`` mask
         """
-        return tuple(i.symbolic_size - s for i, s in
-                     zip(self.indices, self.staggered))
+        # Add halo and padding
+        halo_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_halo]
+        padding_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_padding]
+        domain_sizes = [i.symbolic_size for i in self.indices]
+        shape = tuple(sympy.Add(i, j, k, evaluate=False)
+                      for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
+
+        # Add `staggered` mask
+        shape = tuple(sympy.Add(i, -j, evaluate=False)
+                      for i, j in zip(shape, self.staggered))
+
+        return shape
 
     def argument_defaults(self, alias=None):
         """

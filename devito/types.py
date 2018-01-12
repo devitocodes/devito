@@ -341,21 +341,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     @property
     def symbolic_shape(self):
         """
-        Return the symbolic shape of the object. For an entry ``E`` in ``self.shape``,
-        there are two possibilities: ::
-
-            * ``E`` is already in symbolic form, then simply use ``E``.
-            * ``E`` is an integer representing the size along a dimension ``D``,
-              then, use a symbolic representation of ``D``.
+        Return the symbolic shape of the object. This includes the padding,
+        halo, and domain regions. While halo and padding are known quantities
+        (integers), the domain size is represented by a symbol.
         """
-        sshape = []
-        for i, j in zip(self.shape, self.indices):
-            try:
-                i.is_algebraic_expr()
-                sshape.append(i)
-            except AttributeError:
-                sshape.append(j.symbolic_size)
-        return tuple(sshape)
+        return tuple(i.symbolic_size for i in self.indices)
 
     def indexify(self, indices=None):
         """Create a :class:`sympy.Indexed` object from the current object."""
