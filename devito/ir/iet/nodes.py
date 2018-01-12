@@ -300,14 +300,6 @@ class Iteration(Node):
         return "<%sIteration %s; %s>" % (properties, index, self.limits)
 
     @property
-    def is_Open(self):
-        return self.dim.size is None
-
-    @property
-    def is_Closed(self):
-        return not self.is_Open
-
-    @property
     def is_Linear(self):
         return len(self.uindices) == 0
 

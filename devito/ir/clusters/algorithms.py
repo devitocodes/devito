@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir.support import Scope
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
-from devito.ir.dfg import TemporariesGraph
+from devito.ir.clusters.graph import FlowGraph
 from devito.symbolics import xreplace_indices
 from devito.types import Scalar
 from devito.tools import flatten
@@ -229,7 +229,7 @@ def clusterize(exprs, stencils):
 
     # Create a PartialCluster for each sequence of expressions computing a tensor
     mapper = OrderedDict()
-    g = TemporariesGraph(exprs)
+    g = FlowGraph(exprs)
     for (k, v), j in zip(g.items(), stencils):
         if v.is_tensor:
             exprs = g.trace(k)

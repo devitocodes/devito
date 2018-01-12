@@ -539,3 +539,17 @@ class GenericVisitor(object):
 
     def visit_object(self, o, **kwargs):
         return self.default_retval()
+
+
+class Bunch(object):
+    """
+    Bind together an arbitrary number of generic items. This is a mutable
+    alternative to a ``namedtuple``.
+
+    From: ::
+
+        http://code.activestate.com/recipes/52308-the-simple-but-handy-collector-of\
+        -a-bunch-of-named/?in=user-97991
+    """
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)

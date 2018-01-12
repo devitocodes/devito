@@ -29,7 +29,7 @@ class PointSource(SparseFunction):
 
     def __new__(cls, name, grid, ntime=None, npoint=None, data=None,
                 coordinates=None, **kwargs):
-        p_dim = kwargs.get('dimension', Dimension('p_%s' % name))
+        p_dim = kwargs.get('dimension', Dimension(name='p_%s' % name))
         npoint = npoint or coordinates.shape[0]
         if data is None:
             if ntime is None:
