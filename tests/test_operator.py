@@ -539,7 +539,7 @@ class TestArguments(object):
         grid = Grid(shape=(10, 10), dimensions=(i, j))
         original_coords = (1., 1.)
         new_coords = (2., 2.)
-        p_dim = Dimension('p_src')
+        p_dim = Dimension(name='p_src')
         u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
         time = u.indices[0]
         src1 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
@@ -926,7 +926,7 @@ class TestLoopScheduler(object):
         """
         grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
         a = TimeFunction(name='a', grid=grid, time_order=2, space_order=2)
-        p_aux = Dimension(name='p_aux', size=10)
+        p_aux = Dimension(name='p_aux')
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                      space_order=2)
         b.data[:] = 1.0

@@ -13,9 +13,8 @@ from devito.dle import transform
 from devito.dle.backends import DevitoRewriter as Rewriter
 from devito import Grid, Function, TimeFunction, Eq, Operator
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
-                           ResolveTimeStepping, SubstituteExpression,
-                           Transformer, FindNodes, analyze_iterations,
-                           retrieve_iteration_tree)
+                           ResolveTimeStepping, SubstituteExpression, Transformer,
+                           FindNodes, analyze_iterations, retrieve_iteration_tree)
 
 
 @pytest.fixture(scope="module")
@@ -477,35 +476,6 @@ def test_loop_fission(simple_function_fissionable):
     }
   }""" in str(handle.nodes)
     Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission'] = old
-
-
-@skipif_yask
-def test_padding(simple_function_with_paddable_arrays):
-    handle = transform(simple_function_with_paddable_arrays, mode='padding')
-    assert """\
-for (int i = 0; i < 3; i += 1)
-{
-  pa_dense[i] = a_dense[i];
-}
-void foo(float *restrict a_dense_vec, float *restrict b_dense_vec)
-{
-  float (*restrict a_dense) __attribute__((aligned(64))) = (float (*)) a_dense_vec;
-  float (*restrict b_dense) __attribute__((aligned(64))) = (float (*)) b_dense_vec;
-  for (int i = 0; i < 3; i += 1)
-  {
-    for (int j = 0; j < 5; j += 1)
-    {
-      for (int k = 0; k < 7; k += 1)
-      {
-        pa_dense[i] = b_dense[i] + pa_dense[i] + 5.0F;
-      }
-    }
-  }
-}
-for (int i = 0; i < 3; i += 1)
-{
-  a_dense[i] = pa_dense[i];
-}""" in str(handle.nodes)
 
 
 @skipif_yask

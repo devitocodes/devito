@@ -11,7 +11,7 @@ from functools import cmp_to_key
 from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, VECTOR, WRAPPABLE,
                            MapIteration, NestedTransformer, retrieve_iteration_tree)
 from devito.ir.support import Scope
-from devito.tools import as_tuple
+from devito.tools import as_tuple, filter_ordered
 
 __all__ = ['analyze_iterations']
 
@@ -69,7 +69,12 @@ def mark_parallel(analysis):
         for depth, i in enumerate(tree):
             if i in properties:
                 continue
-            dims = [j.dim for j in tree[:depth + 1]]
+            # Get all tree dimensions, including the unbounded indices
+            dims = []
+            for j in tree[:depth + 1]:
+                dims.append(j.dim)
+                dims.extend([k.dim for k in j.uindices])
+            dims = filter_ordered(dims)
             # The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):
             # (d_1, ..., d_{i-1}) > 0, OR
             # (d_1, ..., d_i) = 0

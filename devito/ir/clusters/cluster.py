@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from cached_property import cached_property
 
-from devito.ir.dfg import TemporariesGraph
+from devito.ir.clusters.graph import FlowGraph
 from devito.tools import as_tuple
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -40,7 +40,7 @@ class PartialCluster(object):
 
     @property
     def trace(self):
-        return TemporariesGraph(self.exprs)
+        return FlowGraph(self.exprs)
 
     @property
     def unknown(self):
@@ -76,7 +76,7 @@ class Cluster(PartialCluster):
 
     @cached_property
     def trace(self):
-        return TemporariesGraph(self.exprs)
+        return FlowGraph(self.exprs)
 
     @property
     def is_dense(self):

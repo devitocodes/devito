@@ -4,6 +4,7 @@ from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
 
 from devito import Eq  # noqa
 from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
+from devito.ir.support.domain import NullInterval, Interval, Space
 
 
 @pytest.fixture(scope="session")
@@ -138,6 +139,7 @@ def test_iteration_instance_distance(dims, ii_num, ii_literal):
     assert fcxy.distance(fcx1y, y) == (-1, 0)
 
 
+@skipif_yask
 def test_timed_access_cmp(ta_literal):
     """
     Tests comparison of objects of type TimedAccess.
@@ -311,3 +313,98 @@ def test_dependences_scope(exprs, expected, ti0, ti1, ti3, fa):
 
     # Sanity check: we did find all of the expected dependences
     assert len(expected) == 0
+
+
+@skipif_yask
+def test_intervals_intersection():
+    nullx = NullInterval(x)
+
+    # All nulls
+    assert nullx.intersection(nullx) == nullx
+
+    nully = NullInterval(y)
+    ix = Interval(x, -2, 2)
+    iy = Interval(y, -2, 2)
+
+    # Mixed nulls and defined
+    assert nullx.intersection(ix) == nullx
+    assert nullx.intersection(iy) == nullx
+    assert nullx.intersection(iy) != nully
+    assert nully.intersection(iy) == nully
+
+    ix2 = Interval(x, -8, -3)
+    ix3 = Interval(x, 3, 4)
+
+    # All defined disjoint
+    assert ix.intersection(ix2) == nullx
+    assert ix.intersection(ix3) == nullx
+    assert ix2.intersection(ix3) == nullx
+    assert ix.intersection(iy) == nullx
+    assert iy.intersection(ix) == nully
+
+    ix4 = Interval(x, 1, 4)
+    ix5 = Interval(x, -3, 0)
+
+    # All defined overlapping
+    assert ix.intersection(ix4) == Interval(x, 1, 2)
+    assert ix.intersection(ix5) == Interval(x, -2, 0)
+
+
+@skipif_yask
+def test_intervals_union():
+    nullx = NullInterval(x)
+
+    # All nulls
+    assert nullx.union(nullx) == nullx
+
+    ix = Interval(x, -2, 2)
+
+    # Mixed nulls and defined on the same dimension
+    assert nullx.union(ix) == ix
+    assert ix.union(ix) == ix
+    assert ix.union(nullx) == ix
+
+    ix2 = Interval(x, 1, 4)
+    ix3 = Interval(x, -3, 6)
+
+    # All defined overlapping
+    assert ix.union(ix2) == Interval(x, -2, 4)
+    assert ix.union(ix3) == ix3
+    assert ix2.union(ix3) == ix3
+
+    ix4 = Interval(x, 4, 8)
+    ix5 = Interval(x, -3, -3)
+    ix6 = Interval(x, -10, -3)
+    nully = NullInterval(y)
+    iy = Interval(y, -2, 2)
+
+    # Mixed disjoint (note: Space input order is irrelevant)
+    assert ix.union(ix4) == Space([ix4, ix])
+    assert ix.union(ix5) == Interval(x, -3, 2)
+    assert ix6.union(ix) == Space([ix, ix6])
+    assert ix.union(nully) == Space([ix, nully])
+    assert ix.union(iy) == Space([iy, ix])
+    assert iy.union(ix) == Space([iy, ix])
+
+
+@skipif_yask
+def test_intervals_subtract():
+    nullx = NullInterval(x)
+
+    # All nulls
+    assert nullx.subtract(nullx) == nullx
+
+    ix = Interval(x, 2, -2)
+
+    # Mixed nulls and defined on the same dimension
+    assert nullx.subtract(ix) == nullx
+    assert ix.subtract(ix) == Interval(x, 0, 0)
+    assert ix.subtract(nullx) == ix
+
+    ix2 = Interval(x, 4, -4)
+    ix3 = Interval(x, 6, -6)
+
+    # All defined same dimension
+    assert ix2.subtract(ix) == ix
+    assert ix.subtract(ix2) == Interval(x, -2, 2)
+    assert ix3.subtract(ix) == ix2

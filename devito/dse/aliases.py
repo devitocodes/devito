@@ -176,7 +176,7 @@ def calculate_offsets(indexeds):
         for d, i in zip(dimensions, indexed.indices):
             offset = i - d
             if offset.is_Number:
-                handle.append(offset)
+                handle.append(int(offset))
             else:
                 return None
         processed.append(tuple(handle))
