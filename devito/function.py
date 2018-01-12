@@ -11,7 +11,7 @@ from devito.logger import debug, error, warning
 from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import Dimension, TimeDimension
-from devito.types import SymbolicFunction, AbstractSymbol
+from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
@@ -44,7 +44,7 @@ Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
 
 
-class Constant(AbstractSymbol):
+class Constant(AbstractCachedSymbol):
 
     """
     Symbol representing constant values in symbolic equations.
@@ -179,22 +179,22 @@ class Function(TensorFunction):
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 self.space_order = space_order
-                self._halo = tuple((ceil(space_order/2),)*2 for i in range(self.dim))
+                self._halo = tuple((ceil(space_order/2),)*2 for i in range(self.ndim))
             elif isinstance(space_order, tuple) and len(space_order) == 3:
                 space_order, left_points, right_points = space_order
                 self.space_order = space_order
-                self._halo = tuple((left_points, right_points) for i in range(self.dim))
+                self._halo = tuple((left_points, right_points) for i in range(self.ndim))
             else:
                 raise ValueError("'space_order' must be int or 3-tuple of ints")
 
             padding = kwargs.get('padding', 0)
             if isinstance(padding, int):
-                self._padding = tuple((padding,)*2 for i in range(self.dim))
-            elif isinstance(padding, tuple) and len(padding) == self.dim:
+                self._padding = tuple((padding,)*2 for i in range(self.ndim))
+            elif isinstance(padding, tuple) and len(padding) == self.ndim:
                 self._padding = tuple((i,)*2 if isinstance(i, int) else i
                                       for i in padding)
             else:
-                raise ValueError("'padding' must be int or %d-tuple of ints" % self.dim)
+                raise ValueError("'padding' must be int or %d-tuple of ints" % self.ndim)
 
             # Dynamically add derivative short-cuts
             self._initialize_derivatives()
@@ -338,11 +338,6 @@ class Function(TensorFunction):
         return self._offset_halo
 
     @property
-    def dim(self):
-        """Return the number of spatial dimensions."""
-        return len(self._grid_shape_domain)
-
-    @property
     def shape(self):
         """
         Shape of the domain associated with this :class:`Function`.
@@ -386,11 +381,6 @@ class Function(TensorFunction):
         # of the data including the halo and padding regions, ie:
         # `tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))`
         raise NotImplementedError
-
-    @property
-    def space_dimensions(self):
-        """Tuple of index dimensions that define physical space."""
-        return tuple(d for d in self.indices if d.is_Space)
 
     @property
     def data(self):
@@ -442,6 +432,31 @@ class Function(TensorFunction):
         raise NotImplementedError
 
     @property
+    def ndim(self):
+        """Return the number of spatial dimensions."""
+        return len(self._grid_shape_domain)
+
+    @property
+    def dimensions(self):
+        """Tuple of :class:`Dimension`s representing the function indices."""
+        return self.indices
+
+    @property
+    def space_dimensions(self):
+        """Tuple of :class:`Dimension`s that define physical space."""
+        return tuple(d for d in self.indices if d.is_Space)
+
+    @property
+    def symbolic_shape(self):
+        """
+        Return the symbolic shape of the object. This is simply the
+        appropriate combination of symbolic dimension sizes shifted
+        according to the ``staggered`` mask.
+        """
+        return tuple(i.symbolic_size - s for i, s in
+                     zip(self.indices, self.staggered))
+
+    @property
     def laplace(self):
         """
         Generates a symbolic expression for the Laplacian, the second
@@ -449,7 +464,7 @@ class Function(TensorFunction):
         """
         derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
 
-        return sum([getattr(self, d) for d in derivs[:self.dim]])
+        return sum([getattr(self, d) for d in derivs[:self.ndim]])
 
     def laplace2(self, weight=1):
         """
@@ -461,16 +476,6 @@ class Function(TensorFunction):
                      for d in self.space_dimensions])
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
-
-    @property
-    def symbolic_shape(self):
-        """
-        Return the symbolic shape of the object. This is simply the
-        appropriate combination of symbolic dimension sizes shifted
-        according to the ``staggered`` mask.
-        """
-        return tuple(i.symbolic_size - s for i, s in
-                     zip(self.indices, self.staggered))
 
 
 class TimeFunction(Function):
@@ -577,15 +582,6 @@ class TimeFunction(Function):
                 self.time_size = self.time_order + 1
                 self.indices[0].modulo = self.time_size
 
-    @property
-    def shape_domain(self):
-        if self.save:
-            tsize = self.time_size - self.staggered[0]
-        else:
-            tsize = self.time_order + 1
-        return (tsize,) +\
-            tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered[1:]))
-
     @classmethod
     def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
@@ -611,6 +607,15 @@ class TimeFunction(Function):
 
         _indices = Function._indices(**kwargs)
         return tuple([time_dim] + list(_indices))
+
+    @property
+    def shape_domain(self):
+        if self.save:
+            tsize = self.time_size - self.staggered[0]
+        else:
+            tsize = self.time_order + 1
+        return (tsize,) +\
+            tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered[1:]))
 
     @property
     def forward(self):
@@ -702,7 +707,7 @@ class SparseFunction(CompositeFunction):
                 raise ValueError('No grid provided for SparseFunction.')
 
             # Allocate and copy coordinate data
-            d = Dimension('d')
+            d = Dimension(name='d')
             self.coordinates = Function(name='%s_coords' % self.name,
                                         dimensions=[self.indices[-1], d],
                                         shape=(self.npoint, self.grid.dim))
@@ -727,7 +732,8 @@ class SparseFunction(CompositeFunction):
         dimensions = kwargs.get('dimensions', None)
         grid = kwargs.get('grid', None)
         nt = kwargs.get('nt', 0)
-        indices = [grid.time_dim, Dimension('p')] if nt > 0 else [Dimension('p')]
+        dim = Dimension(name='p')
+        indices = [grid.time_dim, dim] if nt > 0 else [dim]
         return dimensions or indices
 
     @property

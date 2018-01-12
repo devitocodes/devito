@@ -4,8 +4,8 @@ from conftest import skipif_yask
 
 from devito import Eq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
-                           FindSymbols, IsPerfectIteration, MergeOuterIterations,
-                           Transformer, NestedTransformer, printAST)
+                           FindSymbols, IsPerfectIteration, Transformer,
+                           NestedTransformer, printAST)
 
 
 @pytest.fixture(scope="module")
@@ -296,76 +296,3 @@ def test_nested_transformer(exprs, iters, block2):
   <Iteration s::s::[0, 4, 1]::[0, 0]>
     <Iteration k::k::[0, 7, 1]::[0, 0]>
       <Expression a[i] = 8.0*a[i] + 6.0/b[i]>"""
-
-
-@skipif_yask
-def test_merge_iterations_flat(exprs, iters):
-    """Test outer loop merging on a simple two-level hierarchy:
-
-    for i                       for i
-        for j              \        for j
-            expr0       === \           expr0
-    for i               === /       for k
-        for k              /            expr1
-            expr1
-    """
-    block = [iters[0](iters[1](exprs[0])),
-             iters[0](iters[2](exprs[1]))]
-    newblock = MergeOuterIterations().visit(block)
-    newstr = printAST(newblock)
-    assert newstr == """<Iteration i::i::[0, 3, 1]::[0, 0]>
-  <Iteration j::j::[0, 5, 1]::[0, 0]>
-    <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration k::k::[0, 7, 1]::[0, 0]>
-    <Expression a[i] = -a[i] + b[i]>"""
-
-
-@skipif_yask
-def test_merge_iterations_deep(exprs, iters):
-    """Test outer loop merging on a deep hierarchy:
-
-    for i                       for i
-        for j                       for j
-            expr0           \           expr0
-    for i                === \      for k
-        for k            === /          expr0
-            expr0           /           expr1
-        for k
-            expr1
-    """
-    block = [iters[0](iters[1](exprs[0])),
-             iters[0]([iters[2](exprs[0]), iters[2](exprs[1])])]
-    newblock = MergeOuterIterations().visit(block)
-    newstr = printAST(newblock)
-    assert newstr == """<Iteration i::i::[0, 3, 1]::[0, 0]>
-  <Iteration j::j::[0, 5, 1]::[0, 0]>
-    <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration k::k::[0, 7, 1]::[0, 0]>
-    <Expression a[i] = a[i] + b[i] + 5.0>
-    <Expression a[i] = -a[i] + b[i]>"""
-
-
-@skipif_yask
-def test_merge_iterations_nested(exprs, iters):
-    """Test outer loop merging on a nested hierarchy that only exposes
-    the second-level merge after the first level has been performed:
-
-    for i                       for i
-        for j                       for j
-            expr0           \           expr0
-    for i                === \          expr1
-        for j            === /      for k
-            expr1           /           expr1
-        for k
-            expr1
-    """
-    block = [iters[0](iters[1](exprs[0])),
-             iters[0]([iters[1](exprs[1]), iters[2](exprs[1])])]
-    newblock = MergeOuterIterations().visit(block)
-    newstr = printAST(newblock)
-    assert newstr == """<Iteration i::i::[0, 3, 1]::[0, 0]>
-  <Iteration j::j::[0, 5, 1]::[0, 0]>
-    <Expression a[i] = a[i] + b[i] + 5.0>
-    <Expression a[i] = -a[i] + b[i]>
-  <Iteration k::k::[0, 7, 1]::[0, 0]>
-    <Expression a[i] = -a[i] + b[i]>"""
