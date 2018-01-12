@@ -41,8 +41,11 @@ class Operator(OperatorRunnable):
         # list of linked libraries
         self._compiler = configuration.yask['compiler'].copy()
 
-    def _specialize(self, nodes):
-        """Create a YASK representation of this Iteration/Expression tree."""
+    def _specialize_iet(self, nodes):
+        """Transform the Iteration/Expression tree to offload the computation of
+        one or more loop nests onto YASK. This involves calling the YASK compiler
+        to generate YASK code. Such YASK code is then called from within the
+        transformed Iteration/Expression tree."""
         log("Specializing a Devito Operator for YASK...")
 
         self.context = YaskNullContext()
