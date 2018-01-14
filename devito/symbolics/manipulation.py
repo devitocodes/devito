@@ -1,7 +1,7 @@
-from collections import Iterable, OrderedDict
+from collections import Iterable, OrderedDict, namedtuple
 
 import sympy
-from sympy import Number, Indexed, Function, Symbol
+from sympy import Number, Indexed, Function, Symbol, LM, LC
 
 from devito.symbolics.extended_sympy import Add, Mul, Eq
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
@@ -10,7 +10,7 @@ from devito.tools import as_tuple, flatten
 from devito.types import Symbol as dSymbol
 
 __all__ = ['freeze_expression', 'xreplace_constrained', 'xreplace_indices',
-           'pow_to_mul', 'as_symbol', 'indexify', 'convert_to_SSA']
+           'pow_to_mul', 'as_symbol', 'indexify', 'convert_to_SSA', 'split_affine']
 
 
 def freeze_expression(expr):
@@ -182,6 +182,24 @@ def as_symbol(expr):
         return Symbol(expr.__class__.__name__)
     else:
         raise TypeError("Cannot extract symbol from type %s" % type(expr))
+
+
+def split_affine(expr):
+    """
+    split_affine(expr)
+
+    Split an affine scalar function into its three components, namely variable,
+    coefficient, and translation from origin.
+
+    :raises ValueError: If ``expr`` is non affine.
+    """
+    AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
+    if expr.is_Number:
+        return AffineFunction(None, None, expr)
+    poly = expr.as_poly()
+    if not (poly.is_univariate and poly.is_linear) or not LM(poly).is_Symbol:
+        raise ValueError
+    return AffineFunction(LM(poly), LC(poly), poly.TC())
 
 
 def indexify(expr):
