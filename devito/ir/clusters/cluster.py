@@ -3,7 +3,7 @@ from collections import defaultdict
 from sympy import Eq
 from cached_property import cached_property
 
-from devito.ir.support import Space
+from devito.ir.support import IterationSpace
 from devito.ir.clusters.graph import FlowGraph
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -18,8 +18,8 @@ class PartialCluster(object):
     A PartialCluster is mutable.
 
     :param exprs: The ordered sequence of expressions computing a tensor.
-    :param ispace: An object of type :class:`Space`, representing the iteration
-                   space of the cluster.
+    :param ispace: An object of type :class:`IterationSpace`, which represents the
+                   iteration space of the cluster.
     """
 
     def __init__(self, exprs, ispace):
@@ -115,8 +115,8 @@ class ClusterGroup(list):
         Return the union of all Clusters' iteration spaces.
         """
         if not self:
-            return Space([])
-        return Space.intersection_update(*[i.ispace for i in self])
+            return IterationSpace([])
+        return IterationSpace.generate('intersection', *[i.ispace for i in self])
 
     def unfreeze(self):
         """
