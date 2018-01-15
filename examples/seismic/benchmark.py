@@ -229,6 +229,10 @@ def plot(problem, **kwargs):
     oi = bench.lookup(params=kwargs, measure="oi", event='main')
     time = bench.lookup(params=kwargs, measure="timings", event='main')
 
+    # What plot am I?
+    modes = [i for i in ['dse', 'dle', 'autotune']
+             if len(set(dict(j)[i] for j in gflopss)) > 1]
+
     # Filaneme
     figname = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (
         problem, shape, space_order, time_order, arch
@@ -237,31 +241,23 @@ def plot(problem, **kwargs):
     # Plot title
     name = {'acoustic': 'Acoustic', 'tti': 'TTI'}[problem]
     problem = "%s<grid=%s, TO=%s, sim=%sms>" % (name, shape, time_order, tn)
-    varying = [i for i in ['dse', 'dle', 'autotune']
-               if len(set(dict(j)[i] for j in gflopss)) > 1]
-    varying = ("varying<%s>" % ",".join(varying)) if varying else None
+    mode = ("varying<%s>" % ",".join(modes)) if modes else None
     arch = "arch<%s>" % arch
     backend = "backend<%s>" % configuration['backend']
-    title = ", ".join(i for i in [problem, varying, arch, backend] if i)
+    title = ", ".join(i for i in [problem, mode, arch, backend] if i)
 
     # Legend setup. Do not plot a legend if there's no variation in performance
     # options (dse, dle, autotuning)
-    if varying is not None:
+    if modes:
         legend = {'loc': 'upper left', 'fontsize': 5, 'ncol': 4}
     else:
         legend = 'drop'
 
-    # Plot style setup {<dse, dle> -> <marker, color>}
-    styles = {
-        # DLE basic
-        ('basic', 'basic'): ('D', 'r'),
-        ('advanced', 'basic'): ('D', 'g'),
-        ('aggressive', 'basic'): ('D', 'b'),
-        # DLE advanced
-        ('basic', 'advanced'): ('o', 'r'),
-        ('advanced', 'advanced'): ('o', 'g'),
-        ('aggressive', 'advanced'): ('o', 'b'),
-    }
+    avail_colors = ['r', 'g', 'b', 'y', 'k', 'm']
+    avail_markers = ['o', 'x', '^', 'v', '<', '>']
+
+    used_colors = {}
+    used_markers = {}
 
     # Find min and max runtimes for instances having the same OI
     min_max = {v: [0, sys.maxsize] for v in oi.values()}
@@ -273,15 +269,22 @@ def plot(problem, **kwargs):
     with RooflinePlotter(title=title, figname=figname, plotdir=resultsdir,
                          max_bw=max_bw, flop_ceils=flop_ceils,
                          fancycolor=True, legend=legend) as plot:
-        for key, gflopss in gflopss.items():
-            oi_value = oi[key]
-            time_value = time[key]
-            key = dict(key)
-            run = (key["dse"], key["dle"])
-            label = "<%s,%s>" % run
-            oi_loc = 0.05 if len(str(key["space_order"])) == 1 else 0.06
-            oi_annotate = {'s': 'SO=%s' % key["space_order"],
-                           'size': 4, 'xy': (oi_value, oi_loc)} if run[0] else None
+        for k, v in gflopss.items():
+            so = dict(k)['space_order']
+
+            oi_value = oi[k]
+            time_value = time[k]
+
+            run = tuple(dict(k)[i] for i in modes)
+            label = ("<%s>" % ','.join(run)) if run else None
+
+            color = used_colors[run] if run in used_colors else avail_colors.pop(0)
+            used_colors.setdefault(run, color)
+            marker = used_markers[so] if so in used_markers else avail_markers.pop(0)
+            used_markers.setdefault(so, marker)
+
+            oi_loc = 0.05 if len(str(so)) == 1 else 0.06
+            oi_annotate = {'s': 'SO=%s' % so, 'size': 4, 'xy': (oi_value, oi_loc)}
             if time_value in min_max[oi_value] and point_runtime:
                 # Only annotate min and max runtimes on each OI line, to avoid
                 # polluting the plot too much
@@ -292,10 +295,10 @@ def plot(problem, **kwargs):
             oi_line = time_value == min_max[oi_value][0]
             if oi_line:
                 perf_annotate = {'size': 4, 'xytext': (-4, 4)}
-            plot.add_point(gflops=gflopss, oi=oi_value, marker=styles[run][0],
-                           color=styles[run][1], oi_line=oi_line, label=label,
-                           perf_annotate=perf_annotate, oi_annotate=oi_annotate,
-                           point_annotate=point_annotate)
+
+            plot.add_point(gflops=v, oi=oi_value, marker=marker, color=color,
+                           oi_line=oi_line, label=label, perf_annotate=perf_annotate,
+                           oi_annotate=oi_annotate, point_annotate=point_annotate)
 
 
 def get_ob_bench(problem, resultsdir, parameters):
