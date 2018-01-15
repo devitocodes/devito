@@ -81,7 +81,7 @@ class LoweredEq(Eq, IREq):
         intervals, iterators = compute_intervals(expr)
         intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
         directions, _ = compute_directions(expr, lambda i: Any)
-        ispace = IterationSpace([i.negate() for i in intervals], iterators, directions)
+        ispace = IterationSpace([i.zero() for i in intervals], iterators, directions)
 
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
