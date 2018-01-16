@@ -34,7 +34,8 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
 
     # Create model from preset
     model = demo_model(spacing=[15. for _ in shape], dtype=np.float64,
-                       shape=shape, nbpml=nbpml, **(presets[mkey]))
+                       space_order=space_order, shape=shape, nbpml=nbpml,
+                       **(presets[mkey]))
 
     # Derive timestepping from model spacing
     dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
@@ -53,8 +54,7 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
 
     # Create solver object to provide relevant operators
     solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                kernel=kernel,
-                                space_order=space_order)
+                                kernel=kernel, space_order=space_order)
 
     # Create adjoint receiver symbol
     srca = Receiver(name='srca', grid=model.grid, ntime=solver.source.nt,

@@ -12,7 +12,6 @@ def laplacian(field, m, s, kernel):
     double laplacian:
     H = (laplacian + s**2/12 laplacian(1/m*laplacian))
     :param field: Symbolic TimeFunction object, solution to be computed
-    :param time_order: time order
     :param m: square slowness
     :param s: symbol for the time-step
     :return: H
@@ -26,7 +25,6 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     Stencil for the acoustic isotropic wave-equation:
     u.dt2 - H + damp*u.dt = 0
     :param field: Symbolic TimeFunction object, solution to be computed
-    :param time_order: time order
     :param m: square slowness
     :param s: symbol for the time-step
     :param damp: ABC dampening field (Function)
@@ -59,7 +57,6 @@ def ForwardOperator(model, source, receiver, space_order=4,
     :param model: :class:`Model` object containing the physical parameters
     :param source: :class:`PointData` object containing the source geometry
     :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param time_order: Time discretization order
     :param space_order: Space discretization order
     :param save: Saving flag, True saves all time steps, False only the three
     """
@@ -189,7 +186,7 @@ def BornOperator(model, source, receiver, space_order=4,
                      time_order=2, space_order=space_order)
     U = TimeFunction(name="U", grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
-    dm = Function(name="dm", grid=model.grid)
+    dm = Function(name="dm", grid=model.grid, space_order=0)
 
     s = model.grid.stepping_dim.spacing
     eqn1 = iso_stencil(u, m, s, damp, kernel)
