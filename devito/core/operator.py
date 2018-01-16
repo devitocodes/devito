@@ -3,9 +3,10 @@ from __future__ import absolute_import
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.exceptions import InvalidOperator
+from devito.ir.equations import LoweredEq
 from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
 from devito.operator import OperatorRunnable
-from devito.symbolics import retrieve_indexed, q_affine
+from devito.symbolics import indexify, retrieve_indexed, q_affine
 from devito.tools import flatten
 
 __all__ = ['Operator']
@@ -20,10 +21,7 @@ class OperatorCore(OperatorRunnable):
             * Performing indexification (:class:`Function` --> :class:`Indexed`).
             * Applying any user-provided substitution rules.
             * Translating all array accesses by a certain quantity so that they
-              are relative to the domain region.
-
-        The first two tasks are carried out by specializing each input expression
-        as a :class:`ir.Eq`.
+              become relative to the domain region.
 
         The latter task is necessary to index into the right memory locations and
         requires some thought.
@@ -51,7 +49,12 @@ class OperatorCore(OperatorRunnable):
                                  an issue in the expression specification provided
                                  by the user.
         """
-        expressions = super(OperatorCore, self)._specialize_exprs(expressions, subs)
+        # Indexification
+        expressions = [indexify(i) for i in expressions]
+
+        # Apply user-provided substitution rules
+        if subs is not None:
+            expressions = [i.xreplace(subs) for i in expressions]
 
         indexeds = set.union(*[retrieve_indexed(e) for e in expressions])
         indexeds = [i for i in indexeds if i.base.function.is_SymbolicFunction]
@@ -84,6 +87,9 @@ class OperatorCore(OperatorRunnable):
 
         # Finally translate the expressions
         expressions = [e.xreplace(mapper) for e in expressions]
+
+        # Lower equation, thus associating data and iteration space
+        expressions = [LoweredEq(i) for i in expressions]
 
         return expressions
 
