@@ -31,9 +31,6 @@ class LoweredEq(Eq, IREq):
 
     A SymPy equation with an associated iteration space.
 
-    All :class:`Function` objects within ``expr`` get indexified and thus turned
-    into objects of type :class:`types.Indexed`.
-
     The iteration space is an object of type :class:`IterationSpace`. It
     represents the iteration points along each :class:`Dimension` that the
     equation may traverse with the guarantee that no out-of-bounds accesses
@@ -43,9 +40,9 @@ class LoweredEq(Eq, IREq):
     def __new__(cls, *args, **kwargs):
         # Parse input
         if len(args) == 1:
-            input_expr = args[0]
-            assert type(input_expr) != LoweredEq
-            assert isinstance(input_expr, Eq)
+            expr = input_expr = args[0]
+            assert type(expr) != LoweredEq
+            assert isinstance(expr, Eq)
         elif len(args) == 2:
             # Reconstructing from existing Eq. E.g., we end up here after xreplace
             stamp = kwargs.pop('stamp')
@@ -57,14 +54,6 @@ class LoweredEq(Eq, IREq):
         else:
             raise ValueError("Cannot construct LoweredEq from args=%s "
                              "and kwargs=%s" % (str(args), str(kwargs)))
-
-        # Indexification
-        expr = indexify(input_expr)
-
-        # Apply caller-provided substitution
-        subs = kwargs.get('subs')
-        if subs is not None:
-            expr = expr.xreplace(subs)
 
         # Well-defined dimension ordering
         ordering = dimension_sort(expr, key=lambda i: not i.is_Time)

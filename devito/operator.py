@@ -232,7 +232,13 @@ class Operator(Callable):
         """Transform the SymPy expressions in input to the Operator into a
         backend-specific representation.
         """
-        return [LoweredEq(e, subs=subs) for e in expressions]
+        # Indexification
+        expressions = [indexify(i) for i in expressions]
+        # Apply user-provided substitution rules
+        expressions = [i.xreplace(subs) for i in expressions]
+        # Lower to /ir.Eq/, thus associating data and iteration space
+        expressions = [LoweredEq(i) for i in expressions]
+        return expressions
 
     def _specialize_iet(self, nodes):
         """Transform the Iteration/Expression tree into a backend-specific
