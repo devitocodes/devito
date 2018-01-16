@@ -635,7 +635,7 @@ class TimeFunction(Function):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(TimeFunction, self).__init__(**kwargs)
+            super(TimeFunction, self).__init__(*args, **kwargs)
 
             # Check we won't allocate too much memory for the system
             available_mem = virtual_memory().available

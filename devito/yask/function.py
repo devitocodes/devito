@@ -145,8 +145,3 @@ class Function(function.Function):
 class TimeFunction(function.TimeFunction, Function):
 
     from_YASK = True
-
-    def __init__(self, *args, **kwargs):
-        super(TimeFunction, self).__init__(*args, **kwargs)
-        # TODO: YASK does not support halo in time stepping dimensions yet
-        self._halo = ((0, 0),) + self._halo[1:]
