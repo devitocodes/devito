@@ -12,16 +12,17 @@ class GradientExample(object):
                  kernel='OT2', space_order=4, nbpml=10):
         self.kernel = kernel
         self.space_order = space_order
-        self._setup_model_and_acquisition(shape, spacing, nbpml, tn)
+        self._setup_model_and_acquisition(space_order, shape, spacing, nbpml, tn)
         self._true_data()
 
     @cached_property
     def dt(self):
         return self.model.critical_dt * (1.73 if self.kernel == 'OT4' else 1.0)
 
-    def _setup_model_and_acquisition(self, shape, spacing, nbpml, tn):
+    def _setup_model_and_acquisition(self, space_order, shape, spacing, nbpml, tn):
         nrec = shape[0]
-        model = demo_model('layers-isotropic', shape=shape, spacing=spacing, nbpml=nbpml)
+        model = demo_model('layers-isotropic', space_order=space_order,
+                           shape=shape, spacing=spacing, nbpml=nbpml)
         self.model = model
         t0 = 0.0
         self.nt = int(1 + (tn-t0) / self.dt)  # Number of timesteps
