@@ -551,6 +551,13 @@ class ArrayCast(Node):
         self.function = function
 
     @property
+    def functions(self):
+        """
+        Return all :class:`Function` objects used by this :class:`ArrayCast`
+        """
+        return [self.function]
+
+    @property
     def defines(self):
         """
         Return the base symbol an :class:`ArrayCast` defines.
@@ -578,6 +585,13 @@ class PointerCast(Node):
 
     def __init__(self, object):
         self.object = object
+
+    @property
+    def functions(self):
+        """
+        Return all :class:`Function` objects used by this :class:`PointerCast`
+        """
+        return []
 
     @property
     def defines(self):
