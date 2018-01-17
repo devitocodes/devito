@@ -1,14 +1,14 @@
 from collections import OrderedDict
 
-import sympy
+from sympy import Eq
 
 from devito.ir.support import Interval, IterationSpace, Stencil
 from devito.symbolics import dimension_sort, indexify
 
-__all__ = ['Eq']
+__all__ = ['LoweredEq']
 
 
-class Eq(sympy.Eq):
+class LoweredEq(Eq):
 
     """
     A new SymPy equation with an associated iteration space.
@@ -23,7 +23,8 @@ class Eq(sympy.Eq):
 
     def __new__(cls, input_expr, subs=None):
         # Sanity check
-        assert isinstance(input_expr, sympy.Eq)
+        assert type(input_expr) != LoweredEq
+        assert isinstance(input_expr, Eq)
 
         # Indexification
         expr = indexify(input_expr)
@@ -32,7 +33,7 @@ class Eq(sympy.Eq):
         if subs is not None:
             expr = expr.xreplace(subs)
 
-        expr = super(Eq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
+        expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
 
         # Get the accessed data points

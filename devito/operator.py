@@ -15,7 +15,7 @@ from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
 from devito.function import Forward, Backward
 from devito.logger import bar, info
-from devito.ir.equations import Eq
+from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls)
 from devito.parameters import configuration
@@ -75,7 +75,7 @@ class Operator(Callable):
         self.func_table = OrderedDict()
 
         # Expression lowering and analysis
-        expressions = [Eq(e, subs=subs) for e in expressions]
+        expressions = [LoweredEq(e, subs=subs) for e in expressions]
         self.dtype = retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = retrieve_symbols(expressions)
 

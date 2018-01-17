@@ -6,7 +6,7 @@ import pytest
 from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito import Eq  # noqa
-from devito.ir import Stencil, clusterize, FlowGraph, Eq as ir_Eq
+from devito.ir import Stencil, clusterize, FlowGraph, LoweredEq
 from devito.dse import rewrite, common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
@@ -107,7 +107,7 @@ def test_tti_clusters_to_graph():
 
     expressions = solver.op_fwd('centered').args['expressions']
     subs = solver.op_fwd('centered').args['subs']
-    expressions = [ir_Eq(e, subs=subs) for e in expressions]
+    expressions = [LoweredEq(e, subs=subs) for e in expressions]
     clusters = clusterize(expressions)
     assert len(clusters) == 3
 
