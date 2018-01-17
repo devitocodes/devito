@@ -592,6 +592,17 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 2)
 
+    def test_argument_time_save_greater(self, const):
+        nt = 10
+        grid = Grid(shape=(3, 5))
+        time = grid.time_dim
+        t = grid.stepping_dim
+        x, y = grid.dimensions
+        u = TimeFunction(name='u', grid=grid, save=True, time_dim=nt)
+        fwd_eqn = Eq(u.indexed[time+1, x, y], u.indexed[time, x, y] + 1.*const)
+        fwd_op = Operator(fwd_eqn)
+        fwd_op(time=nt+10, constant=1)
+
 
 @skipif_yask
 class TestDeclarator(object):
