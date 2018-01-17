@@ -36,7 +36,7 @@ def collect(exprs):
         a[i+2] - b[i+2] : because at least one operation differs
         a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
     """
-    ExprData = namedtuple('ExprData', 'dimensions offsets')
+    ExprData = namedtuple('ExprData', 'indices offsets')
 
     # Discard expressions:
     # - that surely won't alias to anything
@@ -80,15 +80,15 @@ def collect(exprs):
         # In circumstances in which an expression has repeated coefficients, e.g.
         # ... + 0.025*a[...] + 0.025*b[...],
         # We may have found a common basis (i.e., same COM, same alias) at this point
-        v = aliases.setdefault(alias, Alias(alias, candidates[handle].dimensions))
+        v = aliases.setdefault(alias, Alias(alias, candidates[handle].indices))
         v.extend(group, distances)
 
     # Heuristically attempt to relax the aliases offsets
     # to maximize the likelyhood of loop fusion
-    grouped = OrderedDict()
+    groups = OrderedDict()
     for i in aliases.values():
-        grouped.setdefault(i.dimensions, []).append(i)
-    for dimensions, group in grouped.items():
+        groups.setdefault(i.dimensions, []).append(i)
+    for group in groups.values():
         ideal_anti_stencil = Stencil.union(*[i.anti_stencil for i in group])
         for i in group:
             if i.anti_stencil.subtract(ideal_anti_stencil).empty:
@@ -112,7 +112,7 @@ def create_alias(expr, offsets):
     mapper = {}
     for indexed, ofs in zip(indexeds, offsets):
         base = indexed.base
-        dimensions = base.function.indices
+        dimensions = base.function.dimensions
         assert len(dimensions) == len(ofs)
         mapper[indexed] = indexed.func(base, *[sum(i) for i in zip(dimensions, ofs)])
 
@@ -158,7 +158,7 @@ def calculate_offsets(indexeds):
     """
     Return a list of tuples, with one tuple for each indexed object appearing
     in ``indexeds``. A tuple represents the offsets from the origin (0, 0, ..., 0)
-    along each dimension. All objects must use the same dimensions, in the same
+    along each dimension. All objects must use the same indices, in the same
     order; otherwise, ``None`` is returned.
 
     For example, given: ::
@@ -172,11 +172,11 @@ def calculate_offsets(indexeds):
     processed = []
     reference = indexeds[0].base.function.indices
     for indexed in indexeds:
-        dimensions = indexed.base.function.indices
-        if dimensions != reference:
+        indices = indexed.base.function.indices
+        if indices != reference:
             return None
         handle = []
-        for d, i in zip(dimensions, indexed.indices):
+        for d, i in zip(indices, indexed.indices):
             offset = i - d
             if offset.is_Number:
                 handle.append(int(offset))
@@ -239,17 +239,17 @@ class Alias(object):
     is tracked.
     """
 
-    def __init__(self, alias, dimensions, aliased=None, distances=None,
+    def __init__(self, alias, indices, aliased=None, distances=None,
                  ghost_offsets=None):
         self.alias = alias
-        self.dimensions = dimensions
+        self.dimensions = tuple(i.parent if i.is_Derived else i for i in indices)
 
         self.aliased = aliased or []
         self.distances = distances or []
         self._ghost_offsets = ghost_offsets or []
 
         assert len(self.aliased) == len(self.distances)
-        assert all(len(i) == len(dimensions) for i in self.distances)
+        assert all(len(i) == len(indices) for i in self.distances)
 
     @property
     def anti_stencil(self):
@@ -261,9 +261,21 @@ class Alias(object):
         return handle
 
     @property
+    def distance_map(self):
+        return [tuple(zip(self.dimensions, i)) for i in self.distances]
+
+    @property
+    def diameter(self):
+        return OrderedDict((d, (min(i), max(i)))
+                           for d, i in zip(self.dimensions, zip(*self.distances)))
+
+    @property
+    def relaxed_diameter(self):
+        return OrderedDict((k, (min(v), max(v))) for k, v in self.anti_stencil.items())
+
+    @property
     def with_distance(self):
-        return [(i, OrderedDict(zip(self.dimensions, j)))
-                for i, j in zip(self.aliased, self.distances)]
+        return tuple(zip(self.aliased, self.distance_map))
 
     def extend(self, aliased, distances):
         assert len(aliased) == len(distances)

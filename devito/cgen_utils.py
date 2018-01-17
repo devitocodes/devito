@@ -33,11 +33,10 @@ class Allocator(object):
         if obj in self.heap:
             return
 
-        decl = "(*%s)%s" % (obj.name,
-                            "".join("[%s]" % i.symbolic_size for i in obj.indices[1:]))
+        decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
         decl = c.Value(c.dtype_to_ctype(obj.dtype), decl)
 
-        shape = "".join("[%s]" % i.symbolic_size for i in obj.indices)
+        shape = "".join("[%s]" % i for i in obj.symbolic_shape)
         alloc = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
         alloc = alloc % (obj.name, c.dtype_to_ctype(obj.dtype), shape)
         alloc = c.Statement(alloc)

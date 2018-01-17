@@ -21,7 +21,6 @@ from devito.ir.iet import (Block, Expression, Iteration, List,
                            FindSymbols, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree, filter_iterations)
 from devito.logger import dle_warning
-from devito.symbolics import as_symbol
 from devito.tools import as_tuple, grouper
 
 
@@ -166,7 +165,7 @@ class DevitoRewriter(BasicRewriter):
                 inter_blocks.append(inter_block)
 
                 # Build Iteration within a block
-                limits = (as_symbol(dim), as_symbol(dim) + bsize - 1, 1)
+                limits = (dim, dim + bsize - 1, 1)
                 intra_block = i._rebuild([], limits=limits, offsets=(0, 0),
                                          properties=i.properties + (TAG, ELEMENTAL))
                 intra_blocks.append(intra_block)
