@@ -1,6 +1,5 @@
 from collections import namedtuple
 
-from devito.ir.support.space import Interval, IntervalGroup
 from devito.tools import DefaultOrderedDict
 
 __all__ = ['Stencil']
@@ -114,13 +113,6 @@ class Stencil(DefaultOrderedDict):
         Return a deep copy of the Stencil.
         """
         return Stencil(self.entries)
-
-    def boxify(self):
-        """
-        Create a :class:`IntervalGroup` from ``self``, with as many intervals
-        as dimensions in ``self``.
-        """
-        return IntervalGroup([Interval(k, min(v), max(v)) for k, v in self.items()])
 
     def __eq__(self, other):
         return self.entries == other.entries

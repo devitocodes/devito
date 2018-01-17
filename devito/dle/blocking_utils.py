@@ -153,11 +153,11 @@ def optimize_unfolded_tree(unfolded, root):
             index = Symbol('%ss%d' % (t1.index, i))
             mapper[t1.dim] = index
 
-            t1_uindex = (UnboundedIndex(index, t1.start_symbolic),)
-            t2_uindex = (UnboundedIndex(index, -t1.start_symbolic),)
+            t1_uindex = (UnboundedIndex(index, t1.limits[0]),)
+            t2_uindex = (UnboundedIndex(index, -t1.limits[0]),)
 
-            limits = (0, t1.extent_symbolic, t1.incr_symbolic)
-            modified_tree.append(t1._rebuild(limits=limits, offsets=None,
+            limits = (0, t1.limits[1] - t1.limits[0], t1.incr_symbolic)
+            modified_tree.append(t1._rebuild(limits=limits,
                                              uindices=t1.uindices + t1_uindex))
 
             modified_root.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
@@ -165,10 +165,11 @@ def optimize_unfolded_tree(unfolded, root):
         # Temporary arrays can now be moved onto the stack
         exprs = FindNodes(Expression).visit(modified_tree[-1])
         if all(not j.is_Remainder for j in modified_tree):
-            shape = tuple(j.bounds_symbolic[1] for j in modified_tree)
+            dimensions = tuple(j.limits[0] for j in modified_root)
             for j in exprs:
-                j_shape = shape + j.write.shape[len(modified_tree):]
-                j.write.update(shape=j_shape, onstack=True)
+                if j.write.is_Array:
+                    j_dimensions = dimensions + j.write.dimensions[len(modified_root):]
+                    j.write.update(dimensions=j_dimensions, onstack=True)
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)

@@ -712,21 +712,26 @@ class UnboundedIndex(object):
     def __init__(self, index, start=0, step=None, dim=None, expr=None):
         self.name = index
         self.index = index
-        self.start = start
-        self.step = index + 1 if step is None else step
         self.dim = dim
         self.expr = expr
 
-        if isinstance(self.start, int):
-            self.start = as_symbol(self.start)
-        if isinstance(self.step, int):
-            self.step = as_symbol(self.step)
+        try:
+            self.start = as_symbol(start)
+        except TypeError:
+            self.start = start
+
+        try:
+            if step is None:
+                self.step = index + 1
+            else:
+                self.step = as_symbol(step)
+        except TypeError:
+            self.step = step
 
     @property
     def free_symbols(self):
         """
         Return the symbols used by this :class:`UnboundedIndex`.
-
         """
         free = self.index.free_symbols
         free.update(self.start.free_symbols)
