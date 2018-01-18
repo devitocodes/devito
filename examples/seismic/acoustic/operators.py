@@ -17,7 +17,7 @@ def laplacian(field, time_order, m, s, kernel):
     :param s: symbol for the time-step
     :return: H
     """
-    biharmonic = field.laplace2(1/m) if kernel=='OT4' else 0
+    biharmonic = field.laplace2(1/m) if kernel == 'OT4' else 0
     return field.laplace + s**2/12 * biharmonic
 
 
