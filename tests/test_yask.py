@@ -361,8 +361,8 @@ class TestOperatorAcoustic(object):
         return 4
 
     @pytest.fixture
-    def time_order(self):
-        return 2
+    def kernel(self):
+        return 'OT2'
 
     @pytest.fixture
     def u(self, model, space_order, time_order):
@@ -370,9 +370,9 @@ class TestOperatorAcoustic(object):
                             space_order=space_order, time_order=time_order)
 
     @pytest.fixture
-    def eqn(self, m, damp, u, time_order):
+    def eqn(self, m, damp, u, kernel):
         t = u.grid.stepping_dim
-        return iso_stencil(u, time_order, m, t.spacing, damp)
+        return iso_stencil(u, m, t.spacing, damp, kernel)
 
     @pytest.fixture
     def src(self, model, time_params):
