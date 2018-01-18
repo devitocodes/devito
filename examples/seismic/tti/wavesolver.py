@@ -95,8 +95,10 @@ class AnisotropicWaveSolver(object):
 
         if len(m.shape) == 2:
             summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
-                               delta=delta, theta=theta, dt=self.dt, **kwargs)
+                               delta=delta, theta=theta,
+                               dt=kwargs.pop('dt', self.dt), **kwargs)
         else:
             summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
-                               delta=delta, theta=theta, phi=phi, dt=self.dt, **kwargs)
+                               delta=delta, theta=theta, phi=phi,
+                               dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, v, summary
