@@ -25,18 +25,17 @@ class AcousticWaveSolver(object):
 
     Note: space_order must always be greater than time_order
     """
-    def __init__(self, model, source, receiver,
-                 time_order=2, space_order=2, **kwargs):
+    def __init__(self, model, source, receiver, kernel='OT2', space_order=2, **kwargs):
         self.model = model
         self.source = source
         self.receiver = receiver
 
-        self.time_order = time_order
         self.space_order = space_order
+        self.kernel = kernel
 
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
         self.dt = self.model.critical_dt
-        if self.time_order == 4:
+        if self.kernel == 'OT4':
             self.dt *= 1.73
 
         # Cache compiler options
@@ -46,28 +45,28 @@ class AcousticWaveSolver(object):
     def op_fwd(self, save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
+                               receiver=self.receiver, kernel=self.kernel,
                                space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=False, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
+                               receiver=self.receiver, kernel=self.kernel,
                                space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
     def op_grad(self):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=True, source=self.source,
-                                receiver=self.receiver, time_order=self.time_order,
+                                receiver=self.receiver, kernel=self.kernel,
                                 space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
     def op_born(self):
         """Cached operator for born runs"""
         return BornOperator(self.model, save=False, source=self.source,
-                            receiver=self.receiver, time_order=self.time_order,
+                            receiver=self.receiver, kernel=self.kernel,
                             space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, m=None, save=False, **kwargs):

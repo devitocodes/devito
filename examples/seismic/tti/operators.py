@@ -357,7 +357,7 @@ def kernel_centered_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
     return Gxx, Gzz
 
 
-def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
+def ForwardOperator(model, source, receiver, space_order=4,
                     save=False, kernel='centered', **kwargs):
     """
        Constructor method for the forward modelling operator in an acoustic media
@@ -376,10 +376,10 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
                      save=save, time_dim=source.nt if save else None,
-                     time_order=time_order, space_order=space_order)
+                     time_order=2, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid,
                      save=save, time_dim=source.nt if save else None,
-                     time_order=time_order, space_order=space_order)
+                     time_order=2, space_order=space_order)
     src = PointSource(name='src', grid=model.grid, ntime=source.nt,
                       npoint=source.npoint)
     rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,

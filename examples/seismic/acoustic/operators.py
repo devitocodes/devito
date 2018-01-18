@@ -5,7 +5,7 @@ from devito.logger import error
 from examples.seismic import PointSource, Receiver
 
 
-def laplacian(field, time_order, m, s):
+def laplacian(field, time_order, m, s, kernel):
     """
     Spacial discretization for the isotropic acoustic wave equation. For a 4th
     order in time formulation, the 4th order time derivative is replaced by a
@@ -17,17 +17,11 @@ def laplacian(field, time_order, m, s):
     :param s: symbol for the time-step
     :return: H
     """
-    if time_order == 2:
-        biharmonic = 0
-    elif time_order == 4:
-        biharmonic = field.laplace2(1/m)
-    else:
-        error("Unsupported time order %d, order has to be 2 or 4" %
-              time_order)
+    biharmonic = field.laplace2(1/m) if kernel=='OT4' else 0
     return field.laplace + s**2/12 * biharmonic
 
 
-def iso_stencil(field, time_order, m, s, damp, **kwargs):
+def iso_stencil(field, time_order, m, s, damp, kernel, **kwargs):
     """
     Stencil for the acoustic isotropic wave-equation:
     u.dt2 - H + damp*u.dt = 0
@@ -52,13 +46,13 @@ def iso_stencil(field, time_order, m, s, damp, **kwargs):
     # Solve the symbolic equation for the field to be updated
     eq_time = solve(eq, next, rational=False, simplify=False)[0]
     # Get the spacial FD
-    lap = laplacian(field, time_order, m, s)
+    lap = laplacian(field, time_order, m, s, kernel)
     # return the Stencil with H replaced by its symbolic expression
     return [Eq(next, eq_time.subs({H: lap}))]
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
-                    save=False, **kwargs):
+                    save=False, kernel='OT2', **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
 
@@ -81,10 +75,10 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                    npoint=receiver.npoint)
 
     # Get computational time-step value
-    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(u, time_order, m, s, damp)
+    eqn = iso_stencil(u, time_order, m, s, damp, kernel)
 
     # Construct expression to inject source values
     src_term = src.inject(field=u.forward, expr=src * dt**2 / m,
@@ -98,7 +92,8 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                     time_axis=Forward, name='Forward', **kwargs)
 
 
-def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwargs):
+def AdjointOperator(model, source, receiver, time_order=2, space_order=4,
+                    kernel='OT2', **kwargs):
     """
     Constructor method for the adjoint modelling operator in an acoustic media
 
@@ -118,10 +113,10 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
                    npoint=receiver.npoint)
 
     # Get computational time-step value
-    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(v, time_order, m, s, damp, forward=False)
+    eqn = iso_stencil(v, time_order, m, s, damp, kernel, forward=False)
 
     # Construct expression to inject receiver values
     receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
@@ -136,7 +131,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
 
 def GradientOperator(model, source, receiver, time_order=2, space_order=4, save=True,
-                     **kwargs):
+                     kernel='OT2', **kwargs):
     """
     Constructor method for the gradient operator in an acoustic media
 
@@ -158,17 +153,18 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, save=
                    npoint=receiver.npoint)
 
     # Get computational time-step value
-    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(v, time_order, m, s, damp, forward=False)
+    eqn = iso_stencil(v, time_order, m, s, damp, kernel, forward=False)
 
-    if time_order == 2:
+    if kernel == 'OT2':
         gradient_update = Eq(grad, grad - u.dt2 * v)
-    else:
+    elif kernel == 'OT4':
         gradient_update = Eq(grad, grad - (u.dt2 +
                                            s**2 / 12.0 * u.laplace2(m**(-2))) * v)
-
+    else:
+        error("Unrecognized kernel, has to be OT2 or OT4")
     # Add expression for receiver injection
     receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
                            offset=model.nbpml)
@@ -178,7 +174,8 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, save=
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
-def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs):
+def BornOperator(model, source, receiver, time_order=2, space_order=4,
+                 kernel='OT2', **kwargs):
     """
     Constructor method for the Linearized Born operator in an acoustic media
 
@@ -204,11 +201,11 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     dm = Function(name="dm", grid=model.grid)
 
     # Get computational time-step value
-    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
 
     s = model.grid.stepping_dim.spacing
-    eqn1 = iso_stencil(u, time_order, m, s, damp)
-    eqn2 = iso_stencil(U, time_order, m, s, damp, q=-dm*u.dt2)
+    eqn1 = iso_stencil(u, time_order, m, s, damp, kernel)
+    eqn2 = iso_stencil(U, time_order, m, s, damp, kernel, q=-dm*u.dt2)
 
     # Add source term expression for u
     source = src.inject(field=u.forward, expr=src * dt**2 / m,

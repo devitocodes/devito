@@ -18,13 +18,11 @@ class AnisotropicWaveSolver(object):
 
     Note: space_order must always be greater than time_order
     """
-    def __init__(self, model, source, receiver,
-                 time_order=2, space_order=2, **kwargs):
+    def __init__(self, model, source, receiver, space_order=2, **kwargs):
         self.model = model
         self.source = source
         self.receiver = receiver
 
-        self.time_order = time_order
         self.space_order = space_order
         self.dt = self.model.critical_dt
 
@@ -35,7 +33,7 @@ class AnisotropicWaveSolver(object):
     def op_fwd(self, kernel='shifted', save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
+                               receiver=self.receiver,
                                space_order=self.space_order,
                                kernel=kernel, **self._kwargs)
 
@@ -72,12 +70,12 @@ class AnisotropicWaveSolver(object):
         if u is None:
             u = TimeFunction(name='u', grid=self.model.grid, save=save,
                              time_dim=self.source.nt if save else None,
-                             time_order=self.time_order, space_order=self.space_order)
+                             time_order=2, space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeFunction(name='v', grid=self.model.grid, save=save,
                              time_dim=self.source.nt if save else None,
-                             time_order=self.time_order, space_order=self.space_order)
+                             time_order=2, space_order=self.space_order)
         # Pick m from model unless explicitly provided
         if m is None:
             m = m or self.model.m
