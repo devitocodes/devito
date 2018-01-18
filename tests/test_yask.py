@@ -363,7 +363,7 @@ class TestOperatorAcoustic(object):
     @pytest.fixture
     def time_order(self):
         return 2
-    
+
     @pytest.fixture
     def kernel(self):
         return 'OT2'
