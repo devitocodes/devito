@@ -175,7 +175,7 @@
 <div class="viewcode-block" id="AdvancedRewriter"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.advanced.AdvancedRewriter">[docs]</a><span class="k">class</span> <span class="nc">AdvancedRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_extract_time_invariants</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_extract_time_invariants</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">costmodel</span><span class="o">=</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Function</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_eliminate_inter_stencil_redundancies</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_eliminate_intra_stencil_redundancies</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_factorize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>

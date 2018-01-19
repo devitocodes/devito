@@ -231,8 +231,6 @@
         <span class="k">assert</span> <span class="n">callable</span><span class="p">(</span><span class="n">make</span><span class="p">)</span> <span class="ow">and</span> <span class="n">callable</span><span class="p">(</span><span class="n">rule</span><span class="p">)</span>
 
         <span class="k">def</span> <span class="nf">replace</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">make</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                <span class="k">return</span> <span class="n">make</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span>
             <span class="n">temporary</span> <span class="o">=</span> <span class="n">found</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">temporary</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">temporary</span>
@@ -279,8 +277,11 @@
         <span class="n">root</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span>
 
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-            <span class="n">ret</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">repeat</span> <span class="ow">and</span> <span class="n">ret</span> <span class="o">!=</span> <span class="n">root</span><span class="p">:</span>
+            <span class="n">ret</span><span class="p">,</span> <span class="n">flag</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">make</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">root</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">and</span> <span class="n">flag</span><span class="p">:</span>
+                <span class="n">rebuilt</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">replace</span><span class="p">(</span><span class="n">root</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+                <span class="k">break</span>
+            <span class="k">elif</span> <span class="n">repeat</span> <span class="ow">and</span> <span class="n">ret</span> <span class="o">!=</span> <span class="n">root</span><span class="p">:</span>
                 <span class="n">root</span> <span class="o">=</span> <span class="n">ret</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">rebuilt</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">ret</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
