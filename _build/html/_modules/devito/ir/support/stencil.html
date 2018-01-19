@@ -159,14 +159,16 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.ir.support.stencil</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
 
-<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">StencilOperationError</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">partial_order</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support.domain</span> <span class="k">import</span> <span class="n">Interval</span><span class="p">,</span> <span class="n">Space</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span><span class="p">,</span> <span class="n">flatten</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Stencil&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Stencil"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil">[docs]</a><span class="k">class</span> <span class="nc">Stencil</span><span class="p">(</span><span class="n">DefaultOrderedDict</span><span class="p">):</span>
@@ -202,10 +204,10 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="p">:</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">StencilEntry</span><span class="p">):</span>
-                        <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">j</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">ofs</span><span class="p">)))</span>
+                        <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">j</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">j</span><span class="o">.</span><span class="n">ofs</span><span class="p">))</span>
                     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
                         <span class="n">entry</span> <span class="o">=</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="o">*</span><span class="n">j</span><span class="p">)</span>  <span class="c1"># Type checking</span>
-                        <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">entry</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">ofs</span><span class="p">)))</span>
+                        <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">entry</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">ofs</span><span class="p">))</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;Cannot construct a Stencil for </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">j</span><span class="p">))</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">Stencil</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="nb">set</span><span class="p">,</span> <span class="n">processed</span><span class="p">)</span>
@@ -215,31 +217,10 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute the stencil of ``expr``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">assert</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span>
-
-        <span class="c1"># Collect all indexed objects appearing in /expr/</span>
-        <span class="n">terminals</span> <span class="o">=</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
-        <span class="n">indexeds</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terminals</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">]</span>
+        <span class="n">indexeds</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
         <span class="n">indexeds</span> <span class="o">+=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">)</span>
 
-        <span class="c1"># Enforce deterministic dimension ordering...</span>
-        <span class="n">dims</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">terminals</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
-                <span class="n">dims</span><span class="p">[(</span><span class="n">e</span><span class="p">,)]</span> <span class="o">=</span> <span class="n">e</span>
-            <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
-                <span class="n">d</span> <span class="o">=</span> <span class="p">[]</span>
-                <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
-                    <span class="n">found</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)]</span>
-                    <span class="n">d</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">found</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">d</span><span class="p">])</span>
-                <span class="n">dims</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">d</span><span class="p">)]</span> <span class="o">=</span> <span class="n">e</span>
-        <span class="c1"># ... giving higher priority to TimeFunction objects; time always go first</span>
-        <span class="n">dims</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">dims</span><span class="p">),</span>
-                      <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">dims</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">or</span>
-                                         <span class="n">dims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_TimeFunction</span><span class="p">))</span>
-        <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">partial_order</span><span class="p">(</span><span class="n">dims</span><span class="p">)])</span>
-
-        <span class="c1"># Determine the points accessed along each dimension</span>
+        <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
@@ -250,7 +231,7 @@
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                         <span class="n">d</span> <span class="o">=</span> <span class="n">i</span>
                     <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
-                        <span class="n">off</span> <span class="o">+=</span> <span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                        <span class="n">off</span> <span class="o">+=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span>
                 <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">stencil</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">off</span><span class="p">)</span>
 
@@ -268,10 +249,6 @@
         <span class="k">return</span> <span class="n">output</span></div>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">frozen</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Stencil</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
-
-    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">empty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
 
@@ -286,28 +263,6 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">diameter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">-</span> <span class="nb">min</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
-
-<div class="viewcode-block" id="Stencil.null"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.null">[docs]</a>    <span class="k">def</span> <span class="nf">null</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the null Stencil of ``self``.</span>
-
-<span class="sd">        Examples:</span>
-
-<span class="sd">        self = {i: {-1, 0, 1}, j: {-2, -1, 0, 1, 2}}</span>
-<span class="sd">        self.null() &gt;&gt; {i: {0}, j: {0}}</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Stencil</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="nb">set</span><span class="p">([</span><span class="mi">0</span><span class="p">]))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">])</span></div>
-
-<div class="viewcode-block" id="Stencil.section"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.section">[docs]</a>    <span class="k">def</span> <span class="nf">section</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a view of the Stencil in which the Dimensions in ``d`` have been</span>
-<span class="sd">        dropped.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">output</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">d</span><span class="p">:</span>
-                <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">output</span></div>
 
 <div class="viewcode-block" id="Stencil.subtract"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.subtract">[docs]</a>    <span class="k">def</span> <span class="nf">subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -333,61 +288,12 @@
                 <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">|=</span> <span class="n">o</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">output</span></div>
 
-<div class="viewcode-block" id="Stencil.rshift"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.rshift">[docs]</a>    <span class="k">def</span> <span class="nf">rshift</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">m</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Right-shift the Dimensions ``d`` of ``self`` appearing in the mapper ``m``</span>
-<span class="sd">        by the constant quantity ``m[d]``.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Stencil</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span> <span class="o">-</span> <span class="n">m</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">]))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span></div>
-
-<div class="viewcode-block" id="Stencil.split"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.split">[docs]</a>    <span class="k">def</span> <span class="nf">split</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Split ``self`` into two Stencils, one with the negative axis, and one</span>
-<span class="sd">        with the positive axis. If ``ds`` is provided, the split occurs only</span>
-<span class="sd">        along the Dimensions listed in ``ds``.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">ds</span> <span class="o">=</span> <span class="n">ds</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span>
-        <span class="n">negative</span><span class="p">,</span> <span class="n">positive</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">(),</span> <span class="n">Stencil</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ds</span><span class="p">:</span>
-                <span class="n">negative</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">}</span>
-                <span class="n">positive</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">}</span>
-        <span class="k">return</span> <span class="n">negative</span><span class="p">,</span> <span class="n">positive</span></div>
-
-<div class="viewcode-block" id="Stencil.anti"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.anti">[docs]</a>    <span class="k">def</span> <span class="nf">anti</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Compute the anti-Stencil of ``self`` constrained by ``o``.</span>
-
-<span class="sd">        Examples:</span>
-
-<span class="sd">        Assuming one single dimension (omitted for brevity)</span>
-
-<span class="sd">        self = {-3, -2, -1, 0, 1, 2, 3}</span>
-<span class="sd">        o = {-3, -2, -1, 0, 1, 2, 3}</span>
-<span class="sd">        self.anti(o) &gt;&gt; {}</span>
-
-<span class="sd">        self = {-3, -2, -1, 0, 1, 2, 3}</span>
-<span class="sd">        o = {-2, -1, 0, 1}</span>
-<span class="sd">        self.anti(o) &gt;&gt; {-1, 0, 1, 2}</span>
-
-<span class="sd">        self = {-1, 0, 1}</span>
-<span class="sd">        o = {-2, -1, 0, 1, 2}</span>
-<span class="sd">        self.anti(o) &gt;&gt; {-1, 0, 1}</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">o</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">issuperset</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">StencilOperationError</span>
-
-        <span class="n">diff</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-        <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">diff</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
-        <span class="n">n</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">rshift</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">})</span>
-        <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">rshift</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">})</span>
-        <span class="n">union</span> <span class="o">=</span> <span class="n">Stencil</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">null</span><span class="p">(),</span> <span class="n">p</span><span class="p">])</span>
-
-        <span class="k">return</span> <span class="n">union</span></div>
-
 <div class="viewcode-block" id="Stencil.get"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Stencil</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">frozenset</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">obj</span></div>
+
+<div class="viewcode-block" id="Stencil.entry"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.entry">[docs]</a>    <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="Stencil.prefix"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.prefix">[docs]</a>    <span class="k">def</span> <span class="nf">prefix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -407,15 +313,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Stencil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Stencil.replace"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.replace">[docs]</a>    <span class="k">def</span> <span class="nf">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mapper</span><span class="p">):</span>
+<div class="viewcode-block" id="Stencil.boxify"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.boxify">[docs]</a>    <span class="k">def</span> <span class="nf">boxify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a new Stencil in which a key ``k`` (dimension) appearing in</span>
-<span class="sd">        ``mapper``  is replaced by ``mapper[k]``. The original order is therefore</span>
-<span class="sd">        unchangend, but a new dictionary is produced with potentially different</span>
-<span class="sd">        keys.</span>
+<span class="sd">        Create a :class:`Space` from ``self``, with as many intervals as dimensions.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Stencil</span><span class="p">([(</span><span class="n">k</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span> <span class="k">else</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
-                        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span></div>
+        <span class="k">return</span> <span class="n">Space</span><span class="p">([</span><span class="n">Interval</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span></div>
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">entries</span>

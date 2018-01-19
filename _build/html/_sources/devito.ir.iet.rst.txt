@@ -28,6 +28,14 @@ devito\.ir\.iet\.properties module
     :undoc-members:
     :show-inheritance:
 
+devito\.ir\.iet\.scheduler module
+---------------------------------
+
+.. automodule:: devito.ir.iet.scheduler
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.ir\.iet\.utils module
 -----------------------------
 

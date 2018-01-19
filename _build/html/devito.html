@@ -257,11 +257,18 @@
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.clusters.html#module-devito.ir.clusters">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="devito.ir.equations.html">devito.ir.equations package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.equations.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.equations.html#module-devito.ir.equations.equation">devito.ir.equations.equation module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.equations.html#module-devito.ir.equations">Module contents</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.iet.html">devito.ir.iet package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#submodules">Submodules</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.analysis">devito.ir.iet.analysis module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.nodes">devito.ir.iet.nodes module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.properties">devito.ir.iet.properties module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.scheduler">devito.ir.iet.scheduler module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.utils">devito.ir.iet.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet.visitors">devito.ir.iet.visitors module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet">Module contents</a></li>
@@ -313,7 +320,7 @@ generated kernels. It is necessarily a node in the dependency graph.</p>
 
 <dl class="class">
 <dt id="devito.arguments.ArgumentEngine">
-<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">ArgumentEngine</code><span class="sig-paren">(</span><em>stencils</em>, <em>parameters</em>, <em>dle_arguments</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ArgumentEngine"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ArgumentEngine" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">ArgumentEngine</code><span class="sig-paren">(</span><em>ispace</em>, <em>parameters</em>, <em>dle_arguments</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ArgumentEngine"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ArgumentEngine" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>Class that encapsulates the argument derivation and verification subsystem</p>
 <dl class="attribute">
@@ -630,9 +637,9 @@ which we are deriving the value is self.consumer</p>
 
 <dl class="function">
 <dt id="devito.arguments.retrieve_offsets">
-<code class="descclassname">devito.arguments.</code><code class="descname">retrieve_offsets</code><span class="sig-paren">(</span><em>stencils</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#retrieve_offsets"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.retrieve_offsets" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.arguments.</code><code class="descname">retrieve_offsets</code><span class="sig-paren">(</span><em>ispace</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#retrieve_offsets"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.retrieve_offsets" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a mapper from <code class="xref py py-class docutils literal"><span class="pre">Dimension`s</span> <span class="pre">to</span> <span class="pre">the</span> <span class="pre">min/max</span> <span class="pre">integer</span> <span class="pre">offsets</span>
-<span class="pre">within</span> <span class="pre">``stencils`</span></code>.</p>
+<span class="pre">within</span> <span class="pre">``ispace`</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
@@ -1775,12 +1782,6 @@ commonly use to represent a timestepping dimension.
 </dd></dl>
 
 <dl class="exception">
-<dt id="devito.exceptions.StencilOperationError">
-<em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">StencilOperationError</code><a class="reference internal" href="_modules/devito/exceptions.html#StencilOperationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.StencilOperationError" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
-</dd></dl>
-
-<dl class="exception">
 <dt id="devito.exceptions.VisitorException">
 <em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">VisitorException</code><a class="reference internal" href="_modules/devito/exceptions.html#VisitorException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.VisitorException" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
@@ -2616,26 +2617,6 @@ DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 <div class="section" id="module-devito.operator">
 <span id="devito-operator-module"></span><h2>devito.operator module<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
-<dt id="devito.operator.FunMeta">
-<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">FunMeta</code><span class="sig-paren">(</span><em>root</em>, <em>local</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.operator.FunMeta" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">tuple</span></code></p>
-<p>Metadata for functions called by an Operator. <code class="docutils literal"><span class="pre">local</span> <span class="pre">=</span> <span class="pre">True</span></code> means that
-the function was generated by Devito itself.</p>
-<dl class="attribute">
-<dt id="devito.operator.FunMeta.local">
-<code class="descname">local</code><a class="headerlink" href="#devito.operator.FunMeta.local" title="Permalink to this definition">¶</a></dt>
-<dd><p>Alias for field number 1</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.operator.FunMeta.root">
-<code class="descname">root</code><a class="headerlink" href="#devito.operator.FunMeta.root" title="Permalink to this definition">¶</a></dt>
-<dd><p>Alias for field number 0</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
 <dt id="devito.operator.Operator">
 <em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="devito.ir.iet.html#devito.ir.iet.nodes.Callable" title="devito.ir.iet.nodes.Callable"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Callable</span></code></a></p>
@@ -2687,16 +2668,6 @@ C code evaluating stencil expressions, can also execute the computation.</p>
 <dd><p>Apply the stencil kernel to a set of data objects</p>
 </dd></dl>
 
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.operator.make_stencils">
-<code class="descclassname">devito.operator.</code><code class="descname">make_stencils</code><span class="sig-paren">(</span><em>expressions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#make_stencils"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.make_stencils" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a <code class="xref py py-class docutils literal"><span class="pre">Stencil</span></code> for each of the provided expressions. The following
-rules apply:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span>* A :class:`SteppingDimension` ``d`` is replaced by its parent ``d.parent``.
-</pre></div>
-</div>
 </dd></dl>
 
 <dl class="function">

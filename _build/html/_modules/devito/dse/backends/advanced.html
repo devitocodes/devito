@@ -163,7 +163,7 @@
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">clusterize</span>
+<span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">Cluster</span><span class="p">,</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">groupby</span>
 <span class="kn">from</span> <span class="nn">devito.dse.aliases</span> <span class="k">import</span> <span class="n">collect</span>
 <span class="kn">from</span> <span class="nn">devito.dse.backends</span> <span class="k">import</span> <span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">dse_pass</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">xreplace_constrained</span><span class="p">,</span> <span class="n">iq_timeinvariant</span>
@@ -291,33 +291,28 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
 
-        <span class="c1"># Create temporaries capturing redundant computation</span>
-        <span class="n">expressions</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">stencils</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Create alias Clusters and all necessary substitution rules</span>
+        <span class="c1"># for the new temporaries</span>
+        <span class="n">alias_clusters</span> <span class="o">=</span> <span class="n">ClusterGroup</span><span class="p">()</span>
         <span class="n">rules</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">alias</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">aliases</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
             <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">candidates</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">alias</span><span class="o">.</span><span class="n">aliased</span><span class="p">):</span>
                 <span class="k">continue</span>
-            <span class="c1"># Build alias expression</span>
             <span class="n">function</span> <span class="o">=</span> <span class="n">make</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
-            <span class="n">expressions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">Indexed</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">),</span> <span class="n">origin</span><span class="p">))</span>
-            <span class="c1"># Build substitution rules</span>
+            <span class="c1"># Build new Cluster</span>
+            <span class="n">expression</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">Indexed</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">),</span> <span class="n">origin</span><span class="p">)</span>
+            <span class="n">ispace</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">alias</span><span class="o">.</span><span class="n">anti_stencil</span><span class="o">.</span><span class="n">boxify</span><span class="p">()</span><span class="o">.</span><span class="n">negate</span><span class="p">())</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">time_invariants</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">alias</span><span class="o">.</span><span class="n">aliased</span><span class="p">):</span>
+                <span class="n">ispace</span> <span class="o">=</span> <span class="n">ispace</span><span class="o">.</span><span class="n">drop</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ispace</span><span class="o">.</span><span class="n">intervals</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">])</span>
+            <span class="n">alias_clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Cluster</span><span class="p">([</span><span class="n">expression</span><span class="p">],</span> <span class="n">ispace</span><span class="p">))</span>
+            <span class="c1"># Update substitution rules</span>
             <span class="k">for</span> <span class="n">aliased</span><span class="p">,</span> <span class="n">distance</span> <span class="ow">in</span> <span class="n">alias</span><span class="o">.</span><span class="n">with_distance</span><span class="p">:</span>
                 <span class="n">coordinates</span> <span class="o">=</span> <span class="p">[</span><span class="nb">sum</span><span class="p">([</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">distance</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">]</span>
                 <span class="n">temporary</span> <span class="o">=</span> <span class="n">Indexed</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="o">*</span><span class="nb">tuple</span><span class="p">(</span><span class="n">coordinates</span><span class="p">))</span>
                 <span class="n">rules</span><span class="p">[</span><span class="n">candidates</span><span class="p">[</span><span class="n">aliased</span><span class="p">]]</span> <span class="o">=</span> <span class="n">temporary</span>
                 <span class="n">rules</span><span class="p">[</span><span class="n">aliased</span><span class="p">]</span> <span class="o">=</span> <span class="n">temporary</span>
-            <span class="c1"># Build cluster stencil</span>
-            <span class="n">stencil</span> <span class="o">=</span> <span class="n">alias</span><span class="o">.</span><span class="n">anti_stencil</span><span class="o">.</span><span class="n">anti</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">stencil</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">time_invariants</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">alias</span><span class="o">.</span><span class="n">aliased</span><span class="p">):</span>
-                <span class="c1"># Optimization: drop time dimension if time-invariant and the</span>
-                <span class="c1"># alias involves a complex calculation</span>
-                <span class="n">stencil</span> <span class="o">=</span> <span class="n">stencil</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">time_indices</span><span class="p">)</span>
-            <span class="n">stencils</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
-
-        <span class="c1"># Create the alias clusters</span>
-        <span class="n">alias_clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">stencils</span><span class="p">)</span>
-        <span class="n">alias_clusters</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">alias_clusters</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_dense</span><span class="p">)</span>
+        <span class="n">alias_clusters</span> <span class="o">=</span> <span class="n">groupby</span><span class="p">(</span><span class="n">alias_clusters</span><span class="p">)</span><span class="o">.</span><span class="n">finalize</span><span class="p">()</span>
+        <span class="n">alias_clusters</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_dense</span><span class="p">)</span>
 
         <span class="c1"># Switch temporaries in the expression trees</span>
         <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>

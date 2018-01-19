@@ -37,7 +37,7 @@
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Devito 1 documentation" href="index.html"/>
         <link rel="up" title="devito.ir package" href="devito.ir.html"/>
-        <link rel="next" title="devito.ir.iet package" href="devito.ir.iet.html"/>
+        <link rel="next" title="devito.ir.equations package" href="devito.ir.equations.html"/>
         <link rel="prev" title="devito.ir package" href="devito.ir.html"/> 
 
   
@@ -207,17 +207,20 @@
 <span id="devito-ir-clusters-algorithms-module"></span><h2>devito.ir.clusters.algorithms module<a class="headerlink" href="#module-devito.ir.clusters.algorithms" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="devito.ir.clusters.algorithms.clusterize">
-<code class="descclassname">devito.ir.clusters.algorithms.</code><code class="descname">clusterize</code><span class="sig-paren">(</span><em>exprs</em>, <em>stencils</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/algorithms.html#clusterize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.algorithms.clusterize" title="Permalink to this definition">¶</a></dt>
-<dd><p>Derive <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects from an iterable of expressions; a stencil for
-each expression must be provided.</p>
+<code class="descclassname">devito.ir.clusters.algorithms.</code><code class="descname">clusterize</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/algorithms.html#clusterize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.algorithms.clusterize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Group a sequence of :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>ir.Eq`s into one or more :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Cluster`s.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.ir.clusters.algorithms.groupby">
 <code class="descclassname">devito.ir.clusters.algorithms.</code><code class="descname">groupby</code><span class="sig-paren">(</span><em>clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/algorithms.html#groupby"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.algorithms.groupby" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given an ordered collection of <code class="xref py py-class docutils literal"><span class="pre">PartialCluster</span></code> objects, return a
-(potentially) smaller sequence in which dependence-free PartialClusters with
-identical stencil have been squashed into a single <code class="xref py py-class docutils literal"><span class="pre">PartialCluster</span></code>.</p>
+<dd><p>Attempt grouping :class:<a href="#id5"><span class="problematic" id="id6">`</span></a>PartialCluster`s together to create bigger
+:class:<a href="#id7"><span class="problematic" id="id8">`</span></a>PartialCluster`s (i.e., containing more expressions).</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This function relies on advanced data dependency analysis tools
+based upon classic Lamport theory.</p>
+</div>
 </dd></dl>
 
 </div>
@@ -225,9 +228,9 @@ identical stencil have been squashed into a single <code class="xref py py-class
 <span id="devito-ir-clusters-cluster-module"></span><h2>devito.ir.clusters.cluster module<a class="headerlink" href="#module-devito.ir.clusters.cluster" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.ir.clusters.cluster.Cluster">
-<em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">Cluster</code><span class="sig-paren">(</span><em>exprs</em>, <em>stencil</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">Cluster</code><span class="sig-paren">(</span><em>exprs</em>, <em>ispace</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.ir.clusters.cluster.PartialCluster</span></code></p>
-<p>A Cluster is an immutable PartialCluster.</p>
+<p>A Cluster is an immutable <code class="xref py py-class docutils literal"><span class="pre">PartialCluster</span></code>.</p>
 <dl class="attribute">
 <dt id="devito.ir.clusters.cluster.Cluster.exprs">
 <code class="descname">exprs</code><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.exprs" title="Permalink to this definition">¶</a></dt>
@@ -246,17 +249,13 @@ identical stencil have been squashed into a single <code class="xref py py-class
 <dl class="method">
 <dt id="devito.ir.clusters.cluster.Cluster.rebuild">
 <code class="descname">rebuild</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster.rebuild"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.rebuild" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build a new cluster with expressions <code class="docutils literal"><span class="pre">exprs</span></code> having same stencil as <code class="docutils literal"><span class="pre">self</span></code>.</p>
+<dd><p>Build a new cluster with expressions <code class="docutils literal"><span class="pre">exprs</span></code> having same iteration
+space as <code class="docutils literal"><span class="pre">self</span></code>.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.clusters.cluster.Cluster.squash">
 <code class="descname">squash</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster.squash"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.squash" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.clusters.cluster.Cluster.stencil">
-<code class="descname">stencil</code><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.stencil" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -270,11 +269,20 @@ identical stencil have been squashed into a single <code class="xref py py-class
 <dt id="devito.ir.clusters.cluster.ClusterGroup">
 <em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">ClusterGroup</code><span class="sig-paren">(</span><em>*clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">list</span></code></p>
+<p>An iterable of Clusters, which also tracks the atomic dimensions
+of each of its elements; that is, those dimensions that a Cluster
+cannot share with an adjacent cluster, to honor data dependences.</p>
 <dl class="method">
-<dt id="devito.ir.clusters.cluster.ClusterGroup.freeze">
-<code class="descname">freeze</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup.freeze"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.freeze" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.clusters.cluster.ClusterGroup.finalize">
+<code class="descname">finalize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup.finalize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.finalize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a new ClusterGroup in which all of <code class="docutils literal"><span class="pre">self</span></code>’s PartialClusters
 have been turned into actual Clusters.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.ClusterGroup.ispace">
+<code class="descname">ispace</code><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.ispace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the union of all Clusters’ iteration spaces.</p>
 </dd></dl>
 
 <dl class="method">
@@ -396,7 +404,7 @@ result.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="devito.ir.iet.html" class="btn btn-neutral float-right" title="devito.ir.iet package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="devito.ir.equations.html" class="btn btn-neutral float-right" title="devito.ir.equations package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="devito.ir.html" class="btn btn-neutral" title="devito.ir package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

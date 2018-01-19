@@ -174,7 +174,7 @@
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Scope</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;analyze_iterations&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;iet_analyze&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">Analysis</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -200,7 +200,7 @@
     <span class="k">return</span> <span class="n">wrapper</span>
 
 
-<div class="viewcode-block" id="analyze_iterations"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.analysis.analyze_iterations">[docs]</a><span class="k">def</span> <span class="nf">analyze_iterations</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
+<div class="viewcode-block" id="iet_analyze"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.analysis.iet_analyze">[docs]</a><span class="k">def</span> <span class="nf">iet_analyze</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Attach :class:`IterationProperty` to :class:`Iteration` objects within</span>
 <span class="sd">    ``nodes``. The recognized IterationProperty decorators are listed in</span>

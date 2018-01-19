@@ -1,0 +1,385 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.ir.iet.scheduler &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="Module code" href="../../../index.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+      <li>devito.ir.iet.scheduler</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.ir.iet.scheduler</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">Allocator</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">LoweredDimension</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">LocalExpression</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
+                           <span class="n">UnboundedIndex</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">MapExpressions</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
+                           <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">iet_analyze</span><span class="p">,</span>
+                           <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;iet_build&#39;</span><span class="p">,</span> <span class="s1">&#39;iet_insert_C_decls&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="iet_build"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.scheduler.iet_build">[docs]</a><span class="k">def</span> <span class="nf">iet_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create an Iteration/Expression tree (IET) given an iterable of :class:`Cluster`s.</span>
+<span class="sd">    The nodes in the returned IET are decorated with properties deriving from</span>
+<span class="sd">    data dependence analysis.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Clusters -&gt; Iteration/Expression tree</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_make</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+
+    <span class="c1"># Data dependency analysis. Properties are attached directly to nodes</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_analyze</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+    <span class="c1"># Substitute derived dimensions (e.g., t -&gt; t0, t + 1 -&gt; t1)</span>
+    <span class="c1"># This is postponed up to this point to ease /iet_analyze/&#39;s life</span>
+    <span class="n">subs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
+        <span class="n">uindices</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">uindices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">)</span>
+        <span class="n">subs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">:</span> <span class="n">LoweredDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">uindices</span><span class="p">})</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">SubstituteExpression</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">iet</span></div>
+
+
+<span class="k">def</span> <span class="nf">iet_make</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create an Iteration/Expression tree (IET) given an iterable of :class:`Cluster`s.</span>
+
+<span class="sd">    :param clusters: The iterable :class:`Cluster`s for which the IET is built.</span>
+<span class="sd">    :param dtype: The data type of the scalar expressions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">schedule</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">cluster</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">intervals</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">intervals</span>
+
+            <span class="c1"># Can I reuse any of the previously scheduled Iterations ?</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i0</span><span class="p">,</span> <span class="n">i1</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">schedule</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">i0</span> <span class="o">!=</span> <span class="n">i1</span> <span class="ow">or</span> <span class="n">i0</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="n">clusters</span><span class="o">.</span><span class="n">atomics</span><span class="p">[</span><span class="n">cluster</span><span class="p">]:</span>
+                    <span class="k">break</span>
+                <span class="n">root</span> <span class="o">=</span> <span class="n">schedule</span><span class="p">[</span><span class="n">i1</span><span class="p">]</span>
+                <span class="n">index</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">needed</span> <span class="o">=</span> <span class="n">intervals</span><span class="p">[</span><span class="n">index</span><span class="p">:]</span>
+
+            <span class="c1"># Build Iterations, including any necessary unbounded index</span>
+            <span class="n">iters</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">needed</span><span class="p">:</span>
+                <span class="n">uindices</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">offs</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">sub_iterators</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="p">[]):</span>
+                    <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">offs</span><span class="p">)):</span>
+                        <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+                        <span class="n">vname</span> <span class="o">=</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+                        <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="o">+</span> <span class="n">o</span><span class="p">)</span> <span class="o">%</span> <span class="n">j</span><span class="o">.</span><span class="n">modulo</span>
+                        <span class="n">uindices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">UnboundedIndex</span><span class="p">(</span><span class="n">vname</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="n">o</span><span class="p">))</span>
+                <span class="n">iters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Iteration</span><span class="p">([],</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span>
+                                       <span class="n">uindices</span><span class="o">=</span><span class="n">uindices</span><span class="p">))</span>
+
+            <span class="c1"># Build Expressions</span>
+            <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">Expression</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int32</span> <span class="k">if</span> <span class="n">cluster</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">is_index</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">else</span> <span class="n">dtype</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+
+            <span class="c1"># Compose Iterations and Expressions</span>
+            <span class="n">body</span><span class="p">,</span> <span class="n">tree</span> <span class="o">=</span> <span class="n">compose_nodes</span><span class="p">(</span><span class="n">iters</span> <span class="o">+</span> <span class="p">[</span><span class="n">exprs</span><span class="p">],</span> <span class="n">retrieve</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="c1"># Update the current scheduling</span>
+            <span class="n">scheduling</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">needed</span><span class="p">,</span> <span class="n">tree</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">root</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+                <span class="n">schedule</span> <span class="o">=</span> <span class="n">scheduling</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">nodes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">body</span><span class="p">]</span>
+                <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">root</span><span class="p">:</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="o">**</span><span class="n">root</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">)}</span>
+                <span class="n">transformer</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+                <span class="n">processed</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">transformer</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">processed</span><span class="p">))</span>
+                <span class="n">schedule</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">schedule</span><span class="o">.</span><span class="n">items</span><span class="p">())[:</span><span class="n">index</span><span class="p">]</span> <span class="o">+</span>
+                                       <span class="nb">list</span><span class="p">(</span><span class="n">scheduling</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">schedule</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                    <span class="n">schedule</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">transformer</span><span class="o">.</span><span class="n">rebuilt</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># No Iterations are needed</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">Expression</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">processed</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="iet_insert_C_decls"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.scheduler.iet_insert_C_decls">[docs]</a><span class="k">def</span> <span class="nf">iet_insert_C_decls</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="n">func_table</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given an Iteration/Expression tree ``iet``, build a new tree with the</span>
+<span class="sd">    necessary symbol declarations. Declarations are placed as close as</span>
+<span class="sd">    possible to the first symbol use.</span>
+
+<span class="sd">    :param iet: The input Iteration/Expression tree.</span>
+<span class="sd">    :param func_table: A mapper from callable names to :class:`Callable`s</span>
+<span class="sd">                       called from within ``iet``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Resolve function calls first</span>
+    <span class="n">scopes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">me</span> <span class="o">=</span> <span class="n">MapExpressions</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">me</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Call</span><span class="p">:</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">func_table</span><span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">func</span><span class="o">.</span><span class="n">local</span><span class="p">:</span>
+                <span class="n">scopes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">me</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">scopes</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+
+    <span class="c1"># Determine all required declarations</span>
+    <span class="n">allocator</span> <span class="o">=</span> <span class="n">Allocator</span><span class="p">()</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">scopes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
+            <span class="c1"># Inline declaration</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">LocalExpression</span><span class="p">(</span><span class="o">**</span><span class="n">k</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">:</span>
+            <span class="c1"># Nothing to do, variable passed as kernel argument</span>
+            <span class="k">continue</span>
+        <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">:</span>
+            <span class="c1"># On the stack, as established by the DLE</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span>
+            <span class="n">site</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="s1">&#39;asap&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[</span><span class="n">iet</span><span class="p">]</span>
+            <span class="n">allocator</span><span class="o">.</span><span class="n">push_stack</span><span class="p">(</span><span class="n">site</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># On the heap, as a tensor that must be globally accessible</span>
+            <span class="n">allocator</span><span class="o">.</span><span class="n">push_heap</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>
+
+    <span class="c1"># Introduce declarations on the stack</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">allocator</span><span class="o">.</span><span class="n">onstack</span><span class="p">:</span>
+        <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Element</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">)</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">NestedTransformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">func_table</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">local</span><span class="p">:</span>
+            <span class="n">func_table</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">MetaCall</span><span class="p">(</span><span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">root</span><span class="p">),</span> <span class="n">v</span><span class="o">.</span><span class="n">local</span><span class="p">)</span>
+
+    <span class="c1"># Introduce declarations on the heap (if any)</span>
+    <span class="k">if</span> <span class="n">allocator</span><span class="o">.</span><span class="n">onheap</span><span class="p">:</span>
+        <span class="n">decls</span><span class="p">,</span> <span class="n">allocs</span><span class="p">,</span> <span class="n">frees</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">allocator</span><span class="o">.</span><span class="n">onheap</span><span class="p">)</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">decls</span> <span class="o">+</span> <span class="n">allocs</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">iet</span><span class="p">,</span> <span class="n">footer</span><span class="o">=</span><span class="n">frees</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">iet</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

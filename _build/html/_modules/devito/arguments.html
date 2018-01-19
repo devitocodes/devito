@@ -170,7 +170,6 @@
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">GenericVisitor</span>
 <span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">CompositeFunction</span><span class="p">,</span> <span class="n">SymbolicFunction</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
-<span class="kn">from</span> <span class="nn">devito.ir.support.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 
 
 <span class="sd">&quot;&quot;&quot; This module contains a set of classes and functions to deal with runtime arguments</span>
@@ -312,14 +311,14 @@
 <div class="viewcode-block" id="ArgumentEngine"><a class="viewcode-back" href="../../devito.html#devito.arguments.ArgumentEngine">[docs]</a><span class="k">class</span> <span class="nc">ArgumentEngine</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Class that encapsulates the argument derivation and verification subsystem</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stencils</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">dle_arguments</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">dle_arguments</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">parameters</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dle_arguments</span> <span class="o">=</span> <span class="n">dle_arguments</span>
         <span class="n">argument_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_arguments_list</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">([</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">argument_list</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">is_Argument</span><span class="p">],</span>
                                         <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dimension_params</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">argument_list</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">is_DimensionParameter</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">end_name</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">retrieve_offsets</span><span class="p">(</span><span class="n">stencils</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span> <span class="o">=</span> <span class="n">retrieve_offsets</span><span class="p">(</span><span class="n">ispace</span><span class="p">)</span>
 
 <div class="viewcode-block" id="ArgumentEngine.handle"><a class="viewcode-back" href="../../devito.html#devito.arguments.ArgumentEngine.handle">[docs]</a>    <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; The main method by which the :class:`Operator` interacts with this class.</span>
@@ -669,15 +668,14 @@
         <span class="k">return</span> <span class="kc">None</span></div>
 
 
-<div class="viewcode-block" id="retrieve_offsets"><a class="viewcode-back" href="../../devito.html#devito.arguments.retrieve_offsets">[docs]</a><span class="k">def</span> <span class="nf">retrieve_offsets</span><span class="p">(</span><span class="n">stencils</span><span class="p">):</span>
+<div class="viewcode-block" id="retrieve_offsets"><a class="viewcode-back" href="../../devito.html#devito.arguments.retrieve_offsets">[docs]</a><span class="k">def</span> <span class="nf">retrieve_offsets</span><span class="p">(</span><span class="n">ispace</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return a mapper from :class:`Dimension`s to the min/max integer offsets</span>
-<span class="sd">    within ``stencils``.</span>
+<span class="sd">    within ``ispace``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">offs</span> <span class="o">=</span> <span class="n">Stencil</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="n">stencils</span><span class="p">)</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">offs</span><span class="o">.</span><span class="n">diameter</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">min_extent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ispace</span><span class="o">.</span><span class="n">intervals</span><span class="p">}</span>
     <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">})</span>
-    <span class="k">return</span> <span class="n">mapper</span></div>
+    <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">end_name</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span></div>
 
 
 <div class="viewcode-block" id="derive_dle_arg_value"><a class="viewcode-back" href="../../devito.html#devito.arguments.derive_dle_arg_value">[docs]</a><span class="k">def</span> <span class="nf">derive_dle_arg_value</span><span class="p">(</span><span class="n">blocked_dim</span><span class="p">,</span> <span class="n">known_values</span><span class="p">,</span> <span class="n">dle_argument</span><span class="p">):</span>
