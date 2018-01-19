@@ -70,8 +70,6 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
         assert callable(make) and callable(rule)
 
         def replace(expr):
-            if isinstance(make, dict):
-                return make[expr]
             temporary = found.get(expr)
             if temporary:
                 return temporary
@@ -118,8 +116,11 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
         root = expr.rhs
 
         while True:
-            ret, _ = run(root)
-            if repeat and ret != root:
+            ret, flag = run(root)
+            if isinstance(make, dict) and root.is_Atom and flag:
+                rebuilt.append(expr.func(expr.lhs, replace(root), evaluate=False))
+                break
+            elif repeat and ret != root:
                 root = ret
             else:
                 rebuilt.append(expr.func(expr.lhs, ret, evaluate=False))
