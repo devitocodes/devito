@@ -241,7 +241,7 @@ class IterationFold(Iteration):
             start, end, incr = args.pop('limits')
         except TypeError:
             start, end, incr = self.limits
-        folds = tuple(Iteration(nodes, limits=[start+ofs[0], end+ofs[1], incr], **args)
+        folds = tuple(Iteration(nodes, limits=[start-ofs[0], end-ofs[1], incr], **args)
                       for ofs, nodes in self.folds)
 
         return folds + as_tuple(root)

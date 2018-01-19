@@ -68,4 +68,4 @@ def rewrite(clusters, mode='advanced'):
             # only consists of a few points
             processed.extend(BasicRewriter(False).run(cluster))
 
-    return groupby(processed)
+    return groupby(processed).finalize()

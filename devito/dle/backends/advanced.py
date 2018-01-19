@@ -158,9 +158,9 @@ class DevitoRewriter(BasicRewriter):
                 dim = blocked.setdefault(i, Dimension(name=name))
                 block_size = dim.symbolic_size
                 iter_size = i.dim.symbolic_extent
-                start = i.limits[0] - i.offsets[0]
-                finish = i.dim.symbolic_end - i.offsets[1]
-                innersize = iter_size - (-i.offsets[0] + i.offsets[1])
+                start = i.limits[0] + i.offsets[0]
+                finish = i.dim.symbolic_end + i.offsets[1]
+                innersize = iter_size + (-i.offsets[0] + i.offsets[1])
                 finish = finish - (innersize % block_size)
                 inter_block = Iteration([], dim, [start, finish, block_size],
                                         properties=PARALLEL)
@@ -177,7 +177,7 @@ class DevitoRewriter(BasicRewriter):
                 # This will be used for remainder loops, executed when any
                 # dimension size is not a multiple of the block size.
                 start = inter_block.limits[1]
-                finish = i.dim.symbolic_end - i.offsets[1]
+                finish = i.dim.symbolic_end + i.offsets[1]
                 remainder = i._rebuild([], limits=[start, finish, 1], offsets=None)
                 remainders.append(remainder)
 
