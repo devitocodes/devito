@@ -59,7 +59,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         autotune=False, constant=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
-                            space_order=space_order, kernel='OT2',
+                            space_order=space_order, kernel=kernel,
                             constant=constant, **kwargs)
 
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
