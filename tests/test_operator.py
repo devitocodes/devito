@@ -845,10 +845,13 @@ class TestLoopScheduler(object):
                              tu.base, tv.base, tw.base)
         op = Operator([eq1, eq2, eq3], dse='noop', dle='noop', time_axis=axis)
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == len(expected)
-        assert ["".join(i.dim.name for i in j) for j in trees] == expected
         iters = FindNodes(Iteration).visit(op)
-        assert "".join(i.dim.name for i in iters) == visit
+        assert len(trees) == len(expected)
+        # mapper just makes it quicker to write out the test parametrization
+        mapper = {'time': 't'}
+        assert ["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
+                for j in trees] == expected
+        assert "".join(mapper.get(i.dim.name, i.dim.name) for i in iters) == visit
 
     def test_expressions_imperfect_loops(self, ti0, ti1, ti2, t0):
         """

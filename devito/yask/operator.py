@@ -9,9 +9,9 @@ from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
 from devito.types import Object
 from devito.logger import yask as log, yask_warning as warning
-from devito.ir.iet import (Element, IsPerfectIteration, Transformer,
+from devito.ir.iet import (Element, MetaCall, IsPerfectIteration, Transformer,
                            filter_iterations, retrieve_iteration_tree)
-from devito.operator import OperatorRunnable, FunMeta
+from devito.operator import OperatorRunnable
 from devito.tools import flatten
 
 from devito.yask import nfac, namespace, exit, configuration
@@ -73,7 +73,7 @@ class Operator(OperatorRunnable):
                 nodes = Transformer({tree[1]: funcall}).visit(nodes)
 
                 # Track /funcall/ as an external function call
-                self.func_table[namespace['code-soln-run']] = FunMeta(None, False)
+                self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
                 local_grids += [i for i in transform.mapper if i.is_Array]

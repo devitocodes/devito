@@ -14,10 +14,6 @@ class InvalidOperator(DevitoError):
     pass
 
 
-class StencilOperationError(DevitoError):
-    pass
-
-
 class VisitorException(DevitoError):
     pass
 

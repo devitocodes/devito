@@ -489,6 +489,7 @@ class DependenceGroup(list):
     @property
     def cause(self):
         ret = [i.cause for i in self if i.cause is not None]
+        ret.extend([i.parent for i in ret if i.is_Derived])
         return tuple(filter_sorted(ret, key=lambda i: i.name))
 
     @property
