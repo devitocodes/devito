@@ -18,7 +18,7 @@ from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
-                           FindSymbols, ArrayCast, PointerCast)
+                           FindSymbols, ArrayCast, PointerCast, derive_parameters)
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import retrieve_terminals
@@ -126,21 +126,8 @@ class Operator(Callable):
         casts.append(PointerCast(profiler))
         nodes = (List(body=casts), nodes)
 
-        # Pick all free symbols and symbolic functions from the kernel
-        free_symbols = FindSymbols('free-symbols').visit(nodes)
-
-        # Filter out function base symbols and use real function objects
-        function_names = [s.name for s in functions]
-        symbols = [s for s in free_symbols if s.name not in function_names]
-        symbols = functions + symbols
-
-        # Derive parameters as symbols not defined in the kernel itself.
-        # TODO: The filtering is currently name-based as the
-        # LoweredDimension objects used in expressions for
-        # SteppingDimension indices do not match the corresponding
-        # UnboundedIndex objects in the IR-AST hierarchy.
-        defines = [s.name for s in FindSymbols('defines').visit(nodes)]
-        parameters = tuple(s for s in symbols if s.name not in defines)
+        # Derive parameters as symbols not defined in the kernel itself
+        parameters = derive_parameters(nodes)
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
