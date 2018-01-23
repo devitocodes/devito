@@ -156,6 +156,11 @@ class Call(Node):
     def __repr__(self):
         return "Call::\n\t%s(...)" % self.name
 
+    @property
+    def free_symbols(self):
+        """Return all :class:`Symbol` objects used by this :class:`Call`."""
+        return tuple(p.free_symbols for p in self.params)
+
 
 class Expression(Node):
 
@@ -204,7 +209,7 @@ class Expression(Node):
         """
         Return any symbols an :class:`Expression` may define.
         """
-        return ()
+        return (self.write, ) if self.write.is_Scalar else ()
 
     @property
     def write(self):

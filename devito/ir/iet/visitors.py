@@ -142,6 +142,24 @@ class CGen(Visitor):
                 ret.append(c.Value('void', '*_%s' % i.name))
         return ret
 
+    def _args_call(self, args):
+        """
+        Convert an of symbols and expression into a function call
+        signature in cgen format.
+        """
+        ret = []
+        for i in args:
+            try:
+                if i.is_Object:
+                    ret.append('*_%s' % i.name)
+                elif i.is_Scalar:
+                    ret.append(i.name)
+                elif i.is_TensorFunction:
+                    ret.append('%s_vec' % i.name)
+            except:
+                ret.append(ccode(i))
+        return ret
+
     def visit_ArrayCast(self, o):
         """
         Build cgen type casts for an :class:`AbstractFunction`.
@@ -184,7 +202,8 @@ class CGen(Visitor):
                              ccode(o.expr.lhs)), ccode(o.expr.rhs))
 
     def visit_Call(self, o):
-        return c.Statement('%s(%s)' % (o.name, ','.join(o.params)))
+        arguments = self._args_call(o.params)
+        return c.Statement('%s(%s)' % (o.name, ','.join(arguments)))
 
     def visit_Iteration(self, o):
         body = flatten(self.visit(i) for i in o.children)
