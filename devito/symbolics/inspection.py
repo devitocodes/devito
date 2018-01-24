@@ -12,10 +12,10 @@ def count(exprs, query):
     Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``
     matching ``query`` and ``v`` is the number of its occurrences.
     """
-    mapper = {}
+    mapper = Counter()
     for expr in exprs:
         mapper.update(Counter(search(expr, query, 'all', 'bfs')))
-    return mapper
+    return dict(mapper)
 
 
 def estimate_cost(handle, estimate_functions=False):
