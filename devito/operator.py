@@ -150,6 +150,21 @@ class Operator(Callable):
         for p in self.input + self.dimensions:
             arguments.update(p.argument_values(**kwargs))
 
+        # Derive additional values for DLE arguments
+        # TODO: This is not pretty, but it works for now. Ideally, the
+        # DLE arguments would be massaged into the IET so as to comply
+        # with the rest of the argument derivation procedure.
+        for arg in self.dle_arguments:
+            dim = arg.argument
+            osize = arguments[arg.original_dim.symbolic_size.name]
+            if dim.symbolic_size in self.parameters:
+                if arg.value is None:
+                    arguments[dim.symbolic_size.name] = osize
+                elif isinstance(arg.value, int):
+                    arguments[dim.symbolic_size.name] = arg.value
+                else:
+                    arguments[dim.symbolic_size.name] = arg.value(osize)
+
         # Add in the profiler argument
         arguments[self.profiler.name] = self.profiler.new()
         return arguments
