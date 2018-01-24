@@ -9,9 +9,9 @@ from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
 from devito.types import Object
 from devito.logger import yask as log, yask_warning as warning
-from devito.ir.iet import (Element, IsPerfectIteration, Transformer,
+from devito.ir.iet import (Element, MetaCall, IsPerfectIteration, Transformer,
                            filter_iterations, retrieve_iteration_tree)
-from devito.operator import OperatorRunnable, FunMeta
+from devito.operator import OperatorRunnable
 from devito.tools import flatten
 
 from devito.yask import nfac, namespace, exit, configuration
@@ -73,7 +73,7 @@ class Operator(OperatorRunnable):
                 nodes = Transformer({tree[1]: funcall}).visit(nodes)
 
                 # Track /funcall/ as an external function call
-                self.func_table[namespace['code-soln-run']] = FunMeta(None, False)
+                self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
                 local_grids += [i for i in transform.mapper if i.is_Array]
@@ -122,6 +122,7 @@ class Operator(OperatorRunnable):
         # generated kernels, but what we actually need and thus going to
         # provide are pointers to the wrapped YASK grids.
         toshare = {}
+        more_args = {}
         for i in self.parameters:
             grid_arg = mapper.get(namespace['code-grid-name'](i.name))
             if grid_arg is not None:
@@ -135,11 +136,11 @@ class Operator(OperatorRunnable):
                     wrapper = obj.data
                     toshare[obj] = wrapper
                 # Add C-level pointer to the YASK grids
-                assert grid_arg.verify(wrapper.rawpointer)
+                more_args[grid_arg.name] = wrapper.rawpointer
             elif i.name in local_grids_mapper:
                 # Add C-level pointer to the temporary YASK grids
-                assert i.verify(rawpointer(local_grids_mapper[i.name]))
-
+                more_args[i.name] = rawpointer(local_grids_mapper[i.name])
+        kwargs.update(more_args)
         return super(Operator, self).arguments(**kwargs), toshare
 
     def apply(self, **kwargs):

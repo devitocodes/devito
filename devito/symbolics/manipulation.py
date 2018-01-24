@@ -1,10 +1,10 @@
 from collections import Iterable, OrderedDict
 
 import sympy
-from sympy import Number, Indexed, Function, Symbol, preorder_traversal
+from sympy import Number, Indexed, Function, Symbol
 
 from devito.symbolics.extended_sympy import Add, Mul, Eq
-from devito.symbolics.search import retrieve_indexed
+from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
 
@@ -70,8 +70,6 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
         assert callable(make) and callable(rule)
 
         def replace(expr):
-            if isinstance(make, dict):
-                return make[expr]
             temporary = found.get(expr)
             if temporary:
                 return temporary
@@ -118,11 +116,14 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
         root = expr.rhs
 
         while True:
-            ret, _ = run(root)
-            if repeat and ret != root:
+            ret, flag = run(root)
+            if isinstance(make, dict) and root.is_Atom and flag:
+                rebuilt.append(expr.func(expr.lhs, replace(root), evaluate=False))
+                break
+            elif repeat and ret != root:
                 root = ret
             else:
-                rebuilt.append(expr.func(expr.lhs, ret))
+                rebuilt.append(expr.func(expr.lhs, ret, evaluate=False))
                 break
 
     # Post-process the output
@@ -184,14 +185,15 @@ def as_symbol(expr):
 
 def indexify(expr):
     """
-    Convert functions into indexed matrix accesses in sympy expression.
-
-    :param expr: sympy function expression to be converted.
+    Given a SymPy expression, return a new SymPy expression in which all
+    :class:`AbstractFunction` objects have been converted into :class:`Indexed`
+    objects.
     """
-    replacements = {}
-
-    for e in preorder_traversal(expr):
-        if hasattr(e, 'indexed'):
-            replacements[e] = e.indexify()
-
-    return expr.xreplace(replacements)
+    mapper = {}
+    for i in retrieve_functions(expr):
+        try:
+            if i.is_AbstractFunction:
+                mapper[i] = i.indexify()
+        except AttributeError:
+            pass
+    return expr.xreplace(mapper)

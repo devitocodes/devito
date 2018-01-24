@@ -3,9 +3,8 @@ from cached_property import cached_property
 from sympy import Basic, Eq
 
 from devito.dimension import Dimension
-from devito.symbolics import retrieve_indexed, q_affine, q_inc
+from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import as_tuple, is_integer, filter_sorted
-from devito.types import Indexed
 
 __all__ = ['Scope']
 
@@ -171,7 +170,6 @@ class IterationInstance(Vector):
     """
 
     def __new__(cls, indexed):
-        assert isinstance(indexed, Indexed)
         obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
         obj.findices = tuple(indexed.base.function.indices)
         if len(obj.findices) != len(set(obj.findices)):
@@ -237,7 +235,8 @@ class IterationInstance(Vector):
 class Access(IterationInstance):
 
     """
-    A representation of the access performed by a :class:`Indexed` object.
+    A representation of the access performed by a :class:`Indexed` object
+    (a scalar in the degenerate case).
 
     Notes on Access comparison
     ==========================
@@ -252,7 +251,6 @@ class Access(IterationInstance):
     """
 
     def __new__(cls, indexed, mode):
-        assert isinstance(indexed, Indexed)
         assert mode in ['R', 'W', 'RI', 'WI']
         obj = super(Access, cls).__new__(cls, indexed)
         obj.function = indexed.base.function
@@ -491,6 +489,7 @@ class DependenceGroup(list):
     @property
     def cause(self):
         ret = [i.cause for i in self if i.cause is not None]
+        ret.extend([i.parent for i in ret if i.is_Derived])
         return tuple(filter_sorted(ret, key=lambda i: i.name))
 
     @property
@@ -548,15 +547,14 @@ class Scope(object):
         self.writes = {}
         for i, e in enumerate(exprs):
             # reads
-            for j in retrieve_indexed(e.rhs):
+            for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.base.function, [])
                 mode = 'R' if not q_inc(e) else 'RI'
                 v.append(TimedAccess(j, mode, i))
             # write
-            if e.lhs.is_Indexed:
-                v = self.writes.setdefault(e.lhs.base.function, [])
-                mode = 'W' if not q_inc(e) else 'WI'
-                v.append(TimedAccess(e.lhs, mode, i))
+            v = self.writes.setdefault(e.lhs.base.function, [])
+            mode = 'W' if not q_inc(e) else 'WI'
+            v.append(TimedAccess(e.lhs, mode, i))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
@@ -597,6 +595,32 @@ class Scope(object):
     def accesses(self):
         groups = list(self.reads.values()) + list(self.writes.values())
         return [i for group in groups for i in group]
+
+    @cached_property
+    def has_dep(self):
+        """Return True if at least a dependency is detected, False otherwise."""
+        for k, v in self.writes.items():
+            for w1 in v:
+                for r in self.reads.get(k, []):
+                    try:
+                        is_flow = (r < w1) or (r == w1 and r.lex_ge(w1))
+                        is_anti = (r > w1) or (r == w1 and r.lex_lt(w1))
+                    except TypeError:
+                        # Non-integer vectors are not comparable.
+                        # Conservatively, we assume it is a dependence
+                        is_flow = is_anti = True
+                    if is_flow or is_anti:
+                        return True
+                for w2 in self.writes.get(k, []):
+                    try:
+                        is_output = (w2 > w1) or (w2 == w1 and w2.lex_gt(w1))
+                    except TypeError:
+                        # Non-integer vectors are not comparable.
+                        # Conservatively, we assume it is a dependence
+                        is_output = True
+                    if is_output:
+                        return True
+        return False
 
     @cached_property
     def d_flow(self):

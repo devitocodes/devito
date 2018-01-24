@@ -1,36 +1,44 @@
 import sympy
+import numpy as np
 from cached_property import cached_property
 
-from devito.arguments import DimensionArgProvider
-from devito.types import Symbol
+from devito.types import AbstractSymbol, Scalar, Symbol
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension']
 
 
-class Dimension(sympy.Symbol, DimensionArgProvider):
+class Dimension(AbstractSymbol):
 
+    is_Dimension = True
     is_Space = False
     is_Time = False
 
+    is_Derived = False
     is_Stepping = False
     is_Lowered = False
 
-    """Index object that represents a problem dimension and thus
-    defines a potential iteration space.
+    """
+    Index object that represents a problem dimension and thus defines a
+    potential iteration space.
 
     :param name: Name of the dimension symbol.
-    :param reverse: Traverse dimension in reverse order (default False)
+    :param reverse: Optional, Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
 
     def __new__(cls, name, **kwargs):
         newobj = sympy.Symbol.__new__(cls, name)
-        newobj.reverse = kwargs.get('reverse', False)
-        newobj.spacing = kwargs.get('spacing', sympy.Symbol('h_%s' % name))
+        newobj._reverse = kwargs.get('reverse', False)
+        newobj._spacing = kwargs.get('spacing', Scalar(name='h_%s' % name))
         return newobj
 
     def __str__(self):
         return self.name
+
+    @property
+    def dtype(self):
+        # TODO: Do dimensions really need a dtype?
+        return np.int32
 
     @cached_property
     def symbolic_size(self):
@@ -49,12 +57,10 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
     def symbolic_extent(self):
         """Return the extent of the loop over this dimension.
         Would be the same as size if using default values """
-        _, start, end = self.rtargs
         return (self.symbolic_end - self.symbolic_start)
 
     @property
     def limits(self):
-        _, start, end = self.rtargs
         return (self.symbolic_start, self.symbolic_end, 1)
 
     @property
@@ -68,6 +74,24 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
     @property
     def end_name(self):
         return "%s_e" % self.name
+
+    @property
+    def reverse(self):
+        return self._reverse
+
+    @property
+    def spacing(self):
+        return self._spacing
+
+    @reverse.setter
+    def reverse(self, val):
+        # TODO: this is an outrageous hack. TimeFunctions are updating this value
+        # at construction time. This is a symptom we need local and global dimensions
+        self._reverse = val
+
+    @property
+    def base(self):
+        return self
 
     def _hashable_content(self):
         return super(Dimension, self)._hashable_content() +\
@@ -83,7 +107,6 @@ class SpaceDimension(Dimension):
     extent of physical grid. :class:`SpaceDimensions` create dedicated
     shortcut notations for spatial derivatives on :class:`Function`
     symbols.
-
     :param name: Name of the dimension symbol.
     :param reverse: Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
@@ -98,7 +121,6 @@ class TimeDimension(Dimension):
     Dimension symbol to represent a dimension that defines the extent
     of time. As time might be used in different contexts, all derived
     time dimensions should inherit from :class:`TimeDimension`.
-
     :param name: Name of the dimension symbol.
     :param reverse: Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
@@ -107,27 +129,39 @@ class TimeDimension(Dimension):
 
 class SteppingDimension(Dimension):
 
+    is_Derived = True
     is_Stepping = True
 
     """
     Dimension symbol that defines the stepping direction of an
     :class:`Operator` and implies modulo buffered iteration. This is most
     commonly use to represent a timestepping dimension.
-
     :param parent: Parent dimension over which to loop in modulo fashion.
     """
 
     def __new__(cls, name, parent, **kwargs):
         newobj = sympy.Symbol.__new__(cls, name)
         assert isinstance(parent, Dimension)
-        newobj.parent = parent
-        newobj.modulo = kwargs.get('modulo', 2)
-
+        newobj._modulo = kwargs.get('modulo', 2)
+        newobj._parent = parent
         # Inherit time/space identifiers
-        cls.is_Time = parent.is_Time
-        cls.is_Space = parent.is_Space
-
+        newobj.is_Time = parent.is_Time
+        newobj.is_Space = parent.is_Space
         return newobj
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @property
+    def modulo(self):
+        return self._modulo
+
+    @modulo.setter
+    def modulo(self, val):
+        # TODO: this is an outrageous hack. TimeFunctions are updating this value
+        # at construction time. This is a symptom we need local and global dimensions
+        self._modulo = val
 
     @property
     def reverse(self):
@@ -149,29 +183,17 @@ class LoweredDimension(Dimension):
     Dimension symbol representing a modulo iteration created when
     resolving a :class:`SteppingDimension`.
 
-    :param stepping: :class:`SteppingDimension` from which this
-                     :class:`Dimension` originated.
-    :param offset: Offset value used in the modulo iteration.
+    :param origin: The expression mapped to this dimension.
     """
 
-    def __new__(cls, name, stepping, offset, **kwargs):
+    def __new__(cls, name, origin, **kwargs):
         newobj = sympy.Symbol.__new__(cls, name)
-        assert isinstance(stepping, SteppingDimension)
-        newobj.stepping = stepping
-        newobj.offset = offset
+        newobj._origin = origin
         return newobj
 
     @property
     def origin(self):
-        return self.stepping + self.offset
-
-    @property
-    def size(self):
-        return self.stepping.size
-
-    @property
-    def reverse(self):
-        return self.stepping.reverse
+        return self._origin
 
     def _hashable_content(self):
-        return sympy.Symbol._hashable_content(self) + (self.stepping, self.offset)
+        return Symbol._hashable_content(self) + (self.origin,)

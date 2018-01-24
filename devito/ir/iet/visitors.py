@@ -6,126 +6,25 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 
 from __future__ import absolute_import
 
-import inspect
-from collections import Iterable, OrderedDict, defaultdict
+from collections import Iterable, OrderedDict
 from operator import attrgetter
 
 import cgen as c
-import numpy as np
 
+from devito.arguments import runtime_arguments
 from devito.cgen_utils import blankline, ccode
-from devito.dimension import LoweredDimension
 from devito.exceptions import VisitorException
-from devito.ir.iet.nodes import Iteration, Node, UnboundedIndex
-from devito.types import Scalar
-from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C
+from devito.ir.iet.nodes import Node
+from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C, GenericVisitor
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
-           'ResolveTimeStepping', 'Transformer', 'NestedTransformer',
-           'FindAdjacentIterations', 'MergeOuterIterations', 'MapIteration']
+           'Transformer', 'NestedTransformer', 'FindAdjacentIterations',
+           'MapIteration']
 
 
-class Visitor(object):
-
-    """
-    A generic visitor for an Expression/Iteration tree.
-
-    To define handlers, subclasses should define :data:`visit_Foo`
-    methods for each class :data:`Foo` they want to handle.
-    If a specific method for a class :data:`Foo` is not found, the MRO
-    of the class is walked in order until a matching method is found.
-
-    The method signature is:
-
-        .. code-block::
-           def visit_Foo(self, o, [*args, **kwargs]):
-               pass
-
-    The handler is responsible for visiting the children (if any) of
-    the node :data:`o`.  :data:`*args` and :data:`**kwargs` may be
-    used to pass information up and down the call stack.  You can also
-    pass named keyword arguments, e.g.:
-
-        .. code-block::
-           def visit_Foo(self, o, parent=None, *args, **kwargs):
-               pass
-    """
-
-    def __init__(self):
-        handlers = {}
-        # visit methods are spelt visit_Foo.
-        prefix = "visit_"
-        # Inspect the methods on this instance to find out which
-        # handlers are defined.
-        for (name, meth) in inspect.getmembers(self, predicate=inspect.ismethod):
-            if not name.startswith(prefix):
-                continue
-            # Check the argument specification
-            # Valid options are:
-            #    visit_Foo(self, o, [*args, **kwargs])
-            argspec = inspect.getargspec(meth)
-            if len(argspec.args) < 2:
-                raise RuntimeError("Visit method signature must be "
-                                   "visit_Foo(self, o, [*args, **kwargs])")
-            handlers[name[len(prefix):]] = meth
-        self._handlers = handlers
-
-    """
-    :attr:`default_args`. A dict of default keyword arguments for the visitor.
-    These are not used by default in :meth:`visit`, however, a caller may pass
-    them explicitly to :meth:`visit` by accessing :attr:`default_args`.
-    For example::
-
-        .. code-block::
-           v = FooVisitor()
-           v.visit(node, **v.default_args)
-    """
-    default_args = {}
-
-    @classmethod
-    def default_retval(cls):
-        """A method that returns an object to use to populate return values.
-
-        If your visitor combines values in a tree-walk, it may be useful to
-        provide a object to combine the results into. :meth:`default_retval`
-        may be defined by the visitor to be called to provide an empty object
-        of appropriate type.
-        """
-        return None
-
-    def lookup_method(self, instance):
-        """Look up a handler method for a visitee.
-
-        :param instance: The instance to look up a method for.
-        """
-        cls = instance.__class__
-        try:
-            # Do we have a method handler defined for this type name
-            return self._handlers[cls.__name__]
-        except KeyError:
-            # No, walk the MRO.
-            for klass in cls.mro()[1:]:
-                entry = self._handlers.get(klass.__name__)
-                if entry:
-                    # Save it on this type name for faster lookup next time
-                    self._handlers[cls.__name__] = entry
-                    return entry
-        raise RuntimeError("No handler found for class %s", cls.__name__)
-
-    def visit(self, o, *args, **kwargs):
-        """Apply this :class:`Visitor` to an AST.
-
-            :param o: The :class:`Node` to visit.
-            :param args: Optional arguments to pass to the visit methods.
-            :param kwargs: Optional keyword arguments to pass to the visit methods.
-        """
-        meth = self.lookup_method(o)
-        return meth(o, *args, **kwargs)
-
-    def visit_object(self, o, **kwargs):
-        return self.default_retval()
+class Visitor(GenericVisitor):
 
     def visit_Node(self, o, **kwargs):
         return self.visit(o.children, **kwargs)
@@ -290,7 +189,7 @@ class CGen(Visitor):
 
         # Start
         if o.offsets[0] != 0:
-            start = "%s + %s" % (o.limits[0], -o.offsets[0])
+            start = str(o.limits[0] + o.offsets[0])
             try:
                 start = eval(start)
             except (NameError, TypeError):
@@ -300,7 +199,7 @@ class CGen(Visitor):
 
         # Bound
         if o.offsets[1] != 0:
-            end = "%s - %s" % (o.limits[1], o.offsets[1])
+            end = str(o.limits[1] + o.offsets[1])
             try:
                 end = eval(end)
             except (NameError, TypeError):
@@ -336,16 +235,18 @@ class CGen(Visitor):
 
     def visit_Callable(self, o):
         body = flatten(self.visit(i) for i in o.children)
-        decls = self._args_decl(o.parameters)
-        casts = self._args_cast(o.parameters)
+        params = runtime_arguments(o.parameters)
+        decls = self._args_decl(params)
+        casts = self._args_cast(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(casts + body))
 
     def visit_Operator(self, o):
         # Kernel signature and body
         body = flatten(self.visit(i) for i in o.children)
-        decls = self._args_decl(o.parameters)
-        casts = self._args_cast(o.parameters)
+        params = runtime_arguments(o.parameters)
+        decls = self._args_decl(params)
+        casts = self._args_cast(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         retval = [c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(casts + body + retval))
@@ -692,118 +593,6 @@ class SubstituteExpression(Transformer):
     def visit_Expression(self, o):
         o.substitute(self.subs)
         return o._rebuild(expr=o.expr)
-
-
-class ResolveTimeStepping(Transformer):
-    """
-    :class:`Transformer` class that creates a substitution dictionary
-    for replacing :class:`Dimension` instances with explicit loop
-    variables in :class:`Iteration` nodes. For stepping dimensions it
-    also inserts the relevant definitions for buffer index variables,
-    for exaple.:
-
-        .. code-block:: c
-
-           for (int t = 0; t < t_size; t += 1)
-           {
-               int t0 = (t) % 2;
-               int t1 = (t + 1) % 2;
-    """
-
-    def visit_object(self, o, subs, **kwargs):
-        return o, subs
-
-    def visit_tuple(self, o, subs, **kwargs):
-        visited = []
-        for i in o:
-            handle, subs = self.visit(i, subs, **kwargs)
-            visited.append(handle)
-        return tuple(visited), subs
-
-    visit_list = visit_object
-
-    def visit_Node(self, o, subs, **kwargs):
-        rebuilt, _ = zip(*[self.visit(i, subs, **kwargs) for i in o.children])
-        return o._rebuild(*rebuilt, **o.args_frozen), subs
-
-    def visit_Iteration(self, o, subs, offsets=defaultdict(set)):
-        nodes, subs = self.visit(o.children, subs, offsets=offsets)
-        if o.dim.is_Stepping:
-            # For SteppingDimension insert the explicit
-            # definition of buffered variables, eg. t+1 => t1
-            init = []
-            for i, off in enumerate(filter_ordered(offsets[o.dim])):
-                vname = Scalar(name="%s%d" % (o.dim.name, i), dtype=np.int32)
-                value = (o.dim.parent + off) % o.dim.modulo
-                init.append(UnboundedIndex(vname, value, value))
-                subs[o.dim + off] = LoweredDimension(vname.name, o.dim, off)
-            # Always lower to symbol
-            subs[o.dim.parent] = Scalar(name=o.dim.parent.name, dtype=np.int32)
-            return o._rebuild(index=o.dim.parent.name, uindices=init), subs
-        else:
-            return o._rebuild(*nodes), subs
-
-    def visit_Expression(self, o, subs, offsets=defaultdict(set)):
-        """Collect all offsets used with a dimension"""
-        for dim, offs in o.stencil.entries:
-            offsets[dim].update(offs)
-        return o, subs
-
-    def visit(self, o, subs=None, **kwargs):
-        if subs is None:
-            subs = {}
-        obj, subs = super(ResolveTimeStepping, self).visit(o, subs, **kwargs)
-        return obj, subs
-
-
-class MergeOuterIterations(Transformer):
-    """
-    :class:`Transformer` that merges subsequent :class:`Iteration`
-    objects iff their dimenions agree.
-    """
-
-    def is_mergable(self, iter1, iter2):
-        """Defines if two :class:`Iteration` objects are mergeable.
-
-        Note: This currently does not(!) consider data dependencies
-        between the loops. A deeper analysis is required for this that
-        will be added soon.
-        """
-        if iter1.dim.is_Stepping:
-            # Aliasing only works one-way because we left-merge
-            if iter1.dim.parent == iter2.dim:
-                return True
-            if iter2.dim.is_Stepping and iter1.dim.parent == iter2.dim.parent:
-                return True
-        return iter1.dim == iter2.dim and iter1.bounds_symbolic == iter2.bounds_symbolic
-
-    def merge(self, iter1, iter2):
-        """Creates a new merged :class:`Iteration` object from two
-        loops along the same dimension.
-        """
-        newexpr = iter1.nodes + iter2.nodes
-        return Iteration(newexpr, dimension=iter1.dim,
-                         limits=iter1.limits,
-                         offsets=iter1.offsets)
-
-    def visit_Iteration(self, o):
-        rebuilt = self.visit(o.children)
-        ret = o._rebuild(*rebuilt, **o.args_frozen)
-        return ret
-
-    def visit_list(self, o):
-        head = self.visit(o[0])
-        if len(o) < 2:
-            return tuple([head])
-        body = self.visit(o[1:])
-        if head.is_Iteration and body[0].is_Iteration:
-            if self.is_mergable(head, body[0]):
-                newit = self.merge(head, body[0])
-                ret = self.visit([newit] + list(body[1:]))
-                return as_tuple(ret)
-        return tuple([head] + list(body))
-
-    visit_tuple = visit_list
 
 
 def printAST(node, verbose=True):
