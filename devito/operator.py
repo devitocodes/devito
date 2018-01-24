@@ -167,6 +167,14 @@ class Operator(Callable):
 
         # Add in the profiler argument
         arguments[self.profiler.name] = self.profiler.new()
+
+        # Execute autotuning and adjust arguments accordingly
+        autotune = kwargs.pop('autotune', False)
+        if autotune:
+            # AT assumes and ordered dict, so let's feed it one
+            at_args = OrderedDict([(p.name, arguments[p.name]) for p in self.parameters])
+            arguments = self._autotune(at_args)
+
         return arguments
 
     @property
