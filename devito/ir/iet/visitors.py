@@ -154,6 +154,8 @@ class CGen(Visitor):
             try:
                 if i.is_Object:
                     ret.append('*_%s' % i.name)
+                elif i.is_Array:
+                    ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
                 elif i.is_Scalar:
                     ret.append(i.name)
                 elif i.is_TensorFunction:

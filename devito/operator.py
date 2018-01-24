@@ -23,7 +23,7 @@ from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
-from devito.types import Object
+from devito.types import Object, Array
 
 
 class Operator(Callable):
@@ -128,6 +128,11 @@ class Operator(Callable):
 
         # Derive parameters as symbols not defined in the kernel itself
         parameters = derive_parameters(nodes)
+
+        # Filter all internally-allocated temporary `Array` types
+        # TODO: Huge hack, but to fix it, allocations need to be part of IET
+        parameters = [p for p in parameters
+                      if not (isinstance(p, Array) and (p._mem_heap or p._mem_stack))]
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
