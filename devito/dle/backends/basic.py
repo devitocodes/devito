@@ -6,10 +6,10 @@ import cgen as c
 import numpy as np
 
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
-from devito.ir.iet import (Denormals, Call, Callable, List,
-                           UnboundedIndex, NestedTransformer, Transformer,
+from devito.ir.iet import (Denormals, Call, Callable, List, UnboundedIndex,
+                           NestedTransformer, Transformer, FindSymbols,
                            retrieve_iteration_tree, filter_iterations,
-                           derive_parameters)
+                           derive_parameters, ArrayCast)
 from devito.symbolics import as_symbol
 from devito.tools import flatten
 from devito.types import Scalar
@@ -79,6 +79,12 @@ class BasicRewriter(AbstractRewriter):
             # Construct elemental function body, and inspect it
             free = NestedTransformer(dict((zip(target, free)))).visit(root)
 
+            # Insert array casts for all non-defined
+            f_symbols = FindSymbols('symbolics').visit(free)
+            defines = [s.name for s in FindSymbols('defines').visit(free)]
+            casts = [ArrayCast(f) for f in f_symbols if f.name not in defines]
+            free = (List(body=casts), free)
+
             for i in derive_parameters(free):
                 if i.name in defined_args:
                     args.append((defined_args[i.name], i))
@@ -88,8 +94,9 @@ class BasicRewriter(AbstractRewriter):
                     args.append((i, i))
                 elif i.is_Scalar:
                     args.append((i, i))
-                elif i.is_Lowered:
-                    args.append((i, Scalar(name=i.name, dtype=i.dtype)))
+                elif i.is_Dimension:
+                    d = Scalar(name=i.name, dtype=i.dtype)
+                    args.append((d, d))
 
             call, params = zip(*args)
             name = "f_%d" % root.tag

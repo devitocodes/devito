@@ -138,6 +138,8 @@ class CGen(Visitor):
             elif i.is_Tensor:
                 ret.append(c.Value(c.dtype_to_ctype(i.dtype),
                                    '*restrict %s_vec' % i.name))
+            elif i.is_Lowered:
+                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             else:
                 ret.append(c.Value('void', '*_%s' % i.name))
         return ret
@@ -409,6 +411,9 @@ class FindSymbols(Visitor):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
     def visit_PointerCast(self, o):
+        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
+
+    def visit_Call(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
 

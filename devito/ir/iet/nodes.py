@@ -12,6 +12,7 @@ from devito.cgen_utils import ccode
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
                            tagger, ntags)
+from devito.dimension import Dimension
 from devito.ir.support import Stencil
 from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
@@ -157,9 +158,22 @@ class Call(Node):
         return "Call::\n\t%s(...)" % self.name
 
     @property
+    def functions(self):
+        """Return all :class:`Symbol` objects used by this :class:`Call`."""
+        return tuple(p for p in self.params if isinstance(p, types.AbstractFunction))
+
+    @property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Call`."""
-        return tuple(p.free_symbols for p in self.params)
+        free = tuple(set(flatten(p.free_symbols for p in self.params)))
+        # HACK: Filter dimensions to avoid them on popping onto outer parameters
+        free = tuple(s for s in free if not isinstance(s, Dimension))
+        return free
+
+    @property
+    def defines(self):
+        """Return all :class:`Symbol` objects defined by this :class:`Call`."""
+        return ()
 
 
 class Expression(Node):
