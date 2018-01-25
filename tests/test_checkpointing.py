@@ -38,7 +38,9 @@ def test_segmented_incremment():
     # Now run with 5 invocations of 4 timesteps each
     nsteps = 4
     for i in range(5):
-        op(f=f, time_s=i*nsteps, time_e=(i+1)*nsteps)
+        # Adjust the endpoint by the stencil order to
+        # counteract the loop offsets generated in the C code
+        op(f=f, time_s=i*nsteps, time_e=(i+1)*nsteps+1)
     assert (f.data[19] == 19.).all()
     assert (f.data[20] == 20.).all()
 
@@ -77,7 +79,9 @@ def test_segmented_fibonacci():
     nsteps = 4
     f.data[:] = 1.
     for i in range(3):
-        op(f=f, time_s=i*nsteps, time_e=(i+1)*nsteps)
+        # Adjust the endpoint by the stencil order to
+        # counteract the loop offsets generated in the C code
+        op(f=f, time_s=i*nsteps, time_e=(i+1)*nsteps+2)
     assert (f.data[11] == fib(12)).all()
     assert (f.data[12] == fib(13)).all()
 
@@ -110,7 +114,9 @@ def test_segmented_averaging():
     nsteps = 6
     f.data[:] = 1.
     for i in range(3):
-        op(f=f, time=2, x_s=i*nsteps, x_e=(i+1)*nsteps)
+        # Adjust the endpoint by the stencil order to
+        # counteract the loop offsets generated in the C code
+        op(f=f, time=2, x_s=i*nsteps, x_e=(i+1)*nsteps+2)
     assert (f.data[1, 0, :] == 1.).all()
     assert (f.data[1, 19, :] == 1.).all()
     assert (f.data[1, 1:19, :] == 2.).all()
@@ -127,16 +133,19 @@ def test_forward_with_breaks(shape, kernel, space_order):
     """
     spacing = tuple([15.0 for _ in shape])
     tn = 500.
+    time_order = 2
     example = CheckpointingExample(shape, spacing, tn, kernel, space_order)
     m0, dm = example.initial_estimate()
 
     cp = DevitoCheckpoint([example.forward_field])
     wrap_fw = CheckpointOperator(example.forward_operator, u=example.forward_field,
-                                 rec=example.rec, m=m0, src=example.src, dt=example.dt)
+                                 rec=example.rec, m=m0, src=example.src, dt=example.dt,
+                                 time_order=time_order)
     wrap_rev = CheckpointOperator(example.gradient_operator, u=example.forward_field,
                                   v=example.adjoint_field, m=m0, rec=example.rec_g,
-                                  grad=example.grad, dt=example.dt)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-2)
+                                  grad=example.grad, dt=example.dt,
+                                  time_order=time_order)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-time_order)
     example.forward_operator.apply(u=example.forward_field, rec=example.rec, m=m0,
                                    src=example.src, dt=example.dt)
     u_temp = np.copy(example.forward_field.data)
@@ -249,11 +258,13 @@ def test_index_alignment(const):
     fwd_eqn_2 = Eq(u_nosave.forward, u_nosave + 1.*const)
     fwd_op_2 = Operator(fwd_eqn_2)
     cp = DevitoCheckpoint([u_nosave])
-    wrap_fw = CheckpointOperator(fwd_op_2, time=nt, constant=1)
+    wrap_fw = CheckpointOperator(fwd_op_2, constant=1,
+                                 time_order=order_of_eqn)
 
     prod_eqn_2 = Eq(prod, prod + u_nosave * v)
     comb_op_2 = Operator([adj_eqn, prod_eqn_2], time_axis=Backward)
-    wrap_rev = CheckpointOperator(comb_op_2, constant=1)
+    wrap_rev = CheckpointOperator(comb_op_2, constant=1,
+                                  time_order=order_of_eqn)
     wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt-order_of_eqn)
 
     # Invocation 4
