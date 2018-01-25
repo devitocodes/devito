@@ -517,7 +517,14 @@ class Function(TensorFunction):
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
-            values[self.name] = new.data if isinstance(new, Function) else new
+            if isinstance(new, Function):
+                # Set new values and re-derive defaults
+                values[self.name] = new.data
+                values.update(new.argument_defaults().reduce_all())
+            else:
+                # We've been provided a pure-data replacement (array)
+                values[self.name] = new
+                # TODO: Re-derive defaults from shape of array
 
         # Add value overrides for all associated dimensions
         for i in self.indices:

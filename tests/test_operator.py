@@ -577,13 +577,11 @@ class TestArguments(object):
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
-        a = Function(name='a', grid=grid).indexed
-        b_function = TimeFunction(name='b', grid=grid, save=nt)
-        b = b_function.indexed
-        time = b_function.indices[0]
-        b1 = TimeFunction(name='b1', grid=grid, save=nt+1).indexed
-        eqn = Eq(b[time, i, j, k], a[i, j, k])
-        op = Operator(eqn)
+        a = Function(name='a', grid=grid)
+        b = TimeFunction(name='b', grid=grid, save=nt)
+        time = b.indices[0]
+        b1 = TimeFunction(name='b1', grid=grid, save=nt+1)
+        op = Operator(Eq(b, a))
 
         # Simple case, same as that tested above.
         # Repeated here for clarity of further tests.
@@ -603,7 +601,7 @@ class TestArguments(object):
 
         # Providing a scalar argument explicitly should override the automatically\
         # inferred
-        op_arguments = op.arguments(b=b1, time=nt - 1, time_e=nt - 2)
+        op_arguments = op.arguments(b=b1, time_e=nt - 2)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 2)
 
