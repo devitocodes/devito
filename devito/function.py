@@ -92,7 +92,8 @@ class Constant(AbstractCachedSymbol):
         """
         values = {}
         if self.name in kwargs:
-            values[self.name] = kwargs.pop(self.name)
+            new = kwargs.pop(self.name)
+            values[self.name] = new.data if isinstance(new, Constant) else new
         return values
 
 
