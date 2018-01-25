@@ -472,7 +472,8 @@ class Iteration(Node):
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Iteration`."""
         return list(self.start_symbolic.free_symbols) \
-            + list(self.end_symbolic.free_symbols)
+            + list(self.end_symbolic.free_symbols) \
+            + list(flatten(ui.free_symbols for ui in self.uindices))
 
 
 class Callable(Node):
@@ -663,6 +664,17 @@ class UnboundedIndex(object):
         self.step = index + 1 if step is None else step
         self.dim = dim
         self.expr = expr
+
+    @property
+    def free_symbols(self):
+        """
+        Return the symbols used by this :class:`UnboundedIndex`.
+
+        """
+        free = self.index.free_symbols
+        free.update(self.start.free_symbols)
+        free.update(self.step.free_symbols)
+        return tuple(free)
 
 
 MetaCall = namedtuple('MetaCall', 'root local')

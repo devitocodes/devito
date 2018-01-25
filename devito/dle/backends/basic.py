@@ -70,6 +70,8 @@ class BasicRewriter(AbstractRewriter):
                 # Iteration unbounded indices
                 ufunc = [Scalar(name='%s_ub%d' % (name, j), dtype=np.int32)
                          for j in range(len(i.uindices))]
+                defined_args.update({uf.name: j.start
+                                     for uf, j in zip(ufunc, i.uindices)})
                 limits = [Scalar(name=start.name, dtype=np.int32),
                           Scalar(name=finish.name, dtype=np.int32), 1]
                 uindices = [UnboundedIndex(j.index, i.dim + as_symbol(k))
