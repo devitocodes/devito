@@ -43,19 +43,17 @@ class TestCodeGen(object):
         """
         eqn = Eq(a_dense, a_dense + 2.*const)
         op = Operator(eqn)
-        assert len(op.parameters) == 6
+        assert len(op.parameters) == 5
         assert op.parameters[0].name == 'a_dense'
-        assert op.parameters[0].is_TensorArgument
-        assert op.parameters[1].name == 'i_size'
-        assert op.parameters[1].is_ScalarArgument
-        assert op.parameters[2].name == 'i_s'
-        assert op.parameters[2].is_ScalarArgument
-        assert op.parameters[3].name == 'i_e'
-        assert op.parameters[3].is_ScalarArgument
-        assert op.parameters[4].name == 'constant'
-        assert op.parameters[4].is_ScalarArgument
-        assert op.parameters[5].name == 'timers'
-        assert op.parameters[5].is_PtrArgument
+        assert op.parameters[0].is_Tensor
+        assert op.parameters[1].name == 'constant'
+        assert op.parameters[1].is_Scalar
+        assert op.parameters[2].name == 'i_e'
+        assert op.parameters[2].is_Scalar
+        assert op.parameters[3].name == 'i_s'
+        assert op.parameters[3].is_Scalar
+        assert op.parameters[4].name == 'timers'
+        assert op.parameters[4].is_Object
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
