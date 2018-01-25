@@ -393,7 +393,7 @@ class FindSymbols(Visitor):
         'defines': lambda e: as_tuple(e.defines),
     }
 
-    def __init__(self, mode='kernel-data'):
+    def __init__(self, mode='symbolics'):
         super(FindSymbols, self).__init__()
         self.rule = self.rules[mode]
 
