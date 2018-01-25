@@ -500,22 +500,6 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
 
-    def test_arg_offset_adjust(self, nt=100):
-        """Test that the dimension sizes are being inferred correctly"""
-        i, j, k = dimify('i j k')
-        shape = (10, 10, 10)
-        grid = Grid(shape=shape, dimensions=(i, j, k))
-        a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=nt)
-        time = b.indices[0]
-        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
-                 + b.indexed[time, i, j, k] + a[i, j, k])
-        op = Operator(eqn)
-        args = {time.end_name: nt-10}
-        op_arguments = op.arguments(**args)
-        assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt - 8)
-
     def test_dimension_offset_adjust(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
