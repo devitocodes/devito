@@ -502,8 +502,8 @@ class Function(TensorFunction):
         args = ArgumentMap({self.name: self.data})
 
         # Collect default dimension arguments from all indices
-        for i, s in zip(self.indices, self.shape):
-            args.update(i.argument_defaults(size=s))
+        for i, s, o in zip(self.indices, self.shape, self.staggered):
+            args.update(i.argument_defaults(size=s+o))
         return args
 
     def argument_values(self, **kwargs):
