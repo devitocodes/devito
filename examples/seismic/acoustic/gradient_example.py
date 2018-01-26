@@ -146,13 +146,13 @@ class GradientExample(object):
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
 
-def run(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500., time_order=2,
+def run(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500., kernel='OT2',
         space_order=4, nbpml=10):
-    example = GradientExample(shape, spacing, tn, time_order, space_order, nbpml)
+    example = GradientExample(shape, spacing, tn, kernel, space_order, nbpml)
     m0, dm = example.initial_estimate()
     gradient, rec_data = example.gradient(m0)
     example.verify(m0, gradient, rec_data, dm)
 
 
 if __name__ == "__main__":
-    run(shape=(150, 150), spacing=(15.0, 15.0), tn=750.0, time_order=2, space_order=4)
+    run(shape=(150, 150), spacing=(15.0, 15.0), tn=750.0, kernel='OT2', space_order=4)
