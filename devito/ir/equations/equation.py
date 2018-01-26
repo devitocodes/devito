@@ -2,7 +2,9 @@ from collections import OrderedDict
 
 from sympy import Eq
 
+from devito.dimension import SubDimension
 from devito.ir.support import Interval, DataSpace, IterationSpace, Stencil
+from devito.region import DOMAIN, INTERIOR
 from devito.symbolics import dimension_sort, indexify
 
 __all__ = ['LoweredEq']
@@ -70,20 +72,25 @@ class LoweredEq(Eq, EqMixin):
         if subs is not None:
             expr = expr.xreplace(subs)
 
-        expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
-        expr.is_Increment = getattr(input_expr, 'is_Increment', False)
+        # Well-defined dimension ordering
+        ordering = dimension_sort(expr, key=lambda i: not i.is_Time)
+
+        # Introduce space sub-dimensions if need to
+        region = getattr(input_expr, '_region', DOMAIN)
+        if region == INTERIOR:
+            mapper = {i: SubDimension("%si" % i, i, 1, -1)
+                      for i in ordering if i.is_Space}
+            expr = expr.xreplace(mapper)
+            ordering = [mapper.get(i, i) for i in ordering]
 
         # Get the accessed data points
         stencil = Stencil(expr)
-
-        # Well-defined dimension ordering
-        ordering = dimension_sort(expr, key=lambda i: not i.is_Time)
 
         # Split actual Intervals (the data spaces) from the "derived" iterators,
         # to build an IterationSpace
         iterators = OrderedDict()
         for i in ordering:
-            if i.is_Derived:
+            if i.is_Stepping:
                 iterators.setdefault(i.parent, []).append(stencil.entry(i))
             else:
                 iterators.setdefault(i, [])
@@ -92,7 +99,9 @@ class LoweredEq(Eq, EqMixin):
             offs = set.union(set(stencil.get(k)), *[i.ofs for i in v])
             intervals.append(Interval(k, min(offs), max(offs)))
 
-        # Data space and Iteration space
+        # Finally create the LoweredEq with all metadata attached
+        expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
+        expr.is_Increment = getattr(input_expr, 'is_Increment', False)
         expr.dspace = DataSpace(intervals)
         expr.ispace = IterationSpace([i.negate() for i in intervals], iterators)
 
