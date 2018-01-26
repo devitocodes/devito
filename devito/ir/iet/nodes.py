@@ -361,8 +361,8 @@ class Iteration(Node):
         """
         Return any symbols defined in the :class:`Iteration` header.
         """
-        dim = self.dim.parent if self.dim.is_Derived else self.dim
-        return (dim, ) + tuple(i.name for i in self.uindices)
+        dims = (self.dim, self.dim.parent) if self.dim.is_Derived else (self.dim,)
+        return dims + tuple(i.name for i in self.uindices)
 
     @property
     def is_Linear(self):

@@ -127,11 +127,14 @@ class Operator(Callable):
     @cached_property
     def _argument_defaults(self):
         """
-        Derive all default values from parameters and ensure uniqueness..
+        Derive all default values from parameters and ensure uniqueness.
         """
         default_args = ArgumentMap()
         for p in self.input:
             default_args.update(p.argument_defaults())
+        for p in self.dimensions:
+            if p.is_Sub:
+                default_args.update(p.argument_defaults(default_args))
         return {k: default_args.reduce(k) for k in default_args}
 
     def arguments(self, **kwargs):

@@ -126,6 +126,7 @@ class Dimension(AbstractSymbol):
         if self.end_name in kwargs:
             values[self.end_name] = kwargs.pop(self.end_name)
 
+        # Let the dimension name be an alias for `dim_e`
         if self.name in kwargs:
             values[self.end_name] = kwargs.pop(self.name)
 
@@ -230,6 +231,26 @@ class SubDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.lower, self.upper)
 
+    def argument_defaults(self, parent_defaults):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param parent_defaults: Default values for the parent dimensions.
+        """
+        args = {}
+
+        if self.parent.start_name in parent_defaults:
+            args[self.start_name] = parent_defaults[self.parent.start_name] + self.lower
+
+        if self.parent.end_name in parent_defaults:
+            args[self.end_name] = parent_defaults[self.parent.end_name] + self.upper
+
+        if self.parent.size_name in parent_defaults:
+            args[self.size_name] = parent_defaults[self.parent.size_name] -\
+                (self.lower + self.upper)
+
+        return args
+
 
 class SteppingDimension(DerivedDimension):
 
@@ -294,7 +315,7 @@ class SteppingDimension(DerivedDimension):
 
         note ::
 
-        A :class:`SteppingDimension` neither knows it's size nor it's
+        A :class:`SteppingDimension` neither knows its size nor its
         iteration end point. So all we can provide is a starting point.
         """
         return {self.parent.start_name: 0}
