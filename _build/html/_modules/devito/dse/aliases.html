@@ -224,7 +224,6 @@
                     <span class="n">is_translated</span><span class="p">(</span><span class="n">candidates</span><span class="p">[</span><span class="n">handle</span><span class="p">]</span><span class="o">.</span><span class="n">offsets</span><span class="p">,</span> <span class="n">candidates</span><span class="p">[</span><span class="n">e</span><span class="p">]</span><span class="o">.</span><span class="n">offsets</span><span class="p">):</span>
                 <span class="n">group</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
                 <span class="n">unseen</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
-        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">])</span>
 
         <span class="c1"># Try creating a basis for the aliasing expressions&#39; offsets</span>
         <span class="n">offsets</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">candidates</span><span class="p">[</span><span class="n">e</span><span class="p">]</span><span class="o">.</span><span class="n">offsets</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
@@ -235,6 +234,10 @@
             <span class="k">continue</span>
 
         <span class="n">alias</span> <span class="o">=</span> <span class="n">create_alias</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">COM</span><span class="p">)</span>
+
+        <span class="c1"># An alias has been created, so I can now update the expression mapper</span>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">])</span>
+
         <span class="c1"># In circumstances in which an expression has repeated coefficients, e.g.</span>
         <span class="c1"># ... + 0.025*a[...] + 0.025*b[...],</span>
         <span class="c1"># We may have found a common basis (i.e., same COM, same alias) at this point</span>
