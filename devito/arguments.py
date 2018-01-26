@@ -243,8 +243,8 @@ class ArgumentEngine(object):
                 orig_param_l = [i for i in self.parameters if i.name == k]
                 # If I have been passed a parameter, I must have seen it before
                 if len(orig_param_l) == 0:
-                    raise InvalidArgument("Parameter %s does not exist in expressions " +
-                                          "passed to this Operator" % k)
+                    raise InvalidArgument(("Parameter %s does not exist in expressions " +
+                                          "passed to this Operator") % k)
                 # We've made sure the list isn't empty. Names should be unique so it
                 # should have exactly one entry
                 assert(len(orig_param_l) == 1)
