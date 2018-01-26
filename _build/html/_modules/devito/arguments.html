@@ -404,8 +404,8 @@
                 <span class="n">orig_param_l</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">k</span><span class="p">]</span>
                 <span class="c1"># If I have been passed a parameter, I must have seen it before</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">orig_param_l</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Parameter </span><span class="si">%s</span><span class="s2"> does not exist in expressions &quot;</span> <span class="o">+</span>
-                                          <span class="s2">&quot;passed to this Operator&quot;</span> <span class="o">%</span> <span class="n">k</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">((</span><span class="s2">&quot;Parameter </span><span class="si">%s</span><span class="s2"> does not exist in expressions &quot;</span> <span class="o">+</span>
+                                          <span class="s2">&quot;passed to this Operator&quot;</span><span class="p">)</span> <span class="o">%</span> <span class="n">k</span><span class="p">)</span>
                 <span class="c1"># We&#39;ve made sure the list isn&#39;t empty. Names should be unique so it</span>
                 <span class="c1"># should have exactly one entry</span>
                 <span class="k">assert</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">orig_param_l</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
