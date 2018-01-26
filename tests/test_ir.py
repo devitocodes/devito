@@ -4,7 +4,7 @@ from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
 
 from devito import Eq  # noqa
 from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
-from devito.ir.support.domain import NullInterval, Interval, Space
+from devito.ir.support.space import NullInterval, Interval, Space
 
 
 @pytest.fixture(scope="session")
