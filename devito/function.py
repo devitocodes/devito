@@ -840,10 +840,11 @@ class SparseFunction(CompositeFunction):
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
         indices = self.grid.dimensions
-        return tuple([FLOAT(c - idx * i.spacing)
-                      for c, idx, i in zip(self.coordinate_symbols,
-                                           self.coordinate_indices,
-                                           indices[:self.grid.dim])])
+        return tuple([FLOAT(c - o - idx * i.spacing)
+                      for c, o, idx, i in zip(self.coordinate_symbols,
+                                              self.grid.origin,
+                                              self.coordinate_indices,
+                                              indices[:self.grid.dim])])
 
     def interpolate(self, expr, offset=0, **kwargs):
         """Creates a :class:`sympy.Eq` equation for the interpolation
