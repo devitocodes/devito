@@ -24,7 +24,7 @@ def smooth10(vel, shape):
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
-                   tn=500., time_order=2, space_order=4, nbpml=10,
+                   tn=500., kernel='OT2', space_order=4, nbpml=10,
                    constant=False, **kwargs):
     nrec = shape[0]
     preset = 'constant-isotropic' if constant else 'layers-isotropic'
@@ -32,7 +32,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                        spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing
-    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
     t0 = 0.0
     nt = int(1 + (tn-t0) / dt)  # Number of timesteps
     time = np.linspace(t0, tn, nt)  # Discretized time axis
@@ -49,7 +49,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
     # Create solver object to provide relevant operators
     solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                time_order=time_order,
+                                kernel=kernel,
                                 space_order=space_order, **kwargs)
     return solver
 

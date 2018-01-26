@@ -9,15 +9,15 @@ from examples.seismic.acoustic import ForwardOperator, GradientOperator, smooth1
 
 class GradientExample(object):
     def __init__(self, shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
-                 time_order=2, space_order=4, nbpml=10):
-        self.time_order = time_order
+                 kernel='OT2', space_order=4, nbpml=10):
+        self.kernel = kernel
         self.space_order = space_order
         self._setup_model_and_acquisition(shape, spacing, nbpml, tn)
         self._true_data()
 
     @cached_property
     def dt(self):
-        return self.model.critical_dt * (1.73 if self.time_order == 4 else 1.0)
+        return self.model.critical_dt * (1.73 if self.kernel == 'OT4' else 1.0)
 
     def _setup_model_and_acquisition(self, shape, spacing, nbpml, tn):
         nrec = shape[0]
@@ -66,29 +66,29 @@ class GradientExample(object):
     @cached_property
     def forward_operator(self):
         return ForwardOperator(self.model, self.src, self.rec_t,
-                               time_order=self.time_order, spc_order=self.space_order,
+                               kernel=self.kernel, spc_order=self.space_order,
                                save=True)
 
     @cached_property
     def gradient_operator(self):
         return GradientOperator(self.model, self.src, self.rec_g,
-                                time_order=self.time_order, spc_order=self.space_order)
+                                kernel=self.kernel, spc_order=self.space_order)
 
     @cached_property
     def verify_operator(self):
         return ForwardOperator(self.model, self.src, self.rec_t,
-                               time_order=self.time_order, spc_order=self.space_order,
+                               kernel=self.kernel, spc_order=self.space_order,
                                save=False)
 
     @property
     def temp_field(self):
-        return TimeFunction(name="u", grid=self.model.grid, time_order=self.time_order,
+        return TimeFunction(name="u", grid=self.model.grid, time_order=2,
                             space_order=self.space_order, save=None)
 
     @cached_property
     def forward_field(self):
         return TimeFunction(name="u", grid=self.model.grid, save=self.nt,
-                            time_order=self.time_order, space_order=self.space_order)
+                            time_order=2, space_order=self.space_order)
 
     @cached_property
     def adjoint_field(self):

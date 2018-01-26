@@ -51,7 +51,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     return [Eq(next, eq_time.subs({H: lap}))]
 
 
-def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
+def ForwardOperator(model, source, receiver, space_order=4,
                     save=False, kernel='OT2', **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
@@ -74,14 +74,11 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
-    # Get computational time-step value
-    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(u, m, s, damp, kernel)
 
     # Construct expression to inject source values
-    src_term = src.inject(field=u.forward, expr=src * dt**2 / m,
+    src_term = src.inject(field=u.forward, expr=src * s**2 / m,
                           offset=model.nbpml)
 
     # Create interpolation expression for receivers
@@ -92,7 +89,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                     time_axis=Forward, name='Forward', **kwargs)
 
 
-def AdjointOperator(model, source, receiver, time_order=2, space_order=4,
+def AdjointOperator(model, source, receiver, space_order=4,
                     kernel='OT2', **kwargs):
     """
     Constructor method for the adjoint modelling operator in an acoustic media
@@ -112,14 +109,11 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4,
     rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
-    # Get computational time-step value
-    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
 
     # Construct expression to inject receiver values
-    receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
+    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
                            offset=model.nbpml)
 
     # Create interpolation expression for the adjoint-source
@@ -130,7 +124,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4,
                     time_axis=Backward, name='Adjoint', **kwargs)
 
 
-def GradientOperator(model, source, receiver, time_order=2, space_order=4, save=True,
+def GradientOperator(model, source, receiver, space_order=4, save=True,
                      kernel='OT2', **kwargs):
     """
     Constructor method for the gradient operator in an acoustic media
@@ -152,9 +146,6 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, save=
     rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
-    # Get computational time-step value
-    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
 
@@ -166,7 +157,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, save=
     else:
         error("Unrecognized kernel, has to be OT2 or OT4")
     # Add expression for receiver injection
-    receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
+    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
                            offset=model.nbpml)
 
     # Substitute spacing terms to reduce flops
@@ -174,7 +165,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, save=
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
-def BornOperator(model, source, receiver, time_order=2, space_order=4,
+def BornOperator(model, source, receiver, space_order=4,
                  kernel='OT2', **kwargs):
     """
     Constructor method for the Linearized Born operator in an acoustic media
@@ -200,15 +191,12 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4,
                      time_order=2, space_order=space_order)
     dm = Function(name="dm", grid=model.grid)
 
-    # Get computational time-step value
-    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-
     s = model.grid.stepping_dim.spacing
     eqn1 = iso_stencil(u, m, s, damp, kernel)
     eqn2 = iso_stencil(U, m, s, damp, kernel, q=-dm*u.dt2)
 
     # Add source term expression for u
-    source = src.inject(field=u.forward, expr=src * dt**2 / m,
+    source = src.inject(field=u.forward, expr=src * s**2 / m,
                         offset=model.nbpml)
 
     # Create receiver interpolation expression from U

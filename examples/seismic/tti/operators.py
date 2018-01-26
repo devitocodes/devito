@@ -368,7 +368,7 @@ def ForwardOperator(model, source, receiver, space_order=4,
        :param: time_order: Time discretization order
        :param: spc_order: Space discretization order
        """
-    dt = model.critical_dt
+    dt = model.grid.time_dim.spacing
 
     m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
                                            model.delta, model.theta, model.phi)
