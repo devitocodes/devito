@@ -63,7 +63,6 @@ def collect(exprs):
                     is_translated(candidates[handle].offsets, candidates[e].offsets):
                 group.append(e)
                 unseen.remove(e)
-        mapper.update([(i, group) for i in group])
 
         # Try creating a basis for the aliasing expressions' offsets
         offsets = [tuple(candidates[e].offsets) for e in group]
@@ -74,6 +73,10 @@ def collect(exprs):
             continue
 
         alias = create_alias(handle, COM)
+
+        # An alias has been created, so I can now update the expression mapper
+        mapper.update([(i, group) for i in group])
+
         # In circumstances in which an expression has repeated coefficients, e.g.
         # ... + 0.025*a[...] + 0.025*b[...],
         # We may have found a common basis (i.e., same COM, same alias) at this point

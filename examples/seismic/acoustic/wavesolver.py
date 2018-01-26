@@ -104,7 +104,7 @@ class AcousticWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, m=m,
-                                          dt=self.dt, **kwargs)
+                                          dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, m=None, **kwargs):
@@ -138,7 +138,7 @@ class AcousticWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj().apply(srca=srca, rec=rec, v=v, m=m,
-                                      dt=self.dt, **kwargs)
+                                      dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, v, summary
 
     def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
@@ -169,7 +169,7 @@ class AcousticWaveSolver(object):
             m = m or self.model.m
 
         summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m,
-                                       dt=self.dt, **kwargs)
+                                       dt=kwargs.pop('dt', self.dt), **kwargs)
         return grad, summary
 
     def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
@@ -206,5 +206,5 @@ class AcousticWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_born().apply(dm=dmin, u=u, U=U, src=src, rec=rec,
-                                       m=m, dt=self.dt, **kwargs)
+                                       m=m, dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, U, summary
