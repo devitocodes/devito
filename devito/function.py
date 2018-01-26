@@ -496,35 +496,40 @@ class Function(TensorFunction):
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
 
-    def argument_defaults(self):
+    def argument_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
+
+        :param alias: (Optional) name under which to store values.
         """
-        args = ArgumentMap({self.name: self.data})
+        key = alias or self.name
+        args = ArgumentMap({key: self.data})
 
         # Collect default dimension arguments from all indices
         for i, s, o in zip(self.indices, self.shape, self.staggered):
             args.update(i.argument_defaults(size=s+o))
         return args
 
-    def argument_values(self, **kwargs):
+    def argument_values(self, alias=None, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
         :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
         """
         values = {}
+        key = alias or self.name
 
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
             if isinstance(new, Function):
                 # Set new values and re-derive defaults
-                values[self.name] = new.data
-                values.update(new.argument_defaults().reduce_all())
+                values[key] = new.data
+                values.update(new.argument_defaults(alias=key).reduce_all())
             else:
                 # We've been provided a pure-data replacement (array)
-                values[self.name] = new
+                values[key] = new
                 # TODO: Re-derive defaults from shape of array
 
         # Add value overrides for all associated dimensions
@@ -726,33 +731,38 @@ class CompositeFunction(Function):
     def children(self):
         return self._children
 
-    def argument_defaults(self):
+    def argument_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
+
+        :param alias: (Optional) name under which to store values.
         """
-        args = super(CompositeFunction, self).argument_defaults()
+        args = super(CompositeFunction, self).argument_defaults(alias=alias)
         for child in self.children:
             args.update(child.argument_defaults())
         return args
 
-    def argument_values(self, **kwargs):
+    def argument_values(self, alias=None, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
         :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
         """
-        values = super(CompositeFunction, self).argument_values(**kwargs)
-        if self.name in values and isinstance(values[self.name], CompositeFunction):
+        # Take a copy of the replacement before super pops it from kwargs
+        new = kwargs.get(self.name, None)
+        values = super(CompositeFunction, self).argument_values(alias=alias,
+                                                                **kwargs)
+        if new is not None and isinstance(new, CompositeFunction):
             # If we've been replaced with a composite symbol,
             # we need to re-derive defaults and values...
-            replacement = values[self.name]
-            values.update(replacement.argument_defaults().reduce_all())
-            for child in replacement.children:
-                values.update(child.argument_values(**kwargs))
+            values.update(new.argument_defaults(alias=alias).reduce_all())
+            for child, new_child in zip(self.children, new.children):
+                values.update(new_child.argument_defaults(alias=child.name))
         else:
             # ..., but if not, we simply need to recurse over children.
             for child in self.children:
-                values.update(child.argument_values(**kwargs))
+                values.update(child.argument_values(alias=alias, **kwargs))
         return values
 
 
