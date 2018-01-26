@@ -14,7 +14,7 @@ from devito.types import Indexed, Scalar, Array
 class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, state):
-        self._extract_time_invariants(state)
+        self._extract_time_invariants(state, costmodel=lambda e: e.is_Function)
         self._eliminate_inter_stencil_redundancies(state)
         self._eliminate_intra_stencil_redundancies(state)
         self._factorize(state)
