@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import
 
+import abc
 import inspect
 from collections import Iterable, OrderedDict, namedtuple
 
@@ -24,6 +25,8 @@ __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
 
 
 class Node(object):
+
+    __metaclass__ = abc.ABCMeta
 
     is_Node = True
     is_Block = False
@@ -97,6 +100,27 @@ class Node(object):
 
     def __str__(self):
         return str(self.ccode)
+
+    @abc.abstractproperty
+    def functions(self):
+        """
+        Return all :class:`AbstractFunction` objects used by this :class:`Node`.
+        """
+        raise NotImplementedError()
+
+    @abc.abstractproperty
+    def free_symbols(self):
+        """
+        Return all :class:`Symbol` objects used by this :class:`Node`.
+        """
+        raise NotImplementedError()
+
+    @abc.abstractproperty
+    def defines(self):
+        """
+        Return all :class:`Symbol` objects defined by this :class:`Node`.
+        """
+        raise NotImplementedError()
 
 
 class Block(Node):
@@ -193,8 +217,6 @@ class Expression(Node):
         self.reads = [i for i in retrieve_terminals(self.expr.rhs)
                       if isinstance(i, (types.Indexed, types.Symbol))]
         self.reads = filter_ordered(self.reads)
-        self.functions = [self.write] + [i.base.function for i in self.reads]
-        self.functions = filter_ordered(self.functions)
         # Filter collected dimensions and functions
         self.dimensions = flatten(i.indices for i in self.functions)
         self.dimensions = filter_ordered(self.dimensions)
@@ -217,6 +239,11 @@ class Expression(Node):
         Return the symbol written by this Expression.
         """
         return self.expr.lhs
+
+    @property
+    def functions(self):
+        functions = [self.write] + [i.base.function for i in self.reads]
+        return filter_ordered(functions)
 
     @property
     def defines(self):
