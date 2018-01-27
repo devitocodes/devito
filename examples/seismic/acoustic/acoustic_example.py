@@ -48,8 +48,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
     # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                kernel=kernel,
+    solver = AcousticWaveSolver(model, source=src, receiver=rec, kernel=kernel,
                                 space_order=space_order, **kwargs)
     return solver
 
