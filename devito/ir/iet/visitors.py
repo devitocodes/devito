@@ -146,8 +146,8 @@ class CGen(Visitor):
 
     def _args_call(self, args):
         """
-        Convert an of symbols and expression into a function call
-        signature in cgen format.
+        Convert an iterable of symbols and expressions into a function
+        call signature in cgen format.
         """
         ret = []
         for i in args:
@@ -409,14 +409,9 @@ class FindSymbols(Visitor):
     def visit_Expression(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
-    def visit_ArrayCast(self, o):
-        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
-
-    def visit_PointerCast(self, o):
-        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
-
-    def visit_Call(self, o):
-        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
+    visit_ArrayCast = visit_Expression
+    visit_PointerCast = visit_Expression
+    visit_Call = visit_Expression
 
 
 class FindNodes(Visitor):

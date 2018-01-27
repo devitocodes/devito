@@ -90,15 +90,11 @@ class BasicRewriter(AbstractRewriter):
             for i in derive_parameters(free):
                 if i.name in defined_args:
                     args.append((defined_args[i.name], i))
-                elif i.is_Array:
-                    args.append((i, i))
-                elif i.is_TensorFunction:
-                    args.append((i, i))
-                elif i.is_Scalar:
-                    args.append((i, i))
                 elif i.is_Dimension:
                     d = Scalar(name=i.name, dtype=i.dtype)
                     args.append((d, d))
+                else:
+                    args.append((i, i))
 
             call, params = zip(*args)
             name = "f_%d" % root.tag

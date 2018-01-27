@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import abc
 import inspect
+from cached_property import cached_property
 from collections import Iterable, OrderedDict, namedtuple
 
 import cgen as c
@@ -186,7 +187,7 @@ class Call(Node):
         """Return all :class:`Symbol` objects used by this :class:`Call`."""
         return tuple(p for p in self.params if isinstance(p, types.AbstractFunction))
 
-    @property
+    @cached_property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Call`."""
         free = tuple(set(flatten(p.free_symbols for p in self.params)))
@@ -287,7 +288,7 @@ class Expression(Node):
 
     @property
     def free_symbols(self):
-        """Return all :class:`Symbol` objects used by this :class:`Stencil`."""
+        """Return all :class:`Symbol` objects used by this :class:`Expression`."""
         return self.expr.free_symbols
 
 
@@ -358,9 +359,9 @@ class Iteration(Node):
     @property
     def defines(self):
         """
-        Return any symbols an :class:`Iteration` may define.
+        Return any symbols defined in the :class:`Iteration` header.
         """
-        dim = self.dim.parent if self.dim.is_Stepping else self.dim
+        dim = self.dim.parent if self.dim.is_Derived else self.dim
         return (dim, ) + tuple(i.name for i in self.uindices)
 
     @property
@@ -487,7 +488,10 @@ class Iteration(Node):
 
     @property
     def functions(self):
-        """Return all :class:`Function` objects used by this :class:`Iteration`"""
+        """
+        Return all :class:`Function` objects used in the header of
+        this :class:`Iteration`.
+        """
         return []
 
     @property
@@ -497,7 +501,10 @@ class Iteration(Node):
 
     @property
     def free_symbols(self):
-        """Return all :class:`Symbol` objects used by this :class:`Iteration`."""
+        """
+        Return all :class:`Symbol` objects used in the header of this
+        :class:`Iteration`.
+        """
         return list(self.start_symbolic.free_symbols) \
             + list(self.end_symbolic.free_symbols) \
             + list(flatten(ui.free_symbols for ui in self.uindices))
@@ -643,14 +650,14 @@ class PointerCast(Node):
     @property
     def defines(self):
         """
-        Return the base symbol an :class:`ArrayCast` defines.
+        Return the base symbol an :class:`PointerCast` defines.
         """
         return ()
 
     @property
     def free_symbols(self):
         """
-        Return the symbols required to perform an :class:`ArrayCast`.
+        Return the symbols required to perform an :class:`PointerCast`.
 
         This includes the :class:`AbstractFunction` object that
         defines the data, as well as the dimension sizes.
