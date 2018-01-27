@@ -4,6 +4,8 @@ from conftest import skipif_yask
 
 from devito.cgen_utils import FLOAT
 from devito import Grid, Operator, Function, SparseFunction
+from examples.seismic import demo_model, RickerSource, Receiver
+from examples.seismic.acoustic import AcousticWaveSolver
 
 
 @pytest.fixture
@@ -147,3 +149,53 @@ def test_adjoint_inject_interpolate(shape, coords,
     term1 = np.dot(p2.data.reshape(-1), p.data.reshape(-1))
     term2 = np.dot(c.data.reshape(-1), a.data.reshape(-1))
     assert np.isclose((term1-term2) / term1, 0., atol=1.e-6)
+
+
+@skipif_yask
+@pytest.mark.parametrize('shape', [(50, 50, 50)])
+def test_position(shape):
+    t0 = 0.0  # Start time
+    tn = 500.  # Final time
+    nrec = 130  # Number of receivers
+
+    # Create model from preset
+    model = demo_model('constant-isotropic', spacing=[15. for _ in shape],
+                       shape=shape, nbpml=10)
+
+    # Derive timestepping from model spacing
+    dt = model.critical_dt
+    nt = int(1 + (tn-t0) / dt)  # Number of timesteps
+    time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+
+    # Define source geometry (center of domain, just below surface)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
+    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    src.coordinates.data[0, -1] = 30.
+
+    # Define receiver geometry (same as source, but spread across x)
+    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+
+    # Create solver object to provide relevant operators
+    solver = AcousticWaveSolver(model, source=src, receiver=rec,
+                                time_order=2,
+                                space_order=4)
+
+    rec, u, _ = solver.forward(save=False)
+
+    # Define source geometry (center of domain, just below surface) with 100. origin
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
+    src.coordinates.data[0, :] = np.array(model.domain_size) * .5 + 100.
+    src.coordinates.data[0, -1] = 130.
+
+    # Define receiver geometry (same as source, but spread across x)
+    rec2 = Receiver(name='rec2', grid=model.grid, ntime=nt, npoint=nrec)
+    rec2.coordinates.data[:, 0] = np.linspace(100., 100. + model.domain_size[0],
+                                              num=nrec)
+    rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+
+    rec1, u1, _ = solver.forward(save=False, src=src, rec=rec2,
+                                 o_x=100., o_y=100., o_z=100.)
+
+    assert(np.allclose(rec.data, rec1.data, atol=1e-5))
