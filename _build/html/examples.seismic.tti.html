@@ -190,7 +190,7 @@
 <span id="examples-seismic-tti-operators-module"></span><h2>examples.seismic.tti.operators module<a class="headerlink" href="#module-examples.seismic.tti.operators" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="examples.seismic.tti.operators.ForwardOperator">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">ForwardOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>save=False</em>, <em>kernel='centered'</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#ForwardOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.ForwardOperator" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">ForwardOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>space_order=4</em>, <em>save=False</em>, <em>kernel='centered'</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#ForwardOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.ForwardOperator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Constructor method for the forward modelling operator in an acoustic media</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -467,7 +467,7 @@ Hz = Gzz(v)</p>
 
 <dl class="function">
 <dt id="examples.seismic.tti.tti_example.tti_setup">
-<code class="descclassname">examples.seismic.tti.tti_example.</code><code class="descname">tti_setup</code><span class="sig-paren">(</span><em>shape=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(20.0</em>, <em>20.0</em>, <em>20.0)</em>, <em>tn=250.0</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=10</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/tti_example.html#tti_setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.tti_example.tti_setup" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.tti_example.</code><code class="descname">tti_setup</code><span class="sig-paren">(</span><em>shape=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(20.0</em>, <em>20.0</em>, <em>20.0)</em>, <em>tn=250.0</em>, <em>space_order=4</em>, <em>nbpml=10</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/tti_example.html#tti_setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.tti_example.tti_setup" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </div>
@@ -475,7 +475,7 @@ Hz = Gzz(v)</p>
 <span id="examples-seismic-tti-wavesolver-module"></span><h2>examples.seismic.tti.wavesolver module<a class="headerlink" href="#module-examples.seismic.tti.wavesolver" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="examples.seismic.tti.wavesolver.AnisotropicWaveSolver">
-<em class="property">class </em><code class="descclassname">examples.seismic.tti.wavesolver.</code><code class="descname">AnisotropicWaveSolver</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=2</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/wavesolver.html#AnisotropicWaveSolver"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.wavesolver.AnisotropicWaveSolver" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">examples.seismic.tti.wavesolver.</code><code class="descname">AnisotropicWaveSolver</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>space_order=2</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/wavesolver.html#AnisotropicWaveSolver"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.wavesolver.AnisotropicWaveSolver" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>Solver object that provides operators for seismic inversion problems
 and encapsulates the time and space discretization for a given problem
