@@ -91,7 +91,7 @@ def tti_operator(dse=False, space_order=4):
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
     return AnisotropicWaveSolver(model, source=src, receiver=rec,
-                                 time_order=2, space_order=space_order, dse=dse)
+                                 space_order=space_order, dse=dse)
 
 
 @pytest.fixture(scope="session")

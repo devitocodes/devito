@@ -24,7 +24,7 @@ def smooth10(vel, shape):
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
-                   tn=500., time_order=2, space_order=4, nbpml=10,
+                   tn=500., kernel='OT2', space_order=4, nbpml=10,
                    constant=False, **kwargs):
     nrec = shape[0]
     preset = 'constant-isotropic' if constant else 'layers-isotropic'
@@ -32,7 +32,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                        spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing
-    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
     t0 = 0.0
     nt = int(1 + (tn-t0) / dt)  # Number of timesteps
     time = np.linspace(t0, tn, nt)  # Discretized time axis
@@ -48,18 +48,17 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
     # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                time_order=time_order,
+    solver = AcousticWaveSolver(model, source=src, receiver=rec, kernel=kernel,
                                 space_order=space_order, **kwargs)
     return solver
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        time_order=2, space_order=4, nbpml=40, full_run=False,
+        space_order=4, kernel='OT2', nbpml=40, full_run=False,
         autotune=False, constant=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
-                            space_order=space_order, time_order=time_order,
+                            space_order=space_order, kernel=kernel,
                             constant=constant, **kwargs)
 
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
@@ -94,12 +93,13 @@ if __name__ == "__main__":
                         help="Execute all operators and store forward wavefield")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
                         help="Enable autotuning for block sizes")
-    parser.add_argument("-to", "--time_order", default=2,
-                        type=int, help="Time order of the simulation")
     parser.add_argument("-so", "--space_order", default=6,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
+    parser.add_argument("-k", dest="kernel", default='OT2',
+                        choices=['OT2', 'OT4'],
+                        help="Choice of finite-difference kernel")
     parser.add_argument("-dse", "-dse", default="advanced",
                         choices=["noop", "basic", "advanced",
                                  "speculative", "aggressive"],
@@ -122,5 +122,5 @@ if __name__ == "__main__":
         tn = 250.0
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
-        space_order=args.space_order, time_order=args.time_order, constant=args.constant,
+        space_order=args.space_order, constant=args.constant, kernel=args.kernel,
         autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full)
