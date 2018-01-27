@@ -85,10 +85,6 @@ class Operator(Callable):
             if not time.is_Stepping:
                 time.reverse = time_axis == Backward
 
-        # Parameters of the Operator (Dimensions necessary for data casts)
-        parameter_dims = [d for d in self.dimensions if not d.is_Stepping]
-        parameters = self.input + parameter_dims
-
         # Group expressions based on their iteration space and data dependences,
         # and apply the Devito Symbolic Engine (DSE) for flop optimization
         clusters = clusterize(expressions)
@@ -98,10 +94,10 @@ class Operator(Callable):
         nodes = iet_build(clusters, self.dtype)
 
         # Introduce C-level profiling infrastructure
-        nodes, self.profiler = self._profile_sections(nodes, parameters)
+        nodes, self.profiler = self._profile_sections(nodes)
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes = self._specialize(nodes, parameters)
+        nodes = self._specialize(nodes)
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
         dle_state = transform(nodes, *set_dle_mode(dle))
@@ -111,7 +107,6 @@ class Operator(Callable):
         self.dle_flags = dle_state.flags
         self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                             for i in dle_state.elemental_functions]))
-        parameters.extend([i.argument for i in self.dle_arguments])
         self.dimensions.extend([i.argument for i in self.dle_arguments
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
@@ -227,7 +222,7 @@ class Operator(Callable):
 
         return self._cfunction
 
-    def _profile_sections(self, nodes, parameters):
+    def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         return List(body=nodes), None
 
@@ -236,7 +231,7 @@ class Operator(Callable):
         best block sizes when loop blocking is in use."""
         return arguments
 
-    def _specialize(self, nodes, parameters):
+    def _specialize(self, nodes):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
@@ -280,7 +275,7 @@ class OperatorRunnable(Operator):
                      (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
-    def _profile_sections(self, nodes, parameters):
+    def _profile_sections(self, nodes,):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         nodes, profiler = create_profile('timers', nodes)
         self._globals.append(profiler.cdef)
