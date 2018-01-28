@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 from operator import attrgetter
+from cached_property import cached_property
 
 import ctypes
 import numpy as np
@@ -115,8 +116,7 @@ class Operator(Callable):
         nodes = iet_insert_C_decls(dle_state.nodes, self.func_table)
 
         # Insert data and pointer casts for array parameters and profiling structs
-        functions = FindSymbols('symbolics').visit(nodes)
-        casts = [ArrayCast(f) for f in functions if f.is_Tensor and f._mem_external]
+        casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
         profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
         casts.append(PointerCast(profiler))
         nodes = (List(body=casts), nodes)
@@ -132,19 +132,23 @@ class Operator(Callable):
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
+    @cached_property
+    def _argument_defaults(self):
+        """
+        Derive all default values from parameters and ensure uniqueness..
+        """
+        default_args = ArgumentMap()
+        for p in self.input:
+            default_args.update(p.argument_defaults())
+        return {k: default_args.reduce(k) for k in default_args}
+
     def arguments(self, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
-        # First, derive all default values from parameters and reduce
-        # TODO: Should be self.parameters, but that converts to
-        # TensorArgument type, etc...
-        # Also, this part can probably be a cached_property
-        default_args = ArgumentMap()
-        for p in self.input:
-            default_args.update(p.argument_defaults())
-        arguments = {k: default_args.reduce(k) for k in default_args}
+        # First, derive all default values from parameters
+        arguments = self._argument_defaults.copy()
 
         # Next, we insert user-provided overrides
         for p in self.input + self.dimensions:
