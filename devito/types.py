@@ -75,6 +75,25 @@ class Basic(object):
     def __init__(self, *args, **kwargs):
         return
 
+    @abc.abstractmethod
+    def argument_defaults(self):
+        """
+        Returns a map of default argument values defined by this symbol.
+        """
+        raise NotImplementedError('%s does not provide any default arguments' %
+                                  self.__class__)
+
+    @abc.abstractmethod
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        raise NotImplementedError('%s does not provide argument value derivation' %
+                                  self.__class__)
+
+
 
 class Cached(object):
     """
@@ -164,22 +183,6 @@ class AbstractSymbol(sympy.Symbol, Basic):
 
     def indexify(self):
         return self
-
-    def argument_defaults(self):
-        """
-        Returns a map of default argument values defined by this symbol.
-        """
-        raise NotImplementedError('%s does not provide any default arguments' %
-                                  self.__class__)
-
-    def argument_values(self, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        """
-        raise NotImplementedError('%s does not provide argument value derivation' %
-                                  self.__class__)
 
 
 class AbstractCachedSymbol(AbstractSymbol, Cached):
@@ -360,22 +363,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         subs = dict([(i.spacing, 1) for i in self.indices])
         indices = [a.subs(subs) for a in self.args]
         return Indexed(self.indexed, *indices)
-
-    def argument_defaults(self):
-        """
-        Returns a map of default argument values defined by this symbol.
-        """
-        raise NotImplementedError('%s does not provide any default arguments' %
-                                  self.__class__)
-
-    def argument_values(self, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        """
-        raise NotImplementedError('%s does not provide argument value derivation' %
-                                  self.__class__)
 
 
 class SymbolicData(AbstractCachedFunction):
