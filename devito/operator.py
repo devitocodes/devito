@@ -179,6 +179,11 @@ class Operator(Callable):
             at_args = OrderedDict([(p.name, arguments[p.name]) for p in self.parameters])
             arguments = self._autotune(at_args)
 
+        # Check all argument are present
+        for p in self.parameters:
+            if p.name not in arguments:
+                raise ValueError("No value found for parameter %s" % p.name)
+
         return arguments
 
     @property
@@ -255,11 +260,6 @@ class OperatorRunnable(Operator):
         """Apply the stencil kernel to a set of data objects"""
         # Build the arguments list to invoke the kernel function
         arguments = self.arguments(**kwargs)
-
-        # Check all argument are present
-        for p in self.parameters:
-            if p.name not in arguments:
-                raise ValueError("No value found for parameter %s" % p.name)
 
         # Invoke kernel function with args
         arg_values = [arguments[p.name] for p in self.parameters]
