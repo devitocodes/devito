@@ -40,12 +40,8 @@ class Operator(OperatorRunnable):
         # list of linked libraries
         self._compiler = configuration.yask['compiler'].copy()
 
-    def _specialize(self, nodes, parameters):
-        """
-        Create a YASK representation of this Iteration/Expression tree.
-
-        ``parameters`` is modified in-place adding YASK-related arguments.
-        """
+    def _specialize(self, nodes):
+        """Create a YASK representation of this Iteration/Expression tree."""
         log("Specializing a Devito Operator for YASK...")
 
         self.context = YaskNullContext()
@@ -80,11 +76,6 @@ class Operator(OperatorRunnable):
                 self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
                                                              yc_soln, local_grids)
 
-                # Now we must drop a pointer to the YASK solution down to C-land
-                parameters.append(Object(namespace['code-soln-name'],
-                                         namespace['type-solution'],
-                                         self.yk_soln.rawpointer))
-
                 # Print some useful information about the newly constructed solution
                 log("Solution '%s' contains %d grid(s) and %d equation(s)." %
                     (yc_soln.get_name(), yc_soln.get_num_grids(),
@@ -99,19 +90,30 @@ class Operator(OperatorRunnable):
         # in storage layout employed by Devito and YASK
         nodes = make_grid_accesses(nodes)
 
-        # Update the parameters list adding all necessary YASK grids
-        for i in list(parameters) + local_grids:
-            try:
-                if i.from_YASK:
-                    parameters.append(Object(namespace['code-grid-name'](i.name),
-                                             namespace['type-grid']))
-            except AttributeError:
-                # Ignore e.g. Dimensions
-                pass
-
         log("Specialization successfully performed!")
 
         return nodes
+
+    def _build_parameters(self, nodes):
+        parameters = list(super(Operator, self)._build_parameters(nodes))
+
+        # Add YASK solution pointer for use in C-land
+        parameters.append(Object(namespace['code-soln-name'],
+                                 namespace['type-solution'],
+                                 self.yk_soln.rawpointer))
+
+        # Add YASK user grids pointers for use in C-land
+        for i in list(parameters):
+            if i.from_YASK:
+                parameters.append(Object(namespace['code-grid-name'](i.name),
+                                         namespace['type-grid']))
+
+        # Add YASK local grids pointers for use in C-land
+        for i in self.yk_soln.local_grids:
+            parameters.append(Object(namespace['code-grid-name'](i),
+                                     namespace['type-grid']))
+
+        return tuple(parameters)
 
     def arguments(self, **kwargs):
         mapper = {i.name: i for i in self.parameters}

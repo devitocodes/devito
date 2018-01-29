@@ -122,7 +122,7 @@ class Operator(Callable):
         nodes = (List(body=casts), nodes)
 
         # Derive parameters as symbols not defined in the kernel itself
-        parameters = derive_parameters(nodes)
+        parameters = self._build_parameters(nodes)
 
         # Filter all internally-allocated temporary `Array` types
         # TODO: Huge hack, but to fix it, allocations need to be part of IET
@@ -245,6 +245,11 @@ class Operator(Callable):
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
         return nodes
+
+    def _build_parameters(self, nodes):
+        """Determine the Operator parameters based on the Iteration/Expression
+        tree ``nodes``."""
+        return derive_parameters(nodes)
 
 
 class OperatorRunnable(Operator):
