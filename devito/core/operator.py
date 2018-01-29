@@ -16,79 +16,93 @@ class OperatorCore(OperatorRunnable):
 
     def _specialize_exprs(self, expressions, subs):
         """
-        Lower ``expressions`` by: ::
+        Transform the SymPy expressions in input to the Operator into a
+        backend-specific representation.
 
-            * Performing indexification (:class:`Function` --> :class:`Indexed`).
-            * Applying any user-provided substitution rules.
-            * Translating all array accesses by a certain quantity so that they
-              become relative to the domain region.
+        Three tasks are carried out: ::
 
-        The latter task is necessary to index into the right memory locations and
-        requires some thought.
-        Ideally, adding the extent of the left halo+padding region to each array
-        access should suffice. There is, however, a complication. Along some
-        dimensions, the array accesses may be shifted w.r.t. to the halo region.
-        Consider for example the function `u(t, x, y)`, with halo+padding given
-        by ((2, 0), (3, 3), (3, 3)) -- see also :meth:`Function._offset_domain`
-        for more info about the semantics of the halo and padding tuples. In an
-        equation, the array accesses `u[t-1, x, y]`, `u[t, x, y]`, and
-        `u[t+1, x, y]` may be used. The presence of `t-1` and `t+1` suggests that
-        the three array accesses along `t` are shifted by 1 from the bottom of
-        the allocated region, since the smallest index access (-1, from t-1 with
-        t=0) would not touch the very first memory location along `t` in an
-        iteration space starting from 0. Analogously, the largest index access
-        (t_ext+1, from t+1 with t=t_ext) would end up performing an out-of-bounds
-        access, as the right halo is 0 along `t`. Hence, instead of adding 2
-        to each index function along `t` (the extent of the left halo+padding
-        region), we should add 2-1; that is, we should subtract the shifting
-        inferred from the encountered array accessed.
+            * Indexification (:class:`Function` --> :class:`Indexed`).
+            * Application of user-provided substitution rules.
+            * Translation of array accesses w.r.t. the computational domain.
 
-        :raises InvalidOperator: if incompatible shiftings along a certain
-                                 dimension, perhaps induced by different
-                                 :class:`Function`s, are found. This suggests
-                                 an issue in the expression specification provided
-                                 by the user.
+        The latter task requires some thought. One may think that adding the
+        halo+padding region to the index functions would suffice. There is,
+        however, a complication. Consider for example the function `u(t, x, y)`,
+        with halo+padding given by ``((0, 0), (3, 3), (3, 3))`` -- see also
+        :meth:`Function._offset_domain` for more info about the semantics of the
+        halo and padding tuples. A user may express an iteration update in many
+        different formats, such as ``u[t+1, x, y] = f(u[t, x, y], u[t-1, x, y])``
+        or ``u[t+2, x, y] = f(u[t+1, x, y], u[t, x, y])``. Not only are these
+        two formats mathematically meaningful, but also they are considered
+        equivalent by Devito. What really matters is that users can execute a
+        :class:`Operator` in a natural way. So if the user writes: ::
+
+            .. code-block::
+                op = Operator(...)
+                op.apply(t=(2, 5))
+
+        then 3 timesteps need to be computed -- in particular, ``u[2, ...],
+        u[3, ...], u[4, ....]`` -- no matter whether the left hand side
+        of the input equation is expressed as ``u[t+1, ...] = ...`` rather than
+        ``u[t+2, ...] = ...`` or ``u[t, ...] = ...``. To systematically achieve
+        this behavior, we use the following compilation strategy: ::
+
+            * Any offsets appearing on the left hand side of a user-provided
+              equation are dropped; all other index functions are translated accordingly.
+            * All index functions are further translated up based on the extent of their
+              halo+padding region.
+            * A loop along a certain :class:`Dimension` ``x`` enclosing a user-provided
+              equation will always range from ``x_start`` to ``x_end`` (i.e., no offsets
+              will ever be used in user-input-generated loop headers).
+
+        Thus, for the above scenario, the compiler will eventually generate: ::
+
+            .. code-block::
+                for t = t_s to t_e
+                  for x = x_s to x_e
+                    for y = y_s to y_e
+                      u[t, x+3, y+3] = f(u[t-1, x+3, y+3], u[t-2, x+3, y+3])
         """
         # Indexification
         expressions = [indexify(i) for i in expressions]
-
         # Apply user-provided substitution rules
-        if subs is not None:
-            expressions = [i.xreplace(subs) for i in expressions]
+        expressions = [i.xreplace(subs) for i in expressions]
 
-        indexeds = set.union(*[retrieve_indexed(e) for e in expressions])
-        indexeds = [i for i in indexeds if i.base.function.is_SymbolicFunction]
-
-        # Retrieve shifting along each dimension
+        # Calculate normalization offset
         constraints = {}
-        for indexed in indexeds:
+        for e in expressions:
+            indexed = e.lhs
             f = indexed.base.function
-            for i, d, gap in zip(indexed.indices, f.dimensions, f._offset_domain):
+            if not f.is_SymbolicFunction:
+                continue
+            for i, d in zip(indexed.indices, f.dimensions):
                 if not q_affine(i, d):
                     # Sparse iteration, no check possible
                     continue
-                ofs = i - d
-                if not ofs.is_Number:
+                shift = i - d
+                if not shift.is_Number:
                     raise InvalidOperator("Array access `%s` in %s is not a "
                                           "translated identity function" % (i, indexed))
-                shift = abs(min(gap.left + ofs, 0)) + abs(min(gap.right - ofs, 0))
                 if shift != 0 and shift != constraints.setdefault(d, shift):
-                    raise InvalidOperator("Array access `%s` in %s with halo %s "
-                                          "has incompatible shift %d (expected %d)"
-                                          % (i, indexed, gap, shift, constraints[d]))
+                    raise InvalidOperator("Array access `%s` in %s has incompatible "
+                                          "shift %d (expected %d)"
+                                          % (i, indexed, shift, constraints[d]))
 
-        # Apply shifting
+        # Calculate shifting
         mapper = {}
-        for indexed in indexeds:
-            f = indexed.base.function
-            subs = {i: i + gap.left - constraints.get(d, 0)
-                    for i, d, gap in zip(indexed.indices, f.dimensions, f._offset_domain)}
-            mapper[indexed] = indexed.xreplace(subs)
+        for e in expressions:
+            for indexed in retrieve_indexed(e):
+                f = indexed.base.function
+                if not f.is_SymbolicFunction:
+                    continue
+                subs = {i: i + gap.left - constraints.get(d, 0) for i, d, gap in
+                        zip(indexed.indices, f.dimensions, f._offset_domain)}
+                mapper[indexed] = indexed.xreplace(subs)
 
-        # Finally translate the expressions
+        # Transform expressions by applying the shifting
         expressions = [e.xreplace(mapper) for e in expressions]
 
-        # Lower equation, thus associating data and iteration space
+        # Lower equation, thus associating data and iteration spaces
         expressions = [LoweredEq(i) for i in expressions]
 
         return expressions
