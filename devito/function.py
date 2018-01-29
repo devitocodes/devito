@@ -503,7 +503,7 @@ class Function(TensorFunction):
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self.name
-        args = ArgumentMap({key: self.data})
+        args = ArgumentMap({key: self._data_buffer})
 
         # Collect default dimension arguments from all indices
         for i, s, o in zip(self.indices, self.shape, self.staggered):
@@ -525,7 +525,7 @@ class Function(TensorFunction):
             new = kwargs.pop(self.name)
             if isinstance(new, Function):
                 # Set new values and re-derive defaults
-                values[key] = new.data
+                values[key] = new._data_buffer
                 values.update(new.argument_defaults(alias=key).reduce_all())
             else:
                 # We've been provided a pure-data replacement (array)
