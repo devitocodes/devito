@@ -116,10 +116,7 @@ class Operator(Callable):
         nodes = iet_insert_C_decls(dle_state.nodes, self.func_table)
 
         # Insert data and pointer casts for array parameters and profiling structs
-        casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
-        profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
-        casts.append(PointerCast(profiler))
-        nodes = (List(body=casts), nodes)
+        nodes = self._build_casts(nodes)
 
         # Derive parameters as symbols not defined in the kernel itself
         parameters = self._build_parameters(nodes)
@@ -250,6 +247,14 @@ class Operator(Callable):
         """Determine the Operator parameters based on the Iteration/Expression
         tree ``nodes``."""
         return derive_parameters(nodes)
+
+    def _build_casts(self, nodes):
+        """Introduce array and pointer casts at the top of the Iteration/Expression
+        tree ``nodes``."""
+        casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
+        profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
+        casts.append(PointerCast(profiler))
+        return List(body=casts + [nodes])
 
 
 class OperatorRunnable(Operator):
