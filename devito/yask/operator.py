@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from cached_property import cached_property
 import cgen as c
 import numpy as np
 from sympy import Indexed
@@ -7,17 +8,18 @@ from sympy import Indexed
 from devito.cgen_utils import ccode
 from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
-from devito.types import Object
 from devito.logger import yask as log, yask_warning as warning
-from devito.ir.iet import (Element, MetaCall, IsPerfectIteration, Transformer,
-                           filter_iterations, retrieve_iteration_tree)
+from devito.ir.iet import (Element, List, PointerCast, MetaCall, IsPerfectIteration,
+                           Transformer, filter_iterations, retrieve_iteration_tree)
 from devito.operator import OperatorRunnable
 from devito.tools import flatten
+from devito.types import Object
 
 from devito.yask import nfac, namespace, exit, configuration
 from devito.yask.data import DataScalar
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
 from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
+from devito.yask.types import YaskGridObject
 
 __all__ = ['Operator']
 
@@ -46,7 +48,6 @@ class Operator(OperatorRunnable):
 
         self.context = YaskNullContext()
         self.yk_soln = YaskNullKernel()
-        local_grids = []
 
         offloadable = find_offloadable_trees(nodes)
         if len(offloadable) == 0:
@@ -72,7 +73,7 @@ class Operator(OperatorRunnable):
                 self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
-                local_grids += [i for i in transform.mapper if i.is_Array]
+                local_grids = [i for i in transform.mapper if i.is_Array]
                 self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
                                                              yc_soln, local_grids)
 
@@ -95,62 +96,55 @@ class Operator(OperatorRunnable):
         return nodes
 
     def _build_parameters(self, nodes):
-        parameters = list(super(Operator, self)._build_parameters(nodes))
+        parameters = super(Operator, self)._build_parameters(nodes)
+        # Add parameters "disappeared" due to offloading
+        parameters += tuple(i for i in self.input if i not in parameters)
+        return parameters
+
+    def _build_casts(self, nodes):
+        nodes = super(Operator, self)._build_casts(nodes)
 
         # Add YASK solution pointer for use in C-land
-        parameters.append(Object(namespace['code-soln-name'],
-                                 namespace['type-solution'],
-                                 self.yk_soln.rawpointer))
+        soln_obj = Object(namespace['code-soln-name'], namespace['type-solution'])
 
-        # Add YASK user grids pointers for use in C-land
-        for i in list(parameters):
-            if i.from_YASK:
-                parameters.append(Object(namespace['code-grid-name'](i.name),
-                                         namespace['type-grid']))
+        # Add YASK user and local grids pointers for use in C-land
+        grid_objs = [YaskGridObject(i.name) for i in self.input if i.from_YASK]
+        grid_objs.extend([YaskGridObject(i) for i in self.yk_soln.local_grids])
 
-        # Add YASK local grids pointers for use in C-land
-        for i in self.yk_soln.local_grids:
-            parameters.append(Object(namespace['code-grid-name'](i),
-                                     namespace['type-grid']))
+        # Build pointer casts
+        casts = [PointerCast(soln_obj)] + [PointerCast(i) for i in grid_objs]
 
-        return tuple(parameters)
+        return List(body=casts + [nodes])
 
-    def arguments(self, **kwargs):
-        mapper = {i.name: i for i in self.parameters}
-        local_grids_mapper = {namespace['code-grid-name'](k): v
-                              for k, v in self.yk_soln.local_grids.items()}
+    @cached_property
+    def _argument_defaults(self):
+        default_args = super(Operator, self)._argument_defaults
 
-        # The user has the illusion to provide plain data objects to the
-        # generated kernels, but what we actually need and thus going to
-        # provide are pointers to the wrapped YASK grids.
-        toshare = {}
-        more_args = {}
-        for i in self.parameters:
-            grid_arg = mapper.get(namespace['code-grid-name'](i.name))
-            if grid_arg is not None:
-                assert i.provider.from_YASK is True
-                obj = kwargs.get(i.name, i.provider)
-                # Get the associated Data wrapper (scalars are a special case)
-                if np.isscalar(obj):
-                    wrapper = DataScalar(obj)
-                    toshare[i.provider] = wrapper
-                else:
-                    wrapper = obj.data
-                    toshare[obj] = wrapper
-                # Add C-level pointer to the YASK grids
-                more_args[grid_arg.name] = wrapper.rawpointer
-            elif i.name in local_grids_mapper:
-                # Add C-level pointer to the temporary YASK grids
-                more_args[i.name] = rawpointer(local_grids_mapper[i.name])
-        kwargs.update(more_args)
-        return super(Operator, self).arguments(**kwargs), toshare
+        # Add in solution pointer
+        default_args[namespace['code-soln-name']] = self.yk_soln.rawpointer
+
+        # Add in local grids pointers
+        for k, v in self.yk_soln.local_grids.items():
+            default_args[namespace['code-grid-name'](k)] = rawpointer(v)
+
+        return default_args
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
-        arguments, toshare = self.arguments(**kwargs)
+        arguments = self.arguments(**kwargs)
+
+        # Map default Functions to runtime Functions; will be used for "grid sharing"
+        toshare = {}
+        for i in self.input:
+            v = kwargs.get(i.name, i)
+            if np.isscalar(v):
+                toshare[i] = DataScalar(v)
+            elif i.from_YASK and (i.is_Constant or i.is_Function):
+                toshare[v] = v.data
 
         log("Running YASK Operator through Devito...")
-        self.yk_soln.run(self.cfunction, arguments, toshare)
+        arg_values = [arguments[p.name] for p in self.parameters]
+        self.yk_soln.run(self.cfunction, arg_values, toshare)
         log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
