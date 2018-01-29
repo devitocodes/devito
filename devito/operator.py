@@ -229,8 +229,14 @@ class Operator(Callable):
         return arguments
 
     def _specialize_exprs(self, expressions, subs):
-        """Transform the SymPy expressions in input to the Operator into a
+        """
+        Transform the SymPy expressions in input to the Operator into a
         backend-specific representation.
+
+        Two tasks are carried out: ::
+
+            * Indexification (:class:`Function` --> :class:`Indexed`).
+            * Application of user-provided substitution rules.
         """
         # Indexification
         expressions = [indexify(i) for i in expressions]
