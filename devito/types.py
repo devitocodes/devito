@@ -491,7 +491,7 @@ class SymbolicFunction(AbstractCachedFunction):
 # that need to be passed to external libraries
 
 
-class Object(object):
+class Object(Basic):
 
     """
     Represent a generic pointer object.
@@ -506,6 +506,18 @@ class Object(object):
 
     def __repr__(self):
         return self.name
+
+    def argument_defaults(self):
+        if callable(self.value):
+            return {self.name: self.value()}
+        else:
+            return {self.name: self.value}
+
+    def argument_values(self, **kwargs):
+        if self.name in kwargs:
+            return {self.name: kwargs.pop(self.name)}
+        else:
+            return {}
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:
