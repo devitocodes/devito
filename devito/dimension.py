@@ -95,15 +95,17 @@ class Dimension(AbstractSymbol):
     def _hashable_content(self):
         return super(Dimension, self)._hashable_content() + (self.spacing,)
 
-    def argument_defaults(self, size=None, alias=None):
+    def argument_defaults(self, start=None, size=None, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
-        :param size: Optional, known size as provided by data-carrying symbols
+        :param start: (Optional) known starting point as provided by
+                      data-carrying symbols.
+        :param size: (Optional) known size as provided by data-carrying symbols.
+        :param alias: (Optional) name under which to store values.
         """
         dim = alias or self
-
-        return {dim.start_name: 0, dim.end_name: size, dim.size_name: size}
+        return {dim.start_name: start or 0, dim.end_name: size, dim.size_name: size}
 
     def argument_values(self, **kwargs):
         """
@@ -219,7 +221,7 @@ class SubDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.lower, self.upper)
 
-    def argument_defaults(self, parent_defaults, alias=None):
+    def argument_defaults(self, parent_defaults, **kwargs):
         """
         Returns a map of default argument values defined by this symbol.
 
@@ -313,18 +315,20 @@ class SteppingDimension(DerivedDimension):
         """
         return self.parent.symbolic_end
 
-    def argument_defaults(self, size=None, alias=None):
+    def argument_defaults(self, start=None, size=None, **kwargs):
         """
         Returns a map of default argument values defined by this symbol.
 
-        :param size: Optional, known size as provided by data-carrying symbols
+        :param start: Optional, known starting point as provided by
+                      data-carrying symbols.
+        :param size: Optional, known size as provided by data-carrying symbols.
 
         note ::
 
         A :class:`SteppingDimension` neither knows its size nor its
         iteration end point. So all we can provide is a starting point.
         """
-        return {self.parent.start_name: 0}
+        return {self.parent.start_name: start}
 
     def argument_values(self, **kwargs):
         """

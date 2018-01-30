@@ -304,6 +304,9 @@ class TensorFunction(SymbolicFunction):
 
         return shape
 
+    def argument_bounds(self):
+        return [(0, i + j) for i, j in zip(self.shape, self.staggered)]
+
     def argument_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
@@ -314,9 +317,8 @@ class TensorFunction(SymbolicFunction):
         args = ArgumentMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
-            args.update(i.argument_defaults(size=s+o, alias=k))
-
+        for i, (start, size), k in zip(self.indices, self.argument_bounds(), key.indices):
+            args.update(i.argument_defaults(start=start, size=size, alias=k))
         return args
 
     def argument_values(self, alias=None, **kwargs):
@@ -633,6 +635,9 @@ class TimeFunction(Function):
 
     is_TimeFunction = True
 
+    _time_position = 0
+    """Position of time index among the function indices."""
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(TimeFunction, self).__init__(*args, **kwargs)
@@ -643,7 +648,7 @@ class TimeFunction(Function):
                 warning("Trying to allocate more memory for symbol %s " % self.name +
                         "than available on physical device, this will start swapping")
 
-            self.time_dim = kwargs.get('time_dim')
+            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
             self.time_order = kwargs.get('time_order', 1)
             self.save = type(kwargs.get('save', None) or None)
             if not isinstance(self.time_order, int):
@@ -664,7 +669,10 @@ class TimeFunction(Function):
         elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
             raise ValueError("'time_dim' must be a time dimension")
 
-        return (time_dim,) + Function.__indices_setup__(**kwargs)
+        indices = list(Function.__indices_setup__(**kwargs))
+        indices.insert(cls._time_position, time_dim)
+
+        return tuple(indices)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -692,6 +700,11 @@ class TimeFunction(Function):
     @property
     def _halo_indices(self):
         return tuple(i for i in self.indices if not i.is_Time)
+
+    def argument_bounds(self):
+        # Start point in time defaults to time_order (most natural choice)
+        return [(self.time_order if i == self.time_dim else 0, j + k)
+                for i, j, k in zip(self.indices, self.shape, self.staggered)]
 
     @property
     def forward(self):
@@ -1069,15 +1082,22 @@ class SparseTimeFunction(SparseFunction):
 
     is_SparseTimeFunction = True
 
+    _time_position = 0
+    """Position of time index among the function indices."""
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(SparseTimeFunction, self).__init__(*args, **kwargs)
-            self.time_order = kwargs.get('time_order', 1)
 
             nt = kwargs.get('nt')
             if not isinstance(nt, int) and nt > 0:
                 raise ValueError('SparseTimeFunction requires int parameter `nt`')
             self.nt = nt
+
+            self.time_dim = self.indices[self._time_position]
+            self.time_order = kwargs.get('time_order', 1)
+            if not isinstance(self.time_order, int):
+                raise ValueError("'time_order' must be int")
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1093,3 +1113,8 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+    def argument_bounds(self):
+        # Start point in time defaults to time_order (most natural choice)
+        return [(self.time_order if i == self.time_dim else 0, j + k)
+                for i, j, k in zip(self.indices, self.shape, self.staggered)]
