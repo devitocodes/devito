@@ -94,7 +94,6 @@ class Basic(object):
                                   self.__class__)
 
 
-
 class Cached(object):
     """
     Base class for symbolic objects that caches on the class type.

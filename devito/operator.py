@@ -19,12 +19,12 @@ from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
-                           FindSymbols, ArrayCast, PointerCast, derive_parameters)
+                           ArrayCast, PointerCast, derive_parameters)
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
-from devito.types import Object, Array
+from devito.types import Object
 
 
 class Operator(Callable):
