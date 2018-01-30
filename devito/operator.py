@@ -121,11 +121,6 @@ class Operator(Callable):
         # Derive parameters as symbols not defined in the kernel itself
         parameters = self._build_parameters(nodes)
 
-        # Filter all internally-allocated temporary `Array` types
-        # TODO: Huge hack, but to fix it, allocations need to be part of IET
-        parameters = [p for p in parameters
-                      if not (isinstance(p, Array) and (p._mem_heap or p._mem_stack))]
-
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
@@ -246,7 +241,7 @@ class Operator(Callable):
     def _build_parameters(self, nodes):
         """Determine the Operator parameters based on the Iteration/Expression
         tree ``nodes``."""
-        return derive_parameters(nodes)
+        return derive_parameters(nodes, True)
 
     def _build_casts(self, nodes):
         """Introduce array and pointer casts at the top of the Iteration/Expression
