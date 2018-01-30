@@ -311,7 +311,7 @@ class TestArguments(object):
             'z_size': 7, 'z_s': 0, 'z_e': 7,
             'f': f.data, 'g': g.data,
         }
-        self.verify_arguments(op.arguments(), expected)
+        self.verify_arguments(op.arguments(time=4), expected)
         exp_parameters = ['f', 'g', 'x_s', 'x_e', 'x_size', 'y_s',
                           'y_e', 'y_size', 'z_s', 'z_e', 'z_size',
                           'time_s', 'time_e']
@@ -534,8 +534,7 @@ class TestArguments(object):
         assert(np.allclose(a.data[0], 4.))
 
     def test_override_composite_data(self):
-        i, j = dimify('i j')
-        grid = Grid(shape=(10, 10), dimensions=(i, j))
+        grid = Grid(shape=(10, 10))
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension(name='p_src')
@@ -550,7 +549,7 @@ class TestArguments(object):
         # Move the source from the location where the setup put it so we can test
         # whether the override picks up the original coordinates or the changed ones
 
-        args = op.arguments(src1=src2)
+        args = op.arguments(src1=src2, t=0)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
