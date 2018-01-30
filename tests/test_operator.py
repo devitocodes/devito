@@ -588,6 +588,21 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 2)
 
+    def test_derive_constant_value(self):
+        """Ensure that values for :class:`Constant` symbols are derived correctly."""
+        grid = Grid(shape=(5, 6))
+        f = Function(name='f', grid=grid)
+        a = Constant(name='a', value=3.)
+        Operator(Eq(f, a))()
+        assert np.allclose(f.data, 3.)
+
+        g = Function(name='g', grid=grid)
+        b = Constant(name='b')
+        op = Operator(Eq(g, b))
+        b.data = 4.
+        op()
+        assert np.allclose(g.data, 4.)
+
 
 @skipif_yask
 class TestDeclarator(object):
