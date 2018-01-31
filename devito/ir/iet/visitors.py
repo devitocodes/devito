@@ -128,7 +128,7 @@ class CGen(Visitor):
     """
 
     def _args_decl(self, args):
-        """Convert an iterable of :class:`Argument` into cgen format."""
+        """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
             if i.is_Object:
@@ -145,10 +145,8 @@ class CGen(Visitor):
         return ret
 
     def _args_call(self, args):
-        """
-        Convert an iterable of symbols and expressions into a function
-        call signature in cgen format.
-        """
+        """Generate cgen function call arguments from an iterable of symbols and
+        expressions."""
         ret = []
         for i in args:
             try:
@@ -160,7 +158,7 @@ class CGen(Visitor):
                     ret.append(i.name)
                 elif i.is_TensorFunction:
                     ret.append('%s_vec' % i.name)
-            except:
+            except AttributeError:
                 ret.append(ccode(i))
         return ret
 
