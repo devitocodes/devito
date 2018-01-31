@@ -244,7 +244,7 @@ class Expression(Node):
     @property
     def functions(self):
         functions = [self.write] + [i.base.function for i in self.reads]
-        return filter_ordered(functions)
+        return tuple(filter_ordered(functions))
 
     @property
     def defines(self):
@@ -289,7 +289,7 @@ class Expression(Node):
     @property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Expression`."""
-        return self.expr.free_symbols
+        return tuple(self.expr.free_symbols)
 
 
 class Iteration(Node):
@@ -492,7 +492,7 @@ class Iteration(Node):
         Return all :class:`Function` objects used in the header of
         this :class:`Iteration`.
         """
-        return []
+        return ()
 
     @property
     def write(self):
@@ -505,9 +505,9 @@ class Iteration(Node):
         Return all :class:`Symbol` objects used in the header of this
         :class:`Iteration`.
         """
-        return list(self.start_symbolic.free_symbols) \
-            + list(self.end_symbolic.free_symbols) \
-            + list(flatten(ui.free_symbols for ui in self.uindices))
+        return tuple(self.start_symbolic.free_symbols) \
+            + tuple(self.end_symbolic.free_symbols) \
+            + tuple(flatten(ui.free_symbols for ui in self.uindices))
 
 
 class Callable(Node):
@@ -609,7 +609,7 @@ class ArrayCast(Node):
         """
         Return all :class:`Function` objects used by this :class:`ArrayCast`
         """
-        return [self.function]
+        return (self.function,)
 
     @property
     def defines(self):
@@ -645,7 +645,7 @@ class PointerCast(Node):
         """
         Return all :class:`Function` objects used by this :class:`PointerCast`
         """
-        return []
+        return ()
 
     @property
     def defines(self):
