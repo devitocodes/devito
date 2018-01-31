@@ -3,7 +3,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito.cgen_utils import FLOAT
-from devito import Grid, Operator, Function, SparseFunction
+from devito import Grid, Operator, Function, SparseFunction, Dimension
 from examples.seismic import demo_model, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
 
@@ -32,6 +32,19 @@ def points(grid, ranges, npoints, name='points'):
     ranges for each spatial dimension.
     """
     points = SparseFunction(name=name, grid=grid, npoint=npoints)
+    for i, r in enumerate(ranges):
+        points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
+    return points
+
+
+def custom_points(grid, ranges, npoints, name='points'):
+    """Create a set of sparse points from a set of coordinate
+    ranges for each spatial dimension.
+    """
+    scale = Dimension(name="scale")
+    dim = Dimension(name="dim")
+    points = SparseFunction(name=name, grid=grid, dimensions=(scale, dim),
+                            shape=(3, npoints), npoint=npoints)
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
@@ -74,6 +87,28 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     Operator(expr)(a=a)
 
     assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
+
+
+@skipif_yask
+@pytest.mark.parametrize('shape, coords', [
+    ((11, 11), [(.05, .9), (.01, .8)]),
+    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
+])
+def test_interpolate_custom(shape, coords, npoints=20):
+    """Test generic point interpolation testing the x-coordinate of an
+    abitrary set of points going across the grid.
+    """
+    a = unit_box(shape=shape)
+    p = custom_points(a.grid, coords, npoints=npoints)
+    xcoords = p.coordinates.data[:, 0]
+
+    p.data[:] = 1.
+    expr = p.interpolate(a * p.indices[0])
+    Operator(expr)(a=a)
+
+    assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
+    assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
+    assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
 
 
 @skipif_yask
@@ -199,3 +234,7 @@ def test_position(shape):
                                  o_x=100., o_y=100., o_z=100.)
 
     assert(np.allclose(rec.data, rec1.data, atol=1e-5))
+
+
+if __name__ == "__main__":
+    test_interpolate_custom((11, 11), [(.05, .9), (.01, .8)])

@@ -1077,7 +1077,8 @@ class SparseFunction(Function, SparsePoints):
         if not isinstance(npoint, int) and npoint > 0:
             raise ValueError('SparseFunction requires parameter `npoint`')
 
-        kwargs['shape'] = (npoint,)
+        kwargs['shape'] = kwargs.get('shape', (npoint, ))
+
         return Function.__new__(cls, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
@@ -1092,6 +1093,7 @@ class SparseFunction(Function, SparsePoints):
 
             # A SparseFunction has empty halo region
             self._halo = tuple((0, 0) for i in range(self.ndim))
+            self.sparse_shape = kwargs.get('shape', (self.npoint, ))
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -1106,7 +1108,7 @@ class SparseFunction(Function, SparsePoints):
 
     @property
     def shape_domain(self):
-        return (self.npoint,)
+        return self.sparse_shape
 
     def argument_defaults(self, alias=None):
         """
