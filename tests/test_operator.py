@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, Backward,
-                    Forward, TimeFunction, SparseFunction, Dimension, configuration,
+                    Forward, TimeFunction, SparseTimeFunction, Dimension, configuration,
                     error, INTERIOR)
 from devito.foreign import Operator as OperatorForeign
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
@@ -323,7 +323,7 @@ class TestArguments(object):
         """
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
-        s = SparseFunction(name='s', grid=grid, npoint=3, nt=4)
+        s = SparseTimeFunction(name='s', grid=grid, npoint=3, nt=4)
         s.coordinates.data[:, 0] = np.arange(0., 3.)
         s.coordinates.data[:, 1] = np.arange(1., 4.)
         s.coordinates.data[:, 2] = np.arange(2., 5.)
@@ -540,10 +540,10 @@ class TestArguments(object):
         p_dim = Dimension(name='p_src')
         u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
         time = u.indices[0]
-        src1 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
-                              npoint=1, nt=10, coordinates=original_coords)
-        src2 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
-                              npoint=1, nt=10, coordinates=new_coords)
+        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                                  npoint=1, nt=10, coordinates=original_coords)
+        src2 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                                  npoint=1, nt=10, coordinates=new_coords)
         op = Operator(src1.inject(u, src1))
 
         # Move the source from the location where the setup put it so we can test
