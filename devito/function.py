@@ -21,7 +21,7 @@ from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
 from devito.tools import EnrichedTuple
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'Forward', 'Backward', 'CompositeFunction']
+           'SparseTimeFunction', 'Forward', 'Backward']
 
 
 class TimeAxis(object):
@@ -741,136 +741,29 @@ class TimeFunction(Function):
         return self.diff(_t, _t).as_finite_difference(indt)
 
 
-class CompositeFunction(Function):
+class SparsePoints(object):
     """
-    Base class for Function classes that have Function children
-    """
+    Represent a set of points unaligned with a computational grid.
 
-    is_CompositeFunction = True
+    A :class:`SparsePoints` object provides symbolic interpolation routines
+    to convert between grid-aligned :class:`Function` objects and sparse
+    data points.
 
-    def __init__(self, *args, **kwargs):
-        super(CompositeFunction, self).__init__(self, *args, **kwargs)
-        self._children = []
-
-    @property
-    def children(self):
-        return self._children
-
-    def argument_defaults(self, alias=None):
-        """
-        Returns a map of default argument values defined by this symbol.
-
-        :param alias: (Optional) name under which to store values.
-        """
-        args = super(CompositeFunction, self).argument_defaults(alias=alias)
-        for child in self.children:
-            args.update(child.argument_defaults())
-        return args
-
-    def argument_values(self, alias=None, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
-        """
-        # Take a copy of the replacement before super pops it from kwargs
-        new = kwargs.get(self.name, None)
-        values = super(CompositeFunction, self).argument_values(alias=alias,
-                                                                **kwargs)
-        if new is not None and isinstance(new, CompositeFunction):
-            # If we've been replaced with a composite symbol,
-            # we need to re-derive defaults and values...
-            values.update(new.argument_defaults(alias=alias).reduce_all())
-            for child, new_child in zip(self.children, new.children):
-                values.update(new_child.argument_defaults(alias=child.name))
-        else:
-            # ..., but if not, we simply need to recurse over children.
-            for child in self.children:
-                values.update(child.argument_values(alias=alias, **kwargs))
-        return values
-
-
-class SparseFunction(CompositeFunction):
-    """
-    :class:`Function` representing a set of sparse point objects that
-    are not aligned with the computational grid. :class:`SparseFunction`
-    objects provide symbolic interpolation routines to convert between
-    grid-aligned :class:`Function` objects and sparse data points.
-
-    :param name: Name of the resulting :class:`sympy.Function` symbol
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param npoint: Number of points to sample
-    :param nt: Size of the time dimension for point data
-    :param coordinates: Optional coordinate data for the sparse points
-    :param dtype: Data type of the buffered data
-
-    .. note::
-
-        The parameters must always be given as keyword arguments, since
-        SymPy uses `*args` to (re-)create the dimension arguments of the
-        symbolic function.
+    :param coordinates: :class:`Function` carrying the coordinate data for
+                        the sparse points.
     """
 
-    is_SparseFunction = True
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.nt = kwargs.get('nt', 0)
-            self.npoint = kwargs.get('npoint')
-            kwargs['shape'] = (self.nt, self.npoint)
-            super(SparseFunction, self).__init__(self, *args, **kwargs)
-
-            if self.grid is None:
-                error('SparseFunction objects require a grid parameter.')
-                raise ValueError('No grid provided for SparseFunction.')
-
-            # Allocate and copy coordinate data
-            d = Dimension(name='d')
-            self.coordinates = Function(name='%s_coords' % self.name,
-                                        dimensions=[self.indices[-1], d],
-                                        shape=(self.npoint, self.grid.dim),
-                                        space_order=0)
-            self._children.append(self.coordinates)
-            coordinates = kwargs.get('coordinates', None)
-            if coordinates is not None:
-                self.coordinates.data[:] = coordinates[:]
-
-            # A SparseFunction has no halo region
-            self._halo = tuple((0, 0) for i in range(self.ndim))
-
-    def __new__(cls, *args, **kwargs):
-        nt = kwargs.get('nt', 0)
-        npoint = kwargs.get('npoint')
-        kwargs['shape'] = (nt, npoint) if nt > 0 else (npoint, )
-
-        return Function.__new__(cls, *args, **kwargs)
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        """Return the default dimension indices for a given data shape
-
-        :return: indices used for axis.
-        """
-        dimensions = kwargs.get('dimensions', None)
-        grid = kwargs.get('grid', None)
-        nt = kwargs.get('nt', 0)
-        dim = Dimension(name='p')
-        indices = [grid.time_dim, dim] if nt > 0 else [dim]
-        return dimensions or indices
-
-    @property
-    def shape_domain(self):
-        """
-        Full allocated shape of the data associated with this
-        :class:`SparseFunction`.
-        """
-        return (self.nt, self.npoint) if self.nt > 0 else (self.npoint, )
+    def __init__(self, coordinate_data=None):
+        self.coordinates = Function(name='%s_coords' % self.name,
+                                    dimensions=(self.indices[-1], Dimension(name='d')),
+                                    shape=(self.npoint, self.grid.dim), space_order=0)
+        if coordinate_data is not None:
+            self.coordinates.data[:] = coordinate_data[:]
 
     @property
     def ndim(self):
         """Return the number of spatial dimensions."""
-        return len(self.dimensions)
+        return 1
 
     @property
     def coefficients(self):
@@ -923,10 +816,8 @@ class SparseFunction(CompositeFunction):
             reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing,
                               y2: y.spacing, z2: z.spacing}
         else:
-            error('Point interpolation only supported for 2D and 3D')
-            raise NotImplementedError('Interpolation coefficients not '
-                                      'implemented for %d dimensions.'
-                                      % self.grid.dim)
+            raise NotImplementedError('Interpolation coefficients not implemented '
+                                      'for %d dimensions.' % self.grid.dim)
 
         A = A.subs(reference_cell)
         return A.inv().T.dot(p)
@@ -945,7 +836,6 @@ class SparseFunction(CompositeFunction):
             return ((0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1),
                     (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))
         else:
-            error('Point interpolation only supported for 2D and 3D')
             raise NotImplementedError('Point increments not defined '
                                       'for %d dimensions.' % self.grid.dim)
 
@@ -974,7 +864,7 @@ class SparseFunction(CompositeFunction):
                                               self.coordinate_indices,
                                               indices[:self.grid.dim])])
 
-    def interpolate(self, expr, offset=0, **kwargs):
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
@@ -985,9 +875,9 @@ class SparseFunction(CompositeFunction):
                     field data in `expr`.
         :param p_t: (Optional) time index to use for indexing into
                     the sparse point data.
+        :param cummulative: (Optional) If True, perform an increment rather
+                            than an assignment. Defaults to False.
         """
-        u_t = kwargs.get('u_t', None)
-        p_t = kwargs.get('p_t', None)
         expr = indexify(expr)
 
         # Apply optional time symbol substitutions to expr
@@ -1014,12 +904,11 @@ class SparseFunction(CompositeFunction):
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
 
-        cummulative = kwargs.get("cummulative", False)
-        rhs = rhs + lhs if cummulative else rhs
+        rhs = rhs + lhs if cummulative is True else rhs
 
         return [Eq(lhs, rhs)]
 
-    def inject(self, field, expr, offset=0, **kwargs):
+    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
         """Symbol for injection of an expression onto a grid
 
         :param field: The grid field into which we inject.
@@ -1029,9 +918,6 @@ class SparseFunction(CompositeFunction):
         :param u_t: (Optional) time index to use for indexing into `field`.
         :param p_t: (Optional) time index to use for indexing into `expr`.
         """
-        u_t = kwargs.get('u_t', None)
-        p_t = kwargs.get('p_t', None)
-
         expr = indexify(expr)
         field = indexify(field)
         variables = list(retrieve_indexed(expr)) + [field]
@@ -1047,8 +933,8 @@ class SparseFunction(CompositeFunction):
                               in zip(inc, self.coordinate_indices))
                         for inc in self.point_increments]
 
-        # Generate index substituions for all grid variables except
-        # the sparse `SparseFunction` types
+        # Generate index substitutions for all grid variables except
+        # the `SparseFunction` types
         idx_subs = []
         for i, idx in enumerate(index_matrix):
             v_subs = [(v, v.base[v.indices[:-self.grid.dim] + idx])
@@ -1060,3 +946,194 @@ class SparseFunction(CompositeFunction):
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
+
+
+class SparseTimeFunction(TimeFunction, SparsePoints):
+    """
+    :class:`TimeFunction` representing a set of sparse point objects that
+    are not aligned with the computational grid.
+
+    :param name: Name of the resulting :class:`sympy.Function` symbol.
+    :param nt: Size of the time dimension for point data.
+    :param npoint: Number of points to sample.
+    :param grid: :class:`Grid` object defining the computational domain.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: Discretisation order for space derivatives.
+    :param time_order: Discretisation order for time derivatives.
+    :param dtype: Data type of the buffered data.
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
+    """
+
+    is_SparseFunction = True
+    is_SparseTimeFunction = True
+
+    def __new__(cls, *args, **kwargs):
+        nt = kwargs.get('nt')
+        if not isinstance(nt, int) and nt > 0:
+            raise ValueError('SparseTimeFunction requires int parameter `nt`')
+
+        npoint = kwargs.get('npoint')
+        if not isinstance(npoint, int) and npoint > 0:
+            raise ValueError('SparseTimeFunction requires int parameter `npoint`')
+
+        kwargs['save'] = nt
+        return TimeFunction.__new__(cls, *args, **kwargs)
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            if kwargs.get('grid') is None:
+                raise ValueError('SparseTimeFunction objects require a grid parameter')
+
+            self.npoint = kwargs.get('npoint')
+
+            TimeFunction.__init__(self, *args, **kwargs)
+            SparsePoints.__init__(self, kwargs.get('coordinates'))
+
+            # A SparseFunction has empty halo region
+            self._halo = ((0, 0),) + tuple((0, 0) for i in range(self.ndim))
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        """
+        Return the default dimension indices for a given data shape.
+        """
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is not None:
+            return dimensions
+        else:
+            return (kwargs['grid'].time_dim, Dimension(name='p'))
+
+    @property
+    def nt(self):
+        return self.time_size
+
+    @property
+    def shape_domain(self):
+        return (self.time_size, self.npoint)
+
+    def argument_defaults(self, alias=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param alias: (Optional) name under which to store values.
+        """
+        args = super(SparseTimeFunction, self).argument_defaults(alias=alias)
+        args.update(self.coordinates.argument_defaults())
+        return args
+
+    def argument_values(self, alias=None, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
+        """
+        # Take a copy of the replacement before super pops it from kwargs
+        new = kwargs.get(self.name, None)
+        values = super(SparseTimeFunction, self).argument_values(alias=alias, **kwargs)
+        if new is not None and isinstance(new, SparseTimeFunction):
+            # If we've been replaced with a SparseTimeFunction,
+            # we need to re-derive defaults and values...
+            values.update(new.argument_defaults(alias=alias).reduce_all())
+            values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
+        else:
+            # ..., but if not, we simply need to recurse over children.
+            values.update(self.coordinates.argument_values(alias=alias, **kwargs))
+        return values
+
+
+class SparseFunction(Function, SparsePoints):
+    """
+    :class:`Function` representing a set of sparse point objects that
+    are not aligned with the computational grid.
+
+    :param name: Name of the resulting :class:`sympy.Function` symbol.
+    :param npoint: Number of points to sample.
+    :param grid: :class:`Grid` object defining the computational domain.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: Discretisation order for space derivatives.
+    :param dtype: Data type of the buffered data.
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
+    """
+
+    is_SparseFunction = True
+
+    def __new__(cls, *args, **kwargs):
+        npoint = kwargs.get('npoint')
+        if not isinstance(npoint, int) and npoint > 0:
+            raise ValueError('SparseFunction requires parameter `npoint`')
+
+        kwargs['shape'] = (npoint,)
+        return Function.__new__(cls, *args, **kwargs)
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            if kwargs.get('grid') is None:
+                raise ValueError('SparseFunction objects require a grid parameter')
+
+            self.npoint = kwargs.get('npoint')
+
+            Function.__init__(self, *args, **kwargs)
+            SparsePoints.__init__(self, kwargs.get('coordinates'))
+
+            # A SparseFunction has empty halo region
+            self._halo = tuple((0, 0) for i in range(self.ndim))
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        """
+        Return the default dimension indices for a given data shape.
+        """
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is not None:
+            return dimensions
+        else:
+            return (Dimension(name='p'),)
+
+    @property
+    def shape_domain(self):
+        return (self.npoint,)
+
+    def argument_defaults(self, alias=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param alias: (Optional) name under which to store values.
+        """
+        args = super(SparseFunction, self).argument_defaults(alias=alias)
+        args.update(self.coordinates.argument_defaults())
+        return args
+
+    def argument_values(self, alias=None, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
+        """
+        # Take a copy of the replacement before super pops it from kwargs
+        new = kwargs.get(self.name, None)
+        values = super(SparseFunction, self).argument_values(alias=alias, **kwargs)
+        if new is not None and isinstance(new, SparseFunction):
+            # If we've been replaced with a SparseFunction,
+            # we need to re-derive defaults and values...
+            values.update(new.argument_defaults(alias=alias).reduce_all())
+            values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
+        else:
+            # ..., but if not, we simply need to recurse over children.
+            values.update(self.coordinates.argument_values(alias=alias, **kwargs))
+        return values

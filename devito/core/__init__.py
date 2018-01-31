@@ -16,6 +16,7 @@ env_vars_mapper = {
 add_sub_configuration(core_configuration, env_vars_mapper)
 
 # The following used by backends.backendSelector
-from devito.function import Constant, Function, TimeFunction, SparseFunction  # noqa
+from devito.function import (Constant, Function, TimeFunction, SparseFunction,  # noqa
+                             SparseTimeFunction)
 from devito.core.operator import Operator  # noqa
 from devito.types import CacheManager  # noqa

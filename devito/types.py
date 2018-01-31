@@ -64,7 +64,7 @@ class Basic(object):
     is_TensorFunction = False
     is_Function = False
     is_TimeFunction = False
-    is_CompositeFunction = False
+    is_SparseTimeFunction = False
     is_SparseFunction = False
 
     # Basic symbolic object properties
@@ -231,23 +231,25 @@ class AbstractFunction(sympy.Function, Basic):
 
     The sub-hierarchy is structured as follows
 
-                            AbstractFunction
-                                   |
-                         AbstractCachedFunction
-                                   |
-                 -------------------------------------
-                 |                                   |
-            SymbolicData                      SymbolicFunction
-                 |                                   |
-               Array                           TensorFunction
-                                                     |
-                                                 Function
-                                                     |
-                                            --------------------
-                                            |                  |
-                                      TimeFunction     CompositeFunction
-                                                               |
-                                                         SparseFunction
+                          AbstractFunction
+                                 |
+                       AbstractCachedFunction
+                                 |
+               -------------------------------------
+               |                                   |
+          SymbolicData                      SymbolicFunction
+               |                                   |
+             Array                           TensorFunction
+                                                   |
+                                                Function
+                                                   |
+                                     ------------------------------
+                                     |                            |
+                               TimeFunction   SparsePoints        |
+                                     |             |              |
+                                     |   -----------------------  |
+                                     |   |                     |  |
+                            SparseTimeFunction            SparseFunction
 
     There are four relevant :class:`AbstractFunction` sub-types: ::
 
@@ -255,8 +257,8 @@ class AbstractFunction(sympy.Function, Basic):
                  Usually, it is only created internally by Devito (e.g., by the DSE).
         * Function: A space-varying discrete function, which carries user data.
         * TimeFunction: A time-varying discrete function, which carries user data.
-        * CompositeFunction: A nest of :class:`Function` objects. This comes in handy
-                             to express sparse functions.
+        * Sparse*Function: A :class:`Function` representing "sparse" points, i.e.
+                           points that are not aligned with the computational grid.
     """
 
     is_AbstractFunction = True
