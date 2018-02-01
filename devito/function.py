@@ -1,6 +1,7 @@
 from collections import OrderedDict, namedtuple
 from functools import partial
 from math import ceil
+import abc
 
 import sympy
 import numpy as np
@@ -101,8 +102,13 @@ class Constant(AbstractCachedSymbol):
 class TensorFunction(SymbolicFunction):
 
     """
-    Utility class to encapsulate all symbolic :class:`Function` types
-    that represent tensor (array) data.
+    Utility class to encapsulate all symbolic types that represent
+    tensor (array) data.
+
+    .. note::
+
+        Users should not instantiate this class. Use :class:`Function` or
+        :class:`SparseFunction` (or their subclasses) instead.
     """
 
     is_TensorFunction = True
@@ -145,6 +151,62 @@ class TensorFunction(SymbolicFunction):
         return wrapper
 
     @property
+    def _offset_domain(self):
+        """
+        The number of grid points between the first (last) allocated element
+        (possibly in the halo/padding region) and the first (last) domain element,
+        for each dimension.
+        """
+        left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
+        right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
+
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
+
+        return EnrichedTuple(*offsets, left=left, right=right)
+
+    @property
+    def _offset_halo(self):
+        """
+        The number of grid points between the first (last) allocated element
+        (possibly in the halo/padding region) and the first (last) halo element,
+        for each dimension.
+        """
+        left = self._extent_padding.left
+        right = self._extent_padding.right
+
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in self._padding)
+
+        return EnrichedTuple(*offsets, left=left, right=right)
+
+    @property
+    def _extent_halo(self):
+        """
+        The number of grid points in the halo region.
+        """
+        left = tuple(zip(*self._halo))[0]
+        right = tuple(zip(*self._halo))[1]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in self._halo)
+
+        return EnrichedTuple(*extents, left=left, right=right)
+
+    @property
+    def _extent_padding(self):
+        """
+        The number of grid points in the padding region.
+        """
+        left = tuple(zip(*self._padding))[0]
+        right = tuple(zip(*self._padding))[1]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in self._padding)
+
+        return EnrichedTuple(*extents, left=left, right=right)
+
+    @property
     def shape(self):
         """
         Shape of the domain associated with this :class:`TensorFunction`.
@@ -152,6 +214,42 @@ class TensorFunction(SymbolicFunction):
         stencil update.
         """
         return self.shape_domain
+
+    @abc.abstractproperty
+    def shape_domain(self):
+        """
+        Shape of the domain associated with this :class:`TensorFunction`.
+        The domain constitutes the area of the data written to in a
+        stencil update.
+
+        .. note::
+
+            Alias to ``self.shape``.
+        """
+        return
+
+    @property
+    def shape_with_halo(self):
+        """
+        Shape of the domain plus the read-only stencil boundary associated
+        with this :class:`Function`.
+        """
+        # TODO: for the domain-allocation switch, this needs to return the shape
+        # of the data including the halo region, ie:
+        # `tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))`
+        raise NotImplementedError
+
+    @property
+    def shape_allocated(self):
+        """
+        Shape of the allocated data associated with this :class:`Function`.
+        It includes the domain and halo regions, as well as any additional
+        padding outside of the halo.
+        """
+        # TODO: for the domain-allocation switch, this needs to return the shape
+        # of the data including the halo and padding regions, ie:
+        # `tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))`
+        raise NotImplementedError
 
     @property
     def data(self):
@@ -161,6 +259,46 @@ class TensorFunction(SymbolicFunction):
         Elements are stored in row-major format.
         """
         return self.data_domain
+
+    @property
+    @_allocate_memory
+    def data_domain(self):
+        """
+        The domain data values, as a :class:`numpy.ndarray`.
+
+        Elements are stored in row-major format.
+
+        .. note::
+
+            Alias to ``self.data``.
+        """
+        # TODO: for the domain-allocation switch, this needs to be turned
+        # into a view of the domain region
+        return self._data
+
+    @property
+    @_allocate_memory
+    def data_with_halo(self):
+        """
+        The domain+halo data values.
+
+        Elements are stored in row-major format.
+        """
+        # TODO: for the domain-allocation switch, this needs to be turned
+        # into a view of the halo region
+        raise NotImplementedError
+
+    @property
+    @_allocate_memory
+    def data_allocated(self):
+        """
+        The allocated data values, that is domain+halo+padding.
+
+        Elements are stored in row-major format.
+        """
+        # TODO: for the domain-allocation switch, this needs to return all
+        # allocated data values, i.e. self._data
+        raise NotImplementedError
 
     @property
     def dimensions(self):
@@ -189,8 +327,6 @@ class TensorFunction(SymbolicFunction):
 
     @property
     def _mem_external(self):
-        """Return True if the associated data was/is/will be allocated directly
-        from Python (e.g., via NumPy arrays), False otherwise."""
         return True
 
     def argument_defaults(self, alias=None):
@@ -420,136 +556,8 @@ class Function(TensorFunction):
         return dimensions
 
     @property
-    def _offset_domain(self):
-        """
-        The number of grid points between the first (last) allocated element
-        (possibly in the halo/padding region) and the first (last) domain element,
-        for each dimension.
-        """
-        left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
-        right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
-
-        return EnrichedTuple(*offsets, left=left, right=right)
-
-    @property
-    def _offset_halo(self):
-        """
-        The number of grid points between the first (last) allocated element
-        (possibly in the halo/padding region) and the first (last) halo element,
-        for each dimension.
-        """
-        left = self._extent_padding.left
-        right = self._extent_padding.right
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in self._padding)
-
-        return EnrichedTuple(*offsets, left=left, right=right)
-
-    @property
-    def _extent_halo(self):
-        """
-        The number of grid points in the halo region.
-        """
-        left = tuple(zip(*self._halo))[0]
-        right = tuple(zip(*self._halo))[1]
-
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in self._halo)
-
-        return EnrichedTuple(*extents, left=left, right=right)
-
-    @property
-    def _extent_padding(self):
-        """
-        The number of grid points in the padding region.
-        """
-        left = tuple(zip(*self._padding))[0]
-        right = tuple(zip(*self._padding))[1]
-
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in self._padding)
-
-        return EnrichedTuple(*extents, left=left, right=right)
-
-    @property
     def shape_domain(self):
-        """
-        Shape of the domain associated with this :class:`Function`.
-        The domain constitutes the area of the data written to in a
-        stencil update and excludes the read-only stencil boundary.
-
-        .. note::
-
-            Alias to ``self.shape``.
-        """
         return tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered))
-
-    @property
-    def shape_with_halo(self):
-        """
-        Shape of the domain plus the read-only stencil boundary associated
-        with this :class:`Function`.
-        """
-        # TODO: for the domain-allocation switch, this needs to return the shape
-        # of the data including the halo region, ie:
-        # `tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))`
-        raise NotImplementedError
-
-    @property
-    def shape_allocated(self):
-        """
-        Shape of the allocated data associated with this :class:`Function`.
-        It includes the domain and halo regions, as well as any additional
-        padding outside of the halo.
-        """
-        # TODO: for the domain-allocation switch, this needs to return the shape
-        # of the data including the halo and padding regions, ie:
-        # `tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))`
-        raise NotImplementedError
-
-    @property
-    @TensorFunction._allocate_memory
-    def data_domain(self):
-        """
-        The domain data values, as a :class:`numpy.ndarray`.
-
-        Elements are stored in row-major format.
-
-        .. note::
-
-            Alias to ``self.data``.
-        """
-        # TODO: for the domain-allocation switch, this needs to be turned
-        # into a view of the domain region
-        return self._data
-
-    @property
-    @TensorFunction._allocate_memory
-    def data_with_halo(self):
-        """
-        The domain+halo data values.
-
-        Elements are stored in row-major format.
-        """
-        # TODO: for the domain-allocation switch, this needs to be turned
-        # into a view of the halo region
-        raise NotImplementedError
-
-    @property
-    @TensorFunction._allocate_memory
-    def data_allocated(self):
-        """
-        The allocated data values, that is domain+halo+padding.
-
-        Elements are stored in row-major format.
-        """
-        # TODO: for the domain-allocation switch, this needs to return all
-        # allocated data values, i.e. self._data
-        raise NotImplementedError
 
     @property
     def laplace(self):
@@ -842,20 +850,6 @@ class SparseFunction(TensorFunction):
         return self._shape
 
     @property
-    @TensorFunction._allocate_memory
-    def data_domain(self):
-        """
-        The sparse function data values, as a :class:`numpy.ndarray`.
-
-        Elements are stored in row-major format.
-
-        .. note::
-
-            Alias to ``self.data``.
-        """
-        return self._data
-
-    @property
     def coefficients(self):
         """Symbolic expression for the coefficients for sparse point
         interpolation according to:
@@ -1104,6 +1098,9 @@ class SparseTimeFunction(SparseFunction):
             self.time_order = kwargs.get('time_order', 1)
 
             super(SparseTimeFunction, self).__init__(*args, **kwargs)
+
+            self._halo = ((0, 0),) + self._halo
+            self._padding = ((0, 0),) + self._padding
 
     @classmethod
     def _indices(cls, **kwargs):
