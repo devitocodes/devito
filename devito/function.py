@@ -118,18 +118,16 @@ class TensorFunction(SymbolicFunction):
         if not self._cached():
             self.name = kwargs.get('name')
 
-            # Function indices
             self.indices = self._indices(**kwargs)
 
             # Staggered mask
-            self.staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
-            # Sanity check
+            self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
                 raise ValueError("'staggered' needs %s entries for indices %s"
                                  % (len(self.indices), self.indices))
 
-            # Data
-            self.initializer = kwargs.get('initializer', None)
+            # Data-related properties
+            self.initializer = kwargs.get('initializer')
             if self.initializer is not None:
                 assert(callable(self.initializer))
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
@@ -205,6 +203,10 @@ class TensorFunction(SymbolicFunction):
         extents = tuple(Extent(i, j) for i, j in self._padding)
 
         return EnrichedTuple(*extents, left=left, right=right)
+
+    @property
+    def _mem_external(self):
+        return True
 
     @property
     def shape(self):
@@ -311,9 +313,18 @@ class TensorFunction(SymbolicFunction):
         return tuple(d for d in self.indices if d.is_Space)
 
     @property
+    def rank(self):
+        """Return the number of dimensions."""
+        return len(self.dimensions)
+
+    @property
     def ndim(self):
         """Return the number of spatial dimensions."""
         return len(self.space_dimensions)
+
+    @property
+    def staggered(self):
+        return self._staggered
 
     @property
     def symbolic_shape(self):
@@ -324,10 +335,6 @@ class TensorFunction(SymbolicFunction):
         """
         return tuple(i.symbolic_size - s for i, s in
                      zip(self.indices, self.staggered))
-
-    @property
-    def _mem_external(self):
-        return True
 
     def argument_defaults(self, alias=None):
         """
@@ -431,16 +438,25 @@ class Function(TensorFunction):
         if not self._cached():
             super(Function, self).__init__(*args, **kwargs)
 
-            self.grid = kwargs.get('grid', None)
+            # Grid
+            self.grid = kwargs.get('grid')
+
+            # Shape (inferred if grid is not provided)
             if self.grid is None:
-                self._shape = kwargs.get('shape', None)
-                self.dtype = kwargs.get('dtype', np.float32)
-                if self._shape is None:
+                shape = kwargs.get('shape')
+                if shape is None:
                     raise ValueError("Function needs either 'shape' or 'grid' argument")
             else:
-                self._shape = self.grid.shape_domain
+                shape = self.grid.shape_domain
+            self._shape = shape
+
+            # Data type (provided or inferred)
+            if self.grid is None:
+                self.dtype = kwargs.get('dtype', np.float32)
+            else:
                 self.dtype = kwargs.get('dtype', self.grid.dtype)
 
+            # Halo region
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 self.space_order = space_order
@@ -452,6 +468,7 @@ class Function(TensorFunction):
             else:
                 raise ValueError("'space_order' must be int or 3-tuple of ints")
 
+            # Padding region
             padding = kwargs.get('padding', 0)
             if isinstance(padding, int):
                 self._padding = tuple((padding,)*2 for i in range(self.ndim))
@@ -541,8 +558,8 @@ class Function(TensorFunction):
 
         Only one of :param grid: or :param dimensions: is required.
         """
-        grid = kwargs.get('grid', None)
-        dimensions = kwargs.get('dimensions', None)
+        grid = kwargs.get('grid')
+        dimensions = kwargs.get('dimensions')
         if grid is None:
             if dimensions is None:
                 error("Creating a Function object requries either "
@@ -618,9 +635,8 @@ class TimeFunction(Function):
                      symbol. Defaults to the time dimension provided by the :class:`Grid`.
     :param time_order: Order of the time discretization which affects the
                        final size of the leading time dimension of the
-                       data buffer. Like ``space_order``, this can be a single
-                       integer or a 3-tuple.
-    :param time_padding: (Optional) allocate extra points along the time dimension.
+                       data buffer. Unlike ``space_order``, this can only be
+                       an integer.
 
     .. note::
 
@@ -655,36 +671,33 @@ class TimeFunction(Function):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(TimeFunction, self).__init__(*args, **kwargs)
-            self.time_dim = kwargs.get('time_dim', None)
-            self.save = kwargs.get('save', None)
+            super(TimeFunction, self).__init__(**kwargs)
+            self.time_dim = kwargs.get('time_dim')
 
-            time_order = kwargs.get('time_order', 1)
-            if isinstance(time_order, int):
-                self.time_order = time_order
-                self._halo = ((time_order, 0),) + self._halo
-            elif isinstance(time_order, tuple) and len(time_order) == 3:
-                time_order, left_points, right_points = time_order
-                self.time_order = time_order
-                self._halo = ((left_points, right_points),) + self._halo
-            else:
-                raise ValueError("'space_order' must be int or 3-tuple of ints")
+            # Time order
+            self.time_order = kwargs.get('time_order', 1)
+            if not isinstance(self.time_order, int):
+                raise ValueError("'time_order' must be int")
 
-            self._padding = (kwargs.get('time_padding', (0, 0)),) + self._padding
-
+            # Shape (impacted by save=int vs modulo-buffered)
+            self.save = kwargs.get('save') or None  # Force to None if 0/False/None/...
             if self.save is not None:
                 if not isinstance(self.save, int):
                     raise ValueError("save must be an int indicating the number of " +
                                      "timesteps to be saved (is %s)" % type(self.save))
                 available_mem = virtual_memory().available
-
                 if np.dtype(self.dtype).itemsize * self.save > available_mem:
                     warning("Trying to allocate more memory for symbol %s " % self.name +
                             "than available on physical device, this will start swapping")
-                self.time_size = self.save
+                self._shape = (self.save,) + self._shape
             else:
-                self.time_size = self.time_order + 1
-                self.indices[0].modulo = self.time_size
+                # FIXME: outrageous hack -- probably not even necessary!
+                self.indices[0].modulo = self.time_order + 1
+                self._shape = (self.time_order + 1,) + self._shape
+
+            # Adjust halo and padding regions
+            self._halo = ((0, 0),) + self._halo
+            self._padding = ((0, 0),) + self._padding
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -694,9 +707,9 @@ class TimeFunction(Function):
                      shape and :class:`Dimension` indices.
         :return: Dimension indices used for each axis.
         """
-        save = kwargs.get('save', None)
-        grid = kwargs.get('grid', None)
-        time_dim = kwargs.get('time_dim', None)
+        save = kwargs.get('save')
+        grid = kwargs.get('grid')
+        time_dim = kwargs.get('time_dim')
 
         if grid is None:
             error('TimeFunction objects require a grid parameter.')
@@ -711,15 +724,6 @@ class TimeFunction(Function):
 
         _indices = Function._indices(**kwargs)
         return tuple([time_dim] + list(_indices))
-
-    @property
-    def shape_domain(self):
-        if self.save:
-            tsize = self.time_size - self.staggered[0]
-        else:
-            tsize = self.time_order + 1
-        return (tsize,) +\
-            tuple(i - j for i, j in zip(self._shape, self.staggered[1:]))
 
     @property
     def forward(self):
@@ -798,17 +802,19 @@ class SparseFunction(TensorFunction):
                 raise ValueError('SparseFunction requires parameter `npoint` (> 0)')
             self.npoint = npoint
 
+            # Grid must be provided
             grid = kwargs.get('grid')
             if kwargs.get('grid') is None:
                 raise ValueError('SparseFunction objects require a grid parameter')
             self.grid = grid
 
-            self.indices = self._indices(**kwargs)
+            # Shape (inferred if not explicitly provided)
+            self._shape = kwargs.get('shape', (kwargs.get('npoint'),))
+
             self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.space_order = kwargs.get('space_order', 1)
-            self._shape = self._setup_shape(**kwargs)
 
-            # Set up sparse points coordinates
+            # Set up coordinates of sparse points
             coordinates = Function(name='%s_coords' % self.name,
                                    dimensions=(self.indices[-1], Dimension(name='d')),
                                    shape=(self.npoint, self.grid.dim), space_order=0)
@@ -817,26 +823,22 @@ class SparseFunction(TensorFunction):
                 coordinates.data[:] = coordinate_data[:]
             self.coordinates = coordinates
 
-            # A SparseFunction has empty halo/padding region
-            self._halo = tuple((0, 0) for i in range(self.ndim))
-            self._padding = tuple((0, 0) for i in range(self.ndim))
+            # Halo region
+            self._halo = tuple((0, 0) for i in range(self.rank))
 
-            super(SparseFunction, self).__init__(*args, **kwargs)
+            # Padding region
+            self._padding = tuple((0, 0) for i in range(self.rank))
 
     @classmethod
     def _indices(cls, **kwargs):
         """
         Return the default dimension indices for a given data shape.
         """
-        dimensions = kwargs.get('dimensions', None)
+        dimensions = kwargs.get('dimensions')
         if dimensions is not None:
             return dimensions
         else:
             return (Dimension(name='p'),)
-
-    @classmethod
-    def _setup_shape(cls, **kwargs):
-        return kwargs.get('shape', (kwargs.get('npoint'),))
 
     @property
     def shape_domain(self):
@@ -1049,7 +1051,7 @@ class SparseFunction(TensorFunction):
         :param alias: (Optional) name under which to store values.
         """
         # Take a copy of the replacement before super pops it from kwargs
-        new = kwargs.get(self.name, None)
+        new = kwargs.get(self.name)
         values = super(SparseFunction, self).argument_values(alias=alias, **kwargs)
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
@@ -1090,29 +1092,24 @@ class SparseTimeFunction(SparseFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            super(SparseTimeFunction, self).__init__(*args, **kwargs)
+            self.time_order = kwargs.get('time_order', 1)
+
             nt = kwargs.get('nt')
             if not isinstance(nt, int) and nt > 0:
                 raise ValueError('SparseTimeFunction requires int parameter `nt`')
             self.nt = nt
 
-            self.time_order = kwargs.get('time_order', 1)
-
-            super(SparseTimeFunction, self).__init__(*args, **kwargs)
-
-            self._halo = ((0, 0),) + self._halo
-            self._padding = ((0, 0),) + self._padding
+            # Shape (inferred if not explicitly provided)
+            self._shape = kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
 
     @classmethod
     def _indices(cls, **kwargs):
         """
         Return the default dimension indices for a given data shape.
         """
-        dimensions = kwargs.get('dimensions', None)
+        dimensions = kwargs.get('dimensions')
         if dimensions is not None:
             return dimensions
         else:
             return (kwargs['grid'].time_dim, Dimension(name='p'))
-
-    @classmethod
-    def _setup_shape(cls, **kwargs):
-        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
