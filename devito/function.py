@@ -685,9 +685,9 @@ class TimeFunction(Function):
                 self.indices[0].modulo = self.time_order + 1
                 self._shape = (self.time_order + 1,) + self._shape
 
-            # Adjust halo and padding regions
-            self._halo = ((0, 0),) + self._halo[1:]
-            self._padding = ((0, 0),) + self._padding[1:]
+            # No halo and padding regions along the time dimension
+            self._halo = ((0, 0),) + self._halo
+            self._padding = ((0, 0),) + self._padding
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -799,7 +799,7 @@ class SparseFunction(TensorFunction):
             self.grid = grid
 
             # Shape (inferred if not explicitly provided)
-            self._shape = kwargs.get('shape', (kwargs.get('npoint'),))
+            self._shape = self.__shape_setup__(**kwargs)
 
             self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.space_order = kwargs.get('space_order', 1)
@@ -829,6 +829,9 @@ class SparseFunction(TensorFunction):
             return dimensions
         else:
             return (Dimension(name='p'),)
+
+    def __shape_setup__(self, **kwargs):
+        return kwargs.get('shape', (kwargs.get('npoint'),))
 
     @property
     def shape_domain(self):
@@ -1090,9 +1093,6 @@ class SparseTimeFunction(SparseFunction):
                 raise ValueError('SparseTimeFunction requires int parameter `nt`')
             self.nt = nt
 
-            # Shape (inferred if not explicitly provided)
-            self._shape = kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
-
     @classmethod
     def _indices(cls, **kwargs):
         """
@@ -1103,3 +1103,6 @@ class SparseTimeFunction(SparseFunction):
             return dimensions
         else:
             return (kwargs['grid'].time_dim, Dimension(name='p'))
+
+    def __shape_setup__(self, **kwargs):
+        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
