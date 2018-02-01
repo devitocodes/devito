@@ -24,6 +24,7 @@
 ./_build/doctrees/modules.doctree
 ./_build/doctrees/tutorials.doctree
 ./_build/html/_images/data_structures.png
+./_build/html/_modules/abc.html
 ./_build/html/_modules/cached_property.html
 ./_build/html/_modules/devito/arguments.html
 ./_build/html/_modules/devito/backends.html

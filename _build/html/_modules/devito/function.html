@@ -173,6 +173,7 @@
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">FLOAT</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">TimeDimension</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">SymbolicFunction</span><span class="p">,</span> <span class="n">AbstractCachedSymbol</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentMap</span>
 <span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="p">(</span><span class="n">centered</span><span class="p">,</span> <span class="n">cross_derivative</span><span class="p">,</span>
                                       <span class="n">first_derivative</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span>
                                       <span class="n">second_derivative</span><span class="p">,</span> <span class="n">generic_derivative</span><span class="p">,</span>
@@ -236,7 +237,25 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">base</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span></div>
+        <span class="k">return</span> <span class="bp">self</span>
+
+<div class="viewcode-block" id="Constant.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.function.Constant.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">}</span></div>
+
+<div class="viewcode-block" id="Constant.argument_values"><a class="viewcode-back" href="../../devito.html#devito.function.Constant.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of argument values after evaluating user input.</span>
+
+<span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">data</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">Constant</span><span class="p">)</span> <span class="k">else</span> <span class="n">new</span>
+        <span class="k">return</span> <span class="n">values</span></div></div>
 
 
 <span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">):</span>
@@ -636,7 +655,48 @@
         <span class="n">first</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">second_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">d</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">])</span>
         <span class="k">return</span> <span class="nb">sum</span><span class="p">([</span><span class="n">second_derivative</span><span class="p">(</span><span class="n">first</span> <span class="o">*</span> <span class="n">weight</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">d</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
-                    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">])</span></div></div>
+                    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="Function.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.function.Function.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+
+<span class="sd">        :param alias: (Optional) name under which to store values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">ArgumentMap</span><span class="p">({</span><span class="n">key</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_buffer</span><span class="p">})</span>
+
+        <span class="c1"># Collect default dimension arguments from all indices</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">):</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">args</span></div>
+
+<div class="viewcode-block" id="Function.argument_values"><a class="viewcode-back" href="../../devito.html#devito.function.Function.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of argument values after evaluating user input.</span>
+
+<span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
+<span class="sd">        :param alias: (Optional) name under which to store values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+        <span class="c1"># Add value override for own data if it is provided</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
+                <span class="c1"># Set new values and re-derive defaults</span>
+                <span class="n">values</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">_data_buffer</span>
+                <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># We&#39;ve been provided a pure-data replacement (array)</span>
+                <span class="n">values</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span>
+                <span class="c1"># TODO: Re-derive defaults from shape of array</span>
+
+        <span class="c1"># Add value overrides for all associated dimensions</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">values</span></div></div>
 
 
 <div class="viewcode-block" id="TimeFunction"><a class="viewcode-back" href="../../devito.html#devito.function.TimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TimeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -830,7 +890,41 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_children</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_children</span>
+
+<div class="viewcode-block" id="CompositeFunction.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.function.CompositeFunction.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+
+<span class="sd">        :param alias: (Optional) name under which to store values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">CompositeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">args</span></div>
+
+<div class="viewcode-block" id="CompositeFunction.argument_values"><a class="viewcode-back" href="../../devito.html#devito.function.CompositeFunction.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of argument values after evaluating user input.</span>
+
+<span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
+<span class="sd">        :param alias: (Optional) name under which to store values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Take a copy of the replacement before super pops it from kwargs</span>
+        <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">CompositeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">,</span>
+                                                                <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">CompositeFunction</span><span class="p">):</span>
+            <span class="c1"># If we&#39;ve been replaced with a composite symbol,</span>
+            <span class="c1"># we need to re-derive defaults and values...</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">())</span>
+            <span class="k">for</span> <span class="n">child</span><span class="p">,</span> <span class="n">new_child</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="n">new</span><span class="o">.</span><span class="n">children</span><span class="p">):</span>
+                <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new_child</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">child</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># ..., but if not, we simply need to recurse over children.</span>
+            <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+                <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">values</span></div></div>
 
 
 <div class="viewcode-block" id="SparseFunction"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseFunction</span><span class="p">(</span><span class="n">CompositeFunction</span><span class="p">):</span>

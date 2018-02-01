@@ -163,7 +163,9 @@
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
 
+<span class="kn">import</span> <span class="nn">abc</span>
 <span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
 
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
@@ -173,6 +175,7 @@
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">IterationProperty</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span>
                            <span class="n">VECTOR</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span>
                            <span class="n">tagger</span><span class="p">,</span> <span class="n">ntags</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
@@ -180,10 +183,12 @@
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Element&#39;</span><span class="p">,</span> <span class="s1">&#39;Callable&#39;</span><span class="p">,</span>
            <span class="s1">&#39;Call&#39;</span><span class="p">,</span> <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span> <span class="s1">&#39;LocalExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;TimedList&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;UnboundedIndex&#39;</span><span class="p">,</span> <span class="s1">&#39;MetaCall&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;UnboundedIndex&#39;</span><span class="p">,</span> <span class="s1">&#39;MetaCall&#39;</span><span class="p">,</span> <span class="s1">&#39;ArrayCast&#39;</span><span class="p">,</span> <span class="s1">&#39;PointerCast&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Node">[docs]</a><span class="k">class</span> <span class="nc">Node</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span>
 
     <span class="n">is_Node</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Block</span> <span class="o">=</span> <span class="kc">False</span>
@@ -256,7 +261,28 @@
         <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_traversable</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">)</span>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractproperty</span>
+    <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all :class:`AbstractFunction` objects used by this :class:`Node`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractproperty</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all :class:`Symbol` objects used by this :class:`Node`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractproperty</span>
+    <span class="k">def</span> <span class="nf">defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all :class:`Symbol` objects defined by this :class:`Node`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="Block"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Block">[docs]</a><span class="k">class</span> <span class="nc">Block</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
@@ -315,7 +341,25 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;Call::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">(...)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
+        <span class="k">return</span> <span class="s2">&quot;Call::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">(...)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return all :class:`Symbol` objects used by this :class:`Call`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">AbstractFunction</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return all :class:`Symbol` objects used by this :class:`Call`.&quot;&quot;&quot;</span>
+        <span class="n">free</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)))</span>
+        <span class="c1"># HACK: Filter dimensions to avoid them on popping onto outer parameters</span>
+        <span class="n">free</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">free</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">free</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return all :class:`Symbol` objects defined by this :class:`Call`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Expression">[docs]</a><span class="k">class</span> <span class="nc">Expression</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
@@ -335,8 +379,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">reads</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
                       <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">Indexed</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">Symbol</span><span class="p">))]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reads</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
         <span class="c1"># Filter collected dimensions and functions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">indices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
@@ -359,6 +401,18 @@
 <span class="sd">        Return the symbol written by this Expression.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">functions</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return any symbols an :class:`Expression` may define.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">,</span> <span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">is_Scalar</span> <span class="k">else</span> <span class="p">()</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -391,7 +445,12 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Compute the stencil of the expression.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Stencil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">Stencil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return all :class:`Symbol` objects used by this :class:`Expression`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Iteration">[docs]</a><span class="k">class</span> <span class="nc">Iteration</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
@@ -457,6 +516,14 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">:</span>
             <span class="n">index</span> <span class="o">+=</span> <span class="s1">&#39;[</span><span class="si">%s</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">index</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">)</span>
         <span class="k">return</span> <span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">Iteration </span><span class="si">%s</span><span class="s2">; </span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">properties</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return any symbols defined in the :class:`Iteration` header.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Derived</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="p">)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Linear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -578,7 +645,30 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the traversable children.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">,)</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">,)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all :class:`Function` objects used in the header of</span>
+<span class="sd">        this :class:`Iteration`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return all :class:`Function` objects written to in this :class:`Iteration`&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all :class:`Symbol` objects used in the header of this</span>
+<span class="sd">        :class:`Iteration`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_symbolic</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> \
+            <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_symbolic</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> \
+            <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">ui</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">ui</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="Callable"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Callable">[docs]</a><span class="k">class</span> <span class="nc">Callable</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
@@ -607,7 +697,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">parameters</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;void*&#39;</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_PtrArgument</span> <span class="k">else</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;void*&#39;</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Object</span> <span class="k">else</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
                                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">])</span>
         <span class="n">body</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">])</span>
         <span class="k">return</span> <span class="s2">&quot;Function[</span><span class="si">%s</span><span class="s2">]&lt;</span><span class="si">%s</span><span class="s2">; </span><span class="si">%s</span><span class="s2">&gt;::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">retval</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
@@ -665,6 +755,77 @@
         <span class="k">return</span> <span class="s2">&quot;&lt;DenormalsMacro&gt;&quot;</span></div>
 
 
+<div class="viewcode-block" id="ArrayCast"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.ArrayCast">[docs]</a><span class="k">class</span> <span class="nc">ArrayCast</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A node encapsulating a cast of a raw C pointer to a</span>
+<span class="sd">    multi-dimensional array.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">function</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all :class:`Function` objects used by this :class:`ArrayCast`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the base symbol an :class:`ArrayCast` defines.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the symbols required to perform an :class:`ArrayCast`.</span>
+
+<span class="sd">        This includes the :class:`AbstractFunction` object that</span>
+<span class="sd">        defines the data, as well as the dimension sizes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">sizes</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="p">)</span> <span class="o">+</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PointerCast"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.PointerCast">[docs]</a><span class="k">class</span> <span class="nc">PointerCast</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A node encapsulating a cast of a raw C pointer to a</span>
+<span class="sd">    struct or object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">object</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">object</span> <span class="o">=</span> <span class="nb">object</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all :class:`Function` objects used by this :class:`PointerCast`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the base symbol an :class:`PointerCast` defines.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the symbols required to perform an :class:`PointerCast`.</span>
+
+<span class="sd">        This includes the :class:`AbstractFunction` object that</span>
+<span class="sd">        defines the data, as well as the dimension sizes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object</span><span class="p">,</span> <span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="LocalExpression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.LocalExpression">[docs]</a><span class="k">class</span> <span class="nc">LocalExpression</span><span class="p">(</span><span class="n">Expression</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
@@ -674,7 +835,14 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">LocalExpression</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return any symbols an :class:`LocalExpression` may define.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">,</span> <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="UnboundedIndex"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.UnboundedIndex">[docs]</a><span class="k">class</span> <span class="nc">UnboundedIndex</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -685,11 +853,23 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">index</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">start</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">step</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">step</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dim</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the symbols used by this :class:`UnboundedIndex`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">free</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">free_symbols</span>
+        <span class="n">free</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
+        <span class="n">free</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">free</span><span class="p">)</span></div>
 
 
 <span class="n">MetaCall</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;MetaCall&#39;</span><span class="p">,</span> <span class="s1">&#39;root local&#39;</span><span class="p">)</span>

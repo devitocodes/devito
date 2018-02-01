@@ -204,15 +204,21 @@
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;The symbolic size of this dimension.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The symbol defining the iteration start for this dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_end</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The symbol defining the iteration end for this dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_extent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -256,7 +262,34 @@
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span>\
-            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reverse</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span></div>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reverse</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Dimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+
+<span class="sd">        :param size: Optional, known size as provided by data-carrying symbols</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span></div>
+
+<div class="viewcode-block" id="Dimension.argument_values"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of argument values after evaluating user input.</span>
+
+<span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">values</span></div></div>
 
 
 <div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
@@ -333,7 +366,64 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">spacing</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">symbolic_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The symbol defining the iteration start for this dimension.</span>
+
+<span class="sd">        note ::</span>
+
+<span class="sd">        Internally we always define symbolic iteration ranges in terms</span>
+<span class="sd">        of the parent variable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">symbolic_end</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The symbol defining the iteration end for this dimension.</span>
+
+<span class="sd">        note ::</span>
+
+<span class="sd">        Internally we always define symbolic iteration ranges in terms</span>
+<span class="sd">        of the parent variable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span>
+
+<div class="viewcode-block" id="SteppingDimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+
+<span class="sd">        :param size: Optional, known size as provided by data-carrying symbols</span>
+
+<span class="sd">        note ::</span>
+
+<span class="sd">        A :class:`SteppingDimension` neither knows it&#39;s size nor it&#39;s</span>
+<span class="sd">        iteration end point. So all we can provide is a starting point.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span></div>
+
+<div class="viewcode-block" id="SteppingDimension.argument_values"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of argument values after evaluating user input.</span>
+
+<span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">)</span>
+
+        <span class="c1"># Let the dimension name be an alias for `dim_e`</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">values</span></div></div>
 
 
 <span class="k">class</span> <span class="nc">LoweredDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>

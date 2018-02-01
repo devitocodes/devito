@@ -257,6 +257,24 @@ perform actual data dependence analysis.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.ir.iet.nodes.Node.defines">
+<code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.Node.defines" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects defined by this <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">Node</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Node.free_symbols">
+<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.Node.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects used by this <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">Node</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Node.functions">
+<code class="descname">functions</code><a class="headerlink" href="#devito.ir.iet.nodes.Node.functions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">AbstractFunction</span></code> objects used by this <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">Node</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Node.is_Block">
 <code class="descname">is_Block</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.iet.nodes.Node.is_Block" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -341,6 +359,23 @@ appears in this list are treated as traversable fields.</p>
 <em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Expression</code><span class="sig-paren">(</span><em>expr</em>, <em>dtype=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Expression" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
 <p>A node encapsulating a single SymPy equation.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Expression.defines">
+<code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.defines" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return any symbols an <a class="reference internal" href="#devito.ir.iet.nodes.Expression" title="devito.ir.iet.nodes.Expression"><code class="xref py py-class docutils literal"><span class="pre">Expression</span></code></a> may define.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Expression.free_symbols">
+<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects used by this <a class="reference internal" href="#devito.ir.iet.nodes.Expression" title="devito.ir.iet.nodes.Expression"><code class="xref py py-class docutils literal"><span class="pre">Expression</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Expression.functions">
+<code class="descname">functions</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.functions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Expression.is_Expression">
 <code class="descname">is_Expression</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Expression.is_Expression" title="Permalink to this definition">¶</a></dt>
@@ -453,6 +488,24 @@ The default value is (‘static’, ‘inline’).</li>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
 <p>A function call.</p>
 <dl class="attribute">
+<dt id="devito.ir.iet.nodes.Call.defines">
+<code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.Call.defines" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects defined by this <a class="reference internal" href="#devito.ir.iet.nodes.Call" title="devito.ir.iet.nodes.Call"><code class="xref py py-class docutils literal"><span class="pre">Call</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Call.free_symbols">
+<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.Call.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects used by this <a class="reference internal" href="#devito.ir.iet.nodes.Call" title="devito.ir.iet.nodes.Call"><code class="xref py py-class docutils literal"><span class="pre">Call</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Call.functions">
+<code class="descname">functions</code><a class="headerlink" href="#devito.ir.iet.nodes.Call.functions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects used by this <a class="reference internal" href="#devito.ir.iet.nodes.Call" title="devito.ir.iet.nodes.Call"><code class="xref py py-class docutils literal"><span class="pre">Call</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Call.is_Call">
 <code class="descname">is_Call</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Call.is_Call" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -507,6 +560,12 @@ if a limit is unknown.</p>
 <dd><p>Return the traversable children.</p>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.defines">
+<code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.defines" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return any symbols defined in the <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code></a> header.</p>
+</dd></dl>
+
 <dl class="method">
 <dt id="devito.ir.iet.nodes.Iteration.end">
 <code class="descname">end</code><span class="sig-paren">(</span><em>finish=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Iteration.end"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.end" title="Permalink to this definition">¶</a></dt>
@@ -531,6 +590,20 @@ if a limit is unknown.</p>
 <dt id="devito.ir.iet.nodes.Iteration.extent_symbolic">
 <code class="descname">extent_symbolic</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.extent_symbolic" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the symbolic extent of the Iteration.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.free_symbols">
+<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects used in the header of this
+<a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.functions">
+<code class="descname">functions</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.functions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> objects used in the header of
+this <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code></a>.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -599,6 +672,12 @@ an internally generated tag is used.</p>
 <code class="descname">tag</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.tag" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.write">
+<code class="descname">write</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.write" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> objects written to in this <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code></a></p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
@@ -619,6 +698,12 @@ an internally generated tag is used.</p>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Expression" title="devito.ir.iet.nodes.Expression"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Expression</span></code></a></p>
 <p>A node encapsulating a single SymPy equation with known data type,
 represented as a NumPy data type.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.LocalExpression.defines">
+<code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.LocalExpression.defines" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return any symbols an <a class="reference internal" href="#devito.ir.iet.nodes.LocalExpression" title="devito.ir.iet.nodes.LocalExpression"><code class="xref py py-class docutils literal"><span class="pre">LocalExpression</span></code></a> may define.</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
@@ -639,6 +724,12 @@ represented as a NumPy data type.</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>A generic loop iteration index that can be used in a <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal"><span class="pre">Iteration</span></code></a> to
 add a non-linear traversal of the iteration space.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.UnboundedIndex.free_symbols">
+<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.UnboundedIndex.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the symbols used by this <a class="reference internal" href="#devito.ir.iet.nodes.UnboundedIndex" title="devito.ir.iet.nodes.UnboundedIndex"><code class="xref py py-class docutils literal"><span class="pre">UnboundedIndex</span></code></a>.</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
@@ -658,6 +749,62 @@ definition of the callable is known or not.</p>
 <dt id="devito.ir.iet.nodes.MetaCall.root">
 <code class="descname">root</code><a class="headerlink" href="#devito.ir.iet.nodes.MetaCall.root" title="Permalink to this definition">¶</a></dt>
 <dd><p>Alias for field number 0</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.iet.nodes.ArrayCast">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">ArrayCast</code><span class="sig-paren">(</span><em>function</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#ArrayCast"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.ArrayCast" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
+<p>A node encapsulating a cast of a raw C pointer to a
+multi-dimensional array.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ArrayCast.defines">
+<code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.ArrayCast.defines" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the base symbol an <a class="reference internal" href="#devito.ir.iet.nodes.ArrayCast" title="devito.ir.iet.nodes.ArrayCast"><code class="xref py py-class docutils literal"><span class="pre">ArrayCast</span></code></a> defines.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ArrayCast.free_symbols">
+<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.ArrayCast.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the symbols required to perform an <a class="reference internal" href="#devito.ir.iet.nodes.ArrayCast" title="devito.ir.iet.nodes.ArrayCast"><code class="xref py py-class docutils literal"><span class="pre">ArrayCast</span></code></a>.</p>
+<p>This includes the <code class="xref py py-class docutils literal"><span class="pre">AbstractFunction</span></code> object that
+defines the data, as well as the dimension sizes.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ArrayCast.functions">
+<code class="descname">functions</code><a class="headerlink" href="#devito.ir.iet.nodes.ArrayCast.functions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> objects used by this <a class="reference internal" href="#devito.ir.iet.nodes.ArrayCast" title="devito.ir.iet.nodes.ArrayCast"><code class="xref py py-class docutils literal"><span class="pre">ArrayCast</span></code></a></p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.iet.nodes.PointerCast">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">PointerCast</code><span class="sig-paren">(</span><em>object</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#PointerCast"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.PointerCast" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
+<p>A node encapsulating a cast of a raw C pointer to a
+struct or object.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.PointerCast.defines">
+<code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.PointerCast.defines" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the base symbol an <a class="reference internal" href="#devito.ir.iet.nodes.PointerCast" title="devito.ir.iet.nodes.PointerCast"><code class="xref py py-class docutils literal"><span class="pre">PointerCast</span></code></a> defines.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.PointerCast.free_symbols">
+<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.PointerCast.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the symbols required to perform an <a class="reference internal" href="#devito.ir.iet.nodes.PointerCast" title="devito.ir.iet.nodes.PointerCast"><code class="xref py py-class docutils literal"><span class="pre">PointerCast</span></code></a>.</p>
+<p>This includes the <code class="xref py py-class docutils literal"><span class="pre">AbstractFunction</span></code> object that
+defines the data, as well as the dimension sizes.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.PointerCast.functions">
+<code class="descname">functions</code><a class="headerlink" href="#devito.ir.iet.nodes.PointerCast.functions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> objects used by this <a class="reference internal" href="#devito.ir.iet.nodes.PointerCast" title="devito.ir.iet.nodes.PointerCast"><code class="xref py py-class docutils literal"><span class="pre">PointerCast</span></code></a></p>
 </dd></dl>
 
 </dd></dl>
@@ -822,6 +969,13 @@ objects, False otherwise.</p>
 <dd><p>Build an Iteration/Expression tree by nesting the nodes in <code class="docutils literal"><span class="pre">nodes</span></code>.</p>
 </dd></dl>
 
+<dl class="function">
+<dt id="devito.ir.iet.utils.derive_parameters">
+<code class="descclassname">devito.ir.iet.utils.</code><code class="descname">derive_parameters</code><span class="sig-paren">(</span><em>nodes</em>, <em>drop_locals=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/utils.html#derive_parameters"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.utils.derive_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Derive all input parameters (function call arguments) from an IET
+by collecting all symbols not defined in the tree itself.</p>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.ir.iet.visitors">
 <span id="devito-ir-iet-visitors-module"></span><h2>devito.ir.iet.visitors module<a class="headerlink" href="#module-devito.ir.iet.visitors" title="Permalink to this headline">¶</a></h2>
@@ -838,7 +992,7 @@ objects, False otherwise.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14d1cb4228c8&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14d1cb422840&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14ba70b922f0&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14ba70b92268&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -901,7 +1055,7 @@ objects, False otherwise.</p>
 
 <dl class="class">
 <dt id="devito.ir.iet.visitors.FindSymbols">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">FindSymbols</code><span class="sig-paren">(</span><em>mode='kernel-data'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#FindSymbols"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">FindSymbols</code><span class="sig-paren">(</span><em>mode='symbolics'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#FindSymbols"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.visitors.Visitor</span></code></p>
 <dl class="classmethod">
 <dt id="devito.ir.iet.visitors.FindSymbols.default_retval">
@@ -910,7 +1064,17 @@ objects, False otherwise.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'dimensions': &lt;function FindSymbols.&lt;lambda&gt; at 0x14d1cb422510&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14d1cb422488&gt;, 'kernel-data': &lt;function FindSymbols.&lt;lambda&gt; at 0x14d1cb4222f0&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14d1cb422378&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x14d1cb422400&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x14ba70b91ea0&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14ba70b91e18&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14ba70b91d08&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x14ba70b91d90&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.iet.visitors.FindSymbols.visit_ArrayCast">
+<code class="descname">visit_ArrayCast</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.visit_ArrayCast" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.iet.visitors.FindSymbols.visit_Call">
+<code class="descname">visit_Call</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.visit_Call" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -921,6 +1085,11 @@ objects, False otherwise.</p>
 <dl class="method">
 <dt id="devito.ir.iet.visitors.FindSymbols.visit_Iteration">
 <code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#FindSymbols.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.visit_Iteration" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.iet.visitors.FindSymbols.visit_PointerCast">
+<code class="descname">visit_PointerCast</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.visit_PointerCast" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1012,6 +1181,12 @@ tree to their respective section.</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.visitors.Visitor</span></code></p>
 <p>Return a representation of the Iteration/Expression tree as a <a href="#id3"><span class="problematic" id="id4">:module:`cgen`</span></a> tree.</p>
 <dl class="method">
+<dt id="devito.ir.iet.visitors.CGen.visit_ArrayCast">
+<code class="descname">visit_ArrayCast</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_ArrayCast"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_ArrayCast" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build cgen type casts for an <code class="xref py py-class docutils literal"><span class="pre">AbstractFunction</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.ir.iet.visitors.CGen.visit_Block">
 <code class="descname">visit_Block</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_Block"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_Block" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1055,6 +1230,12 @@ tree to their respective section.</p>
 <dt id="devito.ir.iet.visitors.CGen.visit_Operator">
 <code class="descname">visit_Operator</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_Operator" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.iet.visitors.CGen.visit_PointerCast">
+<code class="descname">visit_PointerCast</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_PointerCast"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_PointerCast" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build cgen pointer casts for an <code class="xref py py-class docutils literal"><span class="pre">Object</span></code>.</p>
+</dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.iet.visitors.CGen.visit_tuple">

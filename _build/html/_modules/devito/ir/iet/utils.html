@@ -159,11 +159,12 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.ir.iet.utils</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">FindSections</span>
+<span></span><span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">FindSymbols</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Array</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;filter_iterations&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_iteration_tree&#39;</span><span class="p">,</span> <span class="s1">&#39;is_foldable&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;compose_nodes&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;compose_nodes&#39;</span><span class="p">,</span> <span class="s1">&#39;derive_parameters&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="retrieve_iteration_tree"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.retrieve_iteration_tree">[docs]</a><span class="k">def</span> <span class="nf">retrieve_iteration_tree</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;normal&#39;</span><span class="p">):</span>
@@ -280,6 +281,31 @@
         <span class="k">return</span> <span class="n">body</span><span class="p">,</span> <span class="n">tree</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">body</span></div>
+
+
+<div class="viewcode-block" id="derive_parameters"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.derive_parameters">[docs]</a><span class="k">def</span> <span class="nf">derive_parameters</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">drop_locals</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Derive all input parameters (function call arguments) from an IET</span>
+<span class="sd">    by collecting all symbols not defined in the tree itself.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Pick all free symbols and symbolic functions from the kernel</span>
+    <span class="n">functions</span> <span class="o">=</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+    <span class="n">free_symbols</span> <span class="o">=</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;free-symbols&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+
+    <span class="c1"># Filter out function base symbols and use real function objects</span>
+    <span class="n">function_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">functions</span><span class="p">]</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">free_symbols</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">function_names</span><span class="p">]</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="n">functions</span> <span class="o">+</span> <span class="n">symbols</span>
+
+    <span class="n">defines</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;defines&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)]</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">symbols</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">defines</span><span class="p">)</span>
+
+    <span class="c1"># Filter out internally-allocated temporary `Array` types</span>
+    <span class="k">if</span> <span class="n">drop_locals</span><span class="p">:</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span>
+                      <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Array</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">_mem_heap</span> <span class="ow">or</span> <span class="n">p</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">))]</span>
+
+    <span class="k">return</span> <span class="n">parameters</span></div>
 </pre></div>
 
            </div>

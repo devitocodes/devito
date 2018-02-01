@@ -163,12 +163,13 @@
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 
 <span class="kn">import</span> <span class="nn">ctypes</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
 
-<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentEngine</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentMap</span>
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">transform</span>
@@ -178,7 +179,8 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">bar</span><span class="p">,</span> <span class="n">info</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">LoweredEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="k">import</span> <span class="n">clusterize</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">,</span> <span class="n">iet_insert_C_decls</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">,</span> <span class="n">iet_insert_C_decls</span><span class="p">,</span>
+                           <span class="n">ArrayCast</span><span class="p">,</span> <span class="n">PointerCast</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_terminals</span>
@@ -245,9 +247,6 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="n">time</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
                 <span class="n">time</span><span class="o">.</span><span class="n">reverse</span> <span class="o">=</span> <span class="n">time_axis</span> <span class="o">==</span> <span class="n">Backward</span>
 
-        <span class="c1"># Parameters of the Operator (Dimensions necessary for data casts)</span>
-        <span class="n">parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span>
-
         <span class="c1"># Group expressions based on their iteration space and data dependences,</span>
         <span class="c1"># and apply the Devito Symbolic Engine (DSE) for flop optimization</span>
         <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
@@ -257,10 +256,10 @@
         <span class="n">nodes</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
 
         <span class="c1"># Introduce C-level profiling infrastructure</span>
-        <span class="n">nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_sections</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
+        <span class="n">nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_sections</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
 
         <span class="c1"># Translate into backend-specific representation (e.g., GPU, Yask)</span>
-        <span class="n">nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_specialize</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_specialize</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
 
         <span class="c1"># Apply the Devito Loop Engine (DLE) for loop optimization</span>
         <span class="n">dle_state</span> <span class="o">=</span> <span class="n">transform</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="o">*</span><span class="n">set_dle_mode</span><span class="p">(</span><span class="n">dle</span><span class="p">))</span>
@@ -270,7 +269,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">dle_flags</span> <span class="o">=</span> <span class="n">dle_state</span><span class="o">.</span><span class="n">flags</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
                                             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dle_state</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">]))</span>
-        <span class="n">parameters</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dle_arguments</span><span class="p">])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dle_arguments</span>
                                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">dle_state</span><span class="o">.</span><span class="n">includes</span><span class="p">))</span>
@@ -278,24 +276,66 @@
         <span class="c1"># Introduce the required symbol declarations</span>
         <span class="n">nodes</span> <span class="o">=</span> <span class="n">iet_insert_C_decls</span><span class="p">(</span><span class="n">dle_state</span><span class="o">.</span><span class="n">nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="p">)</span>
 
-        <span class="c1"># Initialise ArgumentEngine</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">argument_engine</span> <span class="o">=</span> <span class="n">ArgumentEngine</span><span class="p">(</span><span class="n">clusters</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span>
-                                              <span class="bp">self</span><span class="o">.</span><span class="n">dle_arguments</span><span class="p">)</span>
+        <span class="c1"># Insert data and pointer casts for array parameters and profiling structs</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_casts</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
 
-        <span class="n">parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">argument_engine</span><span class="o">.</span><span class="n">arguments</span>
+        <span class="c1"># Derive parameters as symbols not defined in the kernel itself</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_parameters</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
 
         <span class="c1"># Finish instantiation</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">Operator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">())</span>
 
-<div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Process any apply-time arguments passed to apply and derive values for</span>
-<span class="sd">            any remaining arguments</span>
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Derive all default values from parameters and ensure uniqueness..</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">default_args</span> <span class="o">=</span> <span class="n">ArgumentMap</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">:</span>
+            <span class="n">default_args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">())</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">default_args</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">default_args</span><span class="p">}</span>
 
-        <span class="n">arguments</span><span class="p">,</span> <span class="n">autotune</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">argument_engine</span><span class="o">.</span><span class="n">handle</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process runtime arguments passed to ``.apply()` and derive</span>
+<span class="sd">        default values for any remaining arguments.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># First, derive all default values from parameters</span>
+        <span class="n">arguments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_argument_defaults</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 
+        <span class="c1"># Next, we insert user-provided overrides</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+            <span class="n">arguments</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+
+        <span class="c1"># Derive additional values for DLE arguments</span>
+        <span class="c1"># TODO: This is not pretty, but it works for now. Ideally, the</span>
+        <span class="c1"># DLE arguments would be massaged into the IET so as to comply</span>
+        <span class="c1"># with the rest of the argument derivation procedure.</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dle_arguments</span><span class="p">:</span>
+            <span class="n">dim</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">argument</span>
+            <span class="n">osize</span> <span class="o">=</span> <span class="n">arguments</span><span class="p">[</span><span class="n">arg</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">arguments</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">osize</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                    <span class="n">arguments</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">arguments</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">osize</span><span class="p">)</span>
+
+        <span class="c1"># Add in the profiler argument</span>
+        <span class="n">arguments</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">()</span>
+
+        <span class="c1"># Execute autotuning and adjust arguments accordingly</span>
+        <span class="n">autotune</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;autotune&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">autotune</span><span class="p">:</span>
-            <span class="n">arguments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+            <span class="c1"># AT assumes and ordered dict, so let&#39;s feed it one</span>
+            <span class="n">at_args</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">arguments</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">])</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">])</span>
+            <span class="n">arguments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">at_args</span><span class="p">)</span>
+
+        <span class="c1"># Check all argument are present</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">arguments</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No value found for parameter </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">arguments</span></div>
 
@@ -332,9 +372,11 @@
             <span class="c1"># Associate a C type to each argument for runtime type check</span>
             <span class="n">argtypes</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ScalarArgument</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Object</span><span class="p">:</span>
+                    <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Scalar</span><span class="p">:</span>
                     <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">numpy_to_ctypes</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
-                <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorArgument</span><span class="p">:</span>
+                <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Tensor</span><span class="p">:</span>
                     <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">))</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">)</span>
@@ -342,7 +384,7 @@
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span>
 
-    <span class="k">def</span> <span class="nf">_profile_sections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">parameters</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_profile_sections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Introduce C-level profiling nodes within the Iteration/Expression tree.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">nodes</span><span class="p">),</span> <span class="kc">None</span>
 
@@ -351,11 +393,24 @@
 <span class="sd">        best block sizes when loop blocking is in use.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">arguments</span>
 
-    <span class="k">def</span> <span class="nf">_specialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">parameters</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_specialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Transform the Iteration/Expression tree into a backend-specific</span>
 <span class="sd">        representation, such as code to be executed on a GPU or through a</span>
 <span class="sd">        lower-level tool.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">nodes</span></div>
+        <span class="k">return</span> <span class="n">nodes</span>
+
+    <span class="k">def</span> <span class="nf">_build_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Determine the Operator parameters based on the Iteration/Expression</span>
+<span class="sd">        tree ``nodes``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">derive_parameters</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_build_casts</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Introduce array and pointer casts at the top of the Iteration/Expression</span>
+<span class="sd">        tree ``nodes``.&quot;&quot;&quot;</span>
+        <span class="n">casts</span> <span class="o">=</span> <span class="p">[</span><span class="n">ArrayCast</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Tensor</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">]</span>
+        <span class="n">profiler</span> <span class="o">=</span> <span class="n">Object</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">)</span>
+        <span class="n">casts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PointerCast</span><span class="p">(</span><span class="n">profiler</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">casts</span> <span class="o">+</span> <span class="p">[</span><span class="n">nodes</span><span class="p">])</span></div>
 
 
 <div class="viewcode-block" id="OperatorRunnable"><a class="viewcode-back" href="../../devito.html#devito.operator.OperatorRunnable">[docs]</a><span class="k">class</span> <span class="nc">OperatorRunnable</span><span class="p">(</span><span class="n">Operator</span><span class="p">):</span>
@@ -373,7 +428,8 @@
         <span class="n">arguments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Invoke kernel function with args</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+        <span class="n">arg_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">arguments</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="n">arg_values</span><span class="p">)</span>
 
         <span class="c1"># Output summary of performance achieved</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_output</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span></div>
@@ -389,11 +445,10 @@
                      <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">summary</span>
 
-    <span class="k">def</span> <span class="nf">_profile_sections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">parameters</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_profile_sections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,):</span>
         <span class="sd">&quot;&quot;&quot;Introduce C-level profiling nodes within the Iteration/Expression tree.&quot;&quot;&quot;</span>
         <span class="n">nodes</span><span class="p">,</span> <span class="n">profiler</span> <span class="o">=</span> <span class="n">create_profile</span><span class="p">(</span><span class="s1">&#39;timers&#39;</span><span class="p">,</span> <span class="n">nodes</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_globals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">cdef</span><span class="p">)</span>
-        <span class="n">parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Object</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">profiler</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">profiler</span></div>
 
 
