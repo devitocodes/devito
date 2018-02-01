@@ -108,11 +108,131 @@ class TensorFunction(SymbolicFunction):
     is_TensorFunction = True
     is_Tensor = True
 
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.name = kwargs.get('name')
+
+            # Function indices
+            self.indices = self._indices(**kwargs)
+
+            # Staggered mask
+            self.staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
+            # Sanity check
+            if len(self.staggered) != len(self.indices):
+                raise ValueError("'staggered' needs %s entries for indices %s"
+                                 % (len(self.indices), self.indices))
+
+            # Data
+            self.initializer = kwargs.get('initializer', None)
+            if self.initializer is not None:
+                assert(callable(self.initializer))
+            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
+            self._data = None
+
+    def _allocate_memory(func):
+        """Allocate memory as a :class:`Data`."""
+        def wrapper(self):
+            if self._data is None:
+                debug("Allocating memory for %s (%s)" % (self.name, self.shape))
+                self._data = Data(self.shape, self.indices, self.dtype)
+                if self._first_touch:
+                    first_touch(self)
+                else:
+                    self.data.fill(0)
+                if self.initializer is not None:
+                    self.initializer(self.data)
+            return func(self)
+        return wrapper
+
+    @property
+    def shape(self):
+        """
+        Shape of the domain associated with this :class:`TensorFunction`.
+        The domain constitutes the area of the data written to in a
+        stencil update.
+        """
+        return self.shape_domain
+
+    @property
+    def data(self):
+        """
+        The function data values, as a :class:`numpy.ndarray`.
+
+        Elements are stored in row-major format.
+        """
+        return self.data_domain
+
+    @property
+    def dimensions(self):
+        """Tuple of :class:`Dimension`s representing the function indices."""
+        return self.indices
+
+    @property
+    def space_dimensions(self):
+        """Tuple of :class:`Dimension`s that define physical space."""
+        return tuple(d for d in self.indices if d.is_Space)
+
+    @property
+    def ndim(self):
+        """Return the number of spatial dimensions."""
+        return len(self.space_dimensions)
+
+    @property
+    def symbolic_shape(self):
+        """
+        Return the symbolic shape of the object. This is simply the
+        appropriate combination of symbolic dimension sizes shifted
+        according to the ``staggered`` mask.
+        """
+        return tuple(i.symbolic_size - s for i, s in
+                     zip(self.indices, self.staggered))
+
     @property
     def _mem_external(self):
         """Return True if the associated data was/is/will be allocated directly
         from Python (e.g., via NumPy arrays), False otherwise."""
         return True
+
+    def argument_defaults(self, alias=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param alias: (Optional) name under which to store values.
+        """
+        key = alias or self.name
+        args = ArgumentMap({key: self._data_buffer})
+
+        # Collect default dimension arguments from all indices
+        for i, s, o in zip(self.indices, self.shape, self.staggered):
+            args.update(i.argument_defaults(size=s+o))
+        return args
+
+    def argument_values(self, alias=None, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
+        """
+        values = {}
+        key = alias or self.name
+
+        # Add value override for own data if it is provided
+        if self.name in kwargs:
+            new = kwargs.pop(self.name)
+            if isinstance(new, TensorFunction):
+                # Set new values and re-derive defaults
+                values[key] = new._data_buffer
+                values.update(new.argument_defaults(alias=key).reduce_all())
+            else:
+                # We've been provided a pure-data replacement (array)
+                values[key] = new
+                # TODO: Re-derive defaults from shape of array
+
+        # Add value overrides for all associated dimensions
+        for i in self.indices:
+            values.update(i.argument_values(**kwargs))
+        return values
 
 
 class Function(TensorFunction):
@@ -142,7 +262,7 @@ class Function(TensorFunction):
                         approximation order, while ``lp`` and ``rp`` indicate
                         the maximum number of points that an approximation can
                         use on the two sides of the point of interest.
-    :param initializer: Function to initialize the data, optional
+    :param initializer: (Optional) A callable to initialize the data
 
     .. note::
 
@@ -173,7 +293,7 @@ class Function(TensorFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.name = kwargs.get('name')
+            super(Function, self).__init__(*args, **kwargs)
 
             self.grid = kwargs.get('grid', None)
             if self.grid is None:
@@ -184,17 +304,6 @@ class Function(TensorFunction):
             else:
                 self._grid_shape_domain = self.grid.shape_domain
                 self.dtype = kwargs.get('dtype', self.grid.dtype)
-            self.indices = self._indices(**kwargs)
-            self.staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
-            if len(self.staggered) != len(self.indices):
-                raise ValueError("'staggered' needs %s entries for indices %s"
-                                 % (len(self.indices), self.indices))
-
-            self.initializer = kwargs.get('initializer', None)
-            if self.initializer is not None:
-                assert(callable(self.initializer))
-            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
-            self._data = None
 
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
@@ -310,21 +419,6 @@ class Function(TensorFunction):
             dimensions = grid.dimensions
         return dimensions
 
-    def _allocate_memory(func):
-        """Allocate memory as a :class:`Data`."""
-        def wrapper(self):
-            if self._data is None:
-                debug("Allocating memory for %s (%s)" % (self.name, self.shape))
-                self._data = Data(self.shape, self.indices, self.dtype)
-                if self._first_touch:
-                    first_touch(self)
-                else:
-                    self.data.fill(0)
-                if self.initializer is not None:
-                    self.initializer(self.data)
-            return func(self)
-        return wrapper
-
     @property
     def _offset_domain(self):
         """
@@ -382,15 +476,6 @@ class Function(TensorFunction):
         return EnrichedTuple(*extents, left=left, right=right)
 
     @property
-    def shape(self):
-        """
-        Shape of the domain associated with this :class:`Function`.
-        The domain constitutes the area of the data written to in a
-        stencil update and excludes the read-only stencil boundary.
-        """
-        return self.shape_domain
-
-    @property
     def shape_domain(self):
         """
         Shape of the domain associated with this :class:`Function`.
@@ -427,16 +512,7 @@ class Function(TensorFunction):
         raise NotImplementedError
 
     @property
-    def data(self):
-        """
-        The domain data values, as a :class:`numpy.ndarray`.
-
-        Elements are stored in row-major format.
-        """
-        return self.data_domain
-
-    @property
-    @_allocate_memory
+    @TensorFunction._allocate_memory
     def data_domain(self):
         """
         The domain data values, as a :class:`numpy.ndarray`.
@@ -452,7 +528,7 @@ class Function(TensorFunction):
         return self._data
 
     @property
-    @_allocate_memory
+    @TensorFunction._allocate_memory
     def data_with_halo(self):
         """
         The domain+halo data values.
@@ -464,7 +540,7 @@ class Function(TensorFunction):
         raise NotImplementedError
 
     @property
-    @_allocate_memory
+    @TensorFunction._allocate_memory
     def data_allocated(self):
         """
         The allocated data values, that is domain+halo+padding.
@@ -474,31 +550,6 @@ class Function(TensorFunction):
         # TODO: for the domain-allocation switch, this needs to return all
         # allocated data values, i.e. self._data
         raise NotImplementedError
-
-    @property
-    def ndim(self):
-        """Return the number of spatial dimensions."""
-        return len(self._grid_shape_domain)
-
-    @property
-    def dimensions(self):
-        """Tuple of :class:`Dimension`s representing the function indices."""
-        return self.indices
-
-    @property
-    def space_dimensions(self):
-        """Tuple of :class:`Dimension`s that define physical space."""
-        return tuple(d for d in self.indices if d.is_Space)
-
-    @property
-    def symbolic_shape(self):
-        """
-        Return the symbolic shape of the object. This is simply the
-        appropriate combination of symbolic dimension sizes shifted
-        according to the ``staggered`` mask.
-        """
-        return tuple(i.symbolic_size - s for i, s in
-                     zip(self.indices, self.staggered))
 
     @property
     def laplace(self):
@@ -520,47 +571,6 @@ class Function(TensorFunction):
                      for d in self.space_dimensions])
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
-
-    def argument_defaults(self, alias=None):
-        """
-        Returns a map of default argument values defined by this symbol.
-
-        :param alias: (Optional) name under which to store values.
-        """
-        key = alias or self.name
-        args = ArgumentMap({key: self._data_buffer})
-
-        # Collect default dimension arguments from all indices
-        for i, s, o in zip(self.indices, self.shape, self.staggered):
-            args.update(i.argument_defaults(size=s+o))
-        return args
-
-    def argument_values(self, alias=None, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
-        """
-        values = {}
-        key = alias or self.name
-
-        # Add value override for own data if it is provided
-        if self.name in kwargs:
-            new = kwargs.pop(self.name)
-            if isinstance(new, Function):
-                # Set new values and re-derive defaults
-                values[key] = new._data_buffer
-                values.update(new.argument_defaults(alias=key).reduce_all())
-            else:
-                # We've been provided a pure-data replacement (array)
-                values[key] = new
-                # TODO: Re-derive defaults from shape of array
-
-        # Add value overrides for all associated dimensions
-        for i in self.indices:
-            values.update(i.argument_values(**kwargs))
-        return values
 
 
 class TimeFunction(Function):
@@ -591,6 +601,7 @@ class TimeFunction(Function):
                         approximation order, while ``lp`` and ``rp`` indicate
                         the maximum number of points that an approximation can
                         use on the two sides of the point of interest.
+    :param initializer: (Optional) A callable to initialize the data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to ``None``, indicating the use of alternating buffers. If
                  intermediate results are required, the value of save must
@@ -741,29 +752,108 @@ class TimeFunction(Function):
         return self.diff(_t, _t).as_finite_difference(indt)
 
 
-class SparsePoints(object):
+class SparseFunction(TensorFunction):
     """
-    Represent a set of points unaligned with a computational grid.
+    A special :class:`TensorFunction` representing a set of sparse point
+    objects that are not aligned with the computational grid.
 
-    A :class:`SparsePoints` object provides symbolic interpolation routines
+    A :class:`SparseFunction` provides symbolic interpolation routines
     to convert between grid-aligned :class:`Function` objects and sparse
     data points.
 
-    :param coordinates: :class:`Function` carrying the coordinate data for
-                        the sparse points.
+    :param name: Name of the function.
+    :param npoint: Number of points to sample.
+    :param grid: :class:`Grid` object defining the computational domain.
+    :param shape: (Optional) shape of the function. Defaults to ``(npoints,)``.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: Discretisation order for space derivatives.
+    :param dtype: Data type of the buffered data.
+    :param initializer: (Optional) A callable to initialize the data
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
     """
 
-    def __init__(self, coordinate_data=None):
-        self.coordinates = Function(name='%s_coords' % self.name,
-                                    dimensions=(self.indices[-1], Dimension(name='d')),
-                                    shape=(self.npoint, self.grid.dim), space_order=0)
-        if coordinate_data is not None:
-            self.coordinates.data[:] = coordinate_data[:]
+    is_SparseFunction = True
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            super(SparseFunction, self).__init__(*args, **kwargs)
+
+            npoint = kwargs.get('npoint')
+            if not isinstance(npoint, int) and npoint > 0:
+                raise ValueError('SparseFunction requires parameter `npoint` (> 0)')
+            self.npoint = npoint
+
+            grid = kwargs.get('grid')
+            if kwargs.get('grid') is None:
+                raise ValueError('SparseFunction objects require a grid parameter')
+            self.grid = grid
+
+            self.indices = self._indices(**kwargs)
+            self.dtype = kwargs.get('dtype', self.grid.dtype)
+            self.space_order = kwargs.get('space_order', 1)
+            self._shape = self._setup_shape(**kwargs)
+
+            # Set up sparse points coordinates
+            coordinates = Function(name='%s_coords' % self.name,
+                                   dimensions=(self.indices[-1], Dimension(name='d')),
+                                   shape=(self.npoint, self.grid.dim), space_order=0)
+            coordinate_data = kwargs.get('coordinates')
+            if coordinate_data is not None:
+                coordinates.data[:] = coordinate_data[:]
+            self.coordinates = coordinates
+
+            # A SparseFunction has empty halo/padding region
+            self._halo = tuple((0, 0) for i in range(self.ndim))
+            self._padding = tuple((0, 0) for i in range(self.ndim))
+
+            super(SparseFunction, self).__init__(*args, **kwargs)
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        """
+        Return the default dimension indices for a given data shape.
+        """
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is not None:
+            return dimensions
+        else:
+            return (Dimension(name='p'),)
+
+    @classmethod
+    def _setup_shape(cls, **kwargs):
+        return kwargs.get('shape', (kwargs.get('npoint'),))
 
     @property
-    def ndim(self):
-        """Return the number of spatial dimensions."""
-        return 1
+    def shape_domain(self):
+        """
+        Shape of the :class:`SparseFunction`.
+
+        .. note::
+
+            Alias to ``self.shape``.
+        """
+        return self._shape
+
+    @property
+    @TensorFunction._allocate_memory
+    def data_domain(self):
+        """
+        The sparse function data values, as a :class:`numpy.ndarray`.
+
+        Elements are stored in row-major format.
+
+        .. note::
+
+            Alias to ``self.data``.
+        """
+        return self._data
 
     @property
     def coefficients(self):
@@ -947,169 +1037,6 @@ class SparsePoints(object):
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
-
-class SparseTimeFunction(TimeFunction, SparsePoints):
-    """
-    :class:`TimeFunction` representing a set of sparse point objects that
-    are not aligned with the computational grid.
-
-    :param name: Name of the resulting :class:`sympy.Function` symbol.
-    :param nt: Size of the time dimension for point data.
-    :param npoint: Number of points to sample.
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param dimensions: (Optional) symbolic dimensions that define the
-                       data layout and function indices of this symbol.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param time_order: Discretisation order for time derivatives.
-    :param dtype: Data type of the buffered data.
-
-    .. note::
-
-        The parameters must always be given as keyword arguments, since
-        SymPy uses `*args` to (re-)create the dimension arguments of the
-        symbolic function.
-    """
-
-    is_SparseFunction = True
-    is_SparseTimeFunction = True
-
-    def __new__(cls, *args, **kwargs):
-        nt = kwargs.get('nt')
-        if not isinstance(nt, int) and nt > 0:
-            raise ValueError('SparseTimeFunction requires int parameter `nt`')
-
-        npoint = kwargs.get('npoint')
-        if not isinstance(npoint, int) and npoint > 0:
-            raise ValueError('SparseTimeFunction requires int parameter `npoint`')
-
-        kwargs['save'] = nt
-        return TimeFunction.__new__(cls, *args, **kwargs)
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            if kwargs.get('grid') is None:
-                raise ValueError('SparseTimeFunction objects require a grid parameter')
-
-            self.npoint = kwargs.get('npoint')
-
-            TimeFunction.__init__(self, *args, **kwargs)
-            SparsePoints.__init__(self, kwargs.get('coordinates'))
-
-            # A SparseFunction has empty halo region
-            self._halo = ((0, 0),) + tuple((0, 0) for i in range(self.ndim))
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        """
-        Return the default dimension indices for a given data shape.
-        """
-        dimensions = kwargs.get('dimensions', None)
-        if dimensions is not None:
-            return dimensions
-        else:
-            return (kwargs['grid'].time_dim, Dimension(name='p'))
-
-    @property
-    def nt(self):
-        return self.time_size
-
-    @property
-    def shape_domain(self):
-        return (self.time_size, self.npoint)
-
-    def argument_defaults(self, alias=None):
-        """
-        Returns a map of default argument values defined by this symbol.
-
-        :param alias: (Optional) name under which to store values.
-        """
-        args = super(SparseTimeFunction, self).argument_defaults(alias=alias)
-        args.update(self.coordinates.argument_defaults())
-        return args
-
-    def argument_values(self, alias=None, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
-        """
-        # Take a copy of the replacement before super pops it from kwargs
-        new = kwargs.get(self.name, None)
-        values = super(SparseTimeFunction, self).argument_values(alias=alias, **kwargs)
-        if new is not None and isinstance(new, SparseTimeFunction):
-            # If we've been replaced with a SparseTimeFunction,
-            # we need to re-derive defaults and values...
-            values.update(new.argument_defaults(alias=alias).reduce_all())
-            values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
-        else:
-            # ..., but if not, we simply need to recurse over children.
-            values.update(self.coordinates.argument_values(alias=alias, **kwargs))
-        return values
-
-
-class SparseFunction(Function, SparsePoints):
-    """
-    :class:`Function` representing a set of sparse point objects that
-    are not aligned with the computational grid.
-
-    :param name: Name of the resulting :class:`sympy.Function` symbol.
-    :param npoint: Number of points to sample.
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param dimensions: (Optional) symbolic dimensions that define the
-                       data layout and function indices of this symbol.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param dtype: Data type of the buffered data.
-
-    .. note::
-
-        The parameters must always be given as keyword arguments, since
-        SymPy uses `*args` to (re-)create the dimension arguments of the
-        symbolic function.
-    """
-
-    is_SparseFunction = True
-
-    def __new__(cls, *args, **kwargs):
-        npoint = kwargs.get('npoint')
-        if not isinstance(npoint, int) and npoint > 0:
-            raise ValueError('SparseFunction requires parameter `npoint`')
-
-        kwargs['shape'] = kwargs.get('shape', (npoint, ))
-
-        return Function.__new__(cls, *args, **kwargs)
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            if kwargs.get('grid') is None:
-                raise ValueError('SparseFunction objects require a grid parameter')
-
-            self.npoint = kwargs.get('npoint')
-
-            Function.__init__(self, *args, **kwargs)
-            SparsePoints.__init__(self, kwargs.get('coordinates'))
-
-            # A SparseFunction has empty halo region
-            self._halo = tuple((0, 0) for i in range(self.ndim))
-            self.sparse_shape = kwargs.get('shape', (self.npoint, ))
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        """
-        Return the default dimension indices for a given data shape.
-        """
-        dimensions = kwargs.get('dimensions', None)
-        if dimensions is not None:
-            return dimensions
-        else:
-            return (Dimension(name='p'),)
-
-    @property
-    def shape_domain(self):
-        return self.sparse_shape
-
     def argument_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
@@ -1139,3 +1066,56 @@ class SparseFunction(Function, SparsePoints):
             # ..., but if not, we simply need to recurse over children.
             values.update(self.coordinates.argument_values(alias=alias, **kwargs))
         return values
+
+
+class SparseTimeFunction(SparseFunction):
+    """
+    A time-dependent :class:`SparseFunction`.
+
+    :param name: Name of the function.
+    :param nt: Size of the time dimension for point data.
+    :param npoint: Number of points to sample.
+    :param grid: :class:`Grid` object defining the computational domain.
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: Discretisation order for space derivatives.
+    :param time_order: Discretisation order for time derivatives.
+    :param dtype: Data type of the buffered data.
+    :param initializer: (Optional) A callable to initialize the data
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
+    """
+
+    is_SparseTimeFunction = True
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            nt = kwargs.get('nt')
+            if not isinstance(nt, int) and nt > 0:
+                raise ValueError('SparseTimeFunction requires int parameter `nt`')
+            self.nt = nt
+
+            self.time_order = kwargs.get('time_order', 1)
+
+            super(SparseTimeFunction, self).__init__(*args, **kwargs)
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        """
+        Return the default dimension indices for a given data shape.
+        """
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is not None:
+            return dimensions
+        else:
+            return (kwargs['grid'].time_dim, Dimension(name='p'))
+
+    @classmethod
+    def _setup_shape(cls, **kwargs):
+        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))

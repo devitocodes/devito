@@ -241,24 +241,25 @@ class AbstractFunction(sympy.Function, Basic):
                |                                   |
              Array                           TensorFunction
                                                    |
-                                                Function
-                                                   |
                                      ------------------------------
                                      |                            |
-                               TimeFunction   SparsePoints        |
-                                     |             |              |
-                                     |   -----------------------  |
-                                     |   |                     |  |
-                            SparseTimeFunction            SparseFunction
+                                  Function                  SparseFunction
+                                     |                            |
+                                TimeFunction              SparseTimeFunction
 
-    There are four relevant :class:`AbstractFunction` sub-types: ::
+    There are five relevant :class:`AbstractFunction` sub-types: ::
 
         * Array: Like any :class:`SymbolicData`, an array does not carry data.
                  Usually, it is only created internally by Devito (e.g., by the DSE).
         * Function: A space-varying discrete function, which carries user data.
-        * TimeFunction: A time-varying discrete function, which carries user data.
-        * Sparse*Function: A :class:`Function` representing "sparse" points, i.e.
-                           points that are not aligned with the computational grid.
+        * TimeFunction: A time- and space-varying discrete function, which carries
+                        user data.
+        * SparseFunction: A space-varying discrete function representing "sparse"
+                          points, i.e. points that are not aligned with the
+                          computational grid.
+        * SparseTimeFunction: A time- and space-varying function representing "sparse"
+                          points, i.e. points that are not aligned with the
+                          computational grid.
     """
 
     is_AbstractFunction = True
