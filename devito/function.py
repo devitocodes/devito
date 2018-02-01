@@ -433,12 +433,12 @@ class Function(TensorFunction):
 
             self.grid = kwargs.get('grid', None)
             if self.grid is None:
-                self._grid_shape_domain = kwargs.get('shape', None)
+                self._shape = kwargs.get('shape', None)
                 self.dtype = kwargs.get('dtype', np.float32)
-                if self._grid_shape_domain is None:
+                if self._shape is None:
                     raise ValueError("Function needs either 'shape' or 'grid' argument")
             else:
-                self._grid_shape_domain = self.grid.shape_domain
+                self._shape = self.grid.shape_domain
                 self.dtype = kwargs.get('dtype', self.grid.dtype)
 
             space_order = kwargs.get('space_order', 1)
@@ -557,7 +557,7 @@ class Function(TensorFunction):
 
     @property
     def shape_domain(self):
-        return tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered))
+        return tuple(i - j for i, j in zip(self._shape, self.staggered))
 
     @property
     def laplace(self):
@@ -719,7 +719,7 @@ class TimeFunction(Function):
         else:
             tsize = self.time_order + 1
         return (tsize,) +\
-            tuple(i - j for i, j in zip(self._grid_shape_domain, self.staggered[1:]))
+            tuple(i - j for i, j in zip(self._shape, self.staggered[1:]))
 
     @property
     def forward(self):
