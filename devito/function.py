@@ -313,16 +313,6 @@ class TensorFunction(SymbolicFunction):
         return tuple(d for d in self.indices if d.is_Space)
 
     @property
-    def rank(self):
-        """Return the number of dimensions."""
-        return len(self.dimensions)
-
-    @property
-    def ndim(self):
-        """Return the number of spatial dimensions."""
-        return len(self.space_dimensions)
-
-    @property
     def staggered(self):
         return self._staggered
 
@@ -696,8 +686,8 @@ class TimeFunction(Function):
                 self._shape = (self.time_order + 1,) + self._shape
 
             # Adjust halo and padding regions
-            self._halo = ((0, 0),) + self._halo
-            self._padding = ((0, 0),) + self._padding
+            self._halo = ((0, 0),) + self._halo[1:]
+            self._padding = ((0, 0),) + self._padding[1:]
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -824,10 +814,10 @@ class SparseFunction(TensorFunction):
             self.coordinates = coordinates
 
             # Halo region
-            self._halo = tuple((0, 0) for i in range(self.rank))
+            self._halo = tuple((0, 0) for i in range(self.ndim))
 
             # Padding region
-            self._padding = tuple((0, 0) for i in range(self.rank))
+            self._padding = tuple((0, 0) for i in range(self.ndim))
 
     @classmethod
     def _indices(cls, **kwargs):
