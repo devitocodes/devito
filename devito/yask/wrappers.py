@@ -107,13 +107,12 @@ class YaskKernel(object):
         return self.soln.new_fixed_size_grid(name, [str(i) for i in obj.indices],
                                              [int(i) for i in obj.shape])  # cast np.int
 
-    def run(self, cfunction, arguments, toshare):
+    def run(self, cfunction, arg_values, toshare):
         """
         Run the YaskKernel through a JIT-compiled function.
 
         :param cfunction: The JIT-compiler function, of type :class:`ctypes.FuncPtr`
-        :param arguments: Mapper from function/dimension/... names to run-time values
-               to be passed to ``cfunction``.
+        :param arg_values: The run-time values to be passed to ``cfunction``.
         :param toshare: Mapper from functions to :class:`Data`s for sharing
                         grid storage.
         """
@@ -164,7 +163,7 @@ class YaskKernel(object):
             self.soln.run_auto_tuner_now()
 
         # Run the kernel
-        cfunction(*list(arguments.values()))
+        cfunction(*arg_values)
 
         # Release grid storage. Note: this *will not* cause deallocation, as these
         # grids are actually shared with the hook solution
@@ -372,8 +371,12 @@ class YaskNullKernel(object):
         self.grids = {}
         self.local_grids = {}
 
-    def run(self, cfunction, arguments, toshare):
-        cfunction(*list(arguments.values()))
+    def run(self, cfunction, arg_values, toshare):
+        cfunction(*arg_values)
+
+    @property
+    def rawpointer(self):
+        return None
 
 
 class YaskNullContext(object):

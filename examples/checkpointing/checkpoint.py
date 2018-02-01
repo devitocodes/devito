@@ -17,6 +17,7 @@ class CheckpointOperator(Operator):
 
     def __init__(self, op, **kwargs):
         self.op = op
+        self.time_order = kwargs.pop('time_order', 1)
         self.args = kwargs
 
     def apply(self, t_start, t_end):
@@ -27,7 +28,7 @@ class CheckpointOperator(Operator):
         """
         args = self.args.copy()
         args[self.t_arg_names['t_start']] = t_start
-        args[self.t_arg_names['t_end']] = t_end
+        args[self.t_arg_names['t_end']] = t_end + self.time_order
         self.op.apply(**args)
 
 

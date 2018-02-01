@@ -302,18 +302,18 @@ class TestOperatorSimple(object):
         u.data[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
         # First run
-        op()
+        op(t=2)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
         # Nothing should have changed at this point
-        op(yu4D=u)
+        op(t=2, yu4D=u)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
         # Now try with a different grid
         grid = Grid(shape=(3, 3, 3))
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
-        op(yu4D=u)
+        op(t=2, yu4D=u)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
 

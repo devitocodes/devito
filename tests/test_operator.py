@@ -43,19 +43,17 @@ class TestCodeGen(object):
         """
         eqn = Eq(a_dense, a_dense + 2.*const)
         op = Operator(eqn)
-        assert len(op.parameters) == 6
+        assert len(op.parameters) == 5
         assert op.parameters[0].name == 'a_dense'
-        assert op.parameters[0].is_TensorArgument
-        assert op.parameters[1].name == 'i_size'
-        assert op.parameters[1].is_ScalarArgument
-        assert op.parameters[2].name == 'i_s'
-        assert op.parameters[2].is_ScalarArgument
-        assert op.parameters[3].name == 'i_e'
-        assert op.parameters[3].is_ScalarArgument
-        assert op.parameters[4].name == 'constant'
-        assert op.parameters[4].is_ScalarArgument
-        assert op.parameters[5].name == 'timers'
-        assert op.parameters[5].is_PtrArgument
+        assert op.parameters[0].is_Tensor
+        assert op.parameters[1].name == 'constant'
+        assert op.parameters[1].is_Scalar
+        assert op.parameters[2].name == 'i_e'
+        assert op.parameters[2].is_Scalar
+        assert op.parameters[3].name == 'i_s'
+        assert op.parameters[3].is_Scalar
+        assert op.parameters[4].name == 'timers'
+        assert op.parameters[4].is_Object
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
@@ -282,6 +280,22 @@ class TestArguments(object):
                       (name, value, arguments[name]))
             assert condition
 
+    def verify_parameters(self, parameters, expected):
+        """
+        Utility function to verify a parameter set against expected
+        values.
+        """
+        boilerplate = ['timers']
+        parameters = [p.name for p in parameters]
+        for exp in expected:
+            if exp not in parameters + boilerplate:
+                error("Missing parameter: %s" % exp)
+            assert exp in parameters + boilerplate
+        extra = [p for p in parameters if p not in expected and p not in boilerplate]
+        if len(extra) > 0:
+            error("Redundant parameters: %s" % str(extra))
+        assert len(extra) == 0
+
     def test_default_functions(self):
         """
         Test the default argument derivation for functions.
@@ -297,7 +311,11 @@ class TestArguments(object):
             'z_size': 7, 'z_s': 0, 'z_e': 7,
             'f': f.data, 'g': g.data,
         }
-        self.verify_arguments(op.arguments(), expected)
+        self.verify_arguments(op.arguments(time=4), expected)
+        exp_parameters = ['f', 'g', 'x_s', 'x_e', 'x_size', 'y_s',
+                          'y_e', 'y_size', 'z_s', 'z_e', 'z_size',
+                          'time_s', 'time_e']
+        self.verify_parameters(op.parameters, exp_parameters)
 
     def test_default_composite_functions(self):
         """
@@ -320,7 +338,6 @@ class TestArguments(object):
         }
         self.verify_arguments(op.arguments(), expected)
 
-    @pytest.mark.xfail(reason='Size-only arguments cause wrong data casts')
     def test_override_function_size(self):
         """
         Test runtime size overrides for :class:`Function` dimensions.
@@ -390,15 +407,13 @@ class TestArguments(object):
         # explicitly. Ideally `t` would directly alias with `time`,
         # but this seems broken currently.
         args = {'x_s': 1, 'x_e': 3, 'y_s': 2, 'y_e': 4,
-                'z_s': 3, 'z_e': 5, 't_s': 1, 't_e': 4,
-                'time_s': 1, 'time_e': 4}
+                'z_s': 3, 'z_e': 5, 't_s': 1, 't_e': 4}
         arguments = op.arguments(**args)
         expected = {
             'x_size': 5, 'x_s': 1, 'x_e': 3,
             'y_size': 6, 'y_s': 2, 'y_e': 4,
             'z_size': 7, 'z_s': 3, 'z_e': 5,
             'time_s': 1, 'time_e': 4,
-            't_s': 1, 't_e': 4,
             'f': f.data
         }
         self.verify_arguments(arguments, expected)
@@ -485,22 +500,6 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
 
-    def test_arg_offset_adjust(self, nt=100):
-        """Test that the dimension sizes are being inferred correctly"""
-        i, j, k = dimify('i j k')
-        shape = (10, 10, 10)
-        grid = Grid(shape=shape, dimensions=(i, j, k))
-        a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=nt)
-        time = b.indices[0]
-        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
-                 + b.indexed[time, i, j, k] + a[i, j, k])
-        op = Operator(eqn)
-        args = {time.end_name: nt-10}
-        op_arguments = op.arguments(**args)
-        assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt - 8)
-
     def test_dimension_offset_adjust(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
@@ -535,8 +534,7 @@ class TestArguments(object):
         assert(np.allclose(a.data[0], 4.))
 
     def test_override_composite_data(self):
-        i, j = dimify('i j')
-        grid = Grid(shape=(10, 10), dimensions=(i, j))
+        grid = Grid(shape=(10, 10))
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension(name='p_src')
@@ -551,7 +549,7 @@ class TestArguments(object):
         # Move the source from the location where the setup put it so we can test
         # whether the override picks up the original coordinates or the changed ones
 
-        args = op.arguments(src1=src2)
+        args = op.arguments(src1=src2, t=0)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
@@ -562,13 +560,11 @@ class TestArguments(object):
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
-        a = Function(name='a', grid=grid).indexed
-        b_function = TimeFunction(name='b', grid=grid, save=nt)
-        b = b_function.indexed
-        time = b_function.indices[0]
-        b1 = TimeFunction(name='b1', grid=grid, save=nt+1).indexed
-        eqn = Eq(b[time, i, j, k], a[i, j, k])
-        op = Operator(eqn)
+        a = Function(name='a', grid=grid)
+        b = TimeFunction(name='b', grid=grid, save=nt)
+        time = b.indices[0]
+        b1 = TimeFunction(name='b1', grid=grid, save=nt+1)
+        op = Operator(Eq(b, a))
 
         # Simple case, same as that tested above.
         # Repeated here for clarity of further tests.
@@ -588,9 +584,24 @@ class TestArguments(object):
 
         # Providing a scalar argument explicitly should override the automatically\
         # inferred
-        op_arguments = op.arguments(b=b1, time=nt - 1, time_e=nt - 2)
+        op_arguments = op.arguments(b=b1, time_e=nt - 2)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 2)
+
+    def test_derive_constant_value(self):
+        """Ensure that values for :class:`Constant` symbols are derived correctly."""
+        grid = Grid(shape=(5, 6))
+        f = Function(name='f', grid=grid)
+        a = Constant(name='a', value=3.)
+        Operator(Eq(f, a))()
+        assert np.allclose(f.data, 3.)
+
+        g = Function(name='g', grid=grid)
+        b = Constant(name='b')
+        op = Operator(Eq(g, b))
+        b.data = 4.
+        op()
+        assert np.allclose(g.data, 4.)
 
 
 @skipif_yask

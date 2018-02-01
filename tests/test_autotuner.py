@@ -101,7 +101,7 @@ def test_timesteps_per_at_run():
         stencil = Eq(outfield.indexed[t + to, x, y, z],
                      outfield.indexify() + infield.indexify()*3.0)
         op = Operator(stencil, dle=('blocking', {'blockalways': True}))
-        op(infield=infield, outfield=outfield, autotune=True)
+        op(infield=infield, outfield=outfield, t=2, autotune=True)
         out = [i for i in buffer.getvalue().split('\n') if 'AutoTuner:' in i]
         expected = options['at_squeezer'] - to
         assert len(out) == 4

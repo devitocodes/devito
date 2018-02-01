@@ -75,6 +75,24 @@ class Basic(object):
     def __init__(self, *args, **kwargs):
         return
 
+    @abc.abstractmethod
+    def argument_defaults(self):
+        """
+        Returns a map of default argument values defined by this symbol.
+        """
+        raise NotImplementedError('%s does not provide any default arguments' %
+                                  self.__class__)
+
+    @abc.abstractmethod
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        raise NotImplementedError('%s does not provide argument value derivation' %
+                                  self.__class__)
+
 
 class Cached(object):
     """
@@ -472,7 +490,7 @@ class SymbolicFunction(AbstractCachedFunction):
 # that need to be passed to external libraries
 
 
-class Object(object):
+class Object(Basic):
 
     """
     Represent a generic pointer object.
@@ -487,6 +505,18 @@ class Object(object):
 
     def __repr__(self):
         return self.name
+
+    def argument_defaults(self):
+        if callable(self.value):
+            return {self.name: self.value()}
+        else:
+            return {self.name: self.value}
+
+    def argument_values(self, **kwargs):
+        if self.name in kwargs:
+            return {self.name: kwargs.pop(self.name)}
+        else:
+            return {}
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:

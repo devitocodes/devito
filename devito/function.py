@@ -12,6 +12,7 @@ from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import Dimension, TimeDimension
 from devito.types import SymbolicFunction, AbstractCachedSymbol
+from devito.arguments import ArgumentMap
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
@@ -76,6 +77,24 @@ class Constant(AbstractCachedSymbol):
     @property
     def base(self):
         return self
+
+    def argument_defaults(self):
+        """
+        Returns a map of default argument values defined by this symbol.
+        """
+        return {self.name: self.data}
+
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        values = {}
+        if self.name in kwargs:
+            new = kwargs.pop(self.name)
+            values[self.name] = new.data if isinstance(new, Constant) else new
+        return values
 
 
 class TensorFunction(SymbolicFunction):
@@ -477,6 +496,47 @@ class Function(TensorFunction):
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
 
+    def argument_defaults(self, alias=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param alias: (Optional) name under which to store values.
+        """
+        key = alias or self.name
+        args = ArgumentMap({key: self._data_buffer})
+
+        # Collect default dimension arguments from all indices
+        for i, s, o in zip(self.indices, self.shape, self.staggered):
+            args.update(i.argument_defaults(size=s+o))
+        return args
+
+    def argument_values(self, alias=None, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
+        """
+        values = {}
+        key = alias or self.name
+
+        # Add value override for own data if it is provided
+        if self.name in kwargs:
+            new = kwargs.pop(self.name)
+            if isinstance(new, Function):
+                # Set new values and re-derive defaults
+                values[key] = new._data_buffer
+                values.update(new.argument_defaults(alias=key).reduce_all())
+            else:
+                # We've been provided a pure-data replacement (array)
+                values[key] = new
+                # TODO: Re-derive defaults from shape of array
+
+        # Add value overrides for all associated dimensions
+        for i in self.indices:
+            values.update(i.argument_values(**kwargs))
+        return values
+
 
 class TimeFunction(Function):
     """
@@ -670,6 +730,40 @@ class CompositeFunction(Function):
     @property
     def children(self):
         return self._children
+
+    def argument_defaults(self, alias=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param alias: (Optional) name under which to store values.
+        """
+        args = super(CompositeFunction, self).argument_defaults(alias=alias)
+        for child in self.children:
+            args.update(child.argument_defaults())
+        return args
+
+    def argument_values(self, alias=None, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
+        """
+        # Take a copy of the replacement before super pops it from kwargs
+        new = kwargs.get(self.name, None)
+        values = super(CompositeFunction, self).argument_values(alias=alias,
+                                                                **kwargs)
+        if new is not None and isinstance(new, CompositeFunction):
+            # If we've been replaced with a composite symbol,
+            # we need to re-derive defaults and values...
+            values.update(new.argument_defaults(alias=alias).reduce_all())
+            for child, new_child in zip(self.children, new.children):
+                values.update(new_child.argument_defaults(alias=child.name))
+        else:
+            # ..., but if not, we simply need to recurse over children.
+            for child in self.children:
+                values.update(child.argument_values(alias=alias, **kwargs))
+        return values
 
 
 class SparseFunction(CompositeFunction):

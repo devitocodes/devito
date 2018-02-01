@@ -74,20 +74,28 @@ class Add(sympy.Add, FrozenExpr):
     pass
 
 
-class FunctionFromPointer(sympy.Symbol):
+class FunctionFromPointer(sympy.Expr):
 
     """
     Symbolic representation of the C notation ``pointer->function(params)``.
     """
 
     def __new__(cls, function, pointer, params=None):
-        flatten_name = '%s->%s(%s)' % (pointer, function,
-                                       ", ".join(str(i) for i in as_tuple(params)))
-        obj = sympy.Symbol.__new__(cls, flatten_name)
+        obj = sympy.Expr.__new__(cls)
         obj.function = function
         obj.pointer = pointer
         obj.params = as_tuple(params)
         return obj
+
+    def __str__(self):
+        return '%s->%s(%s)' % (self.pointer, self.function,
+                               ", ".join(str(i) for i in as_tuple(self.params)))
+
+    __repr__ = __str__
+
+    def _hashable_content(self):
+        return super(FunctionFromPointer, self)._hashable_content() +\
+            (self.function, self.pointer) + self.params
 
 
 class ListInitializer(sympy.Symbol):

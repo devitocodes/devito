@@ -43,15 +43,21 @@ class Dimension(AbstractSymbol):
     @cached_property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        return Symbol(name=self.size_name)
+        return Scalar(name=self.size_name, dtype=np.int32)
 
     @cached_property
     def symbolic_start(self):
-        return Symbol(name=self.start_name)
+        """
+        The symbol defining the iteration start for this dimension.
+        """
+        return Scalar(name=self.start_name, dtype=np.int32)
 
     @cached_property
     def symbolic_end(self):
-        return Symbol(name=self.end_name)
+        """
+        The symbol defining the iteration end for this dimension.
+        """
+        return Scalar(name=self.end_name, dtype=np.int32)
 
     @property
     def symbolic_extent(self):
@@ -96,6 +102,33 @@ class Dimension(AbstractSymbol):
     def _hashable_content(self):
         return super(Dimension, self)._hashable_content() +\
             (self.reverse, self.spacing)
+
+    def argument_defaults(self, size=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param size: Optional, known size as provided by data-carrying symbols
+        """
+        return {self.start_name: 0, self.end_name: size, self.size_name: size}
+
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        values = {}
+
+        if self.start_name in kwargs:
+            values[self.start_name] = kwargs.pop(self.start_name)
+
+        if self.end_name in kwargs:
+            values[self.end_name] = kwargs.pop(self.end_name)
+
+        if self.name in kwargs:
+            values[self.end_name] = kwargs.pop(self.name)
+
+        return values
 
 
 class SpaceDimension(Dimension):
@@ -173,6 +206,63 @@ class SteppingDimension(Dimension):
 
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.modulo)
+
+    @property
+    def symbolic_start(self):
+        """
+        The symbol defining the iteration start for this dimension.
+
+        note ::
+
+        Internally we always define symbolic iteration ranges in terms
+        of the parent variable.
+        """
+        return self.parent.symbolic_start
+
+    @property
+    def symbolic_end(self):
+        """
+        The symbol defining the iteration end for this dimension.
+
+        note ::
+
+        Internally we always define symbolic iteration ranges in terms
+        of the parent variable.
+        """
+        return self.parent.symbolic_end
+
+    def argument_defaults(self, size=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param size: Optional, known size as provided by data-carrying symbols
+
+        note ::
+
+        A :class:`SteppingDimension` neither knows it's size nor it's
+        iteration end point. So all we can provide is a starting point.
+        """
+        return {self.parent.start_name: 0}
+
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        values = self.parent.argument_values(**kwargs)
+
+        if self.start_name in kwargs:
+            values[self.parent.start_name] = kwargs.pop(self.start_name)
+
+        if self.end_name in kwargs:
+            values[self.parent.end_name] = kwargs.pop(self.end_name)
+
+        # Let the dimension name be an alias for `dim_e`
+        if self.name in kwargs:
+            values[self.parent.end_name] = kwargs.pop(self.name)
+
+        return values
 
 
 class LoweredDimension(Dimension):
