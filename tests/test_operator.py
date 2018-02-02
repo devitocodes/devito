@@ -9,7 +9,7 @@ import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, Backward,
                     Forward, TimeFunction, SparseFunction, Dimension, configuration,
-                    error)
+                    error, INTERIOR)
 from devito.foreign import Operator as OperatorForeign
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
@@ -989,6 +989,36 @@ class TestLoopScheduler(object):
         assert len(trees[0][-1].nodes) == 2
         assert trees[0][-1].nodes[0].write == u1
         assert trees[0][-1].nodes[1].write == u2
+
+
+@skipif_yask
+class TestRegions(object):
+
+    def test_domain_vs_interior(self):
+        """
+        Tests regions work properly in terms of code generation and runtime
+        argument derivation.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim  # noqa
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        eqs = [Eq(u.forward, u + 1),
+               Eq(u.forward, u.forward + 2, region=INTERIOR)]
+
+        op = Operator(eqs, dse='noop', dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+
+        op.apply(time_e=2)
+        assert np.all(u.data[1, 0, :, :] == 1)
+        assert np.all(u.data[1, -1, :, :] == 1)
+        assert np.all(u.data[1, :, 0, :] == 1)
+        assert np.all(u.data[1, :, -1, :] == 1)
+        assert np.all(u.data[1, :, :, 0] == 1)
+        assert np.all(u.data[1, :, :, -1] == 1)
+        assert np.all(u.data[1, 1:3, 1:3, 1:3] == 3)
 
 
 @skipif_yask

@@ -41,10 +41,11 @@ class Data(np.ndarray):
     """
 
     def __new__(cls, shape, dimensions, dtype):
+        assert len(shape) == len(dimensions)
         ndarray, c_pointer = malloc_aligned(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
         obj._c_pointer = c_pointer
-        obj.modulo = tuple(i.modulo if i.is_Stepping else None for i in dimensions)
+        obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
         return obj
 
     def __del__(self):
@@ -60,9 +61,9 @@ class Data(np.ndarray):
             # `self` was created through __new__()
             return
         if type(obj) != Data or self.ndim != obj.ndim:
-            self.modulo = tuple(None for i in range(self.ndim))
+            self._modulo = tuple(False for i in range(self.ndim))
         else:
-            self.modulo = obj.modulo
+            self._modulo = obj._modulo
         # Views or references created via operations on `obj` do not get an
         # explicit reference to the C pointer (`_c_pointer`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
@@ -91,8 +92,8 @@ class Data(np.ndarray):
 
         # Index conversion
         wrapped = []
-        for i, mod in zip(index, self.modulo):
-            if mod is None:
+        for i, mod, use_modulo in zip(index, self.shape, self._modulo):
+            if use_modulo is False:
                 # Nothing special to do (no logical indexing)
                 wrapped.append(i)
             elif isinstance(i, slice):

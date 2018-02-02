@@ -134,13 +134,13 @@ class Function(function.Function):
             Alias to ``self.data``.
         """
         return Data(self._data.grid, self.shape, self.indices, self.dtype,
-                    offset=self._offset_domain)
+                    offset=self._offset_domain.left)
 
     @cached_property
     @_allocate_memory
     def data_with_halo(self):
         return Data(self._data.grid, self.shape_with_halo, self.indices, self.dtype,
-                    offset=self._offset_halo)
+                    offset=self._offset_halo.left)
 
     def initialize(self):
         raise NotImplementedError

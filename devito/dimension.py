@@ -14,6 +14,7 @@ class Dimension(AbstractSymbol):
     is_Time = False
 
     is_Derived = False
+    is_Sub = False
     is_Stepping = False
     is_Lowered = False
 
@@ -92,7 +93,7 @@ class Dimension(AbstractSymbol):
     @reverse.setter
     def reverse(self, val):
         # TODO: this is an outrageous hack. TimeFunctions are updating this value
-        # at construction time. This is a symptom we need local and global dimensions
+        # at construction time.
         self._reverse = val
 
     @property
@@ -125,6 +126,7 @@ class Dimension(AbstractSymbol):
         if self.end_name in kwargs:
             values[self.end_name] = kwargs.pop(self.end_name)
 
+        # Let the dimension name be an alias for `dim_e`
         if self.name in kwargs:
             values[self.end_name] = kwargs.pop(self.name)
 
@@ -140,6 +142,7 @@ class SpaceDimension(Dimension):
     extent of physical grid. :class:`SpaceDimensions` create dedicated
     shortcut notations for spatial derivatives on :class:`Function`
     symbols.
+
     :param name: Name of the dimension symbol.
     :param reverse: Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
@@ -154,28 +157,28 @@ class TimeDimension(Dimension):
     Dimension symbol to represent a dimension that defines the extent
     of time. As time might be used in different contexts, all derived
     time dimensions should inherit from :class:`TimeDimension`.
+
     :param name: Name of the dimension symbol.
     :param reverse: Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
 
 
-class SteppingDimension(Dimension):
+class DerivedDimension(Dimension):
 
     is_Derived = True
-    is_Stepping = True
 
     """
-    Dimension symbol that defines the stepping direction of an
-    :class:`Operator` and implies modulo buffered iteration. This is most
-    commonly use to represent a timestepping dimension.
-    :param parent: Parent dimension over which to loop in modulo fashion.
+    Dimension symbol derived from a ``parent`` Dimension.
+
+    :param name: Name of the dimension symbol.
+    :param parent: Parent dimension from which the ``SubDimension`` is
+                   created.
     """
 
     def __new__(cls, name, parent, **kwargs):
         newobj = sympy.Symbol.__new__(cls, name)
         assert isinstance(parent, Dimension)
-        newobj._modulo = kwargs.get('modulo', 2)
         newobj._parent = parent
         # Inherit time/space identifiers
         newobj.is_Time = parent.is_Time
@@ -187,22 +190,95 @@ class SteppingDimension(Dimension):
         return self._parent
 
     @property
-    def modulo(self):
-        return self._modulo
-
-    @modulo.setter
-    def modulo(self, val):
-        # TODO: this is an outrageous hack. TimeFunctions are updating this value
-        # at construction time. This is a symptom we need local and global dimensions
-        self._modulo = val
-
-    @property
     def reverse(self):
         return self.parent.reverse
 
     @property
     def spacing(self):
         return self.parent.spacing
+
+    def _hashable_content(self):
+        return (self.parent._hashable_content(),)
+
+
+class SubDimension(DerivedDimension):
+
+    is_Sub = True
+
+    """
+    Dimension symbol representing a sub-region of a ``parent`` Dimension.
+
+    :param name: Name of the dimension symbol.
+    :param parent: Parent dimension from which the SubDimension is created.
+    :param lower: Lower offset from the ``parent`` dimension.
+    :param upper: Upper offset from the ``parent`` dimension.
+    """
+
+    def __new__(cls, name, parent, lower, upper, **kwargs):
+        newobj = DerivedDimension.__new__(cls, name, parent)
+        newobj._lower = lower
+        newobj._upper = upper
+        return newobj
+
+    @property
+    def lower(self):
+        return self._lower
+
+    @property
+    def upper(self):
+        return self._upper
+
+    def _hashable_content(self):
+        return (self.parent._hashable_content(), self.lower, self.upper)
+
+    def argument_defaults(self, parent_defaults):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param parent_defaults: Default values for the parent dimensions.
+        """
+        args = {}
+
+        if self.parent.start_name in parent_defaults:
+            args[self.start_name] = parent_defaults[self.parent.start_name] + self.lower
+
+        if self.parent.end_name in parent_defaults:
+            args[self.end_name] = parent_defaults[self.parent.end_name] + self.upper
+
+        if self.parent.size_name in parent_defaults:
+            args[self.size_name] = parent_defaults[self.parent.size_name] -\
+                (self.lower + self.upper)
+
+        return args
+
+
+class SteppingDimension(DerivedDimension):
+
+    is_Stepping = True
+
+    """
+    Dimension symbol that defines the stepping direction of an
+    :class:`Operator` and implies modulo buffered iteration. This is most
+    commonly use to represent a timestepping dimension.
+
+    :param name: Name of the dimension symbol.
+    :param parent: Parent dimension over which to loop in modulo fashion.
+    """
+
+    def __new__(cls, name, parent, **kwargs):
+        newobj = DerivedDimension.__new__(cls, name, parent)
+        newobj._modulo = kwargs.get('modulo', 2)
+        return newobj
+
+    @property
+    def modulo(self):
+        return self._modulo
+
+    @modulo.setter
+    def modulo(self, val):
+        # TODO: this is an outrageous hack. TimeFunctions are updating this value
+        # at construction time.
+        self._modulo = val
 
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.modulo)
@@ -239,7 +315,7 @@ class SteppingDimension(Dimension):
 
         note ::
 
-        A :class:`SteppingDimension` neither knows it's size nor it's
+        A :class:`SteppingDimension` neither knows its size nor its
         iteration end point. So all we can provide is a starting point.
         """
         return {self.parent.start_name: 0}

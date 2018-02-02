@@ -7,6 +7,7 @@ from sympy import Expr, Float
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
+from devito.region import DOMAIN
 from devito.tools import as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'FunctionFromPointer', 'ListInitializer',
@@ -53,7 +54,9 @@ class Eq(sympy.Eq, FrozenExpr):
 
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
+        region = kwargs.pop('region', DOMAIN)
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
+        obj._region = region
         return obj
 
 
