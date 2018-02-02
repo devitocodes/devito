@@ -7,7 +7,7 @@ import numpy as np
 from psutil import virtual_memory
 
 from devito.parameters import configuration
-from devito.logger import debug, error, warning
+from devito.logger import debug, error, warning, info
 from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import Dimension, TimeDimension
@@ -223,6 +223,7 @@ class Function(TensorFunction):
         """
         Dynamically create notational shortcuts for space derivatives.
         """
+        derivatives = ()
         for dim in self.space_dimensions:
             # First derivative, centred
             dx = partial(first_derivative, order=self.space_order,
@@ -231,7 +232,7 @@ class Function(TensorFunction):
                     property(dx, 'Return the symbolic expression for '
                              'the centered first derivative wrt. '
                              'the %s dimension' % dim.name))
-
+            derivatives += ('d%s' % dim.name, )
             # First derivative, left
             dxl = partial(first_derivative, order=self.space_order,
                           dim=dim, side=left)
@@ -239,7 +240,7 @@ class Function(TensorFunction):
                     property(dxl, 'Return the symbolic expression for '
                              'the left-sided first derivative wrt. '
                              'the %s dimension' % dim.name))
-
+            derivatives += ("d%sl" % dim.name, )
             # First derivative, right
             dxr = partial(first_derivative, order=self.space_order,
                           dim=dim, side=right)
@@ -247,24 +248,28 @@ class Function(TensorFunction):
                     property(dxr, 'Return the symbolic expression for '
                              'the right-sided first derivative wrt. '
                              'the %s dimension' % dim.name))
+            derivatives += ("d%sr" % dim.name, )
 
             # Second derivative
-            dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
-                          fd_order=int(self.space_order / 2))
-            setattr(self.__class__, 'd%s2' % dim.name,
-                    property(dx2, 'Return the symbolic expression for '
-                             'the second derivative wrt. the '
-                             '%s dimension' % dim.name))
-
+            if self.space_order >= 2:
+                dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
+                              fd_order=int(self.space_order / 2))
+                setattr(self.__class__, 'd%s2' % dim.name,
+                        property(dx2, 'Return the symbolic expression for '
+                                 'the second derivative wrt. the '
+                                 '%s dimension' % dim.name))
+                derivatives += ('d%s2' % dim.name, )
             # Fourth derivative
-            dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
-                          fd_order=max(int(self.space_order / 2), 2))
-            setattr(self.__class__, 'd%s4' % dim.name,
-                    property(dx4, 'Return the symbolic expression for '
-                             'the fourth derivative wrt. the '
-                             '%s dimension' % dim.name))
-
-            for dim2 in self.space_dimensions:
+            if self.space_order >= 4:
+                dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
+                              fd_order=max(int(self.space_order / 2), 2))
+                setattr(self.__class__, 'd%s4' % dim.name,
+                        property(dx4, 'Return the symbolic expression for '
+                                 'the fourth derivative wrt. the '
+                                 '%s dimension' % dim.name))
+                derivatives += ('d%s4' % dim.name, )
+            # Cross derivatives
+            for dim2 in [d for d in self.space_dimensions if d!=dim]:
                 # First cross derivative
                 dxy = partial(cross_derivative, order=self.space_order,
                               dims=(dim, dim2))
@@ -273,15 +278,18 @@ class Function(TensorFunction):
                                  'the first cross derivative wrt. the '
                                  '%s and %s dimensions' %
                                  (dim.name, dim2.name)))
-
+                derivatives += ('d%s%s' % (dim.name, dim2.name), )
                 # Second cross derivative
-                dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
-                                order=self.space_order)
-                setattr(self.__class__, 'd%s2%s2' % (dim.name, dim2.name),
-                        property(dx2y2, 'Return the symbolic expression for '
-                                 'the second cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (dim.name, dim2.name)))
+                if self.space_order >= 2:
+                    dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
+                                    order=self.space_order)
+                    setattr(self.__class__, 'd%s2%s2' % (dim.name, dim2.name),
+                            property(dx2y2, 'Return the symbolic expression for '
+                                     'the second cross derivative wrt. the '
+                                     '%s and %s dimensions' %
+                                     (dim.name, dim2.name)))
+                    derivatives += ('d%s2%s2' % (dim.name, dim2.name), )
+        info("Spatial derivatives shortcuts generated for " + str(self) + " are: %s" % list(derivatives))
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -506,20 +514,28 @@ class Function(TensorFunction):
         Generates a symbolic expression for the Laplacian, the second
         derivative wrt. all spatial dimensions.
         """
-        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
+        if self.space_order < 2:
+            info("Space order has to be at least 2 for a laplacian, returning 0")
+            return 0
+        else:
+            derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
 
-        return sum([getattr(self, d) for d in derivs[:self.ndim]])
+            return sum([getattr(self, d) for d in derivs[:self.ndim]])
 
     def laplace2(self, weight=1):
         """
         Generates a symbolic expression for the double Laplacian
         wrt. all spatial dimensions.
         """
-        order = self.space_order/2
-        first = sum([second_derivative(self, dim=d, order=order)
-                     for d in self.space_dimensions])
-        return sum([second_derivative(first * weight, dim=d, order=order)
-                    for d in self.space_dimensions])
+        if self.space_order < 2:
+            info("Space order has to be at least 2 for a laplacian, returning 0")
+            return 0
+        else:
+            order = self.space_order/2
+            first = sum([second_derivative(self, dim=d, order=order)
+                         for d in self.space_dimensions])
+            return sum([second_derivative(first * weight, dim=d, order=order)
+                        for d in self.space_dimensions])
 
     def argument_defaults(self, alias=None):
         """
