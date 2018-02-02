@@ -277,19 +277,20 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     """
 
     def __new__(cls, *args, **kwargs):
+        options = kwargs.get('options', {})
         if cls in _SymbolCache:
-            options = kwargs.get('options', {})
             newobj = sympy.Function.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
             name = kwargs.get('name')
-            if len(args) < 1:
-                args = cls._indices(**kwargs)
+            indices = cls.__indices_setup__(**kwargs)
 
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
-            options = kwargs.get('options', {})
-            newobj = sympy.Function.__new__(newcls, *args, **options)
+            newobj = sympy.Function.__new__(newcls, *indices, **options)
+
+            # Initialization
+            newobj.indices = indices
             newobj.__init__(*args, **kwargs)
 
             # All objects cached on the AbstractFunction /newobj/ keep a reference
@@ -302,14 +303,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return newobj
 
     @classmethod
-    def _indices(cls, **kwargs):
+    def __indices_setup__(cls, **kwargs):
         """Return the default dimension indices."""
-        return []
+        return ()
 
     @property
     def ndim(self):
         """Return the rank of the object."""
-        return len(self.shape)
+        return len(self.indices)
 
     @property
     def indexed(self):
@@ -432,7 +433,6 @@ class Array(SymbolicData):
         if not self._cached():
             self.name = kwargs.get('name')
             self.shape = kwargs.get('shape')
-            self.indices = kwargs.get('dimensions')
             self.dtype = kwargs.get('dtype', np.float32)
 
             self._external = bool(kwargs.get('external', False))
@@ -443,8 +443,8 @@ class Array(SymbolicData):
             assert single_or([self._external, self._onstack, self._onheap])
 
     @classmethod
-    def _indices(cls, **kwargs):
-        return kwargs.get('dimensions')
+    def __indices_setup__(cls, **kwargs):
+        return tuple(kwargs.get('dimensions'))
 
     @property
     def _mem_external(self):

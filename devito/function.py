@@ -118,8 +118,6 @@ class TensorFunction(SymbolicFunction):
         if not self._cached():
             self.name = kwargs.get('name')
 
-            self.indices = self._indices(**kwargs)
-
             # Staggered mask
             self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
@@ -536,7 +534,7 @@ class Function(TensorFunction):
                                  (dim.name, dim2.name)))
 
     @classmethod
-    def _indices(cls, **kwargs):
+    def __indices_setup__(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param grid: :class:`Grid` that defines the spatial domain.
@@ -690,7 +688,7 @@ class TimeFunction(Function):
             self._padding = ((0, 0),) + self._padding
 
     @classmethod
-    def _indices(cls, **kwargs):
+    def __indices_setup__(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param grid: :class:`Grid` object from which to infer the data
@@ -712,8 +710,7 @@ class TimeFunction(Function):
 
         assert(isinstance(time_dim, Dimension) and time_dim.is_Time)
 
-        _indices = Function._indices(**kwargs)
-        return tuple([time_dim] + list(_indices))
+        return (time_dim,) + Function.__indices_setup__(**kwargs)
 
     @property
     def forward(self):
@@ -820,7 +817,7 @@ class SparseFunction(TensorFunction):
             self._padding = tuple((0, 0) for i in range(self.ndim))
 
     @classmethod
-    def _indices(cls, **kwargs):
+    def __indices_setup__(cls, **kwargs):
         """
         Return the default dimension indices for a given data shape.
         """
@@ -1094,7 +1091,7 @@ class SparseTimeFunction(SparseFunction):
             self.nt = nt
 
     @classmethod
-    def _indices(cls, **kwargs):
+    def __indices_setup__(cls, **kwargs):
         """
         Return the default dimension indices for a given data shape.
         """
