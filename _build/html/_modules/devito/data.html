@@ -202,10 +202,11 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">dimensions</span><span class="p">)</span>
         <span class="n">ndarray</span><span class="p">,</span> <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">malloc_aligned</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ndarray</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_c_pointer</span> <span class="o">=</span> <span class="n">c_pointer</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">modulo</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">True</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="k">else</span> <span class="kc">False</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">obj</span>
 
     <span class="k">def</span> <span class="nf">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -221,9 +222,9 @@
             <span class="c1"># `self` was created through __new__()</span>
             <span class="k">return</span>
         <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="o">!=</span> <span class="n">Data</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="n">obj</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">False</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">modulo</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_modulo</span>
         <span class="c1"># Views or references created via operations on `obj` do not get an</span>
         <span class="c1"># explicit reference to the C pointer (`_c_pointer`). This makes sure</span>
         <span class="c1"># that only one object (the &quot;root&quot; Data) will free the C-allocated memory</span>
@@ -252,8 +253,8 @@
 
         <span class="c1"># Index conversion</span>
         <span class="n">wrapped</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">mod</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">mod</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">mod</span><span class="p">,</span> <span class="n">use_modulo</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">use_modulo</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
                 <span class="c1"># Nothing special to do (no logical indexing)</span>
                 <span class="n">wrapped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>

@@ -163,61 +163,19 @@
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Interval</span><span class="p">,</span> <span class="n">IterationSpace</span><span class="p">,</span> <span class="n">Stencil</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">SubDimension</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Interval</span><span class="p">,</span> <span class="n">DataSpace</span><span class="p">,</span> <span class="n">IterationSpace</span><span class="p">,</span> <span class="n">Stencil</span>
+<span class="kn">from</span> <span class="nn">devito.region</span> <span class="k">import</span> <span class="n">DOMAIN</span><span class="p">,</span> <span class="n">INTERIOR</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">dimension_sort</span><span class="p">,</span> <span class="n">indexify</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;LoweredEq&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="LoweredEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.LoweredEq">[docs]</a><span class="k">class</span> <span class="nc">LoweredEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">EqMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A new SymPy equation with an associated iteration space.</span>
-
-<span class="sd">    All :class:`Function` objects within ``expr`` get indexified and thus turned</span>
-<span class="sd">    into objects of type :class:`types.Indexed`.</span>
-
-<span class="sd">    An iteration space is an object of type :class:`Space`. It represents the</span>
-<span class="sd">    data points accessed by the equation along each :class:`Dimension`. The</span>
-<span class="sd">    :class:`Dimension`s are extracted directly from the equation.</span>
+<span class="sd">    A mixin providing operations common to all :mod:`ir` equation types.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">input_expr</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="c1"># Sanity check</span>
-        <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">input_expr</span><span class="p">)</span> <span class="o">!=</span> <span class="n">LoweredEq</span>
-        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span>
-
-        <span class="c1"># Indexification</span>
-        <span class="n">expr</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">input_expr</span><span class="p">)</span>
-
-        <span class="c1"># Apply caller-provided substitution</span>
-        <span class="k">if</span> <span class="n">subs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span>
-
-        <span class="n">expr</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">LoweredEq</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="s1">&#39;is_Increment&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-
-        <span class="c1"># Get the accessed data points</span>
-        <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-
-        <span class="c1"># Well-defined dimension ordering</span>
-        <span class="n">ordering</span> <span class="o">=</span> <span class="n">dimension_sort</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Time</span><span class="p">)</span>
-
-        <span class="c1"># Split actual Intervals (the data spaces) from the &quot;derived&quot; iterators,</span>
-        <span class="c1"># to build an IterationSpace</span>
-        <span class="n">iterators</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ordering</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">:</span>
-                <span class="n">iterators</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">iterators</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span>
-        <span class="n">intervals</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">iterators</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">offs</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">ofs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">])</span>
-            <span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">offs</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">offs</span><span class="p">))</span><span class="o">.</span><span class="n">negate</span><span class="p">())</span>
-        <span class="n">expr</span><span class="o">.</span><span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="n">iterators</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">expr</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -225,7 +183,93 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span>
+
+
+<div class="viewcode-block" id="LoweredEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.LoweredEq">[docs]</a><span class="k">class</span> <span class="nc">LoweredEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">EqMixin</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    LoweredEq(expr, subs=None)</span>
+
+<span class="sd">    A SymPy equation with associated iteration and data spaces.</span>
+
+<span class="sd">    All :class:`Function` objects within ``expr`` get indexified and thus turned</span>
+<span class="sd">    into objects of type :class:`types.Indexed`.</span>
+
+<span class="sd">    The data space is an object of type :class:`DataSpace`. It represents the</span>
+<span class="sd">    data points accessed by the equation along each :class:`Dimension`. The</span>
+<span class="sd">    :class:`Dimension`s are extracted directly from the equation.</span>
+
+<span class="sd">    The iteration space is an object of type :class:`IterationSpace`. It</span>
+<span class="sd">    represents the iteration points along each :class:`Dimension` that the</span>
+<span class="sd">    equation may traverse with the guarantee that no out-of-bounds accesses</span>
+<span class="sd">    will be performed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Parse input</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">input_expr</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">input_expr</span><span class="p">)</span> <span class="o">!=</span> <span class="n">LoweredEq</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1"># Reconstructing from existing Eq. E.g., we end up here after xreplace</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">stamp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;stamp&#39;</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stamp</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span>
+            <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="n">stamp</span><span class="o">.</span><span class="n">is_Increment</span>
+            <span class="n">expr</span><span class="o">.</span><span class="n">dspace</span> <span class="o">=</span> <span class="n">stamp</span><span class="o">.</span><span class="n">dspace</span>
+            <span class="n">expr</span><span class="o">.</span><span class="n">ispace</span> <span class="o">=</span> <span class="n">stamp</span><span class="o">.</span><span class="n">ispace</span>
+            <span class="k">return</span> <span class="n">expr</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot construct Eq from args=</span><span class="si">%s</span><span class="s2"> &quot;</span>
+                             <span class="s2">&quot;and kwargs=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)))</span>
+
+        <span class="c1"># Indexification</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">input_expr</span><span class="p">)</span>
+
+        <span class="c1"># Apply caller-provided substitution</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;subs&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">subs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span>
+
+        <span class="c1"># Well-defined dimension ordering</span>
+        <span class="n">ordering</span> <span class="o">=</span> <span class="n">dimension_sort</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Time</span><span class="p">)</span>
+
+        <span class="c1"># Introduce space sub-dimensions if need to</span>
+        <span class="n">region</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="s1">&#39;_region&#39;</span><span class="p">,</span> <span class="n">DOMAIN</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">region</span> <span class="o">==</span> <span class="n">INTERIOR</span><span class="p">:</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">SubDimension</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">i&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ordering</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Space</span><span class="p">}</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+            <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ordering</span><span class="p">]</span>
+
+        <span class="c1"># Get the accessed data points</span>
+        <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+        <span class="c1"># Split actual Intervals (the data spaces) from the &quot;derived&quot; iterators,</span>
+        <span class="c1"># to build an IterationSpace</span>
+        <span class="n">iterators</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ordering</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+                <span class="n">iterators</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">iterators</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">intervals</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">iterators</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">offs</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">ofs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">])</span>
+            <span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">offs</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">offs</span><span class="p">)))</span>
+
+        <span class="c1"># Finally create the LoweredEq with all metadata attached</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">LoweredEq</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="s1">&#39;is_Increment&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">expr</span><span class="o">.</span><span class="n">dspace</span> <span class="o">=</span> <span class="n">DataSpace</span><span class="p">(</span><span class="n">intervals</span><span class="p">)</span>
+        <span class="n">expr</span><span class="o">.</span><span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">negate</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">intervals</span><span class="p">],</span> <span class="n">iterators</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">expr</span>
+
+<div class="viewcode-block" id="LoweredEq.xreplace"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.LoweredEq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="n">stamp</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span></div></div>
 </pre></div>
 
            </div>

@@ -175,6 +175,7 @@
     <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="n">is_Derived</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">False</span>
 
@@ -253,7 +254,7 @@
     <span class="nd">@reverse</span><span class="o">.</span><span class="n">setter</span>
     <span class="k">def</span> <span class="nf">reverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
         <span class="c1"># TODO: this is an outrageous hack. TimeFunctions are updating this value</span>
-        <span class="c1"># at construction time. This is a symptom we need local and global dimensions</span>
+        <span class="c1"># at construction time.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_reverse</span> <span class="o">=</span> <span class="n">val</span>
 
     <span class="nd">@property</span>
@@ -286,6 +287,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
             <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">)</span>
 
+        <span class="c1"># Let the dimension name be an alias for `dim_e`</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
             <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
@@ -301,6 +303,7 @@
 <span class="sd">    extent of physical grid. :class:`SpaceDimensions` create dedicated</span>
 <span class="sd">    shortcut notations for spatial derivatives on :class:`Function`</span>
 <span class="sd">    symbols.</span>
+
 <span class="sd">    :param name: Name of the dimension symbol.</span>
 <span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
 <span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
@@ -315,28 +318,28 @@
 <span class="sd">    Dimension symbol to represent a dimension that defines the extent</span>
 <span class="sd">    of time. As time might be used in different contexts, all derived</span>
 <span class="sd">    time dimensions should inherit from :class:`TimeDimension`.</span>
+
 <span class="sd">    :param name: Name of the dimension symbol.</span>
 <span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
 <span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 
 
-<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">DerivedDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
 
     <span class="n">is_Derived</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Dimension symbol that defines the stepping direction of an</span>
-<span class="sd">    :class:`Operator` and implies modulo buffered iteration. This is most</span>
-<span class="sd">    commonly use to represent a timestepping dimension.</span>
-<span class="sd">    :param parent: Parent dimension over which to loop in modulo fashion.</span>
+<span class="sd">    Dimension symbol derived from a ``parent`` Dimension.</span>
+
+<span class="sd">    :param name: Name of the dimension symbol.</span>
+<span class="sd">    :param parent: Parent dimension from which the ``SubDimension`` is</span>
+<span class="sd">                   created.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">newobj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
         <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span>
-        <span class="n">newobj</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;modulo&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_parent</span> <span class="o">=</span> <span class="n">parent</span>
         <span class="c1"># Inherit time/space identifiers</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">is_Time</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">is_Time</span>
@@ -348,22 +351,95 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">modulo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span>
-
-    <span class="nd">@modulo</span><span class="o">.</span><span class="n">setter</span>
-    <span class="k">def</span> <span class="nf">modulo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
-        <span class="c1"># TODO: this is an outrageous hack. TimeFunctions are updating this value</span>
-        <span class="c1"># at construction time. This is a symptom we need local and global dimensions</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="n">val</span>
-
-    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">reverse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">reverse</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">spacing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">spacing</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),)</span>
+
+
+<span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+
+    <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol representing a sub-region of a ``parent`` Dimension.</span>
+
+<span class="sd">    :param name: Name of the dimension symbol.</span>
+<span class="sd">    :param parent: Parent dimension from which the SubDimension is created.</span>
+<span class="sd">    :param lower: Lower offset from the ``parent`` dimension.</span>
+<span class="sd">    :param upper: Upper offset from the ``parent`` dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_lower</span> <span class="o">=</span> <span class="n">lower</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_upper</span> <span class="o">=</span> <span class="n">upper</span>
+        <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">lower</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lower</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">upper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_upper</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_defaults</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+
+<span class="sd">        :param parent_defaults: Default values for the parent dimensions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span> <span class="ow">in</span> <span class="n">parent_defaults</span><span class="p">:</span>
+            <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parent_defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">end_name</span> <span class="ow">in</span> <span class="n">parent_defaults</span><span class="p">:</span>
+            <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parent_defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span> <span class="ow">in</span> <span class="n">parent_defaults</span><span class="p">:</span>
+            <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parent_defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">-</span>\
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lower</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">args</span>
+
+
+<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+
+    <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol that defines the stepping direction of an</span>
+<span class="sd">    :class:`Operator` and implies modulo buffered iteration. This is most</span>
+<span class="sd">    commonly use to represent a timestepping dimension.</span>
+
+<span class="sd">    :param name: Name of the dimension symbol.</span>
+<span class="sd">    :param parent: Parent dimension over which to loop in modulo fashion.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;modulo&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">modulo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span>
+
+    <span class="nd">@modulo</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">modulo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="c1"># TODO: this is an outrageous hack. TimeFunctions are updating this value</span>
+        <span class="c1"># at construction time.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="n">val</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span><span class="p">)</span>
@@ -400,7 +476,7 @@
 
 <span class="sd">        note ::</span>
 
-<span class="sd">        A :class:`SteppingDimension` neither knows it&#39;s size nor it&#39;s</span>
+<span class="sd">        A :class:`SteppingDimension` neither knows its size nor its</span>
 <span class="sd">        iteration end point. So all we can provide is a starting point.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span></div>

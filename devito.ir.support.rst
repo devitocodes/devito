@@ -12,10 +12,10 @@ devito\.ir\.support\.basic module
     :undoc-members:
     :show-inheritance:
 
-devito\.ir\.support\.domain module
-----------------------------------
+devito\.ir\.support\.space module
+---------------------------------
 
-.. automodule:: devito.ir.support.domain
+.. automodule:: devito.ir.support.space
     :members:
     :undoc-members:
     :show-inheritance:

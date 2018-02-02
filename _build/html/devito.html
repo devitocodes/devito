@@ -121,6 +121,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.profiling">devito.profiling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.region">devito.region module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.types">devito.types module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito">Module contents</a></li>
@@ -277,7 +278,7 @@
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.support.html">devito.ir.support package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#submodules">Submodules</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.basic">devito.ir.support.basic module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.domain">devito.ir.support.domain module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.space">devito.ir.support.space module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.stencil">devito.ir.support.stencil module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support">Module contents</a></li>
 </ul>
@@ -1335,6 +1336,11 @@ potential iteration space.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Sub">
+<code class="descname">is_Sub</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Sub" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Time">
 <code class="descname">is_Time</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Time" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1406,10 +1412,20 @@ Would be the same as size if using default values</p>
 <dd><p>Dimension symbol to represent a space dimension that defines the
 extent of physical grid. <code class="xref py py-class docutils literal"><span class="pre">SpaceDimensions</span></code> create dedicated
 shortcut notations for spatial derivatives on <code class="xref py py-class docutils literal"><span class="pre">Function</span></code>
-symbols.
-:param name: Name of the dimension symbol.
-:param reverse: Traverse dimension in reverse order (default False)
-:param spacing: Optional, symbol for the spacing along this dimension.</p>
+symbols.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the dimension symbol.</li>
+<li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
+<li><strong>spacing</strong> – Optional, symbol for the spacing along this dimension.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -1428,10 +1444,20 @@ symbols.
 <code class="descname">is_Time</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.TimeDimension.is_Time" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol to represent a dimension that defines the extent
 of time. As time might be used in different contexts, all derived
-time dimensions should inherit from <a class="reference internal" href="#devito.dimension.TimeDimension" title="devito.dimension.TimeDimension"><code class="xref py py-class docutils literal"><span class="pre">TimeDimension</span></code></a>.
-:param name: Name of the dimension symbol.
-:param reverse: Traverse dimension in reverse order (default False)
-:param spacing: Optional, symbol for the spacing along this dimension.</p>
+time dimensions should inherit from <a class="reference internal" href="#devito.dimension.TimeDimension" title="devito.dimension.TimeDimension"><code class="xref py py-class docutils literal"><span class="pre">TimeDimension</span></code></a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the dimension symbol.</li>
+<li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
+<li><strong>spacing</strong> – Optional, symbol for the spacing along this dimension.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -1439,7 +1465,7 @@ time dimensions should inherit from <a class="reference internal" href="#devito.
 <dl class="class">
 <dt id="devito.dimension.SteppingDimension">
 <em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">SteppingDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SteppingDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SteppingDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal"><span class="pre">devito.dimension.Dimension</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
 <dl class="method">
 <dt id="devito.dimension.SteppingDimension.argument_defaults">
 <code class="descname">argument_defaults</code><span class="sig-paren">(</span><em>size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SteppingDimension.argument_defaults"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SteppingDimension.argument_defaults" title="Permalink to this definition">¶</a></dt>
@@ -1453,7 +1479,7 @@ time dimensions should inherit from <a class="reference internal" href="#devito.
 </tbody>
 </table>
 <p>note</p>
-<p>A <a class="reference internal" href="#devito.dimension.SteppingDimension" title="devito.dimension.SteppingDimension"><code class="xref py py-class docutils literal"><span class="pre">SteppingDimension</span></code></a> neither knows it’s size nor it’s
+<p>A <a class="reference internal" href="#devito.dimension.SteppingDimension" title="devito.dimension.SteppingDimension"><code class="xref py py-class docutils literal"><span class="pre">SteppingDimension</span></code></a> neither knows its size nor its
 iteration end point. So all we can provide is a starting point.</p>
 </dd></dl>
 
@@ -1477,37 +1503,28 @@ iteration end point. So all we can provide is a starting point.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.SteppingDimension.is_Derived">
-<code class="descname">is_Derived</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.SteppingDimension.is_Derived" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
 <dt id="devito.dimension.SteppingDimension.is_Stepping">
 <code class="descname">is_Stepping</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.SteppingDimension.is_Stepping" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol that defines the stepping direction of an
 <code class="xref py py-class docutils literal"><span class="pre">Operator</span></code> and implies modulo buffered iteration. This is most
-commonly use to represent a timestepping dimension.
-:param parent: Parent dimension over which to loop in modulo fashion.</p>
+commonly use to represent a timestepping dimension.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the dimension symbol.</li>
+<li><strong>parent</strong> – Parent dimension over which to loop in modulo fashion.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="devito.dimension.SteppingDimension.modulo">
 <code class="descname">modulo</code><a class="headerlink" href="#devito.dimension.SteppingDimension.modulo" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.SteppingDimension.parent">
-<code class="descname">parent</code><a class="headerlink" href="#devito.dimension.SteppingDimension.parent" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.SteppingDimension.reverse">
-<code class="descname">reverse</code><a class="headerlink" href="#devito.dimension.SteppingDimension.reverse" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.SteppingDimension.spacing">
-<code class="descname">spacing</code><a class="headerlink" href="#devito.dimension.SteppingDimension.spacing" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -2219,6 +2236,12 @@ the sparse point data.</li>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.function.SparseFunction.ndim">
+<code class="descname">ndim</code><a class="headerlink" href="#devito.function.SparseFunction.ndim" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the number of spatial dimensions.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.function.SparseFunction.point_increments">
 <code class="descname">point_increments</code><a class="headerlink" href="#devito.function.SparseFunction.point_increments" title="Permalink to this definition">¶</a></dt>
 <dd><p>Index increments in each dimension for each point symbol</p>
@@ -2649,6 +2672,22 @@ The following code sections are profiled:</p>
 * Any perfectly nested loops.
 </pre></div>
 </div>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.region">
+<span id="devito-region-module"></span><h2>devito.region module<a class="headerlink" href="#module-devito.region" title="Permalink to this headline">¶</a></h2>
+<dl class="data">
+<dt id="devito.region.DOMAIN">
+<code class="descclassname">devito.region.</code><code class="descname">DOMAIN</code><em class="property"> = DOMAIN</em><a class="headerlink" href="#devito.region.DOMAIN" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represent the physical domain of the PDE; that is, domain = boundary + interior</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="devito.region.INTERIOR">
+<code class="descclassname">devito.region.</code><code class="descname">INTERIOR</code><em class="property"> = INTERIOR</em><a class="headerlink" href="#devito.region.INTERIOR" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represent the physical interior domain of the PDE; that is, PDE boundaries are
+not included.</p>
 </dd></dl>
 
 </div>

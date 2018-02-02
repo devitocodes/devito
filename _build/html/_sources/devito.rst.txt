@@ -137,6 +137,14 @@ devito\.profiling module
     :undoc-members:
     :show-inheritance:
 
+devito\.region module
+---------------------
+
+.. automodule:: devito.region
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.tools module
 --------------------
 

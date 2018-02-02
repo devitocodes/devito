@@ -64,12 +64,13 @@
 ./_build/html/_modules/devito/ir/iet/utils.html
 ./_build/html/_modules/devito/ir/iet/visitors.html
 ./_build/html/_modules/devito/ir/support/basic.html
-./_build/html/_modules/devito/ir/support/domain.html
+./_build/html/_modules/devito/ir/support/space.html
 ./_build/html/_modules/devito/ir/support/stencil.html
 ./_build/html/_modules/devito/logger.html
 ./_build/html/_modules/devito/operator.html
 ./_build/html/_modules/devito/parameters.html
 ./_build/html/_modules/devito/profiling.html
+./_build/html/_modules/devito/region.html
 ./_build/html/_modules/devito/symbolics/extended_sympy.html
 ./_build/html/_modules/devito/symbolics/inspection.html
 ./_build/html/_modules/devito/symbolics/manipulation.html
