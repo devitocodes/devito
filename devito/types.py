@@ -206,6 +206,8 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
             newobj = sympy.Symbol.__new__(newcls, name, *args, **options)
+
+            # Initialization
             newobj.__init__(*args, **kwargs)
 
             # Store new instance in symbol cache
@@ -290,7 +292,9 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             newobj = sympy.Function.__new__(newcls, *indices, **options)
 
             # Initialization
-            newobj.indices = indices
+            newobj._name = name
+            newobj._indices = indices
+            newobj._shape = cls.__shape_setup__(**kwargs)
             newobj.__init__(*args, **kwargs)
 
             # All objects cached on the AbstractFunction /newobj/ keep a reference
@@ -304,18 +308,33 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        """Return the default dimension indices."""
+        """Extract the function indices from ``kwargs``."""
+        return ()
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        """Extract the function shape from ``kwargs``."""
         return ()
 
     @property
-    def ndim(self):
-        """Return the rank of the object."""
-        return len(self.indices)
+    def name(self):
+        """Return the name of the function."""
+        return self._name
 
     @property
-    def indexed(self):
-        """Extract a :class:`IndexedData` object from the current object."""
-        return IndexedData(self.name, shape=self.shape, function=self.function)
+    def indices(self):
+        """Return the indices (aka dimensions) of the function."""
+        return self._indices
+
+    @property
+    def shape(self):
+        """Return the shape of the function."""
+        return self._shape
+
+    @property
+    def ndim(self):
+        """Return the rank of the function."""
+        return len(self.indices)
 
     @property
     def symbolic_shape(self):
@@ -335,6 +354,20 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             except AttributeError:
                 sshape.append(j.symbolic_size)
         return tuple(sshape)
+
+    def indexify(self, indices=None):
+        """Create a :class:`sympy.Indexed` object from the current object."""
+        if indices is not None:
+            return Indexed(self.indexed, *indices)
+
+        subs = dict([(i.spacing, 1) for i in self.indices])
+        indices = [a.subs(subs) for a in self.args]
+        return Indexed(self.indexed, *indices)
+
+    @property
+    def indexed(self):
+        """Extract a :class:`IndexedData` object from the current object."""
+        return IndexedData(self.name, shape=self.shape, function=self.function)
 
     @property
     def _mem_external(self):
@@ -361,15 +394,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
            size in bytes
         """
         return reduce(mul, self.shape)
-
-    def indexify(self, indices=None):
-        """Create a :class:`sympy.Indexed` object from the current object."""
-        if indices is not None:
-            return Indexed(self.indexed, *indices)
-
-        subs = dict([(i.spacing, 1) for i in self.indices])
-        indices = [a.subs(subs) for a in self.args]
-        return Indexed(self.indexed, *indices)
 
 
 class SymbolicData(AbstractCachedFunction):
@@ -431,8 +455,6 @@ class Array(SymbolicData):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.name = kwargs.get('name')
-            self.shape = kwargs.get('shape')
             self.dtype = kwargs.get('dtype', np.float32)
 
             self._external = bool(kwargs.get('external', False))
@@ -445,6 +467,10 @@ class Array(SymbolicData):
     @classmethod
     def __indices_setup__(cls, **kwargs):
         return tuple(kwargs.get('dimensions'))
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        return tuple(kwargs.get('shape'))
 
     @property
     def _mem_external(self):
@@ -461,8 +487,8 @@ class Array(SymbolicData):
     def update(self, dtype=None, shape=None, dimensions=None, onstack=None,
                onheap=None, external=None):
         self.dtype = dtype or self.dtype
-        self.shape = shape or self.shape
-        self.indices = dimensions or self.indices
+        self._shape = shape or self.shape
+        self._indices = dimensions or self.indices
 
         if any(i is not None for i in [external, onstack, onheap]):
             self._external = bool(external)
