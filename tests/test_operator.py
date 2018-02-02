@@ -398,7 +398,7 @@ class TestArguments(object):
         Test runtime start/end overrides for :class:`TimeFunction` dimensions.
         """
         grid = Grid(shape=(5, 6, 7))
-        f = TimeFunction(name='f', grid=grid, time_order=2)
+        f = TimeFunction(name='f', grid=grid, time_order=0)
 
         # Suppress DLE to work around a know bug with GCC and OpenMP:
         # https://github.com/opesci/devito/issues/320
@@ -419,7 +419,7 @@ class TestArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        mask = np.ones((3, 5, 6, 7), dtype=np.bool)
+        mask = np.ones((1, 5, 6, 7), dtype=np.bool)
         mask[:, 1:3, 2:4, 3:5] = False
         assert (f.data[mask] == 0.).all()
         assert (f.data[:, 1:3, 2:4, 3:5] == 1.).all()
@@ -467,26 +467,26 @@ class TestArguments(object):
 
         # Run with default value
         a.data[:] = 1.
-        op(t=2)
-        assert (a.data[:] == 4.).all()
+        op(t=1)
+        assert (a.data[0] == 4.).all()
 
         # Override with symbol (different name)
         a1 = TimeFunction(name='a1', grid=grid)
         a1.data[:] = 2.
-        op(t=2, a=a1)
-        assert (a1.data[:] == 5.).all()
+        op(t=1, a=a1)
+        assert (a1.data[0] == 5.).all()
 
         # Override with symbol (same name as original)
         a2 = TimeFunction(name='a', grid=grid)
         a2.data[:] = 3.
-        op(t=2, a=a2)
-        assert (a2.data[:] == 6.).all()
+        op(t=1, a=a2)
+        assert (a2.data[0] == 6.).all()
 
         # Override with user-allocated numpy data
         a3 = np.zeros_like(a.data)
         a3[:] = 4.
-        op(t=2, a=a3)
-        assert (a3[:] == 7.).all()
+        op(t=1, a=a3)
+        assert (a3[0] == 7.).all()
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""

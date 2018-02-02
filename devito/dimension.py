@@ -265,24 +265,6 @@ class SteppingDimension(DerivedDimension):
     :param parent: Parent dimension over which to loop in modulo fashion.
     """
 
-    def __new__(cls, name, parent, **kwargs):
-        newobj = DerivedDimension.__new__(cls, name, parent)
-        newobj._modulo = kwargs.get('modulo', 2)
-        return newobj
-
-    @property
-    def modulo(self):
-        return self._modulo
-
-    @modulo.setter
-    def modulo(self, val):
-        # TODO: this is an outrageous hack. TimeFunctions are updating this value
-        # at construction time.
-        self._modulo = val
-
-    def _hashable_content(self):
-        return (self.parent._hashable_content(), self.modulo)
-
     @property
     def symbolic_start(self):
         """
