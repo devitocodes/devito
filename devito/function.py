@@ -269,7 +269,7 @@ class Function(TensorFunction):
                                  '%s dimension' % dim.name))
                 derivatives += ('d%s4' % dim.name, )
             # Cross derivatives
-            for dim2 in [d for d in self.space_dimensions if d!=dim]:
+            for dim2 in [d for d in self.space_dimensions if d != dim]:
                 # First cross derivative
                 dxy = partial(cross_derivative, order=self.space_order,
                               dims=(dim, dim2))
@@ -289,7 +289,11 @@ class Function(TensorFunction):
                                      '%s and %s dimensions' %
                                      (dim.name, dim2.name)))
                     derivatives += ('d%s2%s2' % (dim.name, dim2.name), )
-        info("Spatial derivatives shortcuts generated for " + str(self) + " are: %s" % list(derivatives))
+        if len(derivatives) > 0:
+            info("Spatial derivatives shortcuts generated for " + str(self) +
+                 " are: \n %s" % list(derivatives))
+        else:
+            info("No spatial derivatives shortcuts generated for " + str(self))
 
     @classmethod
     def _indices(cls, **kwargs):
