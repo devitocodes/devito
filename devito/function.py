@@ -291,7 +291,7 @@ class Function(TensorFunction):
                     derivatives += ('d%s2%s2' % (dim.name, dim2.name), )
         if len(derivatives) > 0:
             debug("Spatial derivatives shortcuts generated for " + str(self) +
-                 " are: \n %s" % list(derivatives))
+                  " are: \n %s" % list(derivatives))
         else:
             debug("No spatial derivatives shortcuts generated for " + str(self))
 
@@ -519,7 +519,7 @@ class Function(TensorFunction):
         derivative wrt. all spatial dimensions.
         """
         if self.space_order < 2:
-            info("Space order has to be at least 2 for a laplacian, returning 0")
+            warning("Space order has to be at least 2 for a laplacian, returning 0")
             return 0
         else:
             derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
@@ -532,7 +532,7 @@ class Function(TensorFunction):
         wrt. all spatial dimensions.
         """
         if self.space_order < 2:
-            info("Space order has to be at least 2 for a laplacian, returning 0")
+            warning("Space order has to be at least 2 for a laplacian, returning 0")
             return 0
         else:
             order = self.space_order/2
