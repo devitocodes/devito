@@ -7,7 +7,7 @@ import numpy as np
 from psutil import virtual_memory
 
 from devito.parameters import configuration
-from devito.logger import debug, error, warning, info
+from devito.logger import debug, error, warning
 from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import Dimension, TimeDimension
@@ -290,10 +290,10 @@ class Function(TensorFunction):
                                      (dim.name, dim2.name)))
                     derivatives += ('d%s2%s2' % (dim.name, dim2.name), )
         if len(derivatives) > 0:
-            info("Spatial derivatives shortcuts generated for " + str(self) +
+            debug("Spatial derivatives shortcuts generated for " + str(self) +
                  " are: \n %s" % list(derivatives))
         else:
-            info("No spatial derivatives shortcuts generated for " + str(self))
+            debug("No spatial derivatives shortcuts generated for " + str(self))
 
     @classmethod
     def _indices(cls, **kwargs):
