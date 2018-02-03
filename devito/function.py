@@ -792,7 +792,7 @@ class SparseFunction(TensorFunction):
             self.grid = grid
 
             self.dtype = kwargs.get('dtype', self.grid.dtype)
-            self.space_order = kwargs.get('space_order', 1)
+            self.space_order = kwargs.get('space_order', 0)
 
             # Set up coordinates of sparse points
             coordinates = Function(name='%s_coords' % self.name,
