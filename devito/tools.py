@@ -569,7 +569,14 @@ class EnrichedTuple(tuple):
     """
     A tuple with an arbitrary number of additional attributes.
     """
-    def __new__(cls, *items, **kwargs):
+    def __new__(cls, *items, getters=None, **kwargs):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
+        obj._getters = dict(zip(getters or [], items))
         return obj
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return super(EnrichedTuple, self).__getitem__(key)
+        else:
+            return self._getters[key]
