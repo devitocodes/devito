@@ -275,3 +275,7 @@ def test_index_alignment(const):
     wrp.apply_reverse()
     assert(np.allclose(v.data[0, :, :], 0))
     assert(np.allclose(prod.data, final_value))
+
+
+if __name__ == "__main__":
+    test_forward_with_breaks((50, 50), 'OT2', 4)

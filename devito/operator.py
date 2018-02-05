@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 from operator import attrgetter
-from cached_property import cached_property
 
 import ctypes
 import numpy as np
@@ -124,17 +123,18 @@ class Operator(Callable):
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
-    @cached_property
-    def _argument_defaults(self):
+    def _argument_defaults(self, arguments):
         """
         Derive all default values from parameters and ensure uniqueness.
         """
         default_args = ArgumentMap()
         for p in self.input:
-            default_args.update(p.argument_defaults())
+            if p.name not in arguments:
+                default_args.update(p.argument_defaults())
         for p in self.dimensions:
-            if p.is_Sub:
-                default_args.update(p.argument_defaults(default_args))
+            if p.name not in arguments:
+                if p.is_Sub:
+                    default_args.update(p.argument_defaults(default_args))
         return {k: default_args.reduce(k) for k in default_args}
 
     def arguments(self, **kwargs):
@@ -142,13 +142,13 @@ class Operator(Callable):
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
-        # First, derive all default values from parameters
-        arguments = self._argument_defaults.copy()
-
-        # Next, we insert user-provided overrides
+        arguments = {}
+        # # First, we insert user-provided override
         for p in self.input + self.dimensions:
             arguments.update(p.argument_values(**kwargs))
 
+        # # Second, derive all remaining default values from parameters
+        arguments.update(self._argument_defaults(arguments))
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
