@@ -123,10 +123,16 @@ class Operator(Callable):
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
-    def _argument_defaults(self, arguments):
+    def arguments(self, **kwargs):
         """
-        Derive all default values from parameters and ensure uniqueness.
+        Process runtime arguments passed to ``.apply()` and derive
+        default values for any remaining arguments.
         """
+        arguments = {}
+        # First, we insert user-provided override
+        for p in self.input + self.dimensions:
+            arguments.update(p.argument_values(**kwargs))
+        # Second, derive all remaining default values from parameters
         default_args = ArgumentMap()
         for p in self.input:
             if p.name not in arguments:
@@ -136,19 +142,8 @@ class Operator(Callable):
             if p.name not in arguments:
                 if p.is_Sub:
                     default_args.update(p.argument_defaults(default_args))
-        return {k: default_args.reduce(k) for k in default_args if k not in arguments}
-
-    def arguments(self, **kwargs):
-        """
-        Process runtime arguments passed to ``.apply()` and derive
-        default values for any remaining arguments.
-        """
-        arguments = {}
-        # # First, we insert user-provided override
-        for p in self.input + self.dimensions:
-            arguments.update(p.argument_values(**kwargs))
-        # # Second, derive all remaining default values from parameters
-        arguments.update(self._argument_defaults(arguments))
+        arguments.update({k: default_args.reduce(k)
+                          for k in default_args if k not in arguments})
 
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
