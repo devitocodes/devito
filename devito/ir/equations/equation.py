@@ -90,7 +90,7 @@ class LoweredEq(Eq, EqMixin):
         # to build an IterationSpace
         iterators = OrderedDict()
         for i in ordering:
-            if i.is_Stepping:
+            if i.is_Derived:
                 iterators.setdefault(i.parent, []).append(stencil.entry(i))
             else:
                 iterators.setdefault(i, [])
