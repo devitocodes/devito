@@ -53,8 +53,8 @@ class LoweredEq(Eq, EqMixin):
             assert isinstance(input_expr, Eq)
         elif len(args) == 2:
             # Reconstructing from existing Eq. E.g., we end up here after xreplace
-            expr = super(Eq, cls).__new__(cls, *args, evaluate=False)
-            stamp = kwargs.get('stamp')
+            stamp = kwargs.pop('stamp')
+            expr = Eq.__new__(cls, *args, evaluate=False)
             assert isinstance(stamp, Eq)
             expr.is_Increment = stamp.is_Increment
             expr.dspace = stamp.dspace
@@ -108,4 +108,7 @@ class LoweredEq(Eq, EqMixin):
         return expr
 
     def xreplace(self, rules):
-        return Eq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), stamp=self)
+        return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), stamp=self)
+
+    def func(self, *args):
+        return super(LoweredEq, self).func(*args, stamp=self)

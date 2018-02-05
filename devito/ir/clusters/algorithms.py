@@ -152,32 +152,32 @@ def bump_and_contract(targets, source, sink):
     """
     if not targets:
         return
-
     mapper = {}
 
     # source
     processed = []
-    for k, v in source.trace.items():
-        if any(v.function not in i for i in [targets, sink.tensors]):
-            processed.append(v.func(k, v.rhs.xreplace(mapper)))
+    for e in source.exprs:
+        function = e.lhs.base.function
+        if any(function not in i for i in [targets, sink.tensors]):
+            processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
         else:
-            for i in sink.tensors[v.function]:
+            for i in sink.tensors[function]:
                 scalarized = Scalar(name='s%d' % len(mapper)).indexify()
                 mapper[i] = scalarized
 
                 # Index bumping
-                assert len(v.function.indices) == len(k.indices) == len(i.indices)
+                assert len(function.indices) == len(e.lhs.indices) == len(i.indices)
                 shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
-                            zip(v.function.indices, k.indices, i.indices)}
+                            zip(function.indices, e.lhs.indices, i.indices)}
 
                 # Array contraction
-                handle = v.func(scalarized, v.rhs.xreplace(mapper))
+                handle = e.func(scalarized, e.rhs.xreplace(mapper))
                 handle = xreplace_indices(handle, shifting)
                 processed.append(handle)
     source.exprs = processed
 
     # sink
-    processed = [v.func(k, v.rhs.xreplace(mapper)) for k, v in sink.trace.items()]
+    processed = [e.func(e.lhs, e.rhs.xreplace(mapper)) for e in sink.exprs]
     sink.exprs = processed
 
 
