@@ -533,6 +533,7 @@ class Function(TensorFunction):
         # Collect default dimension arguments from all indices
         for i, s, o in zip(self.indices, self.shape, self.staggered):
             args.update(i.argument_defaults(size=s+o))
+
         return args
 
     def argument_values(self, alias=None, **kwargs):

@@ -131,11 +131,12 @@ class Operator(Callable):
         for p in self.input:
             if p.name not in arguments:
                 default_args.update(p.argument_defaults())
+
         for p in self.dimensions:
             if p.name not in arguments:
                 if p.is_Sub:
                     default_args.update(p.argument_defaults(default_args))
-        return {k: default_args.reduce(k) for k in default_args}
+        return {k: default_args.reduce(k) for k in default_args if k not in arguments}
 
     def arguments(self, **kwargs):
         """
@@ -146,9 +147,9 @@ class Operator(Callable):
         # # First, we insert user-provided override
         for p in self.input + self.dimensions:
             arguments.update(p.argument_values(**kwargs))
-
         # # Second, derive all remaining default values from parameters
         arguments.update(self._argument_defaults(arguments))
+
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
