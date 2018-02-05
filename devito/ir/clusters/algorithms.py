@@ -1,10 +1,12 @@
 from collections import OrderedDict
+from operator import attrgetter
 
+from devito.ir.equations import LoweredEq
 from devito.ir.support import Scope
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
-from devito.symbolics import xreplace_indices
+from devito.symbolics import Eq, Ne, IntDiv, xreplace_indices
 from devito.types import Scalar
-from devito.tools import Bunch, flatten
+from devito.tools import Bunch, flatten, powerset
 
 __all__ = ['clusterize', 'groupby']
 
@@ -23,6 +25,10 @@ def groupby(clusters):
 
     processed = ClusterGroup()
     for c in clusters:
+        if c.guards:
+            # Guarded clusters cannot be grouped together
+            processed.append(c)
+            continue
         fused = False
         for candidate in reversed(list(processed)):
             # Collect all relevant data dependences
@@ -48,15 +54,48 @@ def groupby(clusters):
             elif anti:
                 # Data dependences prevent fusion with earlier clusters, so
                 # must break up the search
-                processed.atomics[c].update(set(anti.cause))
+                c.atomics.update(set(anti.cause))
                 break
-            elif set(flow).intersection(processed.atomics[candidate]):
+            elif set(flow).intersection(candidate.atomics):
                 # We cannot even attempt fusing with earlier clusters, as
                 # otherwise the existing flow dependences wouldn't be honored
                 break
         # Fallback
         if not fused:
             processed.append(c)
+
+    return processed
+
+
+def guard(clusters):
+    """
+    Return a new :class:`ClusterGroup` including new :class:`PartialCluster`s
+    for each conditional expression encountered in ``clusters``.
+    """
+    processed = ClusterGroup()
+    for c in clusters:
+        # Find out what expressions in /c/ should be guarded
+        mapper = {}
+        for e in c.exprs:
+            for k, v in e.ispace.sub_iterators.items():
+                for i in v:
+                    if i.dim.is_SubSampled:
+                        mapper.setdefault(i.dim, []).append(e)
+
+        # Build conditional expressions to guard clusters
+        conditions = {d: Eq(d.parent % d.factor, 0, conditional=True) for d in mapper}
+        negated = {d: Ne(d.parent % d.factor, 0) for d in mapper}
+
+        # Expand with guarded clusters
+        combs = list(powerset(mapper))
+        for dims, ndims in zip(combs, reversed(combs)):
+            banned = flatten(v for k, v in mapper.items() if k not in dims)
+            exprs = [e.xreplace({i: IntDiv(i.parent, i.factor) for i in mapper})
+                     for e in c.exprs if e not in banned]
+            guards = [(i.parent, conditions[i]) for i in dims]
+            guards.extend([(i.parent, negated[i]) for i in ndims])
+            cluster = PartialCluster(exprs, c.ispace, c.atomics, dict(guards))
+            processed.append(cluster)
 
     return processed
 
@@ -214,5 +253,8 @@ def clusterize(exprs):
 
     # Group PartialClusters together where possible
     clusters = groupby(clusters)
+
+    # Introduce conditional PartialClusters
+    clusters = guard(clusters)
 
     return clusters.finalize()
