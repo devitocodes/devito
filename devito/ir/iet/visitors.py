@@ -120,6 +120,17 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
+    def visit_Conditional(self, o):
+        self._depth += 1
+        then_body = self.visit(o.then_body)
+        self._depth -= 1
+        if o.else_body:
+            else_body = self.visit(o.else_body)
+            return self.indent + "<If %s>\n%s\n<Else>\n%s" % (o.condition,
+                                                              then_body, else_body)
+        else:
+            return self.indent + "<If %s>\n%s" % (o.condition, then_body)
+
 
 class CGen(Visitor):
 
@@ -206,6 +217,14 @@ class CGen(Visitor):
     def visit_Call(self, o):
         arguments = self._args_call(o.params)
         return c.Statement('%s(%s)' % (o.name, ','.join(arguments)))
+
+    def visit_Conditional(self, o):
+        then_body = c.Block(self.visit(o.then_body))
+        if o.else_body:
+            else_body = c.Block(self.visit(o.else_body))
+            return c.If(ccode(o.condition), then_body, else_body)
+        else:
+            return c.If(ccode(o.condition), then_body)
 
     def visit_Iteration(self, o):
         body = flatten(self.visit(i) for i in o.children)
