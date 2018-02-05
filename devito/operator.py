@@ -14,7 +14,7 @@ from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.function import Forward, Backward
+from devito.function import Forward, Backward, Constant
 from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
@@ -323,6 +323,8 @@ def retrieve_symbols(expressions):
             continue
         if function.is_Constant or function.is_TensorFunction:
             input.append(function)
+            for j in i.indices:
+                input.extend([k for k in j.free_symbols if isinstance(k, Constant)])
     input = filter_sorted(input, key=attrgetter('name'))
 
     output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
