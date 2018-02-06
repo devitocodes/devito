@@ -233,14 +233,6 @@ class SubDimension(DerivedDimension):
     def upper(self):
         return self._upper
 
-    @property
-    def factor(self):
-        return self._factor
-
-    @property
-    def condition(self):
-        return self._condition
-
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.lower, self.upper)
 

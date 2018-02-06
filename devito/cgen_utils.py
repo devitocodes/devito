@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import cgen as c
 from mpmath.libmp import prec_to_dps, to_str
-from sympy import Eq, Function
+from sympy import Function
 from sympy.printing.ccode import C99CodePrinter
 
 

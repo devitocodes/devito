@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from sympy import Eq
 from cached_property import cached_property
 from frozendict import frozendict

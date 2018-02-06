@@ -1,7 +1,5 @@
 from collections import OrderedDict
-from operator import attrgetter
 
-from devito.ir.equations import LoweredEq
 from devito.ir.support import Scope
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import Eq, Ne, IntDiv, xreplace_indices
