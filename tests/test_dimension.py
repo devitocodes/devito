@@ -1,25 +1,61 @@
-from devito import ConditionalDimension, Grid, TimeFunction, Eq, Operator
-from devito.ir.support.stencil import Stencil
-from devito.tools import pprint
+import numpy as np
+
+from conftest import skipif_yask
+
+from devito import ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant
 
 
-def test_subsampled_dimension():
-    nt = 10
+@skipif_yask
+def test_conditional_basic():
+    nt = 19
     grid = Grid(shape=(11, 11))
-    x, y = grid.dimensions
     time = grid.time_dim
-    t = grid.stepping_dim
-    time_subsampled = ConditionalDimension('t_sub', parent=time, factor=4)
-    u = TimeFunction(name='u', grid=grid)
-    u2 = TimeFunction(name='u2', grid=grid, save=nt)
-    assert(t in u.indices)
-    u_s = TimeFunction(name='u_s', grid=grid, time_dim=time_subsampled)
-    assert(time_subsampled in u_s.indices)
-    fwd_eqn = Eq(u.indexed[t+1, x, y], u.indexed[t, x, y] + 1.)
-    fwd_eqn_2 = Eq(u2.indexed[time+1, x, y], u2.indexed[time, x, y] + 1.)
-    save_eqn = Eq(u_s, u)
-    fwd_op = Operator([fwd_eqn, fwd_eqn_2])
-    fwd_op = Operator([fwd_eqn, fwd_eqn_2, save_eqn])
-    #pprint(fwd_op)
-    print(fwd_op)
 
+    u = TimeFunction(name='u', grid=grid)
+    assert(grid.stepping_dim in u.indices)
+
+    u2 = TimeFunction(name='u2', grid=grid, save=nt)
+    assert(time in u2.indices)
+
+    factor = 4
+    time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+    usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                         time_dim=time_subsampled)
+    assert(time_subsampled in usave.indices)
+
+    eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2 + 1.), Eq(usave, u)]
+    op = Operator(eqns)
+    op.apply(t=nt)
+    assert np.all(u.data[(nt-1) % 3] == nt-1)
+    assert np.all(u2.data[i] == i for i in range(nt))
+    assert np.all(usave.data[i] == i*factor for i in range((nt+factor-1)//factor))
+
+
+@skipif_yask
+def test_conditional_shifted():
+    nt = 19
+    grid = Grid(shape=(11, 11))
+    time = grid.time_dim
+
+    u = TimeFunction(name='u', grid=grid)
+    assert(grid.stepping_dim in u.indices)
+
+    u2 = TimeFunction(name='u2', grid=grid, save=nt)
+    assert(time in u2.indices)
+
+    factor = 4
+    time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+    usave = TimeFunction(name='usave', grid=grid, save=2, time_dim=time_subsampled)
+    assert(time_subsampled in usave.indices)
+
+    t_sub_shift = Constant(name='t_sub_shift', dtype=np.int32)
+
+    eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2 + 1.),
+            Eq(usave.subs(time_subsampled, time_subsampled - t_sub_shift), u)]
+    op = Operator(eqns)
+
+    op.apply(time_s=10, time_e=nt, t_sub_shift=3)
+
+    assert np.all(u.data[0] == 8)
+    assert np.all(u2.data[i] == i for i in range(10, nt))
+    assert np.all(usave.data[i] == 2+i*factor for i in range(2))
