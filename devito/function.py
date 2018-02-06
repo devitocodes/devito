@@ -521,14 +521,17 @@ class Function(TensorFunction):
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
 
-    def argument_defaults(self, alias=None):
+    def argument_defaults(self, alias=None, data=True):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self.name
-        args = ArgumentMap({key: self._data_buffer})
+        if data:
+            args = ArgumentMap({key: self._data_buffer})
+        else:
+            args = ArgumentMap()
 
         # Collect default dimension arguments from all indices
         for i, s, o in zip(self.indices, self.shape, self.staggered):

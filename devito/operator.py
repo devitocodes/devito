@@ -132,11 +132,14 @@ class Operator(Callable):
         # First, we insert user-provided override
         for p in self.input + self.dimensions:
             arguments.update(p.argument_values(**kwargs))
+ 
         # Second, derive all remaining default values from parameters
         default_args = ArgumentMap()
         for p in self.input:
             if p.name not in arguments:
                 default_args.update(p.argument_defaults())
+            else:
+                default_args.update(p.argument_defaults(data=False))
 
         for p in self.dimensions:
             if p.name not in arguments:

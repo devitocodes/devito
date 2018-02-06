@@ -62,7 +62,3 @@ def test_acousticJ(shape, space_order):
     info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
          % (term1, term2, term1 - term2, term1 / term2))
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
-
-
-if __name__ == "__main__":
-    test_acousticJ(shape=(60, 70), space_order=4)
