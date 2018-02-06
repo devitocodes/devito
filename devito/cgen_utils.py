@@ -69,6 +69,12 @@ class CodePrinter(C99CodePrinter):
         C99CodePrinter.__init__(self, settings)
         self.known_functions.update(self.custom_functions)
 
+    def _print_Eq(self, expr):
+        if getattr(expr, '_conditional', False):
+            return "%s == %s" % (self._print(expr.lhs), self._print(expr.rhs))
+        else:
+            return super(CodePrinter, self)._print_Eq(expr)
+
     def _print_Indexed(self, expr):
         """Print field as C style multidimensional array
 
@@ -150,6 +156,9 @@ class CodePrinter(C99CodePrinter):
     def _print_ListInitializer(self, expr):
         return "{%s}" % ', '.join([self._print(i) for i in expr.params])
 
+    def _print_IntDiv(self, expr):
+        return str(expr)
+
 
 def ccode(expr, **settings):
     """Generate C++ code from an expression calling CodePrinter class
@@ -158,23 +167,7 @@ def ccode(expr, **settings):
     :param settings: A dictionary of settings for code printing
     :returns: The resulting code as a string. If it fails, then it returns the expr
     """
-    if isinstance(expr, Eq):
-        return ccode_eq(expr)
-    try:
-        return CodePrinter(settings).doprint(expr, None)
-    except:
-        return expr
-
-
-def ccode_eq(eq, **settings):
-    """Generate C++ assignment from an equation assigning RHS to LHS
-
-    :param eq: The equation
-    :param settings: A dictionary of settings for code printing
-    :returns: The resulting code as a string
-    """
-    return CodePrinter(settings).doprint(eq.lhs, None) \
-        + ' = ' + CodePrinter(settings).doprint(eq.rhs, None)
+    return CodePrinter(settings).doprint(expr, None)
 
 
 blankline = c.Line("")
