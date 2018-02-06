@@ -1042,6 +1042,3 @@ class TestForeign(object):
         args['a'] = array
         op.cfunction(*list(args.values()))
         assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
-
-if __name__ == "__main__":
-    TestArguments().test_override_function_data()

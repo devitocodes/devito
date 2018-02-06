@@ -79,7 +79,7 @@ class Constant(AbstractCachedSymbol):
     def base(self):
         return self
 
-    def argument_defaults(self):
+    def argument_defaults(self, **kwargs):
         """
         Returns a map of default argument values defined by this symbol.
         """
@@ -760,13 +760,13 @@ class CompositeFunction(Function):
     def children(self):
         return self._children
 
-    def argument_defaults(self, alias=None):
+    def argument_defaults(self, alias=None, data=True):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param alias: (Optional) name under which to store values.
         """
-        args = super(CompositeFunction, self).argument_defaults(alias=alias)
+        args = super(CompositeFunction, self).argument_defaults(alias=alias, data=data)
         for child in self.children:
             args.update(child.argument_defaults())
         return args
