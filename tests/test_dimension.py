@@ -1,4 +1,4 @@
-from devito import SubsampledDimension, Grid, TimeFunction, Eq, Operator
+from devito import ConditionalDimension, Grid, TimeFunction, Eq, Operator
 from devito.ir.support.stencil import Stencil
 from devito.tools import pprint
 
@@ -9,7 +9,7 @@ def test_subsampled_dimension():
     x, y = grid.dimensions
     time = grid.time_dim
     t = grid.stepping_dim
-    time_subsampled = SubsampledDimension('t_sub', parent=time, factor=4)
+    time_subsampled = ConditionalDimension('t_sub', parent=time, factor=4)
     u = TimeFunction(name='u', grid=grid)
     u2 = TimeFunction(name='u2', grid=grid, save=nt)
     assert(t in u.indices)

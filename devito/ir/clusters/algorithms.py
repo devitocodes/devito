@@ -79,7 +79,7 @@ def guard(clusters):
         for e in c.exprs:
             for k, v in e.ispace.sub_iterators.items():
                 for i in v:
-                    if i.dim.is_SubSampled:
+                    if i.dim.is_Conditional:
                         mapper.setdefault(i.dim, []).append(e)
 
         # Build conditional expressions to guard clusters
