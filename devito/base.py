@@ -34,6 +34,10 @@ class SparseFunction(with_metaclass(_BackendSelector, function.SparseFunction)):
     pass
 
 
+class SparseTimeFunction(with_metaclass(_BackendSelector, function.SparseTimeFunction)):
+    pass
+
+
 class Operator(with_metaclass(_BackendSelector, operator.Operator)):
     pass
 
