@@ -460,37 +460,33 @@ class TestArguments(object):
         Test runtime data overrides for :class:`TimeFunction` symbols.
         """
         grid = Grid(shape=(5, 6, 7))
-        a = TimeFunction(name='a', grid=grid)
+        a = TimeFunction(name='a', grid=grid, save=2)
         # Suppress DLE to work around a know bug with GCC and OpenMP:
         # https://github.com/opesci/devito/issues/320
         op = Operator(Eq(a, a + 3), dle=None)
 
         # Run with default value
         a.data[:] = 1.
-        op(t=1)
-        assert (a.data[0] == 4.).all()
-        assert (a.data[1] == 1.).all()
+        op(t=2)
+        assert (a.data[:] == 4.).all()
 
         # Override with symbol (different name)
         a1 = TimeFunction(name='a1', grid=grid)
         a1.data[:] = 2.
-        op(t=1, a=a1)
-        assert (a1.data[0] == 5.).all()
-        assert (a1.data[1] == 2.).all()
+        op(t=2, a=a1)
+        assert (a1.data[:] == 5.).all()
 
         # Override with symbol (same name as original)
         a2 = TimeFunction(name='a', grid=grid)
         a2.data[:] = 3.
-        op(t=1, a=a2)
-        assert (a2.data[0] == 6.).all()
-        assert (a2.data[1] == 3.).all()
+        op(t=2, a=a2)
+        assert (a2.data[:] == 6.).all()
 
         # Override with user-allocated numpy data
         a3 = np.zeros_like(a.data)
         a3[:] = 4.
-        op(t=1, a=a3)
-        assert (a3[0] == 7.).all()
-        assert (a3[1] == 4.).all()
+        op(t=2, a=a3)
+        assert (a3[:] == 7.).all()
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
