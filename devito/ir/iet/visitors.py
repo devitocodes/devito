@@ -495,7 +495,7 @@ class FindAdjacentIterations(Visitor):
         group = []
         for i in o:
             ret = self.visit(i, parent=parent, ret=ret)
-            if ret['seen_iteration'] is True:
+            if i and ret['seen_iteration'] is True:
                 group.append(i)
             else:
                 if len(group) > 1:
