@@ -1,9 +1,9 @@
-from sympy import Eq
 from cached_property import cached_property
 from frozendict import frozendict
 
 from devito.ir.support import IterationSpace
 from devito.ir.clusters.graph import FlowGraph
+from devito.symbolics import Eq
 
 __all__ = ["Cluster", "ClusterGroup"]
 

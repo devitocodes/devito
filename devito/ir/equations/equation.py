@@ -111,4 +111,4 @@ class LoweredEq(Eq, EqMixin):
         return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), stamp=self)
 
     def func(self, *args):
-        return super(LoweredEq, self).func(*args, stamp=self)
+        return super(LoweredEq, self).func(*args, stamp=self, evaluate=False)
