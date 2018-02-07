@@ -87,7 +87,7 @@ class Node(object):
     @property
     def children(self):
         """Return the traversable children."""
-        return ()
+        return tuple(getattr(self, i) for i in self._traversable)
 
     @property
     def args(self):
@@ -140,10 +140,6 @@ class Block(Node):
     def __repr__(self):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
                                       len(self.body), len(self.footer))
-
-    @property
-    def children(self):
-        return (self.body,)
 
 
 class List(Block):
@@ -482,11 +478,6 @@ class Iteration(Node):
         return self.bounds(finish=finish)[1]
 
     @property
-    def children(self):
-        """Return the traversable children."""
-        return (self.nodes,)
-
-    @property
     def functions(self):
         """
         Return all :class:`Function` objects used in the header of
@@ -540,10 +531,6 @@ class Callable(Node):
                                for i in self.parameters])
         body = "\n\t".join([str(s) for s in self.body])
         return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
-
-    @property
-    def children(self):
-        return (self.body,)
 
 
 class Conditional(Node):
