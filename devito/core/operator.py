@@ -6,7 +6,7 @@ from devito.exceptions import InvalidOperator
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
 from devito.operator import OperatorRunnable
-from devito.symbolics import indexify, retrieve_indexed, q_affine
+from devito.symbolics import retrieve_indexed, q_affine
 from devito.tools import flatten
 
 __all__ = ['Operator']
@@ -63,30 +63,28 @@ class OperatorCore(OperatorRunnable):
                     for y = y_s to y_e
                       u[t, x+3, y+3] = f(u[t-1, x+3, y+3], u[t-2, x+3, y+3])
         """
-        # Indexification
-        expressions = [indexify(i) for i in expressions]
-        # Apply user-provided substitution rules
-        expressions = [i.xreplace(subs) for i in expressions]
+        expressions = super(OperatorCore, self)._specialize_exprs(expressions, subs)
 
         # Calculate normalization offset
         constraints = {}
         for e in expressions:
-            indexed = e.lhs
-            f = indexed.base.function
-            if not f.is_SymbolicFunction:
-                continue
-            for i, d in zip(indexed.indices, f.dimensions):
-                if not q_affine(i, d):
-                    # Sparse iteration, no check possible
+            for indexed in retrieve_indexed(e):
+                f = indexed.base.function
+                if not f.is_SymbolicFunction:
                     continue
-                shift = i - d
-                if not shift.is_Number:
-                    raise InvalidOperator("Array access `%s` in %s is not a "
-                                          "translated identity function" % (i, indexed))
-                if shift != 0 and shift != constraints.setdefault(d, shift):
-                    raise InvalidOperator("Array access `%s` in %s has incompatible "
-                                          "shift %d (expected %d)"
-                                          % (i, indexed, shift, constraints[d]))
+                for i, d, gap in zip(indexed.indices, f.dimensions, f._offset_domain):
+                    if not q_affine(i, d):
+                        # Sparse iteration, no check possible
+                        continue
+                    ofs = i - d
+                    if not ofs.is_Number:
+                        raise InvalidOperator("Access `%s` in %s is not a translated "
+                                              "identity function" % (i, indexed))
+                    shift = abs(min(gap.left + ofs, 0)) + abs(min(gap.right - ofs, 0))
+                    if shift != 0 and shift != constraints.setdefault(d, shift):
+                        raise InvalidOperator("Access `%s` in %s with halo %s "
+                                              "has incompatible shift %d (expected %d)"
+                                              % (i, indexed, gap, shift, constraints[d]))
 
         # Calculate shifting
         mapper = {}
@@ -101,9 +99,6 @@ class OperatorCore(OperatorRunnable):
 
         # Transform expressions by applying the shifting
         expressions = [e.xreplace(mapper) for e in expressions]
-
-        # Lower equation, thus associating data and iteration spaces
-        expressions = [LoweredEq(i) for i in expressions]
 
         return expressions
 
