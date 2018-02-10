@@ -3,7 +3,8 @@ from collections import OrderedDict
 
 from devito.tools import as_tuple
 
-__all__ = ['NullInterval', 'Interval', 'DataSpace', 'IterationSpace']
+__all__ = ['NullInterval', 'Interval', 'DataSpace', 'IterationSpace',
+           'Forward', 'Backward', 'Reduction']
 
 
 class AbstractInterval(object):
@@ -256,14 +257,48 @@ class DataSpace(Space):
 class IterationSpace(Space):
 
     """
-    A :class:`Space` associating one or more :class:`Dimension`s to a
-    :class:`Interval`. The interval is the data space, whereas the dimensions
-    are the objects used to traverse the data space.
+    A special :class:`Space` attaching metadata to its :class:`Interval`s to
+    represent an iteration space and its traversal.
+
+    :param intervals: The :class:`Interval`s of the iteration space.
+    :param sub_iterators: A mapper from :class:`Dimension`s in ``intervals``
+                          to iterables of :class:`DerivedDimension`, which
+                          represent sub-dimensions along which the iteration
+                          space is traversed.
+    :param directions: A mapper from :class:`Dimension`s in ``intervals`` to
+                       :class:`IterationDirection`s.
     """
 
-    def __init__(self, intervals, sub_iterators):
+    def __init__(self, intervals, sub_iterators, directions):
         super(IterationSpace, self).__init__(intervals)
         self.sub_iterators = sub_iterators
+        self.directions = directions
 
     def _construct(self, intervals):
-        return IterationSpace(intervals, self.sub_iterators)
+        return IterationSpace(intervals, self.sub_iterators, self.directions)
+
+
+class IterationDirection(object):
+
+    """
+    Represent the direction in which an iteration space is traversed.
+    """
+
+    def __init__(self, name):
+        self._name = name
+
+    def __eq__(self, other):
+        return self._name == other._name
+
+    def __repr__(self):
+        return self._name
+
+
+Forward = IterationDirection('Forward')
+"""Forward iteration direction ('++')."""
+
+Backward = IterationDirection('Backward')
+"""Backward iteration direction ('--')."""
+
+Reduction = IterationDirection('Reduction')
+"""Reduction iterations can be traversed in any direction."""
