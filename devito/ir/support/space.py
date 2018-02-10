@@ -293,6 +293,9 @@ class IterationDirection(object):
     def __repr__(self):
         return self._name
 
+    def __hash__(self):
+        return hash(self._name)
+
 
 Forward = IterationDirection('Forward')
 """Forward iteration direction ('++')."""

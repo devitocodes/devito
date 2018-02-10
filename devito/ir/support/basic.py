@@ -6,7 +6,7 @@ from devito.dimension import Dimension
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import as_tuple, is_integer, filter_sorted
 
-__all__ = ['Scope']
+__all__ = ['IterationInstance', 'Scope']
 
 
 class Vector(tuple):

@@ -774,7 +774,7 @@ class TestLoopScheduler(object):
         ('Eq(ti0[x,y,z+2], ti0[x,y,z-1] + ti1[x,y,z+1])',
          'Eq(ti1[x,y,z+3], ti3[x,y,z+1])',
          'Eq(ti3[x,y,z+2], ti0[x,y,z+1]*ti3[x,y,z-1])'),
-        ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x+2,y+3,z+1])',
+        ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x-3,y+3,z+1])',
          'Eq(ti1[x+4,y+5,z+3], ti3[x+1,y-4,z+1])',
          'Eq(ti3[x+7,y,z+2], ti3[x+5,y,z-1] - ti0[x-3,y-2,z-4])')
     ])

@@ -1,9 +1,10 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from sympy import Eq
 
 from devito.dimension import SubDimension
-from devito.ir.support import (Interval, DataSpace, IterationSpace, Stencil)
+from devito.ir.support import (Interval, DataSpace, IterationSpace, Stencil,
+                               IterationInstance, Forward, Backward, Reduction)
 from devito.region import DOMAIN, INTERIOR
 from devito.symbolics import dimension_sort, indexify, retrieve_indexed
 from devito.tools import flatten
@@ -144,4 +145,52 @@ def retrieve_intervals(expr, dimensions):
 def retrieve_directions(expr, dimensions):
     """Return the directions in which ``dimensions`` must be traversed so
     that information flows when evaluating ``expr``."""
-    return []
+    left, rights = expr.lhs, retrieve_indexed(expr.rhs, mode='all')
+    if not left.is_Indexed:
+        return []
+
+    # Re-cast as /IterationInstance/s
+    left = IterationInstance(left)
+    rights = [IterationInstance(i) for i in rights]
+
+    # Determine indexed-wise direction by looking at the vector distance
+    mapper = defaultdict(set)
+    for i in rights:
+        for d in dimensions:
+            try:
+                distance = left.distance(i, d)
+            except TypeError:
+                # Nothing can be deduced
+                mapper[d].add(Reduction)
+                break
+            if distance > 0:
+                mapper[d].add(Forward)
+                break
+            elif distance < 0:
+                mapper[d].add(Backward)
+                break
+            mapper[d].add(Reduction)
+        # Remainder
+        for d in dimensions[dimensions.index(d) + 1:]:
+            mapper[d].add(Reduction)
+    mapper.update({d.parent: set(mapper[d]) for d in dimensions if d.is_Derived})
+
+    # Resolve clashes. The only illegal case is when Forward and Backward
+    # should be used for the same dimension. Mixing Forward/Backward and
+    # Reduction is OK, as Forward/Backward win (Reduction implies "arbitrary
+    # direction"). When the sole Reduction appears, we default to Forward.
+    directions = {}
+    for k, v in mapper.items():
+        if len(v) == 1:
+            direction = v.pop()
+            directions[k] = Forward if direction == Reduction else direction
+        elif len(v) == 2:
+            try:
+                v.remove(Reduction)
+            except KeyError:
+                raise ValueError("Cannot determine flow of equation %s" % expr)
+            directions[k] = v.pop()
+        else:
+            raise ValueError("Cannot determine flow of equation %s" % expr)
+
+    return directions
