@@ -6,18 +6,19 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 
-from devito.parameters import configuration
-from devito.logger import debug, error, warning
-from devito.data import Data, first_touch
-from devito.cgen_utils import INT, FLOAT
-from devito.dimension import Dimension
-from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.arguments import ArgumentMap
+from devito.cgen_utils import INT, FLOAT
+from devito.data import Data, first_touch
+from devito.dimension import Dimension
+from devito.equation import Eq, Inc
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
-from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
+from devito.logger import debug, error, warning
+from devito.parameters import configuration
+from devito.symbolics import indexify, retrieve_indexed
+from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.tools import EnrichedTuple
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',

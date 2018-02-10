@@ -3,9 +3,9 @@ from collections import OrderedDict, defaultdict
 from sympy import Eq
 
 from devito.dimension import SubDimension
+from devito.equation import DOMAIN, INTERIOR
 from devito.ir.support import (Interval, DataSpace, IterationSpace, Stencil,
                                IterationInstance, Forward, Backward, Reduction)
-from devito.region import DOMAIN, INTERIOR
 from devito.symbolics import dimension_sort, indexify, retrieve_indexed
 from devito.tools import flatten
 

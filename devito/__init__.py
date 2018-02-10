@@ -1,14 +1,13 @@
 from __future__ import absolute_import
 
 from devito.base import *  # noqa
-from devito.finite_difference import *  # noqa
 from devito.dimension import *  # noqa
-from devito.grid import *  # noqa
+from devito.equation import *  # noqa
+from devito.finite_difference import *  # noqa
 from devito.function import Forward, Backward  # noqa
+from devito.grid import *  # noqa
 from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.parameters import *  # noqa
-from devito.region import *  # noqa
-from devito.symbolics import *  # noqa
 from devito.tools import *  # noqa
 
 from devito.compiler import compiler_registry
