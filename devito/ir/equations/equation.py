@@ -3,9 +3,10 @@ from collections import OrderedDict
 from sympy import Eq
 
 from devito.dimension import SubDimension
-from devito.ir.support import Interval, DataSpace, IterationSpace, Stencil
+from devito.ir.support import (Interval, DataSpace, IterationSpace, Stencil)
 from devito.region import DOMAIN, INTERIOR
-from devito.symbolics import dimension_sort, indexify
+from devito.symbolics import dimension_sort, indexify, retrieve_indexed
+from devito.tools import flatten
 
 __all__ = ['LoweredEq']
 
@@ -83,27 +84,16 @@ class LoweredEq(Eq, EqMixin):
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
 
-        # Get the accessed data points
-        stencil = Stencil(expr)
-
-        # Split actual Intervals (the data spaces) from the "derived" iterators,
-        # to build an IterationSpace
-        iterators = OrderedDict()
-        for i in ordering:
-            if i.is_NonlinearDerived:
-                iterators.setdefault(i.parent, []).append(stencil.entry(i))
-            else:
-                iterators.setdefault(i, [])
-        intervals = []
-        for k, v in iterators.items():
-            offs = set.union(set(stencil.get(k)), *[i.ofs for i in v])
-            intervals.append(Interval(k, min(offs), max(offs)))
+        # Determine the necessary information to build up iteration and data spaces
+        intervals, iterators = retrieve_intervals(expr, ordering)
+        directions = retrieve_directions(expr, ordering)
 
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
         expr.dspace = DataSpace(intervals)
-        expr.ispace = IterationSpace([i.negate() for i in intervals], iterators)
+        expr.ispace = IterationSpace([i.negate() for i in intervals],
+                                     iterators, directions)
 
         return expr
 
@@ -112,3 +102,46 @@ class LoweredEq(Eq, EqMixin):
 
     def func(self, *args):
         return super(LoweredEq, self).func(*args, stamp=self, evaluate=False)
+
+
+def retrieve_intervals(expr, dimensions):
+    """Return the data space touched by ``expr``."""
+    # Deep retrieval of indexed objects in /expr/
+    indexeds = retrieve_indexed(expr, mode='all')
+    indexeds += flatten([retrieve_indexed(i) for i in e.indices] for e in indexeds)
+
+    # Detect the indexeds' offsets along each dimension
+    stencil = Stencil()
+    for e in indexeds:
+        for a in e.indices:
+            if a in dimensions:
+                stencil[a].update([0])
+            d = None
+            off = [0]
+            for i in a.args:
+                if i in dimensions:
+                    d = i
+                elif i.is_integer:
+                    off += [int(i)]
+            if d is not None:
+                stencil[d].update(off)
+
+    # Determine intervals and their iterators
+    iterators = OrderedDict()
+    for i in dimensions:
+        if i.is_NonlinearDerived:
+            iterators.setdefault(i.parent, []).append(stencil.entry(i))
+        else:
+            iterators.setdefault(i, [])
+    intervals = []
+    for k, v in iterators.items():
+        offs = set.union(set(stencil.get(k)), *[i.ofs for i in v])
+        intervals.append(Interval(k, min(offs), max(offs)))
+
+    return intervals, iterators
+
+
+def retrieve_directions(expr, dimensions):
+    """Return the directions in which ``dimensions`` must be traversed so
+    that information flows when evaluating ``expr``."""
+    return []

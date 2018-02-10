@@ -15,7 +15,6 @@ from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
                            tagger, ntags)
 from devito.dimension import Dimension
-from devito.ir.support import Stencil
 from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 import devito.types as types
@@ -276,11 +275,6 @@ class Expression(Node):
         Return the shape of the written LHS.
         """
         return () if self.is_scalar else self.expr.lhs.shape
-
-    @property
-    def stencil(self):
-        """Compute the stencil of the expression."""
-        return Stencil(self.expr)
 
     @property
     def free_symbols(self):

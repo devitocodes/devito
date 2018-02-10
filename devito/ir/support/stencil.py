@@ -1,11 +1,7 @@
 from collections import namedtuple
 
-from sympy import Eq
-
-from devito.dimension import Dimension
 from devito.ir.support.space import Interval, Space
-from devito.symbolics import retrieve_indexed
-from devito.tools import DefaultOrderedDict, flatten
+from devito.tools import DefaultOrderedDict
 
 __all__ = ['Stencil']
 
@@ -24,57 +20,24 @@ class Stencil(DefaultOrderedDict):
     Note: Expressions must have been indexified for a Stencil to be computed.
     """
 
-    def __init__(self, *args):
+    def __init__(self, entries=None):
         """
         Initialize the Stencil.
 
-        :param args: A Stencil may be created in several ways: ::
-
-            * From a SymPy equation, or
-            * A list of elements of type: ::
-                * SymPy equation, or
-                * StencilEntry, or
-                * 2-tuple (Dimension, set) -- raw initialization
+        :param entries: An iterable of :class:`StencilEntry` or a 2-tuple
+                        convertible into a :class:`StencilEntry` (i.e., a
+                        :class:`Dimension` and a set).
         """
         processed = []
-        for i in args:
-            if isinstance(i, Eq):
-                processed.extend(self.extract(i).items())
+        for i in (entries or []):
+            if isinstance(i, StencilEntry):
+                processed.append((i.dim, i.ofs))
+            elif isinstance(i, tuple) and len(i) == 2:
+                entry = StencilEntry(*i)  # Type checking
+                processed.append((entry.dim, entry.ofs))
             else:
-                for j in i:
-                    if isinstance(j, StencilEntry):
-                        processed.append((j.dim, j.ofs))
-                    elif isinstance(j, tuple) and len(j) == 2:
-                        entry = StencilEntry(*j)  # Type checking
-                        processed.append((entry.dim, entry.ofs))
-                    else:
-                        raise RuntimeError('Cannot construct a Stencil for %s' % str(j))
+                raise TypeError('Cannot construct a Stencil for %s' % str(i))
         super(Stencil, self).__init__(set, processed)
-
-    @classmethod
-    def extract(cls, expr):
-        """
-        Compute the stencil of ``expr``.
-        """
-        indexeds = retrieve_indexed(expr, mode='all')
-        indexeds += flatten([retrieve_indexed(i) for i in e.indices] for e in indexeds)
-
-        stencil = Stencil()
-        for e in indexeds:
-            for a in e.indices:
-                if isinstance(a, Dimension):
-                    stencil[a].update([0])
-                d = None
-                off = [0]
-                for i in a.args:
-                    if isinstance(i, Dimension):
-                        d = i
-                    elif i.is_integer:
-                        off += [int(i)]
-                if d is not None:
-                    stencil[d].update(off)
-
-        return stencil
 
     @classmethod
     def union(cls, *dicts):
