@@ -824,7 +824,7 @@ class SparseFunction(TensorFunction):
         if dimensions is not None:
             return dimensions
         else:
-            return (Dimension(name='p'),)
+            return (Dimension(name='p_%s' % kwargs["name"]),)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1030,16 +1030,20 @@ class SparseFunction(TensorFunction):
         :param alias: (Optional) name under which to store values.
         """
         # Take a copy of the replacement before super pops it from kwargs
+
         new = kwargs.get(self.name)
-        values = super(SparseFunction, self).argument_values(alias=alias, **kwargs)
+        key = alias or self.name
+
+        values = super(SparseFunction, self).argument_values(alias=key, **kwargs)
+
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
-            values.update(new.argument_defaults(alias=alias).reduce_all())
+            values.update(new.argument_defaults(alias=key).reduce_all())
             values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
         else:
             # ..., but if not, we simply need to recurse over children.
-            values.update(self.coordinates.argument_values(alias=alias, **kwargs))
+            values.update(self.coordinates.argument_values(alias=key, **kwargs))
         return values
 
 
@@ -1088,7 +1092,7 @@ class SparseTimeFunction(SparseFunction):
         if dimensions is not None:
             return dimensions
         else:
-            return (kwargs['grid'].time_dim, Dimension(name='p'))
+            return (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

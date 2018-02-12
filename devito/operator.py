@@ -146,6 +146,7 @@ class Operator(Callable):
         # First, we insert user-provided override
         for p in self.input + self.dimensions:
             arguments.update(p.argument_values(**kwargs))
+
         # Second, derive all remaining default values from parameters
         arguments.update(self._argument_defaults(arguments))
 

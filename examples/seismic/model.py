@@ -44,9 +44,10 @@ def demo_model(preset, **kwargs):
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
+        dtype = kwargs.pop('dtype', np.float32)
         vp = kwargs.pop('vp', 1.5)
 
-        return Model(vp=vp, origin=origin, shape=shape,
+        return Model(vp=vp, origin=origin, shape=shape, dtype=dtype,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['constant-tti']:

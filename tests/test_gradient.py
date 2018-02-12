@@ -103,7 +103,7 @@ def test_gradientJ(shape, kernel, space_order):
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float64(wave.model.m.data - m0)
     linrec = Receiver(name='rec', grid=wave.model.grid, ntime=wave.receiver.nt,
-                      coordinates=wave.receiver.coordinates.data, dtype=np.float64)
+                      coordinates=wave.receiver.coordinates.data)
     # Compute receiver data and full wavefield for the smooth velocity
     rec, u0, _ = wave.forward(m=m0, save=False)
     # Gradient: J dm
@@ -133,4 +133,4 @@ def test_gradientJ(shape, kernel, space_order):
 
 
 if __name__ == "__main__":
-    test_gradientJ(shape=(60, 70), kernel='OT2', space_order=4)
+    test_gradientFWI(shape=(60, 70), kernel='OT2', space_order=4)

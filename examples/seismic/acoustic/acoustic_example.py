@@ -11,7 +11,7 @@ from examples.seismic import demo_model, RickerSource, Receiver
 def smooth10(vel, shape):
     if np.isscalar(vel):
         return .9 * vel * np.ones(shape, dtype=np.float32)
-    out = np.ones(shape, dtype=np.float32)
+    out = np.ones(shape, dtype=vel.dtype)
     nz = shape[-1]
 
     for a in range(5, nz-6):
