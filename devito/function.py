@@ -349,6 +349,13 @@ class TensorFunction(SymbolicFunction):
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
+            if isinstance(new, TimeFunction):
+                if new.save != self.save:
+                    raise TypeError("Operator generated for save=%s only," %
+                                    self.save +
+                                    " %s has to be created as " % new.name +
+                                    "TimeFunction(name=%s, grid=grid, save=%s)" %
+                                    (new.name, self.save))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
                 values[key] = new._data_buffer
@@ -665,6 +672,7 @@ class TimeFunction(Function):
 
             self.time_dim = kwargs.get('time_dim')
             self.time_order = kwargs.get('time_order', 1)
+            self.save = kwargs.get('save', None)
             if not isinstance(self.time_order, int):
                 raise ValueError("'time_order' must be int")
 
