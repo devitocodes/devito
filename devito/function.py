@@ -79,7 +79,7 @@ class Constant(AbstractCachedSymbol):
     def base(self):
         return self
 
-    def argument_defaults(self, **kwargs):
+    def argument_defaults(self):
         """
         Returns a map of default argument values defined by this symbol.
         """
@@ -521,17 +521,14 @@ class Function(TensorFunction):
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
 
-    def argument_defaults(self, alias=None, data=True):
+    def argument_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self.name
-        if data:
-            args = ArgumentMap({key: self._data_buffer})
-        else:
-            args = ArgumentMap()
+        args = ArgumentMap({key: self._data_buffer})
 
         # Collect default dimension arguments from all indices
         for i, s, o in zip(self.indices, self.shape, self.staggered):
@@ -559,7 +556,12 @@ class Function(TensorFunction):
             else:
                 # We've been provided a pure-data replacement (array)
                 values[key] = new
-                # TODO: Re-derive defaults from shape of array
+                if len(new.shape) != len(self.indices):
+                    raise ValueError("Array shape %s does not match" % (new.shape, ) +
+                                     "dimensions %s" % (self.indices, ))
+                else:
+                    for i, s, o in zip(self.indices, new.shape, self.staggered):
+                        values.update(i.argument_defaults(size=s+o))
 
         # Add value overrides for all associated dimensions
         for i in self.indices:
@@ -760,13 +762,13 @@ class CompositeFunction(Function):
     def children(self):
         return self._children
 
-    def argument_defaults(self, alias=None, data=True):
+    def argument_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param alias: (Optional) name under which to store values.
         """
-        args = super(CompositeFunction, self).argument_defaults(alias=alias, data=data)
+        args = super(CompositeFunction, self).argument_defaults(alias=alias)
         for child in self.children:
             args.update(child.argument_defaults())
         return args

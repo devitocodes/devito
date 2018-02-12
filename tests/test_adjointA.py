@@ -47,7 +47,7 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     src.coordinates.data[0, -1] = 30.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
