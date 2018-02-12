@@ -4,7 +4,7 @@ from collections import OrderedDict
 from devito.tools import as_tuple
 
 __all__ = ['NullInterval', 'Interval', 'DataSpace', 'IterationSpace',
-           'Forward', 'Backward', 'Reduction']
+           'Forward', 'Backward', 'Any']
 
 
 class AbstractInterval(object):
@@ -303,5 +303,5 @@ Forward = IterationDirection('Forward')
 Backward = IterationDirection('Backward')
 """Backward iteration direction ('--')."""
 
-Reduction = IterationDirection('Reduction')
-"""Reduction iterations can be traversed in any direction."""
+Any = IterationDirection('Any')
+"""Wildcard direction (both '++' and '--' would be OK)."""

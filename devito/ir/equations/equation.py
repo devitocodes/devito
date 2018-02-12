@@ -5,7 +5,7 @@ from sympy import Eq
 from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
 from devito.ir.support import (Interval, DataSpace, IterationSpace, Stencil,
-                               IterationInstance, Forward, Backward, Reduction)
+                               IterationInstance, Forward, Backward, Any)
 from devito.symbolics import FrozenExpr, dimension_sort, indexify, retrieve_indexed
 from devito.tools import flatten
 
@@ -191,7 +191,7 @@ def retrieve_directions(expr, dimensions):
                 distance = left.distance(i, d)
             except TypeError:
                 # Nothing can be deduced
-                mapper[d].add(Reduction)
+                mapper[d].add(Any)
                 break
             if distance > 0:
                 mapper[d].add(Forward)
@@ -199,24 +199,23 @@ def retrieve_directions(expr, dimensions):
             elif distance < 0:
                 mapper[d].add(Backward)
                 break
-            mapper[d].add(Reduction)
+            mapper[d].add(Any)
         # Remainder
         for d in dimensions[dimensions.index(d) + 1:]:
-            mapper[d].add(Reduction)
+            mapper[d].add(Any)
     mapper.update({d.parent: set(mapper[d]) for d in dimensions if d.is_Derived})
 
     # Resolve clashes. The only illegal case is when Forward and Backward
     # should be used for the same dimension. Mixing Forward/Backward and
-    # Reduction is OK, as Forward/Backward win (Reduction implies "arbitrary
-    # direction"). When the sole Reduction appears, we default to Forward.
+    # Any is OK, as Forward/Backward win (Any implies "arbitrary
+    # direction")
     directions = {}
     for k, v in mapper.items():
         if len(v) == 1:
-            direction = v.pop()
-            directions[k] = Forward if direction == Reduction else direction
+            directions[k] = v.pop()
         elif len(v) == 2:
             try:
-                v.remove(Reduction)
+                v.remove(Any)
             except KeyError:
                 raise ValueError("Cannot determine flow of equation %s" % expr)
             directions[k] = v.pop()
