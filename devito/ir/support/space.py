@@ -270,12 +270,47 @@ class IterationSpace(Space):
     """
 
     def __init__(self, intervals, sub_iterators, directions):
+        assert all(i.dim in directions for i in intervals)
         super(IterationSpace, self).__init__(intervals)
         self.sub_iterators = sub_iterators
         self.directions = directions
 
+    def __eq__(self, other):
+        return super(IterationSpace, self).__eq__(other) and\
+            self.directions == other.directions
+
     def _construct(self, intervals):
         return IterationSpace(intervals, self.sub_iterators, self.directions)
+
+    def intersection(self, *spaces):
+        assert all(isinstance(i, IterationSpace) for i in spaces)
+
+        # Get iteration directions
+        forbidden = set()
+        directions = dict(self.directions)
+        for k, v in self.directions.items():
+            found = {i.directions.get(k, Any) for i in spaces} | {v}
+            try:
+                found.remove(Any)
+            except KeyError:
+                pass
+            if len(found) == 1:
+                directions[k] = found.pop()
+            elif len(found) > 1:
+                # Mismatching directions: avoid intersection along /k/
+                forbidden.add(k)
+
+        # Get intersecting intervals
+        mapper = OrderedDict([(i.dim, [i]) for i in self.intervals])
+        for i in spaces:
+            for interval in i.intervals:
+                if interval.dim not in forbidden:
+                    mapper.get(interval.dim, []).append(interval)
+
+        # Now compute the actual intersection
+        intervals = [Interval._apply_op(v, 'intersection') for v in mapper.values()]
+
+        return IterationSpace(intervals, self.sub_iterators, directions)
 
 
 class IterationDirection(object):
