@@ -14,7 +14,7 @@ from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.function import Forward, Backward, Constant
+from devito.function import Constant
 from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
@@ -43,8 +43,6 @@ class Operator(Callable):
         * name : Name of the kernel function - defaults to "Kernel".
         * subs : Dict or list of dicts containing SymPy symbol substitutions
                  for each expression respectively.
-        * time_axis : :class:`TimeAxis` object to indicate direction in which
-                      to advance time during computation.
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
                 defaults to ``configuration['dse']``.
         * dle : Use the Devito Loop Engine to optimize the loops -
@@ -59,7 +57,6 @@ class Operator(Callable):
 
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
-        time_axis = kwargs.get("time_axis", Forward)
         dse = kwargs.get("dse", configuration['dse'])
         dle = kwargs.get("dle", configuration['dle'])
 
@@ -80,11 +77,6 @@ class Operator(Callable):
         expressions = [LoweredEq(e, subs=subs) for e in expressions]
         self.dtype = retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = retrieve_symbols(expressions)
-
-        # Set the direction of time acoording to the given TimeAxis
-        for time in [d for d in self.dimensions if d.is_Time]:
-            if not time.is_Derived:
-                time.reverse = time_axis == Backward
 
         # Group expressions based on their iteration space and data dependences,
         # and apply the Devito Symbolic Engine (DSE) for flop optimization

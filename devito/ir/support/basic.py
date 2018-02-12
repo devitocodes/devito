@@ -1,9 +1,8 @@
 from cached_property import cached_property
-
-from sympy import Basic, Eq
+from sympy import Basic, S
 
 from devito.dimension import Dimension
-from devito.ir.support.space import Forward
+from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import as_tuple, is_integer, filter_sorted
 
@@ -332,7 +331,7 @@ class TimedAccess(Access):
         assert is_integer(timestamp)
         obj = super(TimedAccess, cls).__new__(cls, indexed, mode)
         obj.timestamp = timestamp
-        obj.directions = [directions.get(i, Forward) for i in obj.findices]
+        obj.directions = [directions.get(i, Any) for i in obj.findices]
         return obj
 
     def __eq__(self, other):
@@ -379,16 +378,23 @@ class TimedAccess(Access):
         return self.timestamp < other.timestamp
 
     def distance(self, other, findex=None):
-        if (self.directions != other.directions) or (self.rank != other.rank):
-            raise TypeError("Cannot order due to mismatching `directions` and/or `rank`")
-        ret = super(TimedAccess, self).distance(other, findex)
-        if findex is not None:
-            limit = self.findices.index(findex) + 1
-            directions = self.directions[:limit]
-        else:
-            directions = self.directions
+        if self.rank != other.rank:
+            raise TypeError("Cannot order due to mismatching `rank`")
+        if not self.rank:
+            return Vector()
+        findex = findex or self.findices[-1]
+        ret = []
+        for i, sd, od in zip(self.findices, self.directions, other.directions):
+            if sd == od:
+                ret = list(super(TimedAccess, self).distance(other, i))
+                if i == findex:
+                    break
+            else:
+                ret.append(S.Infinity)
+                break
+        directions = self.directions[:self.findices.index(i) + 1]
         assert len(directions) == len(ret)
-        return Vector(*[i if d == Forward else (-i) for i, d in zip(ret, directions)])
+        return Vector(*[(-i) if d == Backward else i for i, d in zip(ret, directions)])
 
 
 class Dependence(object):

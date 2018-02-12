@@ -119,13 +119,14 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
         if len(args) == 2:
             maybe_ispace = args[1]
             if isinstance(maybe_ispace, IterationSpace):
-                expr = args[0]
-                assert isinstance(expr, Eq)
-                expr = Eq.__new__(cls, *expr.args, evaluate=False)
+                input_expr = args[0]
+                expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
+                expr.is_Increment = input_expr.is_Increment
                 expr.ispace = maybe_ispace
             else:
                 expr = Eq.__new__(cls, *args, evaluate=False)
                 expr.ispace = kwargs['ispace']
+                expr.is_Increment = kwargs.get('is_Increment', False)
         else:
             raise ValueError("Cannot construct ClusterizedEq from args=%s "
                              "and kwargs=%s" % (str(args), str(kwargs)))

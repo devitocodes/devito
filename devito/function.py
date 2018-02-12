@@ -22,29 +22,7 @@ from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.tools import EnrichedTuple
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'SparseTimeFunction', 'Forward', 'Backward']
-
-
-class TimeAxis(object):
-    """Direction in which to advance the time index on
-    :class:`TimeFunction` objects.
-
-    :param axis: Either 'Forward' or 'Backward'
-    """
-
-    def __init__(self, axis):
-        assert axis in ['Forward', 'Backward']
-        self._axis = {'Forward': 1, 'Backward': -1}[axis]
-
-    def __eq__(self, other):
-        return self._axis == other._axis
-
-    def __repr__(self):
-        return {-1: 'Backward', 1: 'Forward'}[self._axis]
-
-
-Forward = TimeAxis('Forward')
-Backward = TimeAxis('Backward')
+           'SparseTimeFunction']
 
 
 class Constant(AbstractCachedSymbol):

@@ -80,18 +80,21 @@ def iet_make(clusters, dtype):
                         value = (i.dim + o) % modulo
                         uindices.append(UnboundedIndex(vname, value, value, j, j + o))
 
+                # Retrieve the iteration direction
+                direction = cluster.ispace.directions[i.dim]
+
                 # Update IET and scheduling
                 if i.dim in cluster.guards:
                     # Must wrap within an if-then scope
                     body = Conditional(cluster.guards[i.dim], body)
-                    iteration = Iteration(body, i.dim, i.dim.limits,
-                                          offsets=i.limits, uindices=uindices)
+                    iteration = Iteration(body, i.dim, i.dim.limits, offsets=i.limits,
+                                          direction=direction, uindices=uindices)
                     # Adding (None, None) ensures that nested iterations won't
                     # be reused by the next cluster
                     scheduling.extend([(None, None), (i, iteration)])
                 else:
-                    iteration = Iteration(body, i.dim, i.dim.limits,
-                                          offsets=i.limits, uindices=uindices)
+                    iteration = Iteration(body, i.dim, i.dim.limits, offsets=i.limits,
+                                          direction=direction, uindices=uindices)
                     scheduling.append((i, iteration))
 
                 # Prepare for next dimension

@@ -25,7 +25,7 @@ class PartialCluster(object):
     """
 
     def __init__(self, exprs, ispace, atomics=None, guards=None):
-        self._exprs = list(exprs)
+        self._exprs = list(ClusterizedEq(i, ispace) for i in exprs)
         self._ispace = ispace
         self._atomics = set(atomics or [])
         self._guards = guards or {}

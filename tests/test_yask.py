@@ -6,7 +6,7 @@ import pytest  # noqa
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from devito import (Eq, Grid, Operator, Constant, Function, TimeFunction,
-                    SparseTimeFunction, Backward, configuration, clear_cache)  # noqa
+                    SparseTimeFunction, configuration, clear_cache)  # noqa
 from devito.ir.iet import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import contexts  # noqa
 
@@ -236,7 +236,7 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', grid=grid, space_order=0, time_order=2)
         u.data[:] = 2.
         eq = Eq(u.backward, u - 1.)
-        op = Operator(eq, time_axis=Backward)
+        op = Operator(eq)
         op(yu4D=u, t=3)
         assert 'run_solution' in str(op)
         assert np.all(u.data[2] == 2.)

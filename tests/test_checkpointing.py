@@ -7,7 +7,7 @@ from conftest import skipif_yask
 import pytest
 from functools import reduce
 
-from devito import Grid, TimeFunction, Operator, Backward, Function, Eq, silencio
+from devito import Grid, TimeFunction, Operator, Function, Eq, silencio
 
 
 @silencio(log_level='WARNING')
@@ -228,7 +228,7 @@ def test_index_alignment(const):
     v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
     # Decrement one in the reverse pass 3 -> 2 -> 1 -> 0
     adj_eqn = Eq(v.backward, v - 1.*const)
-    adj_op = Operator(adj_eqn, time_axis=Backward)
+    adj_op = Operator(adj_eqn)
 
     # Invocation 2
     adj_op(t=nt, constant=1)
@@ -241,7 +241,7 @@ def test_index_alignment(const):
     # Multiply u and v and add them
     # = 3*3 + 2*2 + 1*1 + 0*0
     prod_eqn = Eq(prod, prod + u * v)
-    comb_op = Operator([adj_eqn, prod_eqn], time_axis=Backward)
+    comb_op = Operator([adj_eqn, prod_eqn])
 
     # Invocation 3
     comb_op(time=nt, constant=1)
@@ -262,7 +262,7 @@ def test_index_alignment(const):
                                  time_order=order_of_eqn)
 
     prod_eqn_2 = Eq(prod, prod + u_nosave * v)
-    comb_op_2 = Operator([adj_eqn, prod_eqn_2], time_axis=Backward)
+    comb_op_2 = Operator([adj_eqn, prod_eqn_2])
     wrap_rev = CheckpointOperator(comb_op_2, constant=1,
                                   time_order=order_of_eqn)
     wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt-order_of_eqn)
