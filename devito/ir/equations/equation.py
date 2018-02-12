@@ -177,38 +177,41 @@ def retrieve_directions(expr, dimensions):
     that information flows when evaluating ``expr``."""
     left, rights = expr.lhs, retrieve_indexed(expr.rhs, mode='all')
     if not left.is_Indexed:
-        return []
+        return {}
 
     # Re-cast as /IterationInstance/s
     left = IterationInstance(left)
     rights = [IterationInstance(i) for i in rights]
 
     # Determine indexed-wise direction by looking at the vector distance
-    mapper = defaultdict(set)
-    for i in rights:
-        for d in dimensions:
-            try:
-                distance = left.distance(i, d)
-            except TypeError:
-                # Nothing can be deduced
+    if not rights:
+        mapper = {i: {Any} for i in dimensions}
+    else:
+        mapper = defaultdict(set)
+        for i in rights:
+            for d in dimensions:
+                try:
+                    if left.distance(i, d) > 0:
+                        mapper[d].add(Forward)
+                        break
+                    elif left.distance(i, d) < 0:
+                        mapper[d].add(Backward)
+                        break
+                    else:
+                        mapper[d].add(Any)
+                except TypeError:
+                    # Nothing can be deduced
+                    mapper[d].add(Any)
+                    break
+            # Remainder
+            for d in dimensions[dimensions.index(d) + 1:]:
                 mapper[d].add(Any)
-                break
-            if distance > 0:
-                mapper[d].add(Forward)
-                break
-            elif distance < 0:
-                mapper[d].add(Backward)
-                break
-            mapper[d].add(Any)
-        # Remainder
-        for d in dimensions[dimensions.index(d) + 1:]:
-            mapper[d].add(Any)
     mapper.update({d.parent: set(mapper[d]) for d in dimensions if d.is_Derived})
 
-    # Resolve clashes. The only illegal case is when Forward and Backward
-    # should be used for the same dimension. Mixing Forward/Backward and
-    # Any is OK, as Forward/Backward win (Any implies "arbitrary
-    # direction")
+    # Resolve clashes:
+    # - If both Forward and Backward appear, we pick Any, assuming that the
+    #   information flow is dictated through other equations on outer dimensions
+    # - If only one of Forward/Backward appear, we pick that (Any neglected)
     directions = {}
     for k, v in mapper.items():
         if len(v) == 1:
@@ -216,10 +219,10 @@ def retrieve_directions(expr, dimensions):
         elif len(v) == 2:
             try:
                 v.remove(Any)
+                directions[k] = v.pop()
             except KeyError:
-                raise ValueError("Cannot determine flow of equation %s" % expr)
-            directions[k] = v.pop()
+                directions[k] = Any
         else:
-            raise ValueError("Cannot determine flow of equation %s" % expr)
+            directions[k] = Any
 
     return directions
