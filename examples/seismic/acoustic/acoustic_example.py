@@ -28,7 +28,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    constant=False, **kwargs):
     nrec = shape[0]
     preset = 'constant-isotropic' if constant else 'layers-isotropic'
-    model = demo_model(preset, shape=shape,
+    model = demo_model(preset, shape=shape, dtype=kwargs.pop('dtype', np.float32),
                        spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing

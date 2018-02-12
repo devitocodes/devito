@@ -34,7 +34,7 @@ def test_gradientFWI(shape, kernel, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     spacing = tuple(15. for _ in shape)
-    wave = setup(shape=shape, spacing=spacing,
+    wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                  kernel=kernel, space_order=space_order,
                  nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
@@ -97,13 +97,13 @@ def test_gradientJ(shape, kernel, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     spacing = tuple(15. for _ in shape)
-    wave = setup(shape=shape, spacing=spacing,
+    wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                  kernel=kernel, space_order=space_order,
                  tn=1000., nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
-    dm = np.float32(wave.model.m.data - m0)
+    dm = np.float64(wave.model.m.data - m0)
     linrec = Receiver(name='rec', grid=wave.model.grid, ntime=wave.receiver.nt,
-                      coordinates=wave.receiver.coordinates.data)
+                      coordinates=wave.receiver.coordinates.data, dtype=np.float64)
     # Compute receiver data and full wavefield for the smooth velocity
     rec, u0, _ = wave.forward(m=m0, save=False)
     # Gradient: J dm

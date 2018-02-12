@@ -131,7 +131,6 @@ class Operator(Callable):
         for p in self.input:
             if p.name not in arguments:
                 default_args.update(p.argument_defaults())
-
         for p in self.dimensions:
             if p.name not in arguments:
                 if p.is_Sub:
