@@ -3,6 +3,7 @@ from cached_property import cached_property
 from sympy import Basic, Eq
 
 from devito.dimension import Dimension
+from devito.ir.support.space import Forward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import as_tuple, is_integer, filter_sorted
 
@@ -288,29 +289,6 @@ class Access(IterationInstance):
                                 ', '.join(str(i) for i in self))
 
 
-class IterationFunction(object):
-
-    """A representation of a function describing the direction and the step
-    in which an iteration space is traversed."""
-
-    _KNOWN = []
-
-    def __init__(self, name):
-        assert isinstance(name, str) and name not in IterationFunction._KNOWN
-        self._name = name
-        IterationFunction._KNOWN.append(name)
-
-    def __repr__(self):
-        return self._name
-
-
-INC = IterationFunction('++')
-"""Unit-stride increment."""
-
-DEC = IterationFunction('--')
-"""Unit-stride decrement"""
-
-
 class TimedAccess(Access):
 
     """
@@ -350,22 +328,22 @@ class TimedAccess(Access):
 
     """
 
-    def __new__(cls, indexed, mode, timestamp):
+    def __new__(cls, indexed, mode, timestamp, directions):
         assert is_integer(timestamp)
         obj = super(TimedAccess, cls).__new__(cls, indexed, mode)
         obj.timestamp = timestamp
-        obj.direction = [DEC if i.reverse else INC for i in obj.findices]
+        obj.directions = [directions.get(i, Forward) for i in obj.findices]
         return obj
 
     def __eq__(self, other):
         return super(TimedAccess, self).__eq__(other) and\
             isinstance(other, TimedAccess) and\
-            self.direction == other.direction
+            self.directions == other.directions
 
     def __lt__(self, other):
         if not isinstance(other, TimedAccess):
             raise TypeError("Cannot compare with object of type %s" % type(other))
-        if self.direction != other.direction:
+        if self.directions != other.directions:
             raise TypeError("Cannot compare due to mismatching `direction`")
         return super(TimedAccess, self).__lt__(other)
 
@@ -401,16 +379,16 @@ class TimedAccess(Access):
         return self.timestamp < other.timestamp
 
     def distance(self, other, findex=None):
-        if (self.direction != other.direction) or (self.rank != other.rank):
-            raise TypeError("Cannot order due to mismatching `direction` and/or `rank`")
+        if (self.directions != other.directions) or (self.rank != other.rank):
+            raise TypeError("Cannot order due to mismatching `directions` and/or `rank`")
         ret = super(TimedAccess, self).distance(other, findex)
         if findex is not None:
             limit = self.findices.index(findex) + 1
-            direction = self.direction[:limit]
+            directions = self.directions[:limit]
         else:
-            direction = self.direction
-        assert len(direction) == len(ret)
-        return Vector(*[i if d == INC else (-i) for i, d in zip(ret, direction)])
+            directions = self.directions
+        assert len(directions) == len(ret)
+        return Vector(*[i if d == Forward else (-i) for i, d in zip(ret, directions)])
 
 
 class Dependence(object):
@@ -536,12 +514,11 @@ class Scope(object):
 
     def __init__(self, exprs):
         """
-        Initialize a Scope, which represents a group of :class:`Access` objects
-        extracted from some expressions ``exprs``. The expressions are to be
-        provided as they appear in program order.
+        A Scope represents a group of :class:`TimedAccess` objects extracted
+        from some :class:`IREq` ``exprs``. The expressions must be provided
+        in program order.
         """
         exprs = as_tuple(exprs)
-        assert all(isinstance(i, Eq) for i in exprs)
 
         self.reads = {}
         self.writes = {}
@@ -550,11 +527,11 @@ class Scope(object):
             for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.base.function, [])
                 mode = 'R' if not q_inc(e) else 'RI'
-                v.append(TimedAccess(j, mode, i))
+                v.append(TimedAccess(j, mode, i, e.ispace.directions))
             # write
             v = self.writes.setdefault(e.lhs.base.function, [])
             mode = 'W' if not q_inc(e) else 'WI'
-            v.append(TimedAccess(e.lhs, mode, i))
+            v.append(TimedAccess(e.lhs, mode, i, e.ispace.directions))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
