@@ -42,7 +42,7 @@ class AcousticWaveSolver(object):
         self._kwargs = kwargs
 
     @memoized_meth
-    def op_fwd(self, save=False):
+    def op_fwd(self, save=None):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, source=self.source,
                                receiver=self.receiver, kernel=self.kernel,
@@ -51,7 +51,7 @@ class AcousticWaveSolver(object):
     @memoized_meth
     def op_adj(self):
         """Cached operator for adjoint runs"""
-        return AdjointOperator(self.model, save=False, source=self.source,
+        return AdjointOperator(self.model, save=None, source=self.source,
                                receiver=self.receiver, kernel=self.kernel,
                                space_order=self.space_order, **self._kwargs)
 
@@ -65,11 +65,11 @@ class AcousticWaveSolver(object):
     @memoized_meth
     def op_born(self):
         """Cached operator for born runs"""
-        return BornOperator(self.model, save=False, source=self.source,
+        return BornOperator(self.model, save=None, source=self.source,
                             receiver=self.receiver, kernel=self.kernel,
                             space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec=None, u=None, m=None, save=False, **kwargs):
+    def forward(self, src=None, rec=None, u=None, m=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -193,10 +193,10 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefields u and U if not provided
         if u is None:
-            u = TimeFunction(name='u', grid=self.model.grid, save=False,
+            u = TimeFunction(name='u', grid=self.model.grid, save=None,
                              time_order=2, space_order=self.space_order)
         if U is None:
-            U = TimeFunction(name='U', grid=self.model.grid, save=False,
+            U = TimeFunction(name='U', grid=self.model.grid, save=None,
                              time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided

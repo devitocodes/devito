@@ -349,13 +349,6 @@ class TensorFunction(SymbolicFunction):
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
-            if isinstance(new, TimeFunction):
-                if new.save != self.save:
-                    raise TypeError("Operator generated for save=%s only," %
-                                    self.save +
-                                    " %s has to be created as " % new.name +
-                                    "TimeFunction(name=%s, grid=grid, save=%s)" %
-                                    (new.name, self.save))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
                 values[key] = new._data_buffer
@@ -672,7 +665,7 @@ class TimeFunction(Function):
 
             self.time_dim = kwargs.get('time_dim')
             self.time_order = kwargs.get('time_order', 1)
-            self.save = kwargs.get('save', None)
+            self.save = kwargs.get('save', None) is not None
             if not isinstance(self.time_order, int):
                 raise ValueError("'time_order' must be int")
 
@@ -759,6 +752,26 @@ class TimeFunction(Function):
         indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
 
         return self.diff(_t, _t).as_finite_difference(indt)
+
+    def argument_values(self, alias=None, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
+        """
+        saves = {True: 'int', False: 'None'}
+        # Check if data has the right dimension
+        if self.name in kwargs:
+            new = kwargs.get(self.name)
+            if ~isinstance(new, TimeFunction):
+                pass
+            elif new.save != self.save:
+                raise TypeError("Incorrect value encounterd, save should be %s" %
+                                saves[self.save])
+
+        values = super(TimeFunction, self).argument_values(alias=alias, **kwargs)
+        return values
 
 
 class SparseFunction(TensorFunction):

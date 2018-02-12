@@ -68,13 +68,13 @@ class AnisotropicWaveSolver(object):
 
         # Create the forward wavefield if not provided
         if u is None:
-            u = TimeFunction(name='u', grid=self.model.grid, save=save,
-                             time_dim=self.source.nt if save else None,
+            u = TimeFunction(name='u', grid=self.model.grid,
+                             save=self.source.nt if save else None,
                              time_order=2, space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
-            v = TimeFunction(name='v', grid=self.model.grid, save=save,
-                             time_dim=self.source.nt if save else None,
+            v = TimeFunction(name='v', grid=self.model.grid,
+                             save=self.source.nt if save else None,
                              time_order=2, space_order=self.space_order)
         # Pick m from model unless explicitly provided
         if m is None:
