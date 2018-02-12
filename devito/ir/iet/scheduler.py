@@ -66,10 +66,11 @@ def iet_make(clusters, dtype):
             for i in needed:
                 uindices = []
                 for j, offs in cluster.ispace.sub_iterators.get(i.dim, []):
+                    modulo = len(offs)
                     for n, o in enumerate(filter_ordered(offs)):
                         name = "%s%d" % (j.name, n)
                         vname = Scalar(name=name, dtype=np.int32)
-                        value = (i.dim + o) % j.modulo
+                        value = (i.dim + o) % modulo
                         uindices.append(UnboundedIndex(vname, value, value, j, j + o))
                 iters.append(Iteration([], i.dim, i.dim.limits, offsets=i.limits,
                                        uindices=uindices))

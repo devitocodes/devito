@@ -1,5 +1,5 @@
 from devito import Dimension
-from devito.function import SparseFunction
+from devito.function import SparseTimeFunction
 from devito.logger import error
 
 import numpy as np
@@ -11,7 +11,7 @@ except:
 __all__ = ['PointSource', 'Receiver', 'Shot', 'RickerSource', 'GaborSource']
 
 
-class PointSource(SparseFunction):
+class PointSource(SparseTimeFunction):
     """Symbolic data object for a set of sparse point sources
 
     :param name: Name of the symbol representing this source
@@ -38,11 +38,11 @@ class PointSource(SparseFunction):
         else:
             ntime = ntime or data.shape[0]
 
-        # Create the underlying SparseFunction object
-        obj = SparseFunction.__new__(cls, name=name, grid=grid,
-                                     dimensions=[grid.time_dim, p_dim],
-                                     npoint=npoint, nt=ntime,
-                                     coordinates=coordinates, **kwargs)
+        # Create the underlying SparseTimeFunction object
+        obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,
+                                         dimensions=[grid.time_dim, p_dim],
+                                         npoint=npoint, nt=ntime,
+                                         coordinates=coordinates, **kwargs)
 
         # If provided, copy initial data into the allocated buffer
         if data is not None:

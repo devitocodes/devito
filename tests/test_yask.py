@@ -6,7 +6,7 @@ import pytest  # noqa
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from devito import (Eq, Grid, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, Backward, configuration, clear_cache)  # noqa
+                    SparseTimeFunction, Backward, configuration, clear_cache)  # noqa
 from devito.ir.iet import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import contexts  # noqa
 
@@ -212,7 +212,7 @@ class TestOperatorSimple(object):
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
-        p = SparseFunction(name='points', grid=grid, nt=1, npoint=4)
+        p = SparseTimeFunction(name='points', grid=grid, nt=1, npoint=4)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         for i in range(4):
             for j in range(4):
@@ -275,7 +275,7 @@ class TestOperatorSimple(object):
         """
         grid = Grid(shape=(4, 4, 4))
         c = Constant(name='c', value=2.)
-        p = SparseFunction(name='points', grid=grid, nt=1, npoint=1)
+        p = SparseTimeFunction(name='points', grid=grid, nt=1, npoint=1)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
         op = Operator([Eq(u.forward, u + c), Eq(p.indexed[0, 0], 1. + c)])
