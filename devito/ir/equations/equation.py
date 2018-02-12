@@ -6,13 +6,13 @@ from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
 from devito.ir.support import (Interval, DataSpace, IterationSpace, Stencil,
                                IterationInstance, Forward, Backward, Reduction)
-from devito.symbolics import dimension_sort, indexify, retrieve_indexed
+from devito.symbolics import FrozenExpr, dimension_sort, indexify, retrieve_indexed
 from devito.tools import flatten
 
-__all__ = ['LoweredEq']
+__all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
 
 
-class EqMixin(object):
+class IREq(object):
 
     """
     A mixin providing operations common to all :mod:`ir` equation types.
@@ -27,7 +27,7 @@ class EqMixin(object):
         return self.lhs.is_Indexed
 
 
-class LoweredEq(Eq, EqMixin):
+class LoweredEq(Eq, IREq):
 
     """
     LoweredEq(expr, subs=None)
@@ -63,7 +63,7 @@ class LoweredEq(Eq, EqMixin):
             expr.ispace = stamp.ispace
             return expr
         else:
-            raise ValueError("Cannot construct Eq from args=%s "
+            raise ValueError("Cannot construct LoweredEq from args=%s "
                              "and kwargs=%s" % (str(args), str(kwargs)))
 
         # Indexification
@@ -103,6 +103,36 @@ class LoweredEq(Eq, EqMixin):
 
     def func(self, *args):
         return super(LoweredEq, self).func(*args, stamp=self, evaluate=False)
+
+
+class ClusterizedEq(Eq, IREq, FrozenExpr):
+
+    """
+    ClusterizedEq(expr, ispace)
+
+    A SymPy equation carrying its own :class:`IterationSpace`. Suitable for
+    use in a :class:`Cluster`.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        # Parse input
+        if len(args) == 2:
+            maybe_ispace = args[1]
+            if isinstance(maybe_ispace, IterationSpace):
+                expr = args[0]
+                assert isinstance(expr, Eq)
+                expr = Eq.__new__(cls, *expr.args, evaluate=False)
+                expr.ispace = maybe_ispace
+            else:
+                expr = Eq.__new__(cls, *args, evaluate=False)
+                expr.ispace = kwargs['ispace']
+        else:
+            raise ValueError("Cannot construct ClusterizedEq from args=%s "
+                             "and kwargs=%s" % (str(args), str(kwargs)))
+        return expr
+
+    def func(self, *args, **kwargs):
+        return super(ClusterizedEq, self).func(*args, evaluate=False, ispace=self.ispace)
 
 
 def retrieve_intervals(expr, dimensions):

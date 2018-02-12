@@ -1,9 +1,9 @@
 from cached_property import cached_property
 from frozendict import frozendict
 
+from devito.ir.equations import ClusterizedEq
 from devito.ir.support import IterationSpace
 from devito.ir.clusters.graph import FlowGraph
-from devito.symbolics import Eq
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -83,7 +83,10 @@ class Cluster(PartialCluster):
     """A Cluster is an immutable :class:`PartialCluster`."""
 
     def __init__(self, exprs, ispace, atomics=None, guards=None):
-        self._exprs = tuple(Eq(*i.args, evaluate=False) for i in exprs)
+        # Keep expressions ordered based on information flow
+        self._exprs = exprs
+        self._exprs = tuple(ClusterizedEq(v, ispace) for v in self.trace.values())
+
         self._ispace = ispace
         self._atomics = frozenset(atomics or ())
         self._guards = frozendict(guards or {})

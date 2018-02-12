@@ -48,9 +48,7 @@ class Eq(sympy.Eq, FrozenExpr):
     """A customized version of :class:`sympy.Eq` which suppresses evaluation."""
 
     def __new__(cls, *args, **kwargs):
-        kwargs['evaluate'] = False
-        obj = sympy.Eq.__new__(cls, *args, **kwargs)
-        return obj
+        return sympy.Eq.__new__(cls, *args, evaluate=False)
 
 
 class CondEq(sympy.Eq, FrozenExpr):
@@ -58,8 +56,7 @@ class CondEq(sympy.Eq, FrozenExpr):
     equality. It suppresses evaluation."""
 
     def __new__(cls, *args, **kwargs):
-        kwargs['evaluate'] = False
-        return sympy.Eq.__new__(cls, *args, **kwargs)
+        return sympy.Eq.__new__(cls, *args, evaluate=False)
 
 
 class CondNe(sympy.Ne, FrozenExpr):
@@ -67,8 +64,7 @@ class CondNe(sympy.Ne, FrozenExpr):
     inequality. It suppresses evaluation."""
 
     def __new__(cls, *args, **kwargs):
-        kwargs['evaluate'] = False
-        return sympy.Ne.__new__(cls, *args, **kwargs)
+        return sympy.Ne.__new__(cls, *args, evaluate=False)
 
 
 class Mul(sympy.Mul, FrozenExpr):

@@ -62,8 +62,8 @@ def iet_make(clusters, dtype):
             needed = intervals[index:]
 
             # Build Expressions
-            body = [Expression(v, np.int32 if cluster.trace.is_index(k) else dtype)
-                    for k, v in cluster.trace.items()]
+            body = [Expression(e, np.int32 if cluster.trace.is_index(e.lhs) else dtype)
+                    for e in cluster.exprs]
             if not needed:
                 body = List(body=body)
 
