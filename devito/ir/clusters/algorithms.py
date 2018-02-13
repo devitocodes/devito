@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir.support import Scope
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
-from devito.symbolics import Eq, Ne, IntDiv, xreplace_indices
+from devito.symbolics import CondEq, CondNe, IntDiv, xreplace_indices
 from devito.types import Scalar
 from devito.tools import Bunch, flatten, powerset
 
@@ -81,8 +81,8 @@ def guard(clusters):
                         mapper.setdefault(i.dim, []).append(e)
 
         # Build conditional expressions to guard clusters
-        conditions = {d: Eq(d.parent % d.factor, 0, conditional=True) for d in mapper}
-        negated = {d: Ne(d.parent % d.factor, 0) for d in mapper}
+        conditions = {d: CondEq(d.parent % d.factor, 0) for d in mapper}
+        negated = {d: CondNe(d.parent % d.factor, 0) for d in mapper}
 
         # Expand with guarded clusters
         combs = list(powerset(mapper))

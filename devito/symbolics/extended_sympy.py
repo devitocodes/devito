@@ -10,7 +10,7 @@ from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from devito.region import DOMAIN
 from devito.tools import as_tuple
 
-__all__ = ['FrozenExpr', 'Eq', 'Ne', 'Inc', 'Mul', 'Add', 'IntDiv',
+__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Inc', 'Mul', 'Add', 'IntDiv',
            'FunctionFromPointer', 'ListInitializer', 'taylor_sin', 'taylor_cos',
            'bhaskara_sin', 'bhaskara_cos']
 
@@ -53,18 +53,23 @@ class Eq(sympy.Eq, FrozenExpr):
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
         region = kwargs.pop('region', DOMAIN)
-        conditional = kwargs.pop('conditional', False)
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._region = region
-        obj._conditional = conditional
         return obj
 
 
-class Ne(sympy.Ne, FrozenExpr):
+class CondEq(sympy.Eq, FrozenExpr):
+    """A customized version of :class:`sympy.Eq` representing a conditional
+    equality. It suppresses evaluation."""
 
-    """A customized version of :class:`sympy.Ne` which suppresses evaluation."""
+    def __new__(cls, *args, **kwargs):
+        kwargs['evaluate'] = False
+        return sympy.Eq.__new__(cls, *args, **kwargs)
 
-    is_Increment = False
+
+class CondNe(sympy.Ne, FrozenExpr):
+    """A customized version of :class:`sympy.Ne` representing a conditional
+    inequality. It suppresses evaluation."""
 
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
@@ -92,7 +97,7 @@ class IntDiv(sympy.Expr):
 
     """
     A support type for integer division. Should only be used by the compiler
-    for code generation purporses (i.e., not for symbolic manipulation).
+    for code generation purposes (i.e., not for symbolic manipulation).
     This works around the annoying way SymPy represents integer division,
     namely as a ``Mul`` between the numerator and the reciprocal of the
     denominator (e.g., ``a*3.args -> (a, 1/3)), which ends up generating
