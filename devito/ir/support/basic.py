@@ -161,19 +161,40 @@ class IterationInstance(Vector):
 
     """
     A representation of the iteration and data points accessed by an
-    :class:`Indexed` object. Two different concepts are distinguished:
+    :class:`Indexed` object. Three different concepts are distinguished:
 
-        * The index functions; that is, the expressions telling what *iteration*
-          space point is accessed.
-        * The ``findices``: that is, the :class:`Dimension`s telling what *data*
-          space point is accessed.
+        * Index functions: the expressions telling what *iteration* space point
+          is accessed.
+        * ``aindices``: the :class:`Dimension`s acting as iteration variables.
+          There is one aindex for each index function. If the index function
+          is non-affine, then it may not be possible to detect its aindex;
+          in such a case, None is used as placeholder.
+        * ``findices``: the :class:`Dimension`s telling what *data* space point
+          is accessed.
     """
 
     def __new__(cls, indexed):
         obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
+        # findices
         obj.findices = tuple(indexed.base.function.indices)
         if len(obj.findices) != len(set(obj.findices)):
             raise ValueError("Illegal non-unique `findices`")
+        # aindices
+        aindices = []
+        index_mode = []
+        for i, fi in zip(obj, obj.findices):
+            if is_integer(i):
+                aindices.append(None)
+                index_mode.append('regular')
+            elif q_affine(i, fi):
+                aindices.append(fi)
+                index_mode.append('regular')
+            else:
+                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+                aindices.append(dims.pop() if len(dims) == 1 else None)
+                index_mode.append('irregular')
+        obj.index_mode = tuple(index_mode)
+        obj.aindices = tuple(aindices)
         return obj
 
     def __eq__(self, other):
@@ -208,6 +229,14 @@ class IterationInstance(Vector):
         else:
             raise TypeError("IterationInstance indices must be integers, slices, or "
                             "Dimensions, not %s" % type(index))
+
+    @property
+    def is_regular(self):
+        return all(i == 'regular' for i in self.index_mode)
+
+    @property
+    def is_irregular(self):
+        return not self.is_regular
 
     def distance(self, other, findex=None):
         """Compute vector distance from ``self`` to ``other``. If ``findex`` is
@@ -348,19 +377,6 @@ class TimedAccess(Access):
         if self.directions != other.directions:
             raise TypeError("Cannot compare due to mismatching `direction`")
         return super(TimedAccess, self).__lt__(other)
-
-    @property
-    def index_mode(self):
-        return ['regular' if (is_integer(i) or q_affine(i, fi)) else 'irregular'
-                for i, fi in zip(self, self.findices)]
-
-    @property
-    def is_regular(self):
-        return all(i == 'regular' for i in self.index_mode)
-
-    @property
-    def is_irregular(self):
-        return not self.is_regular
 
     def lex_eq(self, other):
         return self.timestamp == other.timestamp
