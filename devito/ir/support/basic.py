@@ -6,7 +6,7 @@ from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import as_tuple, is_integer, filter_sorted
 
-__all__ = ['IterationInstance', 'Scope']
+__all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
 
 
 class Vector(tuple):
@@ -263,6 +263,10 @@ class Access(IterationInstance):
             self.function == other.function
 
     @property
+    def name(self):
+        return self.function.name
+
+    @property
     def is_read(self):
         return self.mode in ['R', 'RI']
 
@@ -284,8 +288,7 @@ class Access(IterationInstance):
 
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
-        return "%s<%s,[%s]>" % (mode, self.function.name,
-                                ', '.join(str(i) for i in self))
+        return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
 
 
 class TimedAccess(Access):

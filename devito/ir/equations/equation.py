@@ -1,13 +1,9 @@
-from collections import OrderedDict, defaultdict
-
 from sympy import Eq
 
 from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
-from devito.ir.support import (Interval, DataSpace, IterationSpace, Stencil,
-                               IterationInstance, Forward, Backward, Any)
-from devito.symbolics import FrozenExpr, dimension_sort, indexify, retrieve_indexed
-from devito.tools import flatten
+from devito.ir.support import IterationSpace, Any, detect_intervals, detect_directions
+from devito.symbolics import FrozenExpr, dimension_sort, indexify
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
 
@@ -26,20 +22,20 @@ class IREq(object):
     def is_Tensor(self):
         return self.lhs.is_Indexed
 
+    @property
+    def dimensions(self):
+        return self.ispace.dimensions
+
 
 class LoweredEq(Eq, IREq):
 
     """
     LoweredEq(expr, subs=None)
 
-    A SymPy equation with associated iteration and data spaces.
+    A SymPy equation with an associated iteration space.
 
     All :class:`Function` objects within ``expr`` get indexified and thus turned
     into objects of type :class:`types.Indexed`.
-
-    The data space is an object of type :class:`DataSpace`. It represents the
-    data points accessed by the equation along each :class:`Dimension`. The
-    :class:`Dimension`s are extracted directly from the equation.
 
     The iteration space is an object of type :class:`IterationSpace`. It
     represents the iteration points along each :class:`Dimension` that the
@@ -59,7 +55,6 @@ class LoweredEq(Eq, IREq):
             expr = Eq.__new__(cls, *args, evaluate=False)
             assert isinstance(stamp, Eq)
             expr.is_Increment = stamp.is_Increment
-            expr.dspace = stamp.dspace
             expr.ispace = stamp.ispace
             return expr
         else:
@@ -85,16 +80,10 @@ class LoweredEq(Eq, IREq):
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
 
-        # Determine the necessary information to build up iteration and data spaces
-        intervals, iterators = retrieve_intervals(expr, ordering)
-        directions = retrieve_directions(expr, ordering)
-
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
-        expr.dspace = DataSpace(intervals)
-        expr.ispace = IterationSpace([i.negate() for i in intervals],
-                                     iterators, directions)
+        expr.ispace = compute_ispace(expr, ordering)
 
         return expr
 
@@ -112,6 +101,10 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
 
     A SymPy equation carrying its own :class:`IterationSpace`. Suitable for
     use in a :class:`Cluster`.
+
+    Unlike a :class:`LoweredEq`, a ClusterizedEq is "frozen", meaning that any
+    call to ``xreplace`` will not trigger re-evaluation (e.g., mathematical
+    simplification) of the expression.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -136,83 +129,19 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
         return super(ClusterizedEq, self).func(*args, evaluate=False, ispace=self.ispace)
 
 
-def retrieve_intervals(expr, dimensions):
-    """Return the data space touched by ``expr``."""
-    # Deep retrieval of indexed objects in /expr/
-    indexeds = retrieve_indexed(expr, mode='all')
-    indexeds += flatten([retrieve_indexed(i) for i in e.indices] for e in indexeds)
+def compute_ispace(expr, ordering):
+    """Return the :class:`IterationSpace` of ``expr``. The iteration direction
+    is so that the information 'flows' from an iteration to the following one
+    (IOW, so that we generate 'flow' or 'read-after-write' dependencies)."""
+    # Iteration intervals
+    intervals, iterators = detect_intervals(expr)
+    intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
 
-    # Detect the indexeds' offsets along each dimension
-    stencil = Stencil()
-    for e in indexeds:
-        for a in e.indices:
-            if a in dimensions:
-                stencil[a].update([0])
-            d = None
-            off = [0]
-            for i in a.args:
-                if i in dimensions:
-                    d = i
-                elif i.is_integer:
-                    off += [int(i)]
-            if d is not None:
-                stencil[d].update(off)
-
-    # Determine intervals and their iterators
-    iterators = OrderedDict()
-    for i in dimensions:
-        if i.is_NonlinearDerived:
-            iterators.setdefault(i.parent, []).append(stencil.entry(i))
-        else:
-            iterators.setdefault(i, [])
-    intervals = []
-    for k, v in iterators.items():
-        offs = set.union(set(stencil.get(k)), *[i.ofs for i in v])
-        intervals.append(Interval(k, min(offs), max(offs)))
-
-    return intervals, iterators
-
-
-def retrieve_directions(expr, dimensions):
-    """Return the directions in which ``dimensions`` must be traversed so
-    that information flows when evaluating ``expr``."""
-    left, rights = expr.lhs, retrieve_indexed(expr.rhs, mode='all')
-    if not left.is_Indexed:
-        return {}
-
-    # Re-cast as /IterationInstance/s
-    left = IterationInstance(left)
-    rights = [IterationInstance(i) for i in rights]
-
-    # Determine indexed-wise direction by looking at the vector distance
-    if not rights:
-        mapper = {i: {Any} for i in dimensions}
-    else:
-        mapper = defaultdict(set)
-        for i in rights:
-            for d in dimensions:
-                try:
-                    if left.distance(i, d) > 0:
-                        mapper[d].add(Forward)
-                        break
-                    elif left.distance(i, d) < 0:
-                        mapper[d].add(Backward)
-                        break
-                    else:
-                        mapper[d].add(Any)
-                except TypeError:
-                    # Nothing can be deduced
-                    mapper[d].add(Any)
-                    break
-            # Remainder
-            for d in dimensions[dimensions.index(d) + 1:]:
-                mapper[d].add(Any)
-    mapper.update({d.parent: set(mapper[d]) for d in dimensions if d.is_Derived})
-
-    # Resolve clashes:
+    # Iteration direction:
     # - If both Forward and Backward appear, we pick Any, assuming that the
     #   information flow is dictated through other equations on outer dimensions
     # - If only one of Forward/Backward appear, we pick that (Any neglected)
+    mapper = detect_directions(expr)
     directions = {}
     for k, v in mapper.items():
         if len(v) == 1:
@@ -226,4 +155,4 @@ def retrieve_directions(expr, dimensions):
         else:
             directions[k] = Any
 
-    return directions
+    return IterationSpace([i.negate() for i in intervals], iterators, directions)
