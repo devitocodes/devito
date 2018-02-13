@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from devito.ir.support import Scope
+from devito.ir.support import Any, Scope, IterationSpace, detect_directions
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, CondNe, IntDiv, xreplace_indices
 from devito.types import Scalar
@@ -226,21 +226,30 @@ def clusterize(exprs):
     for i, e1 in enumerate(exprs):
         trace = [e2 for e2 in exprs[:i] if Scope([e2, e1]).has_dep] + [e1]
         trace.extend([e2 for e2 in exprs[i+1:] if Scope([e1, e2]).has_dep])
-        mapper[e1] = Bunch(trace=trace, ispace=e1.ispace)
+        mapper[e1] = Bunch(trace=trace, ispace=e1.ispace, dirs=detect_directions(trace))
 
     # Derive the iteration spaces
     queue = list(mapper)
     while queue:
         target = queue.pop(0)
+        exprs = mapper[target].trace
+        ispace = mapper[target].ispace
 
-        ispaces = [mapper[i].ispace for i in mapper[target].trace]
+        # Detect (in)compatible directions for the coerced iteration space
+        dirs = {k: (v - {Any} or {Any}) for k, v in mapper[target].dirs.items()}
+        compatible = {k: v.pop() for k, v in dirs.items() if len(v) == 1}
+        incompatible = set(i for i in dirs if i not in compatible)
 
-        coerced_ispace = mapper[target].ispace.intersection(*ispaces)
+        # Build coerced iteration space
+        dirs = {k: compatible.get(k, v) for k, v in ispace.directions.items()}
+        ispaces = [mapper[i].ispace.drop(incompatible) for i in exprs]
+        intervals = ispace.intersection(*ispaces).intervals
+        coerced_ispace = IterationSpace(intervals, ispace.sub_iterators, dirs)
 
-        if coerced_ispace != mapper[target].ispace:
+        if coerced_ispace != ispace:
             # Something has changed, need to propagate the update
             mapper[target].ispace = coerced_ispace
-            queue.extend([i for i in mapper[target].trace if i not in queue])
+            queue.extend([i for i in exprs if i not in queue])
 
     # Build a PartialCluster for each tensor expression
     clusters = ClusterGroup()

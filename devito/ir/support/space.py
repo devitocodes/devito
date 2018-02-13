@@ -1,7 +1,7 @@
 import abc
 from collections import OrderedDict
 
-from devito.tools import as_tuple
+from devito.tools import as_tuple, filter_ordered
 
 __all__ = ['NullInterval', 'Interval', 'DataSpace', 'IterationSpace',
            'Forward', 'Backward', 'Any']
@@ -182,6 +182,10 @@ class Space(object):
         return len(self.intervals)
 
     @property
+    def dimensions(self):
+        return filter_ordered([i.dim for i in self.intervals])
+
+    @property
     def empty(self):
         return self.size == 0
 
@@ -279,38 +283,13 @@ class IterationSpace(Space):
         return super(IterationSpace, self).__eq__(other) and\
             self.directions == other.directions
 
+    @property
+    def dimensions(self):
+        sub_dims = [i.dim for v in self.sub_iterators.values() for i in v]
+        return filter_ordered(super(IterationSpace, self).dimensions + sub_dims)
+
     def _construct(self, intervals):
         return IterationSpace(intervals, self.sub_iterators, self.directions)
-
-    def intersection(self, *spaces):
-        assert all(isinstance(i, IterationSpace) for i in spaces)
-
-        # Get iteration directions
-        forbidden = set()
-        directions = dict(self.directions)
-        for k, v in self.directions.items():
-            found = {i.directions.get(k, Any) for i in spaces} | {v}
-            try:
-                found.remove(Any)
-            except KeyError:
-                pass
-            if len(found) == 1:
-                directions[k] = found.pop()
-            elif len(found) > 1:
-                # Mismatching directions: avoid intersection along /k/
-                forbidden.add(k)
-
-        # Get intersecting intervals
-        mapper = OrderedDict([(i.dim, [i]) for i in self.intervals])
-        for i in spaces:
-            for interval in i.intervals:
-                if interval.dim not in forbidden:
-                    mapper.get(interval.dim, []).append(interval)
-
-        # Now compute the actual intersection
-        intervals = [Interval._apply_op(v, 'intersection') for v in mapper.values()]
-
-        return IterationSpace(intervals, self.sub_iterators, directions)
 
 
 class IterationDirection(object):
