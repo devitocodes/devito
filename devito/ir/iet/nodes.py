@@ -21,7 +21,7 @@ from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 import devito.types as types
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
-           'Call', 'Iteration', 'List', 'LocalExpression', 'TimedList',
+           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
            'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast']
 
 
@@ -87,7 +87,7 @@ class Node(object):
     @property
     def children(self):
         """Return the traversable children."""
-        return ()
+        return tuple(getattr(self, i) for i in self._traversable)
 
     @property
     def args(self):
@@ -140,10 +140,6 @@ class Block(Node):
     def __repr__(self):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
                                       len(self.body), len(self.footer))
-
-    @property
-    def children(self):
-        return (self.body,)
 
 
 class List(Block):
@@ -482,11 +478,6 @@ class Iteration(Node):
         return self.bounds(finish=finish)[1]
 
     @property
-    def children(self):
-        """Return the traversable children."""
-        return (self.nodes,)
-
-    @property
     def functions(self):
         """
         Return all :class:`Function` objects used in the header of
@@ -541,9 +532,42 @@ class Callable(Node):
         body = "\n\t".join([str(s) for s in self.body])
         return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
 
+
+class Conditional(Node):
+
+    """
+    A node to express if-then-else blocks.
+
+    :param condition: A SymPy expression representing the if condition.
+    :param then_body: Single or iterable of :class:`Node` objects defining the
+                      body of the 'then' part of the if-then-else.
+    :param else_body: (Optional) Single or iterable of :class:`Node` objects
+                      defining the body of the 'else' part of the if-then-else.
+    """
+
+    is_Conditional = True
+
+    _traversable = ['then_body', 'else_body']
+
+    def __init__(self, condition, then_body, else_body=None):
+        self.condition = condition
+        self.then_body = as_tuple(then_body)
+        self.else_body = as_tuple(else_body)
+
+    def __repr__(self):
+        if self.else_body:
+            return "<[%s] ? [%s] : [%s]>" %\
+                (ccode(self.condition), repr(self.then_body), repr(self.else_body))
+        else:
+            return "<[%s] ? [%s]" % (ccode(self.condition), repr(self.then_body))
+
     @property
-    def children(self):
-        return (self.body,)
+    def free_symbols(self):
+        """
+        Return all :class:`Symbol` objects used in the condition of this
+        :class:`Conditional`.
+        """
+        return tuple(self.condition.free_symbols)
 
 
 # Utilities

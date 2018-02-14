@@ -603,6 +603,27 @@ class TestArguments(object):
         op()
         assert np.allclose(g.data, 4.)
 
+    def test_argument_from_index_constant(self):
+        nx, ny = 30, 30
+        grid = Grid(shape=(nx, ny))
+        x, y = grid.dimensions
+
+        arbdim = Dimension('arb')
+        u = TimeFunction(name='u', grid=grid, save=None, time_order=2, space_order=0)
+        snap = Function(name='snap', dimensions=(arbdim, x, y), shape=(5, nx, ny),
+                        space_order=0)
+
+        save_t = Constant(name='save_t', dtype=np.int32)
+        save_slot = Constant(name='save_slot', dtype=np.int32)
+
+        expr = Eq(snap.subs(arbdim, save_slot), u.subs(grid.stepping_dim, save_t))
+        op = Operator(expr)
+        u.data[:] = 0.0
+        snap.data[:] = 0.0
+        u.data[0, 10, 10] = 1.0
+        op.apply(save_t=0, save_slot=1)
+        assert snap.data[1, 10, 10] == 1.0
+
 
 @skipif_yask
 class TestDeclarator(object):

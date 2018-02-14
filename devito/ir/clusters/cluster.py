@@ -1,10 +1,9 @@
-from collections import defaultdict
-
-from sympy import Eq
 from cached_property import cached_property
+from frozendict import frozendict
 
 from devito.ir.support import IterationSpace
 from devito.ir.clusters.graph import FlowGraph
+from devito.symbolics import Eq
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -20,11 +19,16 @@ class PartialCluster(object):
     :param exprs: The ordered sequence of expressions computing a tensor.
     :param ispace: An object of type :class:`IterationSpace`, which represents the
                    iteration space of the cluster.
+    :param atomics: (Optional) non-sharable :class:`Dimension`s in ``ispace``.
+    :param guards: (Optional) iterable of conditions, provided as SymPy expressions,
+                   under which ``exprs`` are evaluated.
     """
 
-    def __init__(self, exprs, ispace):
+    def __init__(self, exprs, ispace, atomics=None, guards=None):
         self._exprs = list(exprs)
         self._ispace = ispace
+        self._atomics = set(atomics or [])
+        self._guards = guards or {}
 
     @property
     def exprs(self):
@@ -33,6 +37,18 @@ class PartialCluster(object):
     @property
     def ispace(self):
         return self._ispace
+
+    @property
+    def atomics(self):
+        return self._atomics
+
+    @property
+    def guards(self):
+        return self._guards
+
+    @property
+    def args(self):
+        return (self.exprs, self.ispace, self.atomics, self.guards)
 
     @property
     def trace(self):
@@ -66,9 +82,11 @@ class Cluster(PartialCluster):
 
     """A Cluster is an immutable :class:`PartialCluster`."""
 
-    def __init__(self, exprs, ispace):
+    def __init__(self, exprs, ispace, atomics=None, guards=None):
         self._exprs = tuple(Eq(*i.args, evaluate=False) for i in exprs)
         self._ispace = ispace
+        self._atomics = frozenset(atomics or ())
+        self._guards = frozendict(guards or {})
 
     @cached_property
     def trace(self):
@@ -85,9 +103,9 @@ class Cluster(PartialCluster):
     def rebuild(self, exprs):
         """
         Build a new cluster with expressions ``exprs`` having same iteration
-        space as ``self``.
+        space and atomics as ``self``.
         """
-        return Cluster(exprs, self.ispace)
+        return Cluster(exprs, self.ispace, self.atomics, self.guards)
 
     @PartialCluster.exprs.setter
     def exprs(self, val):
@@ -99,15 +117,7 @@ class Cluster(PartialCluster):
 
 class ClusterGroup(list):
 
-    """
-    An iterable of Clusters, which also tracks the atomic dimensions
-    of each of its elements; that is, those dimensions that a Cluster
-    cannot share with an adjacent cluster, to honor data dependences.
-    """
-
-    def __init__(self, *clusters):
-        super(ClusterGroup, self).__init__(*clusters)
-        self.atomics = defaultdict(set)
+    """An iterable of :class:`PartialCluster`s."""
 
     @property
     def ispace(self):
@@ -121,10 +131,10 @@ class ClusterGroup(list):
     def unfreeze(self):
         """
         Return a new ClusterGroup in which all of ``self``'s Clusters have
-        been promoted to PartialClusters. The ``atomics`` information is lost.
+        been promoted to PartialClusters. Any metadata attached to self is lost.
         """
-        return ClusterGroup([PartialCluster(i.exprs, i.ispace)
-                             if isinstance(i, Cluster) else i for i in self])
+        return ClusterGroup([PartialCluster(*i.args) if isinstance(i, Cluster) else i
+                             for i in self])
 
     def finalize(self):
         """
@@ -134,9 +144,8 @@ class ClusterGroup(list):
         clusters = ClusterGroup()
         for i in self:
             if isinstance(i, PartialCluster):
-                cluster = Cluster(i.exprs, i.ispace)
+                cluster = Cluster(*i.args)
                 clusters.append(cluster)
-                clusters.atomics[cluster] = self.atomics[i]
             else:
                 clusters.append(i)
         return clusters
