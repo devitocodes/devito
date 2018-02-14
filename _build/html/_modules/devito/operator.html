@@ -175,7 +175,7 @@
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">rewrite</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidOperator</span>
-<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span>
+<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">Constant</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">bar</span><span class="p">,</span> <span class="n">info</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">LoweredEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="k">import</span> <span class="n">clusterize</span>
@@ -244,7 +244,7 @@
 
         <span class="c1"># Set the direction of time acoording to the given TimeAxis</span>
         <span class="k">for</span> <span class="n">time</span> <span class="ow">in</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Time</span><span class="p">]:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">time</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">time</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">:</span>
                 <span class="n">time</span><span class="o">.</span><span class="n">reverse</span> <span class="o">=</span> <span class="n">time_axis</span> <span class="o">==</span> <span class="n">Backward</span>
 
         <span class="c1"># Group expressions based on their iteration space and data dependences,</span>
@@ -484,6 +484,8 @@
             <span class="k">continue</span>
         <span class="k">if</span> <span class="n">function</span><span class="o">.</span><span class="n">is_Constant</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">:</span>
             <span class="nb">input</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+                <span class="nb">input</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">j</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">Constant</span><span class="p">)])</span>
     <span class="nb">input</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">attrgetter</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span>
 
     <span class="n">output</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">]</span>

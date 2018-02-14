@@ -225,10 +225,10 @@
 </li>
       <li><a href="devito.html#devito.operator.OperatorRunnable.apply">apply() (devito.operator.OperatorRunnable method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.Arg">Arg (class in devito.dle.backends.common)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.args">args (devito.ir.iet.nodes.Node attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.args_frozen">args_frozen (devito.ir.iet.nodes.Node attribute)</a>
@@ -237,6 +237,8 @@
 
       <ul>
         <li><a href="devito.html#devito.dimension.SteppingDimension.argument_defaults">(devito.dimension.SteppingDimension method)</a>
+</li>
+        <li><a href="devito.html#devito.dimension.SubDimension.argument_defaults">(devito.dimension.SubDimension method)</a>
 </li>
         <li><a href="devito.html#devito.function.Constant.argument_defaults">(devito.function.Constant method)</a>
 </li>
@@ -331,22 +333,12 @@
 </li>
       <li><a href="devito.html#devito.cgen_utils.ccode">ccode() (in module devito.cgen_utils)</a>
 </li>
-      <li><a href="devito.html#devito.cgen_utils.ccode_eq">ccode_eq() (in module devito.cgen_utils)</a>
-</li>
       <li><a href="devito.html#devito.operator.Operator.cfunction">cfunction (devito.operator.Operator attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen">CGen (class in devito.ir.iet.visitors)</a>
 </li>
-      <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Block.children">children (devito.ir.iet.nodes.Block attribute)</a>
-
-      <ul>
-        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Callable.children">(devito.ir.iet.nodes.Callable attribute)</a>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.children">children (devito.ir.iet.nodes.Node attribute)</a>
 </li>
-        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.children">(devito.ir.iet.nodes.Iteration attribute)</a>
-</li>
-        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.children">(devito.ir.iet.nodes.Node attribute)</a>
-</li>
-      </ul></li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster">Cluster (class in devito.ir.clusters.cluster)</a>
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup">ClusterGroup (class in devito.ir.clusters.cluster)</a>
@@ -361,8 +353,6 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.manipulation.collect_nested">collect_nested() (in module devito.dse.manipulation)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.html#devito.dse.manipulation.common_subexprs_elimination">common_subexprs_elimination() (in module devito.dse.manipulation)</a>
 </li>
       <li><a href="devito.dse.html#devito.dse.manipulation.compact_temporaries">compact_temporaries() (in module devito.dse.manipulation)</a>
@@ -371,7 +361,19 @@
 </li>
       <li><a href="devito.html#devito.operator.Operator.compile">compile (devito.operator.Operator attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.iet.html#devito.ir.iet.utils.compose_nodes">compose_nodes() (in module devito.ir.iet.utils)</a>
+</li>
+      <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.CondEq">CondEq (class in devito.symbolics.extended_sympy)</a>
+</li>
+      <li><a href="devito.html#devito.dimension.ConditionalDimension.condition">condition (devito.dimension.ConditionalDimension attribute)</a>
+</li>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Conditional">Conditional (class in devito.ir.iet.nodes)</a>
+</li>
+      <li><a href="devito.html#devito.dimension.ConditionalDimension">ConditionalDimension (class in devito.dimension)</a>
+</li>
+      <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.CondNe">CondNe (class in devito.symbolics.extended_sympy)</a>
 </li>
       <li><a href="devito.html#devito.parameters.configuration">configuration (in module devito.parameters)</a>
 </li>
@@ -448,11 +450,15 @@
 </li>
         <li><a href="devito.html#devito.cgen_utils.INT.default_assumptions">(devito.cgen_utils.INT attribute)</a>
 </li>
+        <li><a href="devito.html#devito.dimension.ConditionalDimension.default_assumptions">(devito.dimension.ConditionalDimension attribute)</a>
+</li>
         <li><a href="devito.html#devito.dimension.Dimension.default_assumptions">(devito.dimension.Dimension attribute)</a>
 </li>
         <li><a href="devito.html#devito.dimension.SpaceDimension.default_assumptions">(devito.dimension.SpaceDimension attribute)</a>
 </li>
         <li><a href="devito.html#devito.dimension.SteppingDimension.default_assumptions">(devito.dimension.SteppingDimension attribute)</a>
+</li>
+        <li><a href="devito.html#devito.dimension.SubDimension.default_assumptions">(devito.dimension.SubDimension attribute)</a>
 </li>
         <li><a href="devito.html#devito.dimension.TimeDimension.default_assumptions">(devito.dimension.TimeDimension attribute)</a>
 </li>
@@ -470,6 +476,10 @@
 </li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Add.default_assumptions">(devito.symbolics.extended_sympy.Add attribute)</a>
 </li>
+        <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.CondEq.default_assumptions">(devito.symbolics.extended_sympy.CondEq attribute)</a>
+</li>
+        <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.CondNe.default_assumptions">(devito.symbolics.extended_sympy.CondNe attribute)</a>
+</li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Eq.default_assumptions">(devito.symbolics.extended_sympy.Eq attribute)</a>
 </li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr.default_assumptions">(devito.symbolics.extended_sympy.FrozenExpr attribute)</a>
@@ -477,6 +487,8 @@
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.FunctionFromPointer.default_assumptions">(devito.symbolics.extended_sympy.FunctionFromPointer attribute)</a>
 </li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Inc.default_assumptions">(devito.symbolics.extended_sympy.Inc attribute)</a>
+</li>
+        <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.IntDiv.default_assumptions">(devito.symbolics.extended_sympy.IntDiv attribute)</a>
 </li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.ListInitializer.default_assumptions">(devito.symbolics.extended_sympy.ListInitializer attribute)</a>
 </li>
@@ -561,14 +573,14 @@
 </li>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends">devito.dle.backends (module)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.advanced">devito.dle.backends.advanced (module)</a>
 </li>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.basic">devito.dle.backends.basic (module)</a>
 </li>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.common">devito.dle.backends.common (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.utils">devito.dle.backends.utils (module)</a>
 </li>
       <li><a href="devito.dle.html#module-devito.dle.blocking_utils">devito.dle.blocking_utils (module)</a>
@@ -833,6 +845,8 @@
 <h2 id="F">F</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.dimension.ConditionalDimension.factor">factor (devito.dimension.ConditionalDimension attribute)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.utils.filter_iterations">filter_iterations() (in module devito.ir.iet.utils)</a>
 </li>
       <li><a href="examples.cfd.html#examples.cfd.tools.fin_bump">fin_bump() (in module examples.cfd.tools)</a>
@@ -884,6 +898,8 @@
       <ul>
         <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Call.free_symbols">(devito.ir.iet.nodes.Call attribute)</a>
 </li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Conditional.free_symbols">(devito.ir.iet.nodes.Conditional attribute)</a>
+</li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.free_symbols">(devito.ir.iet.nodes.Expression attribute)</a>
 </li>
         <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.free_symbols">(devito.ir.iet.nodes.Iteration attribute)</a>
@@ -898,6 +914,8 @@
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.freeze_expression">freeze_expression() (in module devito.symbolics.manipulation)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr">FrozenExpr (class in devito.symbolics.extended_sympy)</a>
+</li>
+      <li><a href="devito.ir.equations.html#devito.ir.equations.equation.LoweredEq.func">func() (devito.ir.equations.equation.LoweredEq method)</a>
 </li>
       <li><a href="devito.html#devito.base.Function">Function (class in devito.base)</a>
 
@@ -1039,6 +1057,8 @@
 </li>
       <li><a href="devito.html#devito.cgen_utils.INT">INT (class in devito.cgen_utils)</a>
 </li>
+      <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.IntDiv">IntDiv (class in devito.symbolics.extended_sympy)</a>
+</li>
       <li><a href="devito.html#devito.region.INTERIOR">INTERIOR (in module devito.region)</a>
 </li>
       <li><a href="devito.html#devito.function.SparseFunction.interpolate">interpolate() (devito.function.SparseFunction method)</a>
@@ -1105,6 +1125,14 @@
 
       <ul>
         <li><a href="devito.html#devito.base.Operator.is_composite">(devito.base.Operator attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="devito.html#devito.dimension.ConditionalDimension.is_Conditional">is_Conditional (devito.dimension.ConditionalDimension attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.dimension.Dimension.is_Conditional">(devito.dimension.Dimension attribute)</a>
+</li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Conditional.is_Conditional">(devito.ir.iet.nodes.Conditional attribute)</a>
 </li>
       </ul></li>
       <li><a href="devito.html#devito.function.Constant.is_Constant">is_Constant (devito.function.Constant attribute)</a>
@@ -1219,6 +1247,14 @@
         <li><a href="devito.html#devito.base.Operator.is_noninteger">(devito.base.Operator attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.html#devito.dimension.ConditionalDimension.is_NonlinearDerived">is_NonlinearDerived (devito.dimension.ConditionalDimension attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.dimension.Dimension.is_NonlinearDerived">(devito.dimension.Dimension attribute)</a>
+</li>
+        <li><a href="devito.html#devito.dimension.SteppingDimension.is_NonlinearDerived">(devito.dimension.SteppingDimension attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.html#devito.base.CacheManager.is_nonnegative">is_nonnegative (devito.base.CacheManager attribute)</a>
 
       <ul>
@@ -1304,7 +1340,11 @@
 </li>
       </ul></li>
       <li><a href="devito.html#devito.dimension.Dimension.is_Sub">is_Sub (devito.dimension.Dimension attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.dimension.SubDimension.is_Sub">(devito.dimension.SubDimension attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.types.Indexed.is_Symbol">is_Symbol (devito.types.Indexed attribute)</a>
 
       <ul>
@@ -1404,6 +1444,8 @@
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.LocalExpression">LocalExpression (class in devito.ir.iet.nodes)</a>
 </li>
       <li><a href="devito.html#devito.logger.log">log() (in module devito.logger)</a>, <a href="devito.html#devito.logger.log">[1]</a>
+</li>
+      <li><a href="devito.html#devito.dimension.SubDimension.lower">lower (devito.dimension.SubDimension attribute)</a>
 </li>
       <li><a href="devito.ir.equations.html#devito.ir.equations.equation.LoweredEq">LoweredEq (class in devito.ir.equations.equation)</a>
 </li>
@@ -1735,14 +1777,14 @@
       </ul></li>
       <li><a href="devito.html#devito.grid.Grid.spacing_symbols">spacing_symbols (devito.grid.Grid attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.base.SparseFunction">SparseFunction (class in devito.base)</a>
 
       <ul>
         <li><a href="devito.html#devito.function.SparseFunction">(class in devito.function)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.base.SparseTimeFunction">SparseTimeFunction (class in devito.base)</a>
 
       <ul>
@@ -1770,6 +1812,8 @@
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.stencil">stencil (devito.ir.iet.nodes.Expression attribute)</a>
 </li>
       <li><a href="devito.html#devito.dimension.SteppingDimension">SteppingDimension (class in devito.dimension)</a>
+</li>
+      <li><a href="devito.html#devito.dimension.SubDimension">SubDimension (class in devito.dimension)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.substitute">substitute() (devito.ir.iet.nodes.Expression method)</a>
 </li>
@@ -1887,6 +1931,8 @@
         <li><a href="devito.dse.backends.html#devito.dse.backends.common.State.update">(devito.dse.backends.common.State method)</a>
 </li>
       </ul></li>
+      <li><a href="devito.html#devito.dimension.SubDimension.upper">upper (devito.dimension.SubDimension attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -1924,6 +1970,8 @@
 </li>
       </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Callable">visit_Callable() (devito.ir.iet.visitors.CGen method)</a>
+</li>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Conditional">visit_Conditional() (devito.ir.iet.visitors.CGen method)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Element">visit_Element() (devito.ir.iet.visitors.CGen method)</a>
 

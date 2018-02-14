@@ -159,13 +159,12 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.ir.clusters.cluster</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
-
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
-<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+<span></span><span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+<span class="kn">from</span> <span class="nn">frozendict</span> <span class="k">import</span> <span class="n">frozendict</span>
 
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">IterationSpace</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters.graph</span> <span class="k">import</span> <span class="n">FlowGraph</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Cluster&quot;</span><span class="p">,</span> <span class="s2">&quot;ClusterGroup&quot;</span><span class="p">]</span>
 
@@ -181,11 +180,16 @@
 <span class="sd">    :param exprs: The ordered sequence of expressions computing a tensor.</span>
 <span class="sd">    :param ispace: An object of type :class:`IterationSpace`, which represents the</span>
 <span class="sd">                   iteration space of the cluster.</span>
+<span class="sd">    :param atomics: (Optional) non-sharable :class:`Dimension`s in ``ispace``.</span>
+<span class="sd">    :param guards: (Optional) iterable of conditions, provided as SymPy expressions,</span>
+<span class="sd">                   under which ``exprs`` are evaluated.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">ispace</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">atomics</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_guards</span> <span class="o">=</span> <span class="n">guards</span> <span class="ow">or</span> <span class="p">{}</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -194,6 +198,18 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ispace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">atomics</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">guards</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_guards</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -227,9 +243,11 @@
 
     <span class="sd">&quot;&quot;&quot;A Cluster is an immutable :class:`PartialCluster`.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">ispace</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">atomics</span> <span class="ow">or</span> <span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_guards</span> <span class="o">=</span> <span class="n">frozendict</span><span class="p">(</span><span class="n">guards</span> <span class="ow">or</span> <span class="p">{})</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -246,9 +264,9 @@
 <div class="viewcode-block" id="Cluster.rebuild"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.rebuild">[docs]</a>    <span class="k">def</span> <span class="nf">rebuild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Build a new cluster with expressions ``exprs`` having same iteration</span>
-<span class="sd">        space as ``self``.</span>
+<span class="sd">        space and atomics as ``self``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span></div>
 
     <span class="nd">@PartialCluster</span><span class="o">.</span><span class="n">exprs</span><span class="o">.</span><span class="n">setter</span>
     <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
@@ -260,15 +278,7 @@
 
 <div class="viewcode-block" id="ClusterGroup"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup">[docs]</a><span class="k">class</span> <span class="nc">ClusterGroup</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    An iterable of Clusters, which also tracks the atomic dimensions</span>
-<span class="sd">    of each of its elements; that is, those dimensions that a Cluster</span>
-<span class="sd">    cannot share with an adjacent cluster, to honor data dependences.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">clusters</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">ClusterGroup</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">clusters</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
+    <span class="sd">&quot;&quot;&quot;An iterable of :class:`PartialCluster`s.&quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ispace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -282,10 +292,10 @@
 <div class="viewcode-block" id="ClusterGroup.unfreeze"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup.unfreeze">[docs]</a>    <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return a new ClusterGroup in which all of ``self``&#39;s Clusters have</span>
-<span class="sd">        been promoted to PartialClusters. The ``atomics`` information is lost.</span>
+<span class="sd">        been promoted to PartialClusters. Any metadata attached to self is lost.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">ClusterGroup</span><span class="p">([</span><span class="n">PartialCluster</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
-                             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Cluster</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span></div>
+        <span class="k">return</span> <span class="n">ClusterGroup</span><span class="p">([</span><span class="n">PartialCluster</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Cluster</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span>
+                             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span></div>
 
 <div class="viewcode-block" id="ClusterGroup.finalize"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup.finalize">[docs]</a>    <span class="k">def</span> <span class="nf">finalize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -295,9 +305,8 @@
         <span class="n">clusters</span> <span class="o">=</span> <span class="n">ClusterGroup</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">PartialCluster</span><span class="p">):</span>
-                <span class="n">cluster</span> <span class="o">=</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
+                <span class="n">cluster</span> <span class="o">=</span> <span class="n">Cluster</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
                 <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cluster</span><span class="p">)</span>
-                <span class="n">clusters</span><span class="o">.</span><span class="n">atomics</span><span class="p">[</span><span class="n">cluster</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">clusters</span></div></div>

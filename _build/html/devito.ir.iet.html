@@ -337,11 +337,6 @@ appears in this list are treated as traversable fields.</p>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
 <p>A sequence of nodes, wrapped in a block {…}.</p>
 <dl class="attribute">
-<dt id="devito.ir.iet.nodes.Block.children">
-<code class="descname">children</code><a class="headerlink" href="#devito.ir.iet.nodes.Block.children" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Block.is_Block">
 <code class="descname">is_Block</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Block.is_Block" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -472,11 +467,6 @@ The default value is (‘static’, ‘inline’).</li>
 </tbody>
 </table>
 <dl class="attribute">
-<dt id="devito.ir.iet.nodes.Callable.children">
-<code class="descname">children</code><a class="headerlink" href="#devito.ir.iet.nodes.Callable.children" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Callable.is_Callable">
 <code class="descname">is_Callable</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Callable.is_Callable" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -509,6 +499,40 @@ The default value is (‘static’, ‘inline’).</li>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Call.is_Call">
 <code class="descname">is_Call</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Call.is_Call" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.iet.nodes.Conditional">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Conditional</code><span class="sig-paren">(</span><em>condition</em>, <em>then_body</em>, <em>else_body=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Conditional"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Conditional" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
+<p>A node to express if-then-else blocks.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>condition</strong> – A SymPy expression representing the if condition.</li>
+<li><strong>then_body</strong> – Single or iterable of <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">Node</span></code></a> objects defining the
+body of the ‘then’ part of the if-then-else.</li>
+<li><strong>else_body</strong> – (Optional) Single or iterable of <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">Node</span></code></a> objects
+defining the body of the ‘else’ part of the if-then-else.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Conditional.free_symbols">
+<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.Conditional.free_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects used in the condition of this
+<a class="reference internal" href="#devito.ir.iet.nodes.Conditional" title="devito.ir.iet.nodes.Conditional"><code class="xref py py-class docutils literal"><span class="pre">Conditional</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Conditional.is_Conditional">
+<code class="descname">is_Conditional</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Conditional.is_Conditional" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -553,12 +577,6 @@ if a limit is unknown.</p>
 <dt id="devito.ir.iet.nodes.Iteration.bounds_symbolic">
 <code class="descname">bounds_symbolic</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.bounds_symbolic" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a 2-tuple representing the symbolic bounds of the object.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.Iteration.children">
-<code class="descname">children</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.children" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the traversable children.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -993,7 +1011,7 @@ by collecting all symbols not defined in the tree itself.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x147c2c218c80&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x147c2c218bf8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14b53f23bd08&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14b53f23bc80&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1065,7 +1083,7 @@ by collecting all symbols not defined in the tree itself.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x147c2c2188c8&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x147c2c218840&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x147c2c218730&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x147c2c2187b8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b53f23b950&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b53f23b8c8&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b53f23b7b8&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b53f23b840&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1200,6 +1218,11 @@ tree to their respective section.</p>
 <dl class="method">
 <dt id="devito.ir.iet.visitors.CGen.visit_Callable">
 <code class="descname">visit_Callable</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_Callable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_Callable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.iet.visitors.CGen.visit_Conditional">
+<code class="descname">visit_Conditional</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_Conditional"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_Conditional" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">

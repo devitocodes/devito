@@ -165,7 +165,8 @@
 
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">Scalar</span><span class="p">,</span> <span class="n">Symbol</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;SubDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ConditionalDimension&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
@@ -175,8 +176,11 @@
     <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="n">is_Derived</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Conditional</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">False</span>
+
     <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
@@ -362,12 +366,13 @@
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),)</span>
 
 
-<span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension">[docs]</a><span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
     <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Dimension symbol representing a sub-region of a ``parent`` Dimension.</span>
+<span class="sd">    Dimension symbol representing a contiguous sub-region of a given</span>
+<span class="sd">    ``parent`` Dimension.</span>
 
 <span class="sd">    :param name: Name of the dimension symbol.</span>
 <span class="sd">    :param parent: Parent dimension from which the SubDimension is created.</span>
@@ -376,7 +381,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="n">newobj</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_lower</span> <span class="o">=</span> <span class="n">lower</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_upper</span> <span class="o">=</span> <span class="n">upper</span>
         <span class="k">return</span> <span class="n">newobj</span>
@@ -392,7 +397,7 @@
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_defaults</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_defaults</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of default argument values defined by this symbol.</span>
 
@@ -410,11 +415,47 @@
             <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parent_defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">-</span>\
                 <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lower</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">args</span>
+        <span class="k">return</span> <span class="n">args</span></div></div>
+
+
+<div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+
+    <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Conditional</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol representing a sub-region of a given ``parent`` Dimension.</span>
+<span class="sd">    Unlike a :class:`SubDimension`, a ConditionalDimension does not represent</span>
+<span class="sd">    a contiguous region. The iterations touched by a ConditionalDimension</span>
+<span class="sd">    are expressible in two different ways: ::</span>
+
+<span class="sd">        * ``factor``: an integer indicating the size of the increment.</span>
+<span class="sd">        * ``condition``: an arbitrary SymPy expression depending on ``parent``.</span>
+<span class="sd">                         All iterations for which the expression evaluates to</span>
+<span class="sd">                         True are part of the ``SubDimension`` region.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_factor</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;factor&#39;</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_condition</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;condition&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">factor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_factor</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">condition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">condition</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
+    <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="sd">&quot;&quot;&quot;</span>

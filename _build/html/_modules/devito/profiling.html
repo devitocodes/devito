@@ -168,8 +168,10 @@
 <span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">byref</span><span class="p">,</span> <span class="n">c_double</span>
 <span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">Value</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">TimedList</span><span class="p">,</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">TimedList</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
+                           <span class="n">FindAdjacentIterations</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">estimate_memory</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Profile&#39;</span><span class="p">,</span> <span class="s1">&#39;create_profile&#39;</span><span class="p">]</span>
 
@@ -194,27 +196,32 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
 
-    <span class="c1"># Group by root Iteration</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">itspace</span> <span class="ow">in</span> <span class="n">FindSections</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
-        <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">itspace</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">itspace</span><span class="p">)</span>
+    <span class="n">trees</span> <span class="o">=</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">trees</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">node</span><span class="p">,</span> <span class="n">profiler</span>
 
-    <span class="c1"># Group sections if their iteration spaces overlap</span>
-    <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">itspace</span><span class="p">:</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">])</span>
-    <span class="n">groups</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-        <span class="n">queue</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-        <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
-            <span class="n">item</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">handle</span> <span class="ow">or</span> <span class="n">key</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="o">==</span> <span class="n">key</span><span class="p">(</span><span class="n">handle</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
-                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># Found a timing section</span>
-                <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
-                <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">]</span>
-        <span class="k">if</span> <span class="n">handle</span><span class="p">:</span>
+    <span class="n">adjacents</span> <span class="o">=</span> <span class="p">[</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindAdjacentIterations</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">i</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">are_adjacent</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">last</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">last</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">j</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="o">-</span> <span class="n">a</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">adjacents</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1"># Group Iterations based on timing region</span>
+    <span class="n">key</span><span class="p">,</span> <span class="n">groups</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">itspace</span><span class="p">:</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">defines</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itspace</span><span class="p">},</span> <span class="p">[]</span>
+    <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">trees</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+    <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">trees</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="n">handle</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">key</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span> <span class="o">==</span> <span class="n">key</span><span class="p">(</span><span class="n">last</span><span class="p">)</span> <span class="ow">and</span> <span class="n">are_adjacent</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">last</span><span class="p">):</span>
+            <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
             <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">tree</span><span class="p">]</span>
+    <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
 
     <span class="c1"># Create and track C-level timers</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>

@@ -957,7 +957,7 @@ the maximum number of points that an approximation can
 use on the two sides of the point of interest.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
-to <code class="docutils literal"><span class="pre">None</span></code>, indicating the use of alternating buffers. If
+to <cite>None</cite>, indicating the use of alternating buffers. If
 intermediate results are required, the value of save must
 be set to the required size of the time dimension.</li>
 <li><strong>time_dim</strong> – The <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> object to use to represent time in this
@@ -1093,27 +1093,6 @@ derived time dimensions symbol. For example:</p>
 </td>
 </tr>
 <tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The resulting code as a string. If it fails, then it returns the expr</p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.cgen_utils.ccode_eq">
-<code class="descclassname">devito.cgen_utils.</code><code class="descname">ccode_eq</code><span class="sig-paren">(</span><em>eq</em>, <em>**settings</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#ccode_eq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.ccode_eq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generate C++ assignment from an equation assigning RHS to LHS</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>eq</strong> – The equation</li>
-<li><strong>settings</strong> – A dictionary of settings for code printing</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The resulting code as a string</p>
 </td>
 </tr>
 </tbody>
@@ -1341,6 +1320,11 @@ reference that is needed only for the call to free.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Conditional">
+<code class="descname">is_Conditional</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Conditional" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Derived">
 <code class="descname">is_Derived</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Derived" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1369,6 +1353,11 @@ potential iteration space.</p>
 </tbody>
 </table>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_NonlinearDerived">
+<code class="descname">is_NonlinearDerived</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_NonlinearDerived" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Space">
@@ -1548,6 +1537,11 @@ iteration end point. So all we can provide is a starting point.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.dimension.SteppingDimension.is_NonlinearDerived">
+<code class="descname">is_NonlinearDerived</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.SteppingDimension.is_NonlinearDerived" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.dimension.SteppingDimension.is_Stepping">
 <code class="descname">is_Stepping</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.SteppingDimension.is_Stepping" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol that defines the stepping direction of an
@@ -1584,6 +1578,103 @@ of the parent variable.</p>
 <p>Internally we always define symbolic iteration ranges in terms
 of the parent variable.</p>
 </dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.dimension.SubDimension">
+<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">SubDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
+<dl class="method">
+<dt id="devito.dimension.SubDimension.argument_defaults">
+<code class="descname">argument_defaults</code><span class="sig-paren">(</span><em>parent_defaults</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension.argument_defaults"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension.argument_defaults" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a map of default argument values defined by this symbol.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>parent_defaults</strong> – Default values for the parent dimensions.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.SubDimension.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.SubDimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.SubDimension.is_Sub">
+<code class="descname">is_Sub</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.SubDimension.is_Sub" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dimension symbol representing a contiguous sub-region of a given
+<code class="docutils literal"><span class="pre">parent</span></code> Dimension.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the dimension symbol.</li>
+<li><strong>parent</strong> – Parent dimension from which the SubDimension is created.</li>
+<li><strong>lower</strong> – Lower offset from the <code class="docutils literal"><span class="pre">parent</span></code> dimension.</li>
+<li><strong>upper</strong> – Upper offset from the <code class="docutils literal"><span class="pre">parent</span></code> dimension.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.SubDimension.lower">
+<code class="descname">lower</code><a class="headerlink" href="#devito.dimension.SubDimension.lower" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.SubDimension.upper">
+<code class="descname">upper</code><a class="headerlink" href="#devito.dimension.SubDimension.upper" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.dimension.ConditionalDimension">
+<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">ConditionalDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#ConditionalDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.ConditionalDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
+<dl class="attribute">
+<dt id="devito.dimension.ConditionalDimension.condition">
+<code class="descname">condition</code><a class="headerlink" href="#devito.dimension.ConditionalDimension.condition" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.ConditionalDimension.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.ConditionalDimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.ConditionalDimension.factor">
+<code class="descname">factor</code><a class="headerlink" href="#devito.dimension.ConditionalDimension.factor" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.ConditionalDimension.is_Conditional">
+<code class="descname">is_Conditional</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.ConditionalDimension.is_Conditional" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dimension symbol representing a sub-region of a given <code class="docutils literal"><span class="pre">parent</span></code> Dimension.
+Unlike a <a class="reference internal" href="#devito.dimension.SubDimension" title="devito.dimension.SubDimension"><code class="xref py py-class docutils literal"><span class="pre">SubDimension</span></code></a>, a ConditionalDimension does not represent
+a contiguous region. The iterations touched by a ConditionalDimension
+are expressible in two different ways:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>* ``factor``: an integer indicating the size of the increment.
+* ``condition``: an arbitrary SymPy expression depending on ``parent``.
+                 All iterations for which the expression evaluates to
+                 True are part of the ``SubDimension`` region.
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.ConditionalDimension.is_NonlinearDerived">
+<code class="descname">is_NonlinearDerived</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.ConditionalDimension.is_NonlinearDerived" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
@@ -1960,7 +2051,7 @@ the maximum number of points that an approximation can
 use on the two sides of the point of interest.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
-to <code class="docutils literal"><span class="pre">None</span></code>, indicating the use of alternating buffers. If
+to <cite>None</cite>, indicating the use of alternating buffers. If
 intermediate results are required, the value of save must
 be set to the required size of the time dimension.</li>
 <li><strong>time_dim</strong> – The <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> object to use to represent time in this
