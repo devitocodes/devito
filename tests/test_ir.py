@@ -6,7 +6,8 @@ from devito import Eq  # noqa
 from devito.ir.equations import LoweredEq
 from devito.ir.iet.nodes import Conditional, Expression
 from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
-from devito.ir.support.space import NullInterval, Interval, Space, Forward, Backward
+from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
+                                     Forward, Backward)
 
 
 @pytest.fixture(scope="session")
@@ -389,13 +390,13 @@ def test_intervals_union():
     nully = NullInterval(y)
     iy = Interval(y, -2, 2)
 
-    # Mixed disjoint (note: Space input order is irrelevant)
-    assert ix.union(ix4) == Space([ix4, ix])
+    # Mixed disjoint (note: IntervalGroup input order is irrelevant)
+    assert ix.union(ix4) == IntervalGroup([ix4, ix])
     assert ix.union(ix5) == Interval(x, -3, 2)
-    assert ix6.union(ix) == Space([ix, ix6])
-    assert ix.union(nully) == Space([ix, nully])
-    assert ix.union(iy) == Space([iy, ix])
-    assert iy.union(ix) == Space([iy, ix])
+    assert ix6.union(ix) == IntervalGroup([ix, ix6])
+    assert ix.union(nully) == IntervalGroup([ix, nully])
+    assert ix.union(iy) == IntervalGroup([iy, ix])
+    assert iy.union(ix) == IntervalGroup([iy, ix])
 
 
 @skipif_yask

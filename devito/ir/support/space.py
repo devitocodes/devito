@@ -3,7 +3,7 @@ from collections import OrderedDict
 
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['NullInterval', 'Interval', 'DataSpace', 'IterationSpace',
+__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
            'Forward', 'Backward', 'Any']
 
 
@@ -76,7 +76,7 @@ class NullInterval(AbstractInterval):
         if self.dim == o.dim:
             return o._rebuild()
         else:
-            return Space([self._rebuild(), o._rebuild()])
+            return IntervalGroup([self._rebuild(), o._rebuild()])
 
     def overlap(self, o):
         return False
@@ -125,7 +125,7 @@ class Interval(AbstractInterval):
         elif o.is_Null and self.dim == o.dim:
             return self._rebuild()
         else:
-            return Space([self._rebuild(), o._rebuild()])
+            return IntervalGroup([self._rebuild(), o._rebuild()])
 
     def subtract(self, o):
         if self.dim != o.dim or o.is_Null:
@@ -156,146 +156,87 @@ class Interval(AbstractInterval):
         return hash((self.dim.name, self.lower, self.upper))
 
 
-class Space(object):
+class IntervalGroup(tuple):
 
     """
-    A bag of :class:`Interval`s.
-
-    The intervals input ordering is honored.
+    A sequence of :class:`Interval`s with set-like operations exposed.
     """
-
-    def __init__(self, intervals):
-        self.intervals = as_tuple(intervals)
-
-    def __repr__(self):
-        return "%s[%s]" % (self.__class__.__name__,
-                           ', '.join([repr(i) for i in self.intervals]))
 
     def __eq__(self, o):
-        return set(self.intervals) == set(o.intervals)
+        return set(self) == set(o)
 
-    def _construct(self, intervals):
-        return Space(intervals)
-
-    @property
-    def size(self):
-        return len(self.intervals)
+    def __repr__(self):
+        return "IntervalGroup[%s]" % (', '.join([repr(i) for i in self]))
 
     @property
     def dimensions(self):
-        return filter_ordered([i.dim for i in self.intervals])
-
-    @property
-    def empty(self):
-        return self.size == 0
+        return filter_ordered([i.dim for i in self])
 
     @property
     def is_well_defined(self):
         """
-        Return True if the space :class:`Interval`s are over different
-        :class:`Dimension`s, False otherwise.
+        Return True if all :class:`Interval`s are over different :class:`Dimension`s,
+        False otherwise.
         """
-        dims = [i.dim for i in self.intervals]
-        return len(dims) == len(set(dims))
+        return len(self.dimensions) == len(set(self.dimensions))
 
     @classmethod
-    def generate(self, op, *spaces):
+    def generate(self, op, *interval_groups):
         """
-        generate(op, *spaces)
+        generate(op, *interval_groups)
 
-        Create a new :class:`Space` from the iterative application of the
-        operation ``op`` to the :class:`Space`s in ``spaces``.
+        Create a new :class:`IntervalGroup` from the iterative application of the
+        operation ``op`` to the :class:`IntervalGroup`s in ``interval_groups``.
 
         :param op: Any legal :class:`Interval` operation, such as ``intersection``
                    or ``union``. This should be provided as a string.
-        :param spaces: An iterable of :class:`Space`s.
+        :param interval_groups: An iterable of :class:`IntervalGroup`s.
 
         Example
         -------
-        space0 = Space([Interval(x, 1, -1)])
-        space1 = Space([Interval(x, 2, -2), Interval(y, 3, -3)])
-        space2 = Space([Interval(y, 2, -2), Interval(z, 1, -1)])
+        ig0 = IntervalGroup([Interval(x, 1, -1)])
+        ig1 = IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3)])
+        ig2 = IntervalGroup([Interval(y, 2, -2), Interval(z, 1, -1)])
 
-        res = Space.generate('intersection', space0, space1, space2)
-        res --> Space([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])
+        ret = IntervalGroup.generate('intersection', ig0, ig1, ig2)
+        ret -> IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])
         """
         mapper = OrderedDict()
-        for i in spaces:
-            for interval in i.intervals:
-                mapper.setdefault(interval.dim, []).append(interval)
-        return Space([Interval._apply_op(v, op) for v in mapper.values()])
+        for ig in interval_groups:
+            for i in ig:
+                mapper.setdefault(i.dim, []).append(i)
+        return IntervalGroup(Interval._apply_op(v, op) for v in mapper.values())
 
-    def intersection(self, *spaces):
-        mapper = OrderedDict([(i.dim, [i]) for i in self.intervals])
-        for i in spaces:
-            for interval in i.intervals:
-                mapper.get(interval.dim, []).append(interval)
-        return self._construct([Interval._apply_op(v, 'intersection')
-                                for v in mapper.values()])
+    def intersection(self, o):
+        mapper = OrderedDict([(i.dim, i) for i in o])
+        intervals = [i.intersection(mapper.get(i.dim, i)) for i in self]
+        return IntervalGroup(intervals)
 
     def subtract(self, o):
-        mapper = OrderedDict([(i.dim, i) for i in o.intervals])
-        intervals = [i.subtract(mapper.get(i.dim, NullInterval(i.dim)))
-                     for i in self.intervals]
-        return self._construct(intervals)
+        mapper = OrderedDict([(i.dim, i) for i in o])
+        intervals = [i.subtract(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
+        return IntervalGroup(intervals)
 
     def drop(self, d):
-        return self._construct([i._rebuild() for i in self.intervals
-                                if i.dim not in as_tuple(d)])
+        return IntervalGroup([i._rebuild() for i in self if i.dim not in as_tuple(d)])
 
     def negate(self):
-        return self._construct([i.negate() for i in self.intervals])
+        return IntervalGroup([i.negate() for i in self])
 
-    def __getitem__(self, dim):
+    def __getitem__(self, key):
+        if isinstance(key, (slice, int)):
+            return super(IntervalGroup, self).__getitem__(key)
         if not self.is_well_defined:
             raise ValueError("Cannot fetch Interval from ill defined Space")
-        for i in self.intervals:
-            if i.dim == dim:
+        for i in self:
+            if i.dim == key:
                 return i
-
-
-class DataSpace(Space):
-    pass
-
-
-class IterationSpace(Space):
-
-    """
-    A special :class:`Space` attaching metadata to its :class:`Interval`s to
-    represent an iteration space and its traversal.
-
-    :param intervals: The :class:`Interval`s of the iteration space.
-    :param sub_iterators: A mapper from :class:`Dimension`s in ``intervals``
-                          to iterables of :class:`DerivedDimension`, which
-                          represent sub-dimensions along which the iteration
-                          space is traversed.
-    :param directions: A mapper from :class:`Dimension`s in ``intervals`` to
-                       :class:`IterationDirection`s.
-    """
-
-    def __init__(self, intervals, sub_iterators, directions):
-        assert all(i.dim in directions for i in intervals)
-        super(IterationSpace, self).__init__(intervals)
-        self.sub_iterators = sub_iterators
-        self.directions = directions
-
-    def __eq__(self, other):
-        return super(IterationSpace, self).__eq__(other) and\
-            self.directions == other.directions
-
-    @property
-    def dimensions(self):
-        sub_dims = [i.dim for v in self.sub_iterators.values() for i in v]
-        return filter_ordered(super(IterationSpace, self).dimensions + sub_dims)
-
-    def _construct(self, intervals):
-        return IterationSpace(intervals, self.sub_iterators, self.directions)
 
 
 class IterationDirection(object):
 
     """
-    Represent the direction in which an iteration space is traversed.
+    A representation of the direction in which an iteration space is traversed.
     """
 
     def __init__(self, name):
@@ -311,11 +252,68 @@ class IterationDirection(object):
         return hash(self._name)
 
 
-Forward = IterationDirection('Forward')
+Forward = IterationDirection('++')
 """Forward iteration direction ('++')."""
 
-Backward = IterationDirection('Backward')
+Backward = IterationDirection('--')
 """Backward iteration direction ('--')."""
 
-Any = IterationDirection('Any')
+Any = IterationDirection('*')
 """Wildcard direction (both '++' and '--' would be OK)."""
+
+
+class IterationSpace(object):
+
+    """
+    A representation of an iteration space and its traversal through
+    :class:`Interval`s and :class:`IterationDirection`s.
+
+    :param intervals: An ordered sequence of :class:`Interval`s defining the
+                      iteration space.
+    :param sub_iterators: (Optional) a mapper from :class:`Dimension`s in
+                          ``intervals`` to iterables of :class:`DerivedDimension`,
+                          which represent sub-dimensions along which the iteration
+                          space is traversed.
+    :param directions: (Optional) a mapper from :class:`Dimension`s in
+                       ``intervals`` to :class:`IterationDirection`s.
+    """
+
+    def __init__(self, intervals, sub_iterators=None, directions=None):
+        self.intervals = IntervalGroup(as_tuple(intervals))
+        self.sub_iterators = sub_iterators or {}
+        self.directions = directions or {}
+
+    def __repr__(self):
+        ret = ', '.join(["%s%s" % (repr(i), repr(self.directions[i.dim]))
+                         for i in self.intervals])
+        return "IterationSpace[%s]" % ret
+
+    def __eq__(self, other):
+        return self.intervals == other.intervals and self.directions == other.directions
+
+    def is_compatible(self, other):
+        """A relaxed version of ``__eq__``, in which only non-derived dimensions
+        are compared for equality."""
+        return self.intervals == other.intervals and\
+            self.nonderived_directions == other.nonderived_directions
+
+    @property
+    def args(self):
+        return (self.intervals, self.sub_iterators, self.directions)
+
+    @property
+    def size(self):
+        return len(self.intervals)
+
+    @property
+    def empty(self):
+        return self.size == 0
+
+    @property
+    def dimensions(self):
+        sub_dims = [i.dim for v in self.sub_iterators.values() for i in v]
+        return filter_ordered(self.intervals.dimensions + sub_dims)
+
+    @property
+    def nonderived_directions(self):
+        return {k: v for k, v in self.directions.items() if not k.is_Derived}

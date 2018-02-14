@@ -2,7 +2,6 @@ from cached_property import cached_property
 from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import IterationSpace
 from devito.ir.clusters.graph import FlowGraph
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -121,15 +120,6 @@ class Cluster(PartialCluster):
 class ClusterGroup(list):
 
     """An iterable of :class:`PartialCluster`s."""
-
-    @property
-    def ispace(self):
-        """
-        Return the union of all Clusters' iteration spaces.
-        """
-        if not self:
-            return IterationSpace([])
-        return IterationSpace.generate('intersection', *[i.ispace for i in self])
 
     def unfreeze(self):
         """
