@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from devito.ir.support import Any, Scope, IterationSpace, detect_directions
+from devito.ir.support import Scope, IterationSpace, compute_directions
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, CondNe, IntDiv, xreplace_indices
 from devito.types import Scalar
@@ -221,35 +221,30 @@ def bump_and_contract(targets, source, sink):
 def clusterize(exprs):
     """Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s."""
 
-    # Build a graph capturing the dependencies among the input tensor expressions
+    # Detect expression dependences and iteration direction
     mapper = OrderedDict()
     for i, e1 in enumerate(exprs):
         trace = [e2 for e2 in exprs[:i] if Scope([e2, e1]).has_dep] + [e1]
         trace.extend([e2 for e2 in exprs[i+1:] if Scope([e1, e2]).has_dep])
-        mapper[e1] = Bunch(trace=trace, ispace=e1.ispace, dirs=detect_directions(trace))
+        directions, clashes = compute_directions(trace, lambda i: e1.ispace.directions[i])
+        mapper[e1] = Bunch(trace=trace, ispace=e1.ispace,
+                           directions=directions, clashes=clashes)
 
     # Derive the iteration spaces
     queue = list(mapper)
     while queue:
-        target = queue.pop(0)
-        exprs = mapper[target].trace
-        ispace = mapper[target].ispace
-
-        # Detect (in)compatible directions for the coerced iteration space
-        dirs = {k: (v - {Any} or {Any}) for k, v in mapper[target].dirs.items()}
-        compatible = {k: v.pop() for k, v in dirs.items() if len(v) == 1}
-        incompatible = set(i for i in dirs if i not in compatible)
+        v = queue.pop(0)
 
         # Build coerced iteration space
-        dirs = {k: compatible.get(k, v) for k, v in ispace.directions.items()}
-        ispaces = [mapper[i].ispace.drop(incompatible) for i in exprs]
-        intervals = ispace.intersection(*ispaces).intervals
-        coerced_ispace = IterationSpace(intervals, ispace.sub_iterators, dirs)
+        ispaces = [mapper[i].ispace.drop(mapper[v].clashes) for i in mapper[v].trace]
+        intervals = mapper[v].ispace.intersection(*ispaces).intervals
+        coerced_ispace = IterationSpace(intervals, mapper[v].ispace.sub_iterators,
+                                        mapper[v].directions)
 
-        if coerced_ispace != ispace:
+        if coerced_ispace != mapper[v].ispace:
             # Something has changed, need to propagate the update
-            mapper[target].ispace = coerced_ispace
-            queue.extend([i for i in exprs if i not in queue])
+            mapper[v].ispace = coerced_ispace
+            queue.extend([i for i in mapper[v].trace if i not in queue])
 
     # Build a PartialCluster for each tensor expression
     clusters = ClusterGroup()

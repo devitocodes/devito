@@ -2,7 +2,7 @@ from sympy import Eq
 
 from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
-from devito.ir.support import IterationSpace, Any, detect_intervals, detect_directions
+from devito.ir.support import IterationSpace, Any, compute_intervals, compute_directions
 from devito.symbolics import FrozenExpr, dimension_sort, indexify
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
@@ -80,10 +80,16 @@ class LoweredEq(Eq, IREq):
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
 
+        # Compute iteration space
+        intervals, iterators = compute_intervals(expr)
+        intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
+        directions, _ = compute_directions(expr, lambda i: Any)
+        ispace = IterationSpace([i.negate() for i in intervals], iterators, directions)
+
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
-        expr.ispace = compute_ispace(expr, ordering)
+        expr.ispace = ispace
 
         return expr
 
@@ -127,32 +133,3 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
 
     def func(self, *args, **kwargs):
         return super(ClusterizedEq, self).func(*args, evaluate=False, ispace=self.ispace)
-
-
-def compute_ispace(expr, ordering):
-    """Return the :class:`IterationSpace` of ``expr``. The iteration direction
-    is so that the information 'flows' from an iteration to the following one
-    (IOW, so that we generate 'flow' or 'read-after-write' dependencies)."""
-    # Iteration intervals
-    intervals, iterators = detect_intervals(expr)
-    intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
-
-    # Iteration direction:
-    # - If both Forward and Backward appear, we pick Any, assuming that the
-    #   information flow is dictated through other equations on outer dimensions
-    # - If only one of Forward/Backward appear, we pick that (Any neglected)
-    mapper = detect_directions(expr)
-    directions = {}
-    for k, v in mapper.items():
-        if len(v) == 1:
-            directions[k] = v.pop()
-        elif len(v) == 2:
-            try:
-                v.remove(Any)
-                directions[k] = v.pop()
-            except KeyError:
-                directions[k] = Any
-        else:
-            directions[k] = Any
-
-    return IterationSpace([i.negate() for i in intervals], iterators, directions)
