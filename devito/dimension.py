@@ -4,7 +4,8 @@ from cached_property import cached_property
 
 from devito.types import AbstractSymbol, Scalar, Symbol
 
-__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension']
+__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension',
+           'SubDimension', 'ConditionalDimension']
 
 
 class Dimension(AbstractSymbol):
@@ -14,8 +15,11 @@ class Dimension(AbstractSymbol):
     is_Time = False
 
     is_Derived = False
+    is_NonlinearDerived = False
     is_Sub = False
+    is_Conditional = False
     is_Stepping = False
+
     is_Lowered = False
 
     """
@@ -206,7 +210,8 @@ class SubDimension(DerivedDimension):
     is_Sub = True
 
     """
-    Dimension symbol representing a sub-region of a ``parent`` Dimension.
+    Dimension symbol representing a contiguous sub-region of a given
+    ``parent`` Dimension.
 
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension from which the SubDimension is created.
@@ -215,7 +220,7 @@ class SubDimension(DerivedDimension):
     """
 
     def __new__(cls, name, parent, lower, upper, **kwargs):
-        newobj = DerivedDimension.__new__(cls, name, parent)
+        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
         newobj._lower = lower
         newobj._upper = upper
         return newobj
@@ -252,8 +257,44 @@ class SubDimension(DerivedDimension):
         return args
 
 
+class ConditionalDimension(DerivedDimension):
+
+    is_NonlinearDerived = True
+    is_Conditional = True
+
+    """
+    Dimension symbol representing a sub-region of a given ``parent`` Dimension.
+    Unlike a :class:`SubDimension`, a ConditionalDimension does not represent
+    a contiguous region. The iterations touched by a ConditionalDimension
+    are expressible in two different ways: ::
+
+        * ``factor``: an integer indicating the size of the increment.
+        * ``condition``: an arbitrary SymPy expression depending on ``parent``.
+                         All iterations for which the expression evaluates to
+                         True are part of the ``SubDimension`` region.
+    """
+
+    def __new__(cls, name, parent, **kwargs):
+        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
+        newobj._factor = kwargs.get('factor')
+        newobj._condition = kwargs.get('condition')
+        return newobj
+
+    @property
+    def factor(self):
+        return self._factor
+
+    @property
+    def condition(self):
+        return self._condition
+
+    def _hashable_content(self):
+        return (self.parent._hashable_content(), self.factor, self.condition)
+
+
 class SteppingDimension(DerivedDimension):
 
+    is_NonlinearDerived = True
     is_Stepping = True
 
     """

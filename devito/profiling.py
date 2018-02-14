@@ -7,8 +7,10 @@ from functools import reduce
 from ctypes import Structure, byref, c_double
 from cgen import Struct, Value
 
-from devito.ir.iet import Expression, TimedList, FindSections, FindNodes, Transformer
+from devito.ir.iet import (Expression, TimedList, FindNodes, Transformer,
+                           FindAdjacentIterations, retrieve_iteration_tree)
 from devito.symbolics import estimate_cost, estimate_memory
+from devito.tools import flatten
 
 __all__ = ['Profile', 'create_profile']
 
@@ -33,27 +35,32 @@ def create_profile(name, node):
     """
     profiler = Profiler(name)
 
-    # Group by root Iteration
-    mapper = OrderedDict()
-    for itspace in FindSections().visit(node):
-        mapper.setdefault(itspace[0], []).append(itspace)
+    trees = retrieve_iteration_tree(node)
+    if not trees:
+        return node, profiler
 
-    # Group sections if their iteration spaces overlap
-    key = lambda itspace: set([i.dim for i in itspace])
-    groups = []
-    for v in mapper.values():
-        queue = list(v)
-        handle = []
-        while queue:
-            item = queue.pop(0)
-            if not handle or key(item) == key(handle[0]):
-                handle.append(item)
-            else:
-                # Found a timing section
-                groups.append(tuple(handle))
-                handle = [item]
-        if handle:
+    adjacents = [flatten(i) for i in FindAdjacentIterations().visit(node).values() if i]
+
+    def are_adjacent(tree, last):
+        for i, j in zip(tree, last):
+            if i == j:
+                continue
+            try:
+                return any(abs(a.index(j) - a.index(i)) == 1 for a in adjacents)
+            except ValueError:
+                return False
+
+    # Group Iterations based on timing region
+    key, groups = lambda itspace: {i.defines for i in itspace}, []
+    handle = [trees[0]]
+    for tree in trees[1:]:
+        last = handle[-1]
+        if key(tree) == key(last) and are_adjacent(tree, last):
+            handle.append(tree)
+        else:
             groups.append(tuple(handle))
+            handle = [tree]
+    groups.append(tuple(handle))
 
     # Create and track C-level timers
     mapper = OrderedDict()
