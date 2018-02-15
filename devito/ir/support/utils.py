@@ -8,7 +8,8 @@ from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed
 from devito.tools import as_tuple, flatten
 
-__all__ = ['compute_intervals', 'compute_directions', 'group_expressions']
+__all__ = ['compute_intervals', 'detect_flow_directions', 'compute_directions',
+           'force_directions', 'group_expressions']
 
 
 def compute_intervals(expr):
@@ -104,7 +105,8 @@ def detect_flow_directions(exprs):
 
 
 def compute_directions(exprs, key):
-    """Return a mapper ``M : D -> I`` where D is the set of :class:`Dimension`s
+    """
+    Return a mapper ``M : D -> I`` where D is the set of :class:`Dimension`s
     found in the input expressions ``exprs``, while I = {Any, Backward,
     Forward} (i.e., the set of possible :class:`IterationDirection`s).
 
@@ -114,14 +116,28 @@ def compute_directions(exprs, key):
 
     In the case of a clash (e.g., both Forward and Backward should be used
     for a given dimension in order to have a flow dependence), the function
-    ``key : D -> I`` is used to pick one value."""
-    # Get all theoretically necessary directions in each dimension to have
-    # flow dependences
+    ``key : D -> I`` is used to pick one value.
+    """
     mapper = detect_flow_directions(exprs)
+    return force_directions(mapper, key)
 
+
+def force_directions(mapper, key):
+    """
+    Return a mapper ``M : D -> I`` where D is the set of :class:`Dimension`s
+    found in the input mapper ``M' : D -> {I}``, while I = {Any, Backward,
+    Forward} (i.e., the set of possible :class:`IterationDirection`s).
+
+    The iteration direction is chosen so that the information "naturally flows"
+    from an iteration to another (i.e., to generate "flow" or "read-after-write"
+    dependencies).
+
+    In the case of a clash (e.g., both Forward and Backward should be used
+    for a given dimension in order to have a flow dependence), the function
+    ``key : D -> I`` is used to pick one value.
+    """
+    mapper = {k: set(v) for k, v in mapper.items()}
     clashes = set(k for k, v in mapper.items() if len(v - {Any}) > 1)
-
-    # Compute directions, dealing with clashes when necessary
     directions = {}
     for k, v in mapper.items():
         if len(v) == 1:
