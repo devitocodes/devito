@@ -128,7 +128,7 @@ class AcousticWaveSolver(object):
 
         # Create the adjoint wavefield if not provided
         if v is None:
-            v = TimeFunction(name='v', grid=self.model.grid, save=None,
+            v = TimeFunction(name='v', grid=self.model.grid,
                              time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
@@ -160,7 +160,7 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefield
         if v is None:
-            v = TimeFunction(name='v', grid=self.model.grid, save=None,
+            v = TimeFunction(name='v', grid=self.model.grid,
                              time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
@@ -193,10 +193,10 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefields u and U if not provided
         if u is None:
-            u = TimeFunction(name='u', grid=self.model.grid, save=None,
+            u = TimeFunction(name='u', grid=self.model.grid,
                              time_order=2, space_order=self.space_order)
         if U is None:
-            U = TimeFunction(name='U', grid=self.model.grid, save=None,
+            U = TimeFunction(name='U', grid=self.model.grid,
                              time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided

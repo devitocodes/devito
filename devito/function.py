@@ -762,9 +762,7 @@ class TimeFunction(Function):
         # Check if data has the right dimension
         if self.name in kwargs:
             new = kwargs.get(self.name)
-            if ~isinstance(new, TimeFunction):
-                pass
-            elif new.save != self.save:
+            if isinstance(new, TimeFunction) and new.save != self.save:
                 raise TypeError("Incorrect value encounterd, save should be %s" %
                                 saves[self.save])
 

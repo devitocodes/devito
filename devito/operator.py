@@ -132,9 +132,8 @@ class Operator(Callable):
             if p.name not in arguments:
                 default_args.update(p.argument_defaults())
         for p in self.dimensions:
-            if p.name not in arguments:
-                if p.is_Sub:
-                    default_args.update(p.argument_defaults(default_args))
+            if p.name not in arguments and p.is_Sub:
+                default_args.update(p.argument_defaults(default_args))
         return {k: default_args.reduce(k) for k in default_args if k not in arguments}
 
     def arguments(self, **kwargs):
