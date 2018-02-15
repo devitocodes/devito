@@ -73,7 +73,7 @@ class PartialCluster(object):
         """Concatenate the expressions in ``other`` to those in ``self``.
         ``self`` and ``other`` must have same ``ispace``. Duplicate
         expressions are dropped."""
-        assert self.ispace == other.ispace
+        assert self.ispace.is_compatible(other.ispace)
         self.exprs.extend([i for i in other.exprs if i not in self.exprs])
 
 

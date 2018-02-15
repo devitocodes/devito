@@ -1,10 +1,11 @@
 from collections import OrderedDict
 
-from devito.ir.support import Scope, IterationSpace, compute_directions
+from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
+                               force_directions, group_expressions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, CondNe, IntDiv, xreplace_indices
 from devito.types import Scalar
-from devito.tools import Bunch, flatten, powerset
+from devito.tools import flatten, powerset
 
 __all__ = ['clusterize', 'groupby']
 
@@ -34,7 +35,7 @@ def groupby(clusters):
             anti = scope.d_anti.carried() - scope.d_anti.increment
             flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
             funcs = [i.function for i in anti]
-            if candidate.ispace == c.ispace and\
+            if candidate.ispace.is_compatible(c.ispace) and\
                     all(is_local(i, candidate, c, clusters) for i in funcs):
                 # /c/ will be fused into /candidate/. All fusion-induced anti
                 # dependences are eliminated through so called "index bumping and
@@ -221,37 +222,35 @@ def bump_and_contract(targets, source, sink):
 def clusterize(exprs):
     """Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s."""
 
-    # Detect expression dependences and iteration direction
-    mapper = OrderedDict()
-    for i, e1 in enumerate(exprs):
-        trace = [e2 for e2 in exprs[:i] if Scope([e2, e1]).has_dep] + [e1]
-        trace.extend([e2 for e2 in exprs[i+1:] if Scope([e1, e2]).has_dep])
-        directions, clashes = compute_directions(trace, lambda i: e1.ispace.directions[i])
-        mapper[e1] = Bunch(trace=trace, ispace=e1.ispace,
-                           directions=directions, clashes=clashes)
+    # Group expressions based on data dependences
+    groups = group_expressions(exprs)
 
-    # Derive the iteration spaces
-    queue = list(mapper)
-    while queue:
-        v = queue.pop(0)
-
-        # Build coerced iteration space
-        ispaces = [mapper[i].ispace.drop(mapper[v].clashes) for i in mapper[v].trace]
-        intervals = mapper[v].ispace.intersection(*ispaces).intervals
-        coerced_ispace = IterationSpace(intervals, mapper[v].ispace.sub_iterators,
-                                        mapper[v].directions)
-
-        if coerced_ispace != mapper[v].ispace:
-            # Something has changed, need to propagate the update
-            mapper[v].ispace = coerced_ispace
-            queue.extend([i for i in mapper[v].trace if i not in queue])
-
-    # Build a PartialCluster for each tensor expression
     clusters = ClusterGroup()
-    for k, v in mapper.items():
-        if k.is_Tensor:
-            scalars = [i for i in v.trace[:v.trace.index(k)] if i.is_Scalar]
-            clusters.append(PartialCluster(scalars + [k], v.ispace))
+    for g in groups:
+        # Coerce iteration space of each expression in each group
+        mapper = OrderedDict([(e, e.ispace) for e in g])
+        flowmap = detect_flow_directions(g)
+        queue = list(g)
+        while queue:
+            v = queue.pop(0)
+
+            intervals, sub_iterators, directions = mapper[v].args
+            forced, clashes = force_directions(flowmap, lambda i: directions.get(i))
+            for e in g:
+                intervals = intervals.intersection(mapper[e].intervals.drop(clashes))
+            directions = {i: forced[i] for i in directions}
+            coerced_ispace = IterationSpace(intervals, sub_iterators, directions)
+
+            # Need update propagation ?
+            if coerced_ispace != mapper[v]:
+                mapper[v] = coerced_ispace
+                queue.extend([i for i in g if i not in queue])
+
+        # Wrap each tensor expression in a PartialCluster
+        for k, v in mapper.items():
+            if k.is_Tensor:
+                scalars = [i for i in g[:g.index(k)] if i.is_Scalar]
+                clusters.append(PartialCluster(scalars + [k], v))
 
     # Group PartialClusters together where possible
     clusters = groupby(clusters)
