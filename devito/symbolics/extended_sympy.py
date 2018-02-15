@@ -103,6 +103,7 @@ class IntDiv(sympy.Expr):
     denominator (e.g., ``a*3.args -> (a, 1/3)), which ends up generating
     "weird" C code.
     """
+    is_Atom = True
 
     def __new__(cls, lhs, rhs, params=None):
         obj = sympy.Expr.__new__(cls)
