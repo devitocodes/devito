@@ -1,13 +1,14 @@
 from collections import OrderedDict, defaultdict
+from itertools import groupby
 
 from devito.dimension import Dimension
-from devito.ir.support.basic import Access
+from devito.ir.support.basic import Access, Scope
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed
 from devito.tools import as_tuple, flatten
 
-__all__ = ['compute_intervals', 'compute_directions']
+__all__ = ['compute_intervals', 'compute_directions', 'group_expressions']
 
 
 def compute_intervals(expr):
@@ -137,3 +138,40 @@ def compute_directions(exprs, key):
             directions[k] = key(k)
 
     return directions, clashes
+
+
+def group_expressions(exprs):
+    """``{exprs} -> ({exprs'}, {exprs''}, ...)`` where: ::
+
+        * There are data dependences within exprs' and within exprs'';
+        * There are *no* data dependencies across exprs' and exprs''.
+    """
+    # Partion based on data dependences
+    mapper = OrderedDict()
+    ngroups = 0
+    for i, e1 in enumerate(exprs):
+        if e1 in mapper:
+            continue
+        found = False
+        for e2 in exprs[i+1:]:
+            if Scope([e1, e2]).has_dep:
+                v = mapper.get(e1, mapper.get(e2))
+                if v is None:
+                    ngroups += 1
+                    v = ngroups
+                mapper[e1] = mapper[e2] = v
+                found = True
+        if not found:
+            ngroups += 1
+            mapper[e1] = ngroups
+
+    # Reorder to match input ordering
+    groups = []
+    data = sorted(mapper, key=lambda i: mapper[i])
+    for k, g in groupby(data, key=lambda i: mapper[i]):
+        groups.append(tuple(sorted(g, key=lambda i: exprs.index(i))))
+
+    # Sanity check
+    assert max(mapper.values()) == len(groups)
+
+    return tuple(groups)
