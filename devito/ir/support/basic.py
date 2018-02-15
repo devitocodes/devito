@@ -179,22 +179,6 @@ class IterationInstance(Vector):
         obj.findices = tuple(indexed.base.function.indices)
         if len(obj.findices) != len(set(obj.findices)):
             raise ValueError("Illegal non-unique `findices`")
-        # aindices
-        aindices = []
-        index_mode = []
-        for i, fi in zip(obj, obj.findices):
-            if is_integer(i):
-                aindices.append(None)
-                index_mode.append('regular')
-            elif q_affine(i, fi):
-                aindices.append(fi)
-                index_mode.append('regular')
-            else:
-                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
-                aindices.append(dims.pop() if len(dims) == 1 else None)
-                index_mode.append('irregular')
-        obj.index_mode = tuple(index_mode)
-        obj.aindices = tuple(aindices)
         return obj
 
     def __eq__(self, other):
@@ -230,6 +214,36 @@ class IterationInstance(Vector):
             raise TypeError("IterationInstance indices must be integers, slices, or "
                             "Dimensions, not %s" % type(index))
 
+    @cached_property
+    def _cached_findices_index(self):
+        # Avoiding to call self.findices.index repeatedly speeds analysis up
+        return {fi: i for i, fi in enumerate(self.findices)}
+
+    @cached_property
+    def index_mode(self):
+        index_mode = []
+        for i, fi in zip(self, self.findices):
+            if is_integer(i):
+                index_mode.append('regular')
+            elif q_affine(i, fi):
+                index_mode.append('regular')
+            else:
+                index_mode.append('irregular')
+        return tuple(index_mode)
+
+    @cached_property
+    def aindices(self):
+        aindices = []
+        for i, fi in zip(self, self.findices):
+            if is_integer(i):
+                aindices.append(None)
+            elif q_affine(i, fi):
+                aindices.append(fi)
+            else:
+                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+                aindices.append(dims.pop() if len(dims) == 1 else None)
+        return tuple(aindices)
+
     @property
     def is_regular(self):
         return all(i == 'regular' for i in self.index_mode)
@@ -247,8 +261,8 @@ class IterationInstance(Vector):
             raise TypeError("Cannot compute distance due to mismatching `findices`")
         if findex is not None:
             try:
-                limit = self.findices.index(findex) + 1
-            except ValueError:
+                limit = self._cached_findices_index[findex] + 1
+            except KeyError:
                 raise TypeError("Cannot compute distance as `findex` not in `findices`")
         else:
             limit = self.rank
@@ -411,7 +425,7 @@ class TimedAccess(Access):
             else:
                 ret.append(S.Infinity)
                 break
-        directions = self.directions[:self.findices.index(i) + 1]
+        directions = self.directions[:self._cached_findices_index[i] + 1]
         assert len(directions) == len(ret)
         return Vector(*[(-i) if d == Backward else i for i, d in zip(ret, directions)])
 
