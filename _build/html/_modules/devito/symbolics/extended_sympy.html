@@ -264,6 +264,7 @@
 <span class="sd">    denominator (e.g., ``a*3.args -&gt; (a, 1/3)), which ends up generating</span>
 <span class="sd">    &quot;weird&quot; C code.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">is_Atom</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
