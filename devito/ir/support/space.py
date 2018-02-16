@@ -3,8 +3,8 @@ from collections import OrderedDict
 
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
-           'Forward', 'Backward', 'Any']
+__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
+           'DataSpace', 'AccessSpace', 'Forward', 'Backward', 'Any']
 
 
 class AbstractInterval(object):
@@ -268,31 +268,47 @@ Any = IterationDirection('*')
 """Wildcard direction (both '++' and '--' would be OK)."""
 
 
-class DataSpace(object):
+class Space(object):
 
     """
-    A representation of a data space.
+    A representation of a compact N-dimensional space as a sequence of
+    :class:`Interval`s along N :class:`Dimension`s.
+
+    :param intervals: A sequence of :class:`Interval`s describing the space.
     """
 
     def __init__(self, intervals):
         self.intervals = IntervalGroup(as_tuple(intervals))
 
     def __repr__(self):
-        return "DataSpace[%s]" % ", ".join(repr(i) for i in self.intervals)
+        return "%s[%s]" % (self.__class__.__name__,
+                           ", ".join(repr(i) for i in self.intervals))
 
     def __eq__(self, other):
         return self.intervals == other.intervals
+
+    @property
+    def size(self):
+        return len(self.intervals)
+
+    @property
+    def empty(self):
+        return self.size == 0
 
     @property
     def dimensions(self):
         return filter_ordered(self.intervals.dimensions)
 
 
-class IterationSpace(object):
+DataSpace = Space
+
+
+class IterationSpace(Space):
 
     """
     A representation of an iteration space and its traversal through
-    :class:`Interval`s and :class:`IterationDirection`s.
+    :class:`Interval`s and :class:`IterationDirection`s. For each interval,
+    an arbitrary number of (sub-)iterators may be specified (see below).
 
     :param intervals: An ordered sequence of :class:`Interval`s defining the
                       iteration space.
@@ -305,7 +321,7 @@ class IterationSpace(object):
     """
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
-        self.intervals = IntervalGroup(as_tuple(intervals))
+        super(IterationSpace, self).__init__(intervals)
         self.sub_iterators = sub_iterators or {}
         self.directions = directions or {}
 
@@ -328,14 +344,6 @@ class IterationSpace(object):
         return (self.intervals, self.sub_iterators, self.directions)
 
     @property
-    def size(self):
-        return len(self.intervals)
-
-    @property
-    def empty(self):
-        return self.size == 0
-
-    @property
     def dimensions(self):
         sub_dims = [i.dim for v in self.sub_iterators.values() for i in v]
         return filter_ordered(self.intervals.dimensions + sub_dims)
@@ -343,3 +351,39 @@ class IterationSpace(object):
     @property
     def nonderived_directions(self):
         return {k: v for k, v in self.directions.items() if not k.is_Derived}
+
+
+class AccessSpace(Space):
+
+    """
+    A representation of an access space through :class:`Interval`s, which
+    identify the data space, and :class:`IterationDirection`s, which indicate
+    the direction in which the data points are touched.
+
+    :param intervals: A sequence of :class:`Interval`s describing the space.
+    :param directions: A mapper from :class:`Dimension`s in ``intervals``
+                       to :class:`IterationDirection`s.
+    """
+
+    def __init__(self, intervals, directions):
+        super(AccessSpace, self).__init__(intervals)
+        self._directions = directions
+
+    def __eq__(self, other):
+        return self.intervals == other.intervals and self.directions == other.directions
+
+    def __hash__(self):
+        return hash((super(AccessSpace, self).__hash__(), self.directions))
+
+    @property
+    def directions(self):
+        return self._directions
+
+    def __getitem__(self, key):
+        interval = self.intervals[key]
+        if interval is None:
+            interval = NullInterval(key)
+        direction = self.directions.get(key)
+        if direction is None:
+            direction = Any
+        return interval, direction
