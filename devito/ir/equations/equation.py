@@ -2,9 +2,9 @@ from sympy import Eq
 
 from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
-from devito.ir.support import (IterationSpace, Any, compute_intervals,
-                               compute_directions, detect_io)
-from devito.symbolics import FrozenExpr, dimension_sort, indexify
+from devito.ir.support import (IterationSpace, DataSpace, Interval, Any,
+                               compute_intervals, compute_directions, detect_io)
+from devito.symbolics import FrozenExpr, dimension_sort
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
 
@@ -22,6 +22,10 @@ class IREq(object):
     @property
     def is_Tensor(self):
         return self.lhs.is_Indexed
+
+    @property
+    def directions(self):
+        return self.ispace.directions
 
 
 class LoweredEq(Eq, IREq):
@@ -50,6 +54,7 @@ class LoweredEq(Eq, IREq):
             assert isinstance(stamp, Eq)
             expr.is_Increment = stamp.is_Increment
             expr.ispace = stamp.ispace
+            expr.dspace = stamp.dspace
             return expr
         else:
             raise ValueError("Cannot construct LoweredEq from args=%s "
@@ -72,9 +77,15 @@ class LoweredEq(Eq, IREq):
         directions, _ = compute_directions(expr, lambda i: Any)
         ispace = IterationSpace([i.zero() for i in intervals], iterators, directions)
 
+        # Compute data space (w.r.t. IterationSpace, add in pure data dimensions,
+        # e.g. those only indexed via integers, rather than via Dimensions)
+        dspace = DataSpace(intervals + [Interval(i, 0, 0) for i in ordering
+                                        if i not in ispace.dimensions])
+
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
+        expr.dspace = dspace
         expr.ispace = ispace
         expr.dimensions = ordering
         expr.reads, expr.writes = detect_io(expr)
@@ -102,22 +113,24 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
     """
 
     def __new__(cls, *args, **kwargs):
-        # Parse input
-        if len(args) == 2:
-            maybe_ispace = args[1]
-            if isinstance(maybe_ispace, IterationSpace):
-                input_expr = args[0]
-                expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
-                expr.is_Increment = input_expr.is_Increment
-                expr.ispace = maybe_ispace
-            else:
-                expr = Eq.__new__(cls, *args, evaluate=False)
-                expr.ispace = kwargs['ispace']
-                expr.is_Increment = kwargs.get('is_Increment', False)
+        if len(args) == 3:
+            # ClusterizedEq created from ClusterizedEq(...)
+            input_expr, ispace, dspace = args
+            assert isinstance(ispace, IterationSpace)
+            assert isinstance(dspace, DataSpace)
+            expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
+            expr.is_Increment = input_expr.is_Increment
+            expr.dspace = dspace
+            expr.ispace = ispace
         else:
-            raise ValueError("Cannot construct ClusterizedEq from args=%s "
-                             "and kwargs=%s" % (str(args), str(kwargs)))
+            # ClusterizedEq created via .func(...)
+            assert len(args) == 2
+            expr = Eq.__new__(cls, *args, evaluate=False)
+            expr.is_Increment = kwargs.get('is_Increment', False)
+            expr.dspace = kwargs['dspace']
+            expr.ispace = kwargs['ispace']
         return expr
 
     def func(self, *args, **kwargs):
-        return super(ClusterizedEq, self).func(*args, evaluate=False, ispace=self.ispace)
+        return super(ClusterizedEq, self).func(*args, dspace=self.dspace,
+                                               ispace=self.ispace)

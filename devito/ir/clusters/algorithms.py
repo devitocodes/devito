@@ -93,7 +93,7 @@ def guard(clusters):
                      for e in c.exprs if e not in banned]
             guards = [(i.parent, conditions[i]) for i in dims]
             guards.extend([(i.parent, negated[i]) for i in ndims])
-            cluster = PartialCluster(exprs, c.ispace, c.atomics, dict(guards))
+            cluster = PartialCluster(exprs, c.ispace, c.dspace, c.atomics, dict(guards))
             processed.append(cluster)
 
     return processed
