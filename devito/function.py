@@ -349,6 +349,9 @@ class TensorFunction(SymbolicFunction):
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
+            if len(new.shape) != self.ndim:
+                raise ValueError("Array shape %s does not match" % (new.shape, ) +
+                                 "dimensions %s" % (self.indices, ))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
                 values[key] = new._data_buffer
@@ -356,16 +359,10 @@ class TensorFunction(SymbolicFunction):
             else:
                 # We've been provided a pure-data replacement (array)
                 values[key] = new
-                if len(new.shape) != len(self.indices):
-                    raise ValueError("Array shape %s does not match" % (new.shape, ) +
-                                     "dimensions %s" % (self.indices, ))
-                else:
-                    for i, s, o in zip(self.indices, new.shape, self.staggered):
-                        values.update(i.argument_defaults(size=s+o))
+                # Add value overrides for all associated dimensions
+                for i, s, o in zip(self.indices, new.shape, self.staggered):
+                    values.update(i.argument_defaults(size=s+o))
 
-        # Add value overrides for all associated dimensions
-        for i in self.indices:
-            values.update(i.argument_values(**kwargs))
         return values
 
 
