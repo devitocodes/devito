@@ -18,14 +18,17 @@ class PartialCluster(object):
     :param exprs: The ordered sequence of expressions computing a tensor.
     :param ispace: An object of type :class:`IterationSpace`, which represents the
                    iteration space of the cluster.
+    :param ispace: An object of type :class:`DataSpace`, which represents the
+                   data space (i.e., data items accessed) of the cluster.
     :param atomics: (Optional) non-sharable :class:`Dimension`s in ``ispace``.
     :param guards: (Optional) iterable of conditions, provided as SymPy expressions,
                    under which ``exprs`` are evaluated.
     """
 
-    def __init__(self, exprs, ispace, atomics=None, guards=None):
-        self._exprs = list(ClusterizedEq(i, ispace) for i in exprs)
+    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
+        self._exprs = list(ClusterizedEq(i, ispace, dspace) for i in exprs)
         self._ispace = ispace
+        self._dspace = dspace
         self._atomics = set(atomics or [])
         self._guards = guards or {}
 
@@ -38,6 +41,10 @@ class PartialCluster(object):
         return self._ispace
 
     @property
+    def dspace(self):
+        return self._dspace
+
+    @property
     def atomics(self):
         return self._atomics
 
@@ -47,7 +54,7 @@ class PartialCluster(object):
 
     @property
     def args(self):
-        return (self.exprs, self.ispace, self.atomics, self.guards)
+        return (self.exprs, self.ispace, self.dspace, self.atomics, self.guards)
 
     @property
     def trace(self):
@@ -69,6 +76,10 @@ class PartialCluster(object):
     def ispace(self, val):
         raise AttributeError
 
+    @dspace.setter
+    def dspace(self, val):
+        raise AttributeError
+
     def squash(self, other):
         """Concatenate the expressions in ``other`` to those in ``self``.
         ``self`` and ``other`` must have same ``ispace``. Duplicate
@@ -81,12 +92,12 @@ class Cluster(PartialCluster):
 
     """A Cluster is an immutable :class:`PartialCluster`."""
 
-    def __init__(self, exprs, ispace, atomics=None, guards=None):
-        # Keep expressions ordered based on information flow
+    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
         self._exprs = exprs
-        self._exprs = tuple(ClusterizedEq(v, ispace) for v in self.trace.values())
-
+        # Keep expressions ordered based on information flow
+        self._exprs = tuple(ClusterizedEq(v, ispace, dspace) for v in self.trace.values())
         self._ispace = ispace
+        self._dspace = dspace
         self._atomics = frozenset(atomics or ())
         self._guards = frozendict(guards or {})
 
@@ -107,7 +118,7 @@ class Cluster(PartialCluster):
         Build a new cluster with expressions ``exprs`` having same iteration
         space and atomics as ``self``.
         """
-        return Cluster(exprs, self.ispace, self.atomics, self.guards)
+        return Cluster(exprs, self.ispace, self.dspace, self.atomics, self.guards)
 
     @PartialCluster.exprs.setter
     def exprs(self, val):
