@@ -3,7 +3,7 @@ from collections import OrderedDict
 
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
+__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
            'Forward', 'Backward', 'Any']
 
 
@@ -266,6 +266,26 @@ Backward = IterationDirection('--')
 
 Any = IterationDirection('*')
 """Wildcard direction (both '++' and '--' would be OK)."""
+
+
+class DataSpace(object):
+
+    """
+    A representation of a data space.
+    """
+
+    def __init__(self, intervals):
+        self.intervals = IntervalGroup(as_tuple(intervals))
+
+    def __repr__(self):
+        return "DataSpace[%s]" % ", ".join(repr(i) for i in self.intervals)
+
+    def __eq__(self, other):
+        return self.intervals == other.intervals
+
+    @property
+    def dimensions(self):
+        return filter_ordered(self.intervals.dimensions)
 
 
 class IterationSpace(object):
