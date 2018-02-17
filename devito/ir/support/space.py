@@ -72,6 +72,9 @@ class NullInterval(AbstractInterval):
     def __repr__(self):
         return "%s[Null]" % self.dim
 
+    def __hash__(self):
+        return hash(self.dim)
+
     def _rebuild(self):
         return NullInterval(self.dim)
 
@@ -108,6 +111,9 @@ class Interval(AbstractInterval):
 
     def __repr__(self):
         return "%s[%s, %s]" % (self.dim, self.lower, self.upper)
+
+    def __hash__(self):
+        return hash((self.dim, self.limits))
 
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper)
@@ -158,9 +164,6 @@ class Interval(AbstractInterval):
         return super(Interval, self).__eq__(o) and\
             self.lower == o.lower and self.upper == o.upper
 
-    def __hash__(self):
-        return hash((self.dim.name, self.lower, self.upper))
-
 
 class IntervalGroup(tuple):
 
@@ -173,6 +176,9 @@ class IntervalGroup(tuple):
 
     def __repr__(self):
         return "IntervalGroup[%s]" % (', '.join([repr(i) for i in self]))
+
+    def __hash__(self):
+        return hash(i for i in self)
 
     @property
     def dimensions(self):
@@ -278,7 +284,7 @@ class Space(object):
     """
 
     def __init__(self, intervals):
-        self.intervals = IntervalGroup(as_tuple(intervals))
+        self._intervals = IntervalGroup(as_tuple(intervals))
 
     def __repr__(self):
         return "%s[%s]" % (self.__class__.__name__,
@@ -286,6 +292,13 @@ class Space(object):
 
     def __eq__(self, other):
         return self.intervals == other.intervals
+
+    def __hash__(self):
+        return hash(self.intervals)
+
+    @property
+    def intervals(self):
+        return self._intervals
 
     @property
     def size(self):
@@ -300,7 +313,8 @@ class Space(object):
         return filter_ordered(self.intervals.dimensions)
 
 
-DataSpace = Space
+class DataSpace(Space):
+    pass
 
 
 class IterationSpace(Space):
@@ -322,8 +336,8 @@ class IterationSpace(Space):
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
         super(IterationSpace, self).__init__(intervals)
-        self.sub_iterators = sub_iterators or {}
-        self.directions = directions or {}
+        self._sub_iterators = sub_iterators or {}
+        self._directions = directions or {}
 
     def __repr__(self):
         ret = ', '.join(["%s%s" % (repr(i), repr(self.directions[i.dim]))
@@ -333,11 +347,23 @@ class IterationSpace(Space):
     def __eq__(self, other):
         return self.intervals == other.intervals and self.directions == other.directions
 
+    def __hash__(self):
+        return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
+                     self.directions))
+
     def is_compatible(self, other):
         """A relaxed version of ``__eq__``, in which only non-derived dimensions
         are compared for equality."""
         return self.intervals == other.intervals and\
             self.nonderived_directions == other.nonderived_directions
+
+    @property
+    def sub_iterators(self):
+        return self._sub_iterators
+
+    @property
+    def directions(self):
+        return self._directions
 
     @property
     def args(self):
