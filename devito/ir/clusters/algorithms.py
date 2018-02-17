@@ -221,36 +221,32 @@ def bump_and_contract(targets, source, sink):
 
 def clusterize(exprs):
     """Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s."""
-
     # Group expressions based on data dependences
     groups = group_expressions(exprs)
 
     clusters = ClusterGroup()
+
+    # Coerce iteration direction of each expression in each group
     for g in groups:
-        # Coerce iteration space of each expression in each group
-        mapper = OrderedDict([(e, e.ispace) for e in g])
+        mapper = OrderedDict([(e, e.directions) for e in g])
         flowmap = detect_flow_directions(g)
         queue = list(g)
         while queue:
-            v = queue.pop(0)
-
-            intervals, sub_iterators, directions = mapper[v].args
-            forced, clashes = force_directions(flowmap, lambda i: directions.get(i))
-            for e in g:
-                intervals = intervals.intersection(mapper[e].intervals.drop(clashes))
-            directions = {i: forced[i] for i in directions}
-            coerced_ispace = IterationSpace(intervals, sub_iterators, directions)
-
+            k = queue.pop(0)
+            directions, _ = force_directions(flowmap, lambda i: mapper[k].get(i))
+            directions = {i: directions[i] for i in mapper[k]}
             # Need update propagation ?
-            if coerced_ispace != mapper[v]:
-                mapper[v] = coerced_ispace
+            if directions != mapper[k]:
+                mapper[k] = directions
                 queue.extend([i for i in g if i not in queue])
 
         # Wrap each tensor expression in a PartialCluster
         for k, v in mapper.items():
             if k.is_Tensor:
                 scalars = [i for i in g[:g.index(k)] if i.is_Scalar]
-                clusters.append(PartialCluster(scalars + [k], v))
+                intervals, sub_iterators, _ = k.ispace.args
+                ispace = IterationSpace(intervals, sub_iterators, v)
+                clusters.append(PartialCluster(scalars + [k], ispace, k.dspace))
 
     # Group PartialClusters together where possible
     clusters = groupby(clusters)
