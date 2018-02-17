@@ -662,7 +662,7 @@ class TimeFunction(Function):
 
             self.time_dim = kwargs.get('time_dim')
             self.time_order = kwargs.get('time_order', 1)
-            self.save = kwargs.get('save', None) is not None
+            self.save = type(kwargs.get('save', None) or None)
             if not isinstance(self.time_order, int):
                 raise ValueError("'time_order' must be int")
 
@@ -755,13 +755,12 @@ class TimeFunction(Function):
         :param kwargs: Dictionary of user-provided argument overrides.
         :param alias: (Optional) name under which to store values.
         """
-        saves = {True: 'int', False: 'None'}
         # Check if data has the right dimension
         if self.name in kwargs:
             new = kwargs.get(self.name)
             if isinstance(new, TimeFunction) and new.save != self.save:
-                raise TypeError("Incorrect value encounterd, save should be %s" %
-                                saves[self.save])
+                raise TypeError("Incorrect value encountered, save should be %s" %
+                                self.save)
 
         values = super(TimeFunction, self).argument_values(alias=alias, **kwargs)
         return values
