@@ -6,6 +6,7 @@ import devito.function as function
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
+from devito.yask import namespace
 from devito.yask.data import Data, DataScalar
 from devito.yask.wrappers import contexts
 
@@ -23,6 +24,16 @@ class Constant(function.Constant):
     @function.Constant.data.setter
     def data(self, val):
         self._value = DataScalar(val)
+
+    def argument_defaults(self):
+        args = super(Constant, self).argument_defaults()
+        args[namespace['code-grid-name'](self.name)] = None
+        return args
+
+    def argument_values(self, alias=None, **kwargs):
+        values = super(Constant, self).argument_values(**kwargs)
+        values[namespace['code-grid-name'](self.name)] = None
+        return values
 
 
 class Function(function.Function):
@@ -123,16 +134,34 @@ class Function(function.Function):
             Alias to ``self.data``.
         """
         return Data(self._data.grid, self.shape, self.indices, self.dtype,
-                    offset=self._offset_domain)
+                    offset=self._offset_domain.left)
 
     @cached_property
     @_allocate_memory
     def data_with_halo(self):
         return Data(self._data.grid, self.shape_with_halo, self.indices, self.dtype,
-                    offset=self._offset_halo)
+                    offset=self._offset_halo.left)
 
     def initialize(self):
         raise NotImplementedError
+
+    def argument_defaults(self, alias=None):
+        args = super(Function, self).argument_defaults(alias)
+
+        key = alias or self.name
+        args[namespace['code-grid-name'](key)] = self.data.rawpointer
+
+        return args
+
+    def argument_values(self, alias=None, **kwargs):
+        new = kwargs.get(self.name)
+        values = super(Function, self).argument_values(alias=alias, **kwargs)
+
+        key = alias or self.name
+        if key in values and isinstance(new, Function):
+            values[namespace['code-grid-name'](key)] = new.data.rawpointer
+
+        return values
 
 
 class TimeFunction(function.TimeFunction, Function):

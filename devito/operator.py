@@ -2,22 +2,24 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 from operator import attrgetter
+from cached_property import cached_property
 
 import ctypes
 import numpy as np
 import sympy
 
-from devito.arguments import ArgumentEngine
+from devito.arguments import ArgumentMap
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.function import Forward, Backward
+from devito.function import Forward, Backward, Constant
 from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
-from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls)
+from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
+                           ArrayCast, PointerCast, derive_parameters)
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import retrieve_terminals
@@ -81,11 +83,8 @@ class Operator(Callable):
 
         # Set the direction of time acoording to the given TimeAxis
         for time in [d for d in self.dimensions if d.is_Time]:
-            if not time.is_Stepping:
+            if not time.is_Derived:
                 time.reverse = time_axis == Backward
-
-        # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = self.input + self.dimensions
 
         # Group expressions based on their iteration space and data dependences,
         # and apply the Devito Symbolic Engine (DSE) for flop optimization
@@ -96,10 +95,10 @@ class Operator(Callable):
         nodes = iet_build(clusters, self.dtype)
 
         # Introduce C-level profiling infrastructure
-        nodes, self.profiler = self._profile_sections(nodes, parameters)
+        nodes, self.profiler = self._profile_sections(nodes)
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes = self._specialize(nodes, parameters)
+        nodes = self._specialize(nodes)
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
         dle_state = transform(nodes, *set_dle_mode(dle))
@@ -109,7 +108,6 @@ class Operator(Callable):
         self.dle_flags = dle_state.flags
         self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                             for i in dle_state.elemental_functions]))
-        parameters.extend([i.argument for i in self.dle_arguments])
         self.dimensions.extend([i.argument for i in self.dle_arguments
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
@@ -117,24 +115,69 @@ class Operator(Callable):
         # Introduce the required symbol declarations
         nodes = iet_insert_C_decls(dle_state.nodes, self.func_table)
 
-        # Initialise ArgumentEngine
-        self.argument_engine = ArgumentEngine(clusters.ispace, parameters,
-                                              self.dle_arguments)
+        # Insert data and pointer casts for array parameters and profiling structs
+        nodes = self._build_casts(nodes)
 
-        parameters = self.argument_engine.arguments
+        # Derive parameters as symbols not defined in the kernel itself
+        parameters = self._build_parameters(nodes)
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
-    def arguments(self, **kwargs):
-        """ Process any apply-time arguments passed to apply and derive values for
-            any remaining arguments
+    @cached_property
+    def _argument_defaults(self):
         """
+        Derive all default values from parameters and ensure uniqueness.
+        """
+        default_args = ArgumentMap()
+        for p in self.input:
+            default_args.update(p.argument_defaults())
+        for p in self.dimensions:
+            if p.is_Sub:
+                default_args.update(p.argument_defaults(default_args))
+        return {k: default_args.reduce(k) for k in default_args}
 
-        arguments, autotune = self.argument_engine.handle(**kwargs)
+    def arguments(self, **kwargs):
+        """
+        Process runtime arguments passed to ``.apply()` and derive
+        default values for any remaining arguments.
+        """
+        # First, derive all default values from parameters
+        arguments = self._argument_defaults.copy()
 
+        # Next, we insert user-provided overrides
+        for p in self.input + self.dimensions:
+            arguments.update(p.argument_values(**kwargs))
+
+        # Derive additional values for DLE arguments
+        # TODO: This is not pretty, but it works for now. Ideally, the
+        # DLE arguments would be massaged into the IET so as to comply
+        # with the rest of the argument derivation procedure.
+        for arg in self.dle_arguments:
+            dim = arg.argument
+            osize = arguments[arg.original_dim.symbolic_size.name]
+            if dim.symbolic_size in self.parameters:
+                if arg.value is None:
+                    arguments[dim.symbolic_size.name] = osize
+                elif isinstance(arg.value, int):
+                    arguments[dim.symbolic_size.name] = arg.value
+                else:
+                    arguments[dim.symbolic_size.name] = arg.value(osize)
+
+        # Add in the profiler argument
+        arguments[self.profiler.name] = self.profiler.new()
+
+        # Execute autotuning and adjust arguments accordingly
+        autotune = kwargs.pop('autotune', False)
         if autotune:
-            arguments = self._autotune(arguments)
+            # AT assumes and ordered dict, so let's feed it one
+            at_args = OrderedDict([(p.name, arguments[p.name]) for p in self.parameters])
+            arguments = self._autotune(at_args)
+
+        # Check all argument are present
+        for p in self.parameters:
+            if p.name not in arguments:
+                raise ValueError("No value found for parameter %s" % p.name)
 
         return arguments
 
@@ -171,9 +214,11 @@ class Operator(Callable):
             # Associate a C type to each argument for runtime type check
             argtypes = []
             for i in self.parameters:
-                if i.is_ScalarArgument:
+                if i.is_Object:
+                    argtypes.append(ctypes.c_void_p)
+                elif i.is_Scalar:
                     argtypes.append(numpy_to_ctypes(i.dtype))
-                elif i.is_TensorArgument:
+                elif i.is_Tensor:
                     argtypes.append(np.ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
                 else:
                     argtypes.append(ctypes.c_void_p)
@@ -181,7 +226,7 @@ class Operator(Callable):
 
         return self._cfunction
 
-    def _profile_sections(self, nodes, parameters):
+    def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         return List(body=nodes), None
 
@@ -190,11 +235,24 @@ class Operator(Callable):
         best block sizes when loop blocking is in use."""
         return arguments
 
-    def _specialize(self, nodes, parameters):
+    def _specialize(self, nodes):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
         return nodes
+
+    def _build_parameters(self, nodes):
+        """Determine the Operator parameters based on the Iteration/Expression
+        tree ``nodes``."""
+        return derive_parameters(nodes, True)
+
+    def _build_casts(self, nodes):
+        """Introduce array and pointer casts at the top of the Iteration/Expression
+        tree ``nodes``."""
+        casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
+        profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
+        casts.append(PointerCast(profiler))
+        return List(body=casts + [nodes])
 
 
 class OperatorRunnable(Operator):
@@ -212,7 +270,8 @@ class OperatorRunnable(Operator):
         arguments = self.arguments(**kwargs)
 
         # Invoke kernel function with args
-        self.cfunction(*list(arguments.values()))
+        arg_values = [arguments[p.name] for p in self.parameters]
+        self.cfunction(*arg_values)
 
         # Output summary of performance achieved
         return self._profile_output(arguments)
@@ -228,11 +287,10 @@ class OperatorRunnable(Operator):
                      (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
-    def _profile_sections(self, nodes, parameters):
+    def _profile_sections(self, nodes,):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         nodes, profiler = create_profile('timers', nodes)
         self._globals.append(profiler.cdef)
-        parameters.append(Object(profiler.name, profiler.dtype, profiler.new))
         return nodes, profiler
 
 
@@ -265,6 +323,8 @@ def retrieve_symbols(expressions):
             continue
         if function.is_Constant or function.is_TensorFunction:
             input.append(function)
+            for j in i.indices:
+                input.extend([k for k in j.free_symbols if isinstance(k, Constant)])
     input = filter_sorted(input, key=attrgetter('name'))
 
     output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]

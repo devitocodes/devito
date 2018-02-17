@@ -21,5 +21,5 @@ setup(name='devito',
       license='MIT',
       packages=find_packages(exclude=['docs', 'examples', 'tests']),
       install_requires=['numpy', 'sympy>=1.1', 'mpmath', 'cgen', 'codepy',
-                        'psutil', 'py-cpuinfo', 'cached-property'],
+                        'psutil', 'py-cpuinfo', 'cached-property', 'multidict'],
       test_requires=['pytest', 'flake8', 'isort'])

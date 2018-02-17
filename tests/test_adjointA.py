@@ -15,19 +15,19 @@ presets = {
 
 
 @skipif_yask
-@pytest.mark.parametrize('mkey, shape, time_order, space_order, nbpml', [
+@pytest.mark.parametrize('mkey, shape, kernel, space_order, nbpml', [
     # 2D tests with varying time and space orders
-    ('layers', (60, 70), 2, 4, 10), ('layers', (60, 70), 2, 8, 10),
-    ('layers', (60, 70), 2, 12, 10), ('layers', (60, 70), 4, 4, 10),
-    ('layers', (60, 70), 4, 8, 10), ('layers', (60, 70), 4, 12, 10),
+    ('layers', (60, 70), 'OT2', 4, 10), ('layers', (60, 70), 'OT2', 8, 10),
+    ('layers', (60, 70), 'OT2', 12, 10), ('layers', (60, 70), 'OT4', 4, 10),
+    ('layers', (60, 70), 'OT4', 8, 10), ('layers', (60, 70), 'OT4', 12, 10),
     # 3D tests with varying time and space orders
-    ('layers', (60, 70, 80), 2, 4, 10), ('layers', (60, 70, 80), 2, 8, 10),
-    ('layers', (60, 70, 80), 2, 12, 10), ('layers', (60, 70, 80), 4, 4, 10),
-    ('layers', (60, 70, 80), 4, 8, 10), ('layers', (60, 70, 80), 4, 12, 10),
+    ('layers', (60, 70, 80), 'OT2', 4, 10), ('layers', (60, 70, 80), 'OT2', 8, 10),
+    ('layers', (60, 70, 80), 'OT2', 12, 10), ('layers', (60, 70, 80), 'OT4', 4, 10),
+    ('layers', (60, 70, 80), 'OT4', 8, 10), ('layers', (60, 70, 80), 'OT4', 12, 10),
     # Constant model in 2D and 3D
-    ('constant', (60, 70), 2, 8, 14), ('constant', (60, 70, 80), 2, 8, 14),
+    ('constant', (60, 70), 'OT2', 8, 14), ('constant', (60, 70, 80), 'OT2', 8, 14),
 ])
-def test_acoustic(mkey, shape, time_order, space_order, nbpml):
+def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     t0 = 0.0  # Start time
     tn = 500.  # Final time
     nrec = 130  # Number of receivers
@@ -37,7 +37,7 @@ def test_acoustic(mkey, shape, time_order, space_order, nbpml):
                        shape=shape, nbpml=nbpml, **(presets[mkey]))
 
     # Derive timestepping from model spacing
-    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
     nt = int(1 + (tn-t0) / dt)  # Number of timesteps
     time_values = np.linspace(t0, tn, nt)  # Discretized time axis
 
@@ -53,7 +53,7 @@ def test_acoustic(mkey, shape, time_order, space_order, nbpml):
 
     # Create solver object to provide relevant operators
     solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                time_order=time_order,
+                                kernel=kernel,
                                 space_order=space_order)
 
     # Create adjoint receiver symbol

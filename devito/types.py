@@ -64,7 +64,7 @@ class Basic(object):
     is_TensorFunction = False
     is_Function = False
     is_TimeFunction = False
-    is_CompositeFunction = False
+    is_SparseTimeFunction = False
     is_SparseFunction = False
 
     # Basic symbolic object properties
@@ -74,6 +74,24 @@ class Basic(object):
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         return
+
+    @abc.abstractmethod
+    def argument_defaults(self):
+        """
+        Returns a map of default argument values defined by this symbol.
+        """
+        raise NotImplementedError('%s does not provide any default arguments' %
+                                  self.__class__)
+
+    @abc.abstractmethod
+    def argument_values(self, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        """
+        raise NotImplementedError('%s does not provide argument value derivation' %
+                                  self.__class__)
 
 
 class Cached(object):
@@ -155,6 +173,10 @@ class AbstractSymbol(sympy.Symbol, Basic):
         return ()
 
     @property
+    def ndim(self):
+        return 0
+
+    @property
     def symbolic_shape(self):
         return ()
 
@@ -184,6 +206,8 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
             newobj = sympy.Symbol.__new__(newcls, name, *args, **options)
+
+            # Initialization
             newobj.__init__(*args, **kwargs)
 
             # Store new instance in symbol cache
@@ -213,32 +237,35 @@ class AbstractFunction(sympy.Function, Basic):
 
     The sub-hierarchy is structured as follows
 
-                            AbstractFunction
-                                   |
-                         AbstractCachedFunction
-                                   |
-                 -------------------------------------
-                 |                                   |
-            SymbolicData                      SymbolicFunction
-                 |                                   |
-               Array                           TensorFunction
-                                                     |
-                                                 Function
-                                                     |
-                                            --------------------
-                                            |                  |
-                                      TimeFunction     CompositeFunction
-                                                               |
-                                                         SparseFunction
+                          AbstractFunction
+                                 |
+                       AbstractCachedFunction
+                                 |
+               -------------------------------------
+               |                                   |
+          SymbolicData                      SymbolicFunction
+               |                                   |
+             Array                           TensorFunction
+                                                   |
+                                     ------------------------------
+                                     |                            |
+                                  Function                  SparseFunction
+                                     |                            |
+                                TimeFunction              SparseTimeFunction
 
-    There are four relevant :class:`AbstractFunction` sub-types: ::
+    There are five relevant :class:`AbstractFunction` sub-types: ::
 
         * Array: Like any :class:`SymbolicData`, an array does not carry data.
                  Usually, it is only created internally by Devito (e.g., by the DSE).
         * Function: A space-varying discrete function, which carries user data.
-        * TimeFunction: A time-varying discrete function, which carries user data.
-        * CompositeFunction: A nest of :class:`Function` objects. This comes in handy
-                             to express sparse functions.
+        * TimeFunction: A time- and space-varying discrete function, which carries
+                        user data.
+        * SparseFunction: A space-varying discrete function representing "sparse"
+                          points, i.e. points that are not aligned with the
+                          computational grid.
+        * SparseTimeFunction: A time- and space-varying function representing "sparse"
+                          points, i.e. points that are not aligned with the
+                          computational grid.
     """
 
     is_AbstractFunction = True
@@ -252,19 +279,22 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     """
 
     def __new__(cls, *args, **kwargs):
+        options = kwargs.get('options', {})
         if cls in _SymbolCache:
-            options = kwargs.get('options', {})
             newobj = sympy.Function.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
             name = kwargs.get('name')
-            if len(args) < 1:
-                args = cls._indices(**kwargs)
+            indices = cls.__indices_setup__(**kwargs)
 
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
-            options = kwargs.get('options', {})
-            newobj = sympy.Function.__new__(newcls, *args, **options)
+            newobj = sympy.Function.__new__(newcls, *indices, **options)
+
+            # Initialization
+            newobj._name = name
+            newobj._indices = indices
+            newobj._shape = cls.__shape_setup__(**kwargs)
             newobj.__init__(*args, **kwargs)
 
             # All objects cached on the AbstractFunction /newobj/ keep a reference
@@ -277,19 +307,34 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return newobj
 
     @classmethod
-    def _indices(cls, **kwargs):
-        """Return the default dimension indices."""
-        return []
+    def __indices_setup__(cls, **kwargs):
+        """Extract the function indices from ``kwargs``."""
+        return ()
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        """Extract the function shape from ``kwargs``."""
+        return ()
 
     @property
-    def dim(self):
-        """Return the rank of the object."""
-        return len(self.shape)
+    def name(self):
+        """Return the name of the function."""
+        return self._name
 
     @property
-    def indexed(self):
-        """Extract a :class:`IndexedData` object from the current object."""
-        return IndexedData(self.name, shape=self.shape, function=self.function)
+    def indices(self):
+        """Return the indices (aka dimensions) of the function."""
+        return self._indices
+
+    @property
+    def shape(self):
+        """Return the shape of the function."""
+        return self._shape
+
+    @property
+    def ndim(self):
+        """Return the rank of the function."""
+        return len(self.indices)
 
     @property
     def symbolic_shape(self):
@@ -309,6 +354,20 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             except AttributeError:
                 sshape.append(j.symbolic_size)
         return tuple(sshape)
+
+    def indexify(self, indices=None):
+        """Create a :class:`sympy.Indexed` object from the current object."""
+        if indices is not None:
+            return Indexed(self.indexed, *indices)
+
+        subs = dict([(i.spacing, 1) for i in self.indices])
+        indices = [a.subs(subs) for a in self.args]
+        return Indexed(self.indexed, *indices)
+
+    @property
+    def indexed(self):
+        """Extract a :class:`IndexedData` object from the current object."""
+        return IndexedData(self.name, shape=self.shape, function=self.function)
 
     @property
     def _mem_external(self):
@@ -335,15 +394,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
            size in bytes
         """
         return reduce(mul, self.shape)
-
-    def indexify(self, indices=None):
-        """Create a :class:`sympy.Indexed` object from the current object."""
-        if indices is not None:
-            return Indexed(self.indexed, *indices)
-
-        subs = dict([(i.spacing, 1) for i in self.indices])
-        indices = [a.subs(subs) for a in self.args]
-        return Indexed(self.indexed, *indices)
 
 
 class SymbolicData(AbstractCachedFunction):
@@ -405,9 +455,6 @@ class Array(SymbolicData):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.name = kwargs.get('name')
-            self.shape = kwargs.get('shape')
-            self.indices = kwargs.get('dimensions')
             self.dtype = kwargs.get('dtype', np.float32)
 
             self._external = bool(kwargs.get('external', False))
@@ -418,8 +465,12 @@ class Array(SymbolicData):
             assert single_or([self._external, self._onstack, self._onheap])
 
     @classmethod
-    def _indices(cls, **kwargs):
-        return kwargs.get('dimensions')
+    def __indices_setup__(cls, **kwargs):
+        return tuple(kwargs.get('dimensions'))
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        return tuple(kwargs.get('shape'))
 
     @property
     def _mem_external(self):
@@ -436,8 +487,8 @@ class Array(SymbolicData):
     def update(self, dtype=None, shape=None, dimensions=None, onstack=None,
                onheap=None, external=None):
         self.dtype = dtype or self.dtype
-        self.shape = shape or self.shape
-        self.indices = dimensions or self.indices
+        self._shape = shape or self.shape
+        self._indices = dimensions or self.indices
 
         if any(i is not None for i in [external, onstack, onheap]):
             self._external = bool(external)
@@ -472,7 +523,7 @@ class SymbolicFunction(AbstractCachedFunction):
 # that need to be passed to external libraries
 
 
-class Object(object):
+class Object(Basic):
 
     """
     Represent a generic pointer object.
@@ -487,6 +538,18 @@ class Object(object):
 
     def __repr__(self):
         return self.name
+
+    def argument_defaults(self):
+        if callable(self.value):
+            return {self.name: self.value()}
+        else:
+            return {self.name: self.value}
+
+    def argument_values(self, **kwargs):
+        if self.name in kwargs:
+            return {self.name: kwargs.pop(self.name)}
+        else:
+            return {}
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:

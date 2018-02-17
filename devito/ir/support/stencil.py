@@ -3,7 +3,7 @@ from collections import namedtuple
 from sympy import Eq
 
 from devito.dimension import Dimension
-from devito.ir.support.domain import Interval, Space
+from devito.ir.support.space import Interval, Space
 from devito.symbolics import retrieve_indexed
 from devito.tools import DefaultOrderedDict, flatten
 

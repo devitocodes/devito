@@ -1,8 +1,9 @@
-from devito.ir.iet import Iteration, List, FindSections
+from devito.ir.iet import Iteration, List, FindSections, FindSymbols
 from devito.tools import as_tuple, flatten
+from devito.types import Array
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree', 'is_foldable',
-           'compose_nodes']
+           'compose_nodes', 'derive_parameters']
 
 
 def retrieve_iteration_tree(node, mode='normal'):
@@ -119,3 +120,28 @@ def compose_nodes(nodes, retrieve=False):
         return body, tree
     else:
         return body
+
+
+def derive_parameters(nodes, drop_locals=False):
+    """
+    Derive all input parameters (function call arguments) from an IET
+    by collecting all symbols not defined in the tree itself.
+    """
+    # Pick all free symbols and symbolic functions from the kernel
+    functions = FindSymbols('symbolics').visit(nodes)
+    free_symbols = FindSymbols('free-symbols').visit(nodes)
+
+    # Filter out function base symbols and use real function objects
+    function_names = [s.name for s in functions]
+    symbols = [s for s in free_symbols if s.name not in function_names]
+    symbols = functions + symbols
+
+    defines = [s.name for s in FindSymbols('defines').visit(nodes)]
+    parameters = tuple(s for s in symbols if s.name not in defines)
+
+    # Filter out internally-allocated temporary `Array` types
+    if drop_locals:
+        parameters = [p for p in parameters
+                      if not (isinstance(p, Array) and (p._mem_heap or p._mem_stack))]
+
+    return parameters

@@ -4,7 +4,7 @@ import ctypes
 import inspect
 from collections import Callable, Iterable, OrderedDict, Hashable
 from functools import partial, wraps
-from itertools import product, zip_longest
+from itertools import chain, combinations, product, zip_longest
 from subprocess import DEVNULL, PIPE, Popen, CalledProcessError, check_output
 import cpuinfo
 from distutils import version
@@ -55,6 +55,12 @@ def grouper(iterable, n):
 def roundm(x, y):
     """Return x rounded up to the closest multiple of y."""
     return x if x % y == 0 else x + y - x % y
+
+
+def powerset(iterable):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
 
 def invert(mapper):
@@ -553,3 +559,13 @@ class Bunch(object):
     """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
+
+class EnrichedTuple(tuple):
+    """
+    A tuple with an arbitrary number of additional attributes.
+    """
+    def __new__(cls, *items, **kwargs):
+        obj = super(EnrichedTuple, cls).__new__(cls, items)
+        obj.__dict__.update(kwargs)
+        return obj

@@ -11,7 +11,6 @@ from operator import attrgetter
 
 import cgen as c
 
-from devito.arguments import runtime_arguments
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node
@@ -121,6 +120,17 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
+    def visit_Conditional(self, o):
+        self._depth += 1
+        then_body = self.visit(o.then_body)
+        self._depth -= 1
+        if o.else_body:
+            else_body = self.visit(o.else_body)
+            return self.indent + "<If %s>\n%s\n<Else>\n%s" % (o.condition,
+                                                              then_body, else_body)
+        else:
+            return self.indent + "<If %s>\n%s" % (o.condition, then_body)
+
 
 class CGen(Visitor):
 
@@ -129,36 +139,59 @@ class CGen(Visitor):
     """
 
     def _args_decl(self, args):
-        """Convert an iterable of :class:`Argument` into cgen format."""
+        """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_ScalarArgument:
+            if i.is_Object:
+                ret.append(c.Value('void', '*_%s' % i.name))
+            elif i.is_Scalar:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
-            elif i.is_TensorArgument:
+            elif i.is_Tensor:
                 ret.append(c.Value(c.dtype_to_ctype(i.dtype),
                                    '*restrict %s_vec' % i.name))
+            elif i.is_Lowered:
+                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             else:
                 ret.append(c.Value('void', '*_%s' % i.name))
         return ret
 
-    def _args_cast(self, args):
-        """Build cgen type casts for an iterable of :class:`Argument`."""
+    def _args_call(self, args):
+        """Generate cgen function call arguments from an iterable of symbols and
+        expressions."""
         ret = []
         for i in args:
-            if i.is_TensorArgument:
-                align = "__attribute__((aligned(64)))"
-                shape = ''.join(["[%s]" % ccode(j)
-                                 for j in i.provider.symbolic_shape[1:]])
-                lvalue = c.POD(i.dtype, '(*restrict %s)%s %s' % (i.name, shape, align))
-                rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(i.dtype), shape,
-                                            '%s_vec' % i.name)
-                ret.append(c.Initializer(lvalue, rvalue))
-            elif i.is_PtrArgument:
-                ctype = ctypes_to_C(i.dtype)
-                lvalue = c.Pointer(c.Value(ctype, i.name))
-                rvalue = '(%s*) %s' % (ctype, '_%s' % i.name)
-                ret.append(c.Initializer(lvalue, rvalue))
+            try:
+                if i.is_Object:
+                    ret.append('*_%s' % i.name)
+                elif i.is_Array:
+                    ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
+                elif i.is_Scalar:
+                    ret.append(i.name)
+                elif i.is_TensorFunction:
+                    ret.append('%s_vec' % i.name)
+            except AttributeError:
+                ret.append(ccode(i))
         return ret
+
+    def visit_ArrayCast(self, o):
+        """
+        Build cgen type casts for an :class:`AbstractFunction`.
+        """
+        f = o.function
+        align = "__attribute__((aligned(64)))"
+        shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
+        lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
+        rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(f.dtype), shape, '%s_vec' % f.name)
+        return c.Initializer(lvalue, rvalue)
+
+    def visit_PointerCast(self, o):
+        """
+        Build cgen pointer casts for an :class:`Object`.
+        """
+        ctype = ctypes_to_C(o.object.dtype)
+        lvalue = c.Pointer(c.Value(ctype, o.object.name))
+        rvalue = '(%s*) %s' % (ctype, '_%s' % o.object.name)
+        return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
         return tuple(self.visit(i) for i in o)
@@ -182,7 +215,16 @@ class CGen(Visitor):
                              ccode(o.expr.lhs)), ccode(o.expr.rhs))
 
     def visit_Call(self, o):
-        return c.Statement('%s(%s)' % (o.name, ','.join(o.params)))
+        arguments = self._args_call(o.params)
+        return c.Statement('%s(%s)' % (o.name, ','.join(arguments)))
+
+    def visit_Conditional(self, o):
+        then_body = c.Block(self.visit(o.then_body))
+        if o.else_body:
+            else_body = c.Block(self.visit(o.else_body))
+            return c.If(ccode(o.condition), then_body, else_body)
+        else:
+            return c.If(ccode(o.condition), then_body)
 
     def visit_Iteration(self, o):
         body = flatten(self.visit(i) for i in o.children)
@@ -235,21 +277,19 @@ class CGen(Visitor):
 
     def visit_Callable(self, o):
         body = flatten(self.visit(i) for i in o.children)
-        params = runtime_arguments(o.parameters)
+        params = o.parameters
         decls = self._args_decl(params)
-        casts = self._args_cast(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
-        return c.FunctionBody(signature, c.Block(casts + body))
+        return c.FunctionBody(signature, c.Block(body))
 
     def visit_Operator(self, o):
         # Kernel signature and body
         body = flatten(self.visit(i) for i in o.children)
-        params = runtime_arguments(o.parameters)
+        params = o.parameters
         decls = self._args_decl(params)
-        casts = self._args_cast(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         retval = [c.Statement("return 0")]
-        kernel = c.FunctionBody(signature, c.Block(casts + body + retval))
+        kernel = c.FunctionBody(signature, c.Block(body + retval))
 
         # Elemental functions
         efuncs = [i.root.ccode for i in o.func_table.values() if i.local] + [blankline]
@@ -358,22 +398,19 @@ class FindSymbols(Visitor):
 
     :param mode: Drive the search. Accepted values are: ::
 
-        * 'kernel-data' (default): Collect :class:`SymbolicFunction` objects.
         * 'symbolics': Collect :class:`AbstractSymbol` objects.
         * 'symbolics-writes': Collect written :class:`AbstractSymbol` objects.
         * 'free-symbols': Collect all free symbols.
-        * 'dimensions': Collect :class:`Dimension` objects only.
     """
 
     rules = {
-        'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicFunction],
         'symbolics': lambda e: e.functions,
         'symbolics-writes': lambda e: as_tuple(e.write),
-        'free-symbols': lambda e: e.expr.free_symbols,
-        'dimensions': lambda e: e.dimensions,
+        'free-symbols': lambda e: e.free_symbols,
+        'defines': lambda e: as_tuple(e.defines),
     }
 
-    def __init__(self, mode='kernel-data'):
+    def __init__(self, mode='symbolics'):
         super(FindSymbols, self).__init__()
         self.rule = self.rules[mode]
 
@@ -383,10 +420,15 @@ class FindSymbols(Visitor):
 
     def visit_Iteration(self, o):
         symbols = flatten([self.visit(i) for i in o.children])
+        symbols += self.rule(o)
         return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
+
+    visit_ArrayCast = visit_Expression
+    visit_PointerCast = visit_Expression
+    visit_Call = visit_Expression
 
 
 class FindNodes(Visitor):
@@ -453,7 +495,7 @@ class FindAdjacentIterations(Visitor):
         group = []
         for i in o:
             ret = self.visit(i, parent=parent, ret=ret)
-            if ret['seen_iteration'] is True:
+            if i and ret['seen_iteration'] is True:
                 group.append(i)
             else:
                 if len(group) > 1:

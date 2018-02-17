@@ -17,4 +17,6 @@ scikit-image
 click
 codecov
 pytest-cov
+multidict
+frozendict
 git+https://github.com/opesci/pyrevolve

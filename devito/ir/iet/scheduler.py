@@ -5,9 +5,9 @@ import numpy as np
 from devito.cgen_utils import Allocator
 from devito.dimension import LoweredDimension
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
-                           UnboundedIndex, MetaCall, MapExpressions, Transformer,
-                           NestedTransformer, SubstituteExpression, iet_analyze,
-                           compose_nodes, filter_iterations, retrieve_iteration_tree)
+                           Conditional, UnboundedIndex, MetaCall, MapExpressions,
+                           Transformer, NestedTransformer, SubstituteExpression,
+                           iet_analyze, filter_iterations, retrieve_iteration_tree)
 from devito.tools import filter_ordered, flatten
 from devito.types import Scalar
 
@@ -55,34 +55,54 @@ def iet_make(clusters, dtype):
             # Can I reuse any of the previously scheduled Iterations ?
             index = 0
             for i0, i1 in zip(intervals, list(schedule)):
-                if i0 != i1 or i0.dim in clusters.atomics[cluster]:
+                if i0 != i1 or i0.dim in cluster.atomics:
                     break
                 root = schedule[i1]
                 index += 1
             needed = intervals[index:]
 
-            # Build Iterations, including any necessary unbounded index
-            iters = []
-            for i in needed:
+            # Build Expressions
+            body = [Expression(v, np.int32 if cluster.trace.is_index(k) else dtype)
+                    for k, v in cluster.trace.items()]
+            if not needed:
+                body = List(body=body)
+
+            # Build Iterations
+            scheduling = []
+            for i in reversed(needed):
+                # Prepare any necessary unbounded index
                 uindices = []
                 for j, offs in cluster.ispace.sub_iterators.get(i.dim, []):
+                    modulo = len(offs)
                     for n, o in enumerate(filter_ordered(offs)):
                         name = "%s%d" % (j.name, n)
                         vname = Scalar(name=name, dtype=np.int32)
-                        value = (i.dim + o) % j.modulo
+                        value = (i.dim + o) % modulo
                         uindices.append(UnboundedIndex(vname, value, value, j, j + o))
-                iters.append(Iteration([], i.dim, i.dim.limits, offsets=i.limits,
-                                       uindices=uindices))
 
-            # Build Expressions
-            exprs = [Expression(v, np.int32 if cluster.trace.is_index(k) else dtype)
-                     for k, v in cluster.trace.items()]
+                # Update IET and scheduling
+                if i.dim in cluster.guards:
+                    # Must wrap within an if-then scope
+                    body = Conditional(cluster.guards[i.dim], body)
+                    iteration = Iteration(body, i.dim, i.dim.limits,
+                                          offsets=i.limits, uindices=uindices)
+                    # Adding (None, None) ensures that nested iterations won't
+                    # be reused by the next cluster
+                    scheduling.extend([(None, None), (i, iteration)])
+                else:
+                    iteration = Iteration(body, i.dim, i.dim.limits,
+                                          offsets=i.limits, uindices=uindices)
+                    scheduling.append((i, iteration))
 
-            # Compose Iterations and Expressions
-            body, tree = compose_nodes(iters + [exprs], retrieve=True)
+                # Prepare for next dimension
+                body = iteration
 
-            # Update the current scheduling
-            scheduling = OrderedDict(zip(needed, tree))
+            # If /needed/ is != [], root.dim might be a guarded dimension for /cluster/
+            if root is not None and root.dim in cluster.guards:
+                body = Conditional(cluster.guards[root.dim], body)
+
+            # Update the current schedule
+            scheduling = OrderedDict(reversed(scheduling))
             if root is None:
                 processed.append(body)
                 schedule = scheduling

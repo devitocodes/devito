@@ -7,10 +7,12 @@ from sympy import Expr, Float
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
+from devito.region import DOMAIN
 from devito.tools import as_tuple
 
-__all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'FunctionFromPointer', 'ListInitializer',
-           'Inc', 'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
+__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Inc', 'Mul', 'Add', 'IntDiv',
+           'FunctionFromPointer', 'ListInitializer', 'taylor_sin', 'taylor_cos',
+           'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
@@ -44,17 +46,34 @@ class FrozenExpr(Expr):
 
 class Eq(sympy.Eq, FrozenExpr):
 
-    """
-    A customized version of :class:`sympy.Eq` which suppresses
-    evaluation.
-    """
+    """A customized version of :class:`sympy.Eq` which suppresses evaluation."""
 
     is_Increment = False
 
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
+        region = kwargs.pop('region', DOMAIN)
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
+        obj._region = region
         return obj
+
+
+class CondEq(sympy.Eq, FrozenExpr):
+    """A customized version of :class:`sympy.Eq` representing a conditional
+    equality. It suppresses evaluation."""
+
+    def __new__(cls, *args, **kwargs):
+        kwargs['evaluate'] = False
+        return sympy.Eq.__new__(cls, *args, **kwargs)
+
+
+class CondNe(sympy.Ne, FrozenExpr):
+    """A customized version of :class:`sympy.Ne` representing a conditional
+    inequality. It suppresses evaluation."""
+
+    def __new__(cls, *args, **kwargs):
+        kwargs['evaluate'] = False
+        return sympy.Ne.__new__(cls, *args, **kwargs)
 
 
 class Inc(Eq):
@@ -74,20 +93,52 @@ class Add(sympy.Add, FrozenExpr):
     pass
 
 
-class FunctionFromPointer(sympy.Symbol):
+class IntDiv(sympy.Expr):
+
+    """
+    A support type for integer division. Should only be used by the compiler
+    for code generation purposes (i.e., not for symbolic manipulation).
+    This works around the annoying way SymPy represents integer division,
+    namely as a ``Mul`` between the numerator and the reciprocal of the
+    denominator (e.g., ``a*3.args -> (a, 1/3)), which ends up generating
+    "weird" C code.
+    """
+    is_Atom = True
+
+    def __new__(cls, lhs, rhs, params=None):
+        obj = sympy.Expr.__new__(cls)
+        obj.lhs = lhs
+        obj.rhs = rhs
+        return obj
+
+    def __str__(self):
+        return "%s / %s" % (self.lhs, self.rhs)
+
+    __repr__ = __str__
+
+
+class FunctionFromPointer(sympy.Expr):
 
     """
     Symbolic representation of the C notation ``pointer->function(params)``.
     """
 
     def __new__(cls, function, pointer, params=None):
-        flatten_name = '%s->%s(%s)' % (pointer, function,
-                                       ", ".join(str(i) for i in as_tuple(params)))
-        obj = sympy.Symbol.__new__(cls, flatten_name)
+        obj = sympy.Expr.__new__(cls)
         obj.function = function
         obj.pointer = pointer
         obj.params = as_tuple(params)
         return obj
+
+    def __str__(self):
+        return '%s->%s(%s)' % (self.pointer, self.function,
+                               ", ".join(str(i) for i in as_tuple(self.params)))
+
+    __repr__ = __str__
+
+    def _hashable_content(self):
+        return super(FunctionFromPointer, self)._hashable_content() +\
+            (self.function, self.pointer) + self.params
 
 
 class ListInitializer(sympy.Symbol):

@@ -6,7 +6,7 @@ import pytest  # noqa
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from devito import (Eq, Grid, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, Backward, configuration, clear_cache)  # noqa
+                    SparseTimeFunction, Backward, configuration, clear_cache)  # noqa
 from devito.ir.iet import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import contexts  # noqa
 
@@ -82,11 +82,11 @@ class TestOperatorSimple(object):
         assert np.all(u.data[1] == 1.)
         # Check that the halo planes are still 0
         assert all(np.all(u.data_with_halo[1, i, :, :] == 0)
-                   for i in range(u._extent_halo_left[1]))
+                   for i in range(u._extent_halo.left[1]))
         assert all(np.all(u.data_with_halo[1, :, i, :] == 0)
-                   for i in range(u._extent_halo_left[2]))
+                   for i in range(u._extent_halo.left[2]))
         assert all(np.all(u.data_with_halo[1, :, :, i] == 0)
-                   for i in range(u._extent_halo_left[3]))
+                   for i in range(u._extent_halo.left[3]))
 
     def test_increasing_multi_steps(self):
         """
@@ -126,11 +126,11 @@ class TestOperatorSimple(object):
         assert np.all(v.data[1] == 6.)
         # Check that the halo planes are untouched
         assert all(np.all(v.data_with_halo[1, i, :, :] == 1)
-                   for i in range(v._extent_halo_left[1]))
+                   for i in range(v._extent_halo.left[1]))
         assert all(np.all(v.data_with_halo[1, :, i, :] == 1)
-                   for i in range(v._extent_halo_left[2]))
+                   for i in range(v._extent_halo.left[2]))
         assert all(np.all(v.data_with_halo[1, :, :, i] == 1)
-                   for i in range(v._extent_halo_left[3]))
+                   for i in range(v._extent_halo.left[3]))
 
     def test_mixed_space_order(self):
         """
@@ -212,7 +212,7 @@ class TestOperatorSimple(object):
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
-        p = SparseFunction(name='points', grid=grid, nt=1, npoint=4)
+        p = SparseTimeFunction(name='points', grid=grid, nt=1, npoint=4)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         for i in range(4):
             for j in range(4):
@@ -275,7 +275,7 @@ class TestOperatorSimple(object):
         """
         grid = Grid(shape=(4, 4, 4))
         c = Constant(name='c', value=2.)
-        p = SparseFunction(name='points', grid=grid, nt=1, npoint=1)
+        p = SparseTimeFunction(name='points', grid=grid, nt=1, npoint=1)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
         op = Operator([Eq(u.forward, u + c), Eq(p.indexed[0, 0], 1. + c)])
@@ -302,18 +302,18 @@ class TestOperatorSimple(object):
         u.data[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
         # First run
-        op()
+        op(t=2)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
         # Nothing should have changed at this point
-        op(yu4D=u)
+        op(t=2, yu4D=u)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
         # Now try with a different grid
         grid = Grid(shape=(3, 3, 3))
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
-        op(yu4D=u)
+        op(t=2, yu4D=u)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
 
@@ -365,14 +365,18 @@ class TestOperatorAcoustic(object):
         return 2
 
     @pytest.fixture
+    def kernel(self):
+        return 'OT2'
+
+    @pytest.fixture
     def u(self, model, space_order, time_order):
         return TimeFunction(name='u', grid=model.grid,
                             space_order=space_order, time_order=time_order)
 
     @pytest.fixture
-    def eqn(self, m, damp, u, time_order):
+    def eqn(self, m, damp, u, kernel):
         t = u.grid.stepping_dim
-        return iso_stencil(u, time_order, m, t.spacing, damp)
+        return iso_stencil(u, m, t.spacing, damp, kernel)
 
     @pytest.fixture
     def src(self, model, time_params):
