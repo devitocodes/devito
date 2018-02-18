@@ -208,7 +208,7 @@ def test_index_alignment(const):
     and hence grad = 0*0 + 1*1 + 2*2 + 3*3 = sum(n^2) where n -> [0, nt]
     If the test fails, the resulting number can tell you how the fields are misaligned
     """
-    nt = 10
+    nt = 9
     grid = Grid(shape=(3, 5))
     order_of_eqn = 1
     modulo_factor = order_of_eqn + 1

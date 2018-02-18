@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-from cached_property import cached_property
 import cgen as c
 import numpy as np
 from sympy import Indexed
@@ -116,10 +115,8 @@ class Operator(OperatorRunnable):
 
         return List(body=casts + [nodes])
 
-    @cached_property
-    def _argument_defaults(self):
-        default_args = super(Operator, self)._argument_defaults
-
+    def _argument_defaults(self, arguments):
+        default_args = super(Operator, self)._argument_defaults(arguments)
         # Add in solution pointer
         default_args[namespace['code-soln-name']] = self.yk_soln.rawpointer
 

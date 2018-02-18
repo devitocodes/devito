@@ -208,7 +208,7 @@ def test_position(shape):
     src.coordinates.data[0, -1] = 30.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -225,7 +225,7 @@ def test_position(shape):
     src.coordinates.data[0, -1] = 130.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec2 = Receiver(name='rec2', grid=model.grid, ntime=nt, npoint=nrec)
+    rec2 = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
     rec2.coordinates.data[:, 0] = np.linspace(100., 100. + model.domain_size[0],
                                               num=nrec)
     rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]

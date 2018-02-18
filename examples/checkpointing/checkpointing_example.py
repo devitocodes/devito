@@ -12,7 +12,7 @@ class CheckpointingExample(GradientExample):
     @cached_property
     def forward_field(self):
         return TimeFunction(name="u", grid=self.model.grid, time_order=2,
-                            space_order=self.space_order, save=False)
+                            space_order=self.space_order)
 
     @cached_property
     def forward_operator(self):
