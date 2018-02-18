@@ -333,8 +333,8 @@ class TestArguments(object):
         expected = {
             's': s.data, 's_coords': s.coordinates.data,
             # Default dimensions of the sparse data
-            'p_size': 3, 'p_s': 0, 'p_e': 3,
-            'd_size': 3, 'p_s': 0, 'p_e': 3,
+            'p_s_size': 3, 'p_s_s': 0, 'p_s_e': 3,
+            'd_size': 3, 'd_s': 0, 'd_e': 3,
             'time_size': 4, 'time_s': 0, 'time_e': 4,
         }
         self.verify_arguments(op.arguments(), expected)
@@ -472,13 +472,13 @@ class TestArguments(object):
         assert (a.data[:] == 4.).all()
 
         # Override with symbol (different name)
-        a1 = TimeFunction(name='a1', grid=grid)
+        a1 = TimeFunction(name='a1', grid=grid, save=2)
         a1.data[:] = 2.
         op(t=2, a=a1)
         assert (a1.data[:] == 5.).all()
 
         # Override with symbol (same name as original)
-        a2 = TimeFunction(name='a', grid=grid)
+        a2 = TimeFunction(name='a', grid=grid, save=2)
         a2.data[:] = 3.
         op(t=2, a=a2)
         assert (a2.data[:] == 6.).all()
