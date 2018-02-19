@@ -14,6 +14,7 @@ import cgen as c
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node
+from devito.ir.support.space import Backward
 from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C, GenericVisitor
 
 
@@ -120,6 +121,17 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
+    def visit_Conditional(self, o):
+        self._depth += 1
+        then_body = self.visit(o.then_body)
+        self._depth -= 1
+        if o.else_body:
+            else_body = self.visit(o.else_body)
+            return self.indent + "<If %s>\n%s\n<Else>\n%s" % (o.condition,
+                                                              then_body, else_body)
+        else:
+            return self.indent + "<If %s>\n%s" % (o.condition, then_body)
+
 
 class CGen(Visitor):
 
@@ -207,6 +219,14 @@ class CGen(Visitor):
         arguments = self._args_call(o.params)
         return c.Statement('%s(%s)' % (o.name, ','.join(arguments)))
 
+    def visit_Conditional(self, o):
+        then_body = c.Block(self.visit(o.then_body))
+        if o.else_body:
+            else_body = c.Block(self.visit(o.else_body))
+            return c.If(ccode(o.condition), then_body, else_body)
+        else:
+            return c.If(ccode(o.condition), then_body)
+
     def visit_Iteration(self, o):
         body = flatten(self.visit(i) for i in o.children)
 
@@ -230,8 +250,8 @@ class CGen(Visitor):
         else:
             end = o.limits[1]
 
-        # For reverse dimensions flip loop bounds
-        if o.reverse:
+        # For backward direction flip loop bounds
+        if o.direction == Backward:
             loop_init = 'int %s = %s' % (o.index, ccode('%s - 1' % end))
             loop_cond = '%s >= %s' % (o.index, ccode(start))
             loop_inc = '%s -= %s' % (o.index, o.limits[2])
@@ -476,7 +496,7 @@ class FindAdjacentIterations(Visitor):
         group = []
         for i in o:
             ret = self.visit(i, parent=parent, ret=ret)
-            if ret['seen_iteration'] is True:
+            if i and ret['seen_iteration'] is True:
                 group.append(i)
             else:
                 if len(group) > 1:

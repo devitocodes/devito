@@ -1,12 +1,12 @@
 from cached_property import cached_property
-
-from sympy import Basic, Eq
+from sympy import Basic, S
 
 from devito.dimension import Dimension
+from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import as_tuple, is_integer, filter_sorted
 
-__all__ = ['Scope']
+__all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
 
 
 class Vector(tuple):
@@ -161,16 +161,21 @@ class IterationInstance(Vector):
 
     """
     A representation of the iteration and data points accessed by an
-    :class:`Indexed` object. Two different concepts are distinguished:
+    :class:`Indexed` object. Three different concepts are distinguished:
 
-        * The index functions; that is, the expressions telling what *iteration*
-          space point is accessed.
-        * The ``findices``: that is, the :class:`Dimension`s telling what *data*
-          space point is accessed.
+        * Index functions: the expressions telling what *iteration* space point
+          is accessed.
+        * ``aindices``: the :class:`Dimension`s acting as iteration variables.
+          There is one aindex for each index function. If the index function
+          is non-affine, then it may not be possible to detect its aindex;
+          in such a case, None is used as placeholder.
+        * ``findices``: the :class:`Dimension`s telling what *data* space point
+          is accessed.
     """
 
     def __new__(cls, indexed):
         obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
+        # findices
         obj.findices = tuple(indexed.base.function.indices)
         if len(obj.findices) != len(set(obj.findices)):
             raise ValueError("Illegal non-unique `findices`")
@@ -209,6 +214,44 @@ class IterationInstance(Vector):
             raise TypeError("IterationInstance indices must be integers, slices, or "
                             "Dimensions, not %s" % type(index))
 
+    @cached_property
+    def _cached_findices_index(self):
+        # Avoiding to call self.findices.index repeatedly speeds analysis up
+        return {fi: i for i, fi in enumerate(self.findices)}
+
+    @cached_property
+    def index_mode(self):
+        index_mode = []
+        for i, fi in zip(self, self.findices):
+            if is_integer(i):
+                index_mode.append('regular')
+            elif q_affine(i, fi):
+                index_mode.append('regular')
+            else:
+                index_mode.append('irregular')
+        return tuple(index_mode)
+
+    @cached_property
+    def aindices(self):
+        aindices = []
+        for i, fi in zip(self, self.findices):
+            if is_integer(i):
+                aindices.append(None)
+            elif q_affine(i, fi):
+                aindices.append(fi)
+            else:
+                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+                aindices.append(dims.pop() if len(dims) == 1 else None)
+        return tuple(aindices)
+
+    @property
+    def is_regular(self):
+        return all(i == 'regular' for i in self.index_mode)
+
+    @property
+    def is_irregular(self):
+        return not self.is_regular
+
     def distance(self, other, findex=None):
         """Compute vector distance from ``self`` to ``other``. If ``findex`` is
         supplied, compute the vector distance up to and including ``findex``."""
@@ -218,8 +261,8 @@ class IterationInstance(Vector):
             raise TypeError("Cannot compute distance due to mismatching `findices`")
         if findex is not None:
             try:
-                limit = self.findices.index(findex) + 1
-            except ValueError:
+                limit = self._cached_findices_index[findex] + 1
+            except KeyError:
                 raise TypeError("Cannot compute distance as `findex` not in `findices`")
         else:
             limit = self.rank
@@ -263,6 +306,10 @@ class Access(IterationInstance):
             self.function == other.function
 
     @property
+    def name(self):
+        return self.function.name
+
+    @property
     def is_read(self):
         return self.mode in ['R', 'RI']
 
@@ -284,31 +331,7 @@ class Access(IterationInstance):
 
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
-        return "%s<%s,[%s]>" % (mode, self.function.name,
-                                ', '.join(str(i) for i in self))
-
-
-class IterationFunction(object):
-
-    """A representation of a function describing the direction and the step
-    in which an iteration space is traversed."""
-
-    _KNOWN = []
-
-    def __init__(self, name):
-        assert isinstance(name, str) and name not in IterationFunction._KNOWN
-        self._name = name
-        IterationFunction._KNOWN.append(name)
-
-    def __repr__(self):
-        return self._name
-
-
-INC = IterationFunction('++')
-"""Unit-stride increment."""
-
-DEC = IterationFunction('--')
-"""Unit-stride decrement"""
+        return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
 
 
 class TimedAccess(Access):
@@ -350,37 +373,24 @@ class TimedAccess(Access):
 
     """
 
-    def __new__(cls, indexed, mode, timestamp):
+    def __new__(cls, indexed, mode, timestamp, directions):
         assert is_integer(timestamp)
         obj = super(TimedAccess, cls).__new__(cls, indexed, mode)
         obj.timestamp = timestamp
-        obj.direction = [DEC if i.reverse else INC for i in obj.findices]
+        obj.directions = [directions.get(i, Any) for i in obj.findices]
         return obj
 
     def __eq__(self, other):
         return super(TimedAccess, self).__eq__(other) and\
             isinstance(other, TimedAccess) and\
-            self.direction == other.direction
+            self.directions == other.directions
 
     def __lt__(self, other):
         if not isinstance(other, TimedAccess):
             raise TypeError("Cannot compare with object of type %s" % type(other))
-        if self.direction != other.direction:
+        if self.directions != other.directions:
             raise TypeError("Cannot compare due to mismatching `direction`")
         return super(TimedAccess, self).__lt__(other)
-
-    @property
-    def index_mode(self):
-        return ['regular' if (is_integer(i) or q_affine(i, fi)) else 'irregular'
-                for i, fi in zip(self, self.findices)]
-
-    @property
-    def is_regular(self):
-        return all(i == 'regular' for i in self.index_mode)
-
-    @property
-    def is_irregular(self):
-        return not self.is_regular
 
     def lex_eq(self, other):
         return self.timestamp == other.timestamp
@@ -401,16 +411,23 @@ class TimedAccess(Access):
         return self.timestamp < other.timestamp
 
     def distance(self, other, findex=None):
-        if (self.direction != other.direction) or (self.rank != other.rank):
-            raise TypeError("Cannot order due to mismatching `direction` and/or `rank`")
-        ret = super(TimedAccess, self).distance(other, findex)
-        if findex is not None:
-            limit = self.findices.index(findex) + 1
-            direction = self.direction[:limit]
-        else:
-            direction = self.direction
-        assert len(direction) == len(ret)
-        return Vector(*[i if d == INC else (-i) for i, d in zip(ret, direction)])
+        if self.rank != other.rank:
+            raise TypeError("Cannot order due to mismatching `rank`")
+        if not self.rank:
+            return Vector()
+        findex = findex or self.findices[-1]
+        ret = []
+        for i, sd, od in zip(self.findices, self.directions, other.directions):
+            if sd == od:
+                ret = list(super(TimedAccess, self).distance(other, i))
+                if i == findex:
+                    break
+            else:
+                ret.append(S.Infinity)
+                break
+        directions = self.directions[:self._cached_findices_index[i] + 1]
+        assert len(directions) == len(ret)
+        return Vector(*[(-i) if d == Backward else i for i, d in zip(ret, directions)])
 
 
 class Dependence(object):
@@ -536,12 +553,11 @@ class Scope(object):
 
     def __init__(self, exprs):
         """
-        Initialize a Scope, which represents a group of :class:`Access` objects
-        extracted from some expressions ``exprs``. The expressions are to be
-        provided as they appear in program order.
+        A Scope represents a group of :class:`TimedAccess` objects extracted
+        from some :class:`IREq` ``exprs``. The expressions must be provided
+        in program order.
         """
         exprs = as_tuple(exprs)
-        assert all(isinstance(i, Eq) for i in exprs)
 
         self.reads = {}
         self.writes = {}
@@ -550,11 +566,11 @@ class Scope(object):
             for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.base.function, [])
                 mode = 'R' if not q_inc(e) else 'RI'
-                v.append(TimedAccess(j, mode, i))
+                v.append(TimedAccess(j, mode, i, e.ispace.directions))
             # write
             v = self.writes.setdefault(e.lhs.base.function, [])
             mode = 'W' if not q_inc(e) else 'WI'
-            v.append(TimedAccess(e.lhs, mode, i))
+            v.append(TimedAccess(e.lhs, mode, i, e.ispace.directions))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))

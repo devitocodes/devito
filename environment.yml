@@ -25,6 +25,7 @@ dependencies:
   - codecov
   - pytest-cov
   - multidict
+  - frozendict
   - pip:
     - "git+https://github.com/inducer/codepy"
     - "git+https://github.com/opesci/pyrevolve"

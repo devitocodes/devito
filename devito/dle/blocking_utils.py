@@ -201,11 +201,9 @@ class IterationFold(Iteration):
 
     is_IterationFold = True
 
-    def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None, pragmas=None, uindices=None, folds=None):
-        super(IterationFold, self).__init__(nodes, dimension, limits, index, offsets,
-                                            properties, uindices, pragmas)
-        self.folds = folds
+    def __init__(self, *args, **kwargs):
+        self.folds = kwargs.pop('folds', None)
+        super(IterationFold, self).__init__(*args, **kwargs)
 
     def __repr__(self):
         properties = ""

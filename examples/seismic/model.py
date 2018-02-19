@@ -44,9 +44,10 @@ def demo_model(preset, **kwargs):
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
+        dtype = kwargs.pop('dtype', np.float32)
         vp = kwargs.pop('vp', 1.5)
 
-        return Model(vp=vp, origin=origin, shape=shape,
+        return Model(vp=vp, origin=origin, shape=shape, dtype=dtype,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['constant-tti']:
@@ -56,16 +57,17 @@ def demo_model(preset, **kwargs):
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
-        v = np.empty(shape, dtype=np.float32)
+        dtype = kwargs.pop('dtype', np.float32)
+        v = np.empty(shape, dtype=dtype)
         v[:] = 1.5
-        epsilon = .3*np.ones(shape)
-        delta = .2*np.ones(shape)
-        theta = .7*np.ones(shape)
+        epsilon = .3*np.ones(shape, dtype=dtype)
+        delta = .2*np.ones(shape, dtype=dtype)
+        theta = .7*np.ones(shape, dtype=dtype)
         phi = None
         if len(shape) > 2:
-            phi = .35*np.ones(shape)
+            phi = .35*np.ones(shape, dtype=dtype)
 
-        return Model(vp=v, origin=origin, shape=shape,
+        return Model(vp=v, origin=origin, shape=shape, dtype=dtype,
                      spacing=spacing, nbpml=nbpml,
                      epsilon=epsilon, delta=delta, theta=theta, phi=phi,
                      **kwargs)
@@ -79,17 +81,18 @@ def demo_model(preset, **kwargs):
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
         vp_bottom = kwargs.pop('vp_bottom', 2.5)
 
         # Define a velocity profile in km/s
-        v = np.empty(shape, dtype=np.float32)
+        v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        return Model(vp=v, origin=origin, shape=shape,
+        return Model(vp=v, origin=origin, shape=shape, dtype=dtype,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['layers-tti', 'twolayer-tti', '2layer-tti']:
@@ -100,13 +103,14 @@ def demo_model(preset, **kwargs):
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
         vp_bottom = kwargs.pop('vp_bottom', 2.5)
 
         # Define a velocity profile in km/s
-        v = np.empty(shape, dtype=np.float32)
+        v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
@@ -117,7 +121,7 @@ def demo_model(preset, **kwargs):
         if len(shape) > 2:
             phi = .1*(v - 1.5)
 
-        return Model(vp=v, origin=origin, shape=shape,
+        return Model(vp=v, origin=origin, shape=shape, dtype=dtype,
                      spacing=spacing, nbpml=nbpml,
                      epsilon=epsilon, delta=delta, theta=theta, phi=phi,
                      **kwargs)
@@ -126,6 +130,7 @@ def demo_model(preset, **kwargs):
         # A simple circle in a 2D domain with a background velocity.
         # By default, the circle velocity is 2.5 km/s,
         # and the background veloity is 3.0 km/s.
+        dtype = kwargs.pop('dtype', np.float32)
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
@@ -137,15 +142,15 @@ def demo_model(preset, **kwargs):
         # Only a 2D preset is available currently
         assert(len(shape) == 2)
 
-        v = np.empty(shape, dtype=np.float32)
+        v = np.empty(shape, dtype=dtype)
         v[:] = vp_background
 
         a, b = shape[0] / 2, shape[1] / 2
         y, x = np.ogrid[-a:shape[0]-a, -b:shape[1]-b]
         v[x*x + y*y <= r*r] = vp
 
-        return Model(vp=v, origin=origin, shape=shape,
-                     spacing=spacing, nbpml=nbpml)
+        return Model(vp=v, origin=origin, shape=shape, dtype=dtype,
+                     spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['marmousi-isotropic', 'marmousi2d-isotropic']:
         shape = (1601, 401)
@@ -165,8 +170,8 @@ def demo_model(preset, **kwargs):
         # Cut the model to make it slightly cheaper
         v = v[301:-300, :]
 
-        return Model(vp=v, origin=origin, shape=v.shape,
-                     spacing=spacing, nbpml=20)
+        return Model(vp=v, origin=origin, shape=v.shape, dtype=np.float32,
+                     spacing=spacing, nbpml=20, **kwargs)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
 
@@ -205,7 +210,7 @@ def demo_model(preset, **kwargs):
         theta = np.float32(np.pi / 180 * theta.reshape(shape_full))
         theta = theta[101, :, :]
 
-        return Model(vp=vp, origin=origin, shape=shape,
+        return Model(vp=vp, origin=origin, shape=shape, dtype=np.float32,
                      spacing=spacing, nbpml=nbpml,
                      epsilon=epsilon, delta=delta, theta=theta,
                      **kwargs)
@@ -246,7 +251,7 @@ def demo_model(preset, **kwargs):
                           dtype='float32', sep="")
         phi = np.float32(np.pi / 180 * phi.reshape(shape))
 
-        return Model(vp=vp, origin=origin, shape=shape,
+        return Model(vp=vp, origin=origin, shape=shape, dtype=np.float32,
                      spacing=spacing, nbpml=nbpml,
                      epsilon=epsilon, delta=delta, theta=theta, phi=phi,
                      **kwargs)

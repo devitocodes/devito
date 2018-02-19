@@ -14,14 +14,14 @@ from devito.cgen_utils import ccode
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
                            tagger, ntags)
+from devito.ir.support import Forward
 from devito.dimension import Dimension
-from devito.ir.support import Stencil
 from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 import devito.types as types
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
-           'Call', 'Iteration', 'List', 'LocalExpression', 'TimedList',
+           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
            'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast']
 
 
@@ -87,7 +87,7 @@ class Node(object):
     @property
     def children(self):
         """Return the traversable children."""
-        return ()
+        return tuple(getattr(self, i) for i in self._traversable)
 
     @property
     def args(self):
@@ -140,10 +140,6 @@ class Block(Node):
     def __repr__(self):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
                                       len(self.body), len(self.footer))
-
-    @property
-    def children(self):
-        return (self.body,)
 
 
 class List(Block):
@@ -282,11 +278,6 @@ class Expression(Node):
         return () if self.is_scalar else self.expr.lhs.shape
 
     @property
-    def stencil(self):
-        """Compute the stencil of the expression."""
-        return Stencil(self.expr)
-
-    @property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Expression`."""
         return tuple(self.expr.free_symbols)
@@ -301,6 +292,8 @@ class Iteration(Node):
                    tuple of the form (start, finish, stepping).
     :param index: Symbol to be used as iteration variable.
     :param offsets: A 2-tuple of start and end offsets to honour in the loop.
+    :param direction: The :class:`IterationDirection` of the Iteration. Defaults
+                      to ``Forward``.
     :param properties: A bag of :class:`IterationProperty` objects, decorating
                        the Iteration (sequential, parallel, vectorizable, ...).
     :param pragmas: A bag of pragmas attached to this Iteration.
@@ -314,18 +307,13 @@ class Iteration(Node):
     _traversable = ['nodes']
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None, pragmas=None, uindices=None):
+                 direction=None, properties=None, pragmas=None, uindices=None):
         # Ensure we deal with a list of Expression objects internally
-        nodes = as_tuple(nodes)
-        self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
-                               for n in nodes])
-        assert all(isinstance(i, Node) for i in self.nodes)
+        self.nodes = as_tuple(nodes)
 
         self.dim = dimension
         self.index = index or self.dim.name
-        # Store direction, as it might change on the dimension
-        # before we use it during code generation.
-        self.reverse = self.dim.reverse
+        self.direction = direction or Forward
 
         # Generate loop limits
         if isinstance(limits, Iterable):
@@ -482,11 +470,6 @@ class Iteration(Node):
         return self.bounds(finish=finish)[1]
 
     @property
-    def children(self):
-        """Return the traversable children."""
-        return (self.nodes,)
-
-    @property
     def functions(self):
         """
         Return all :class:`Function` objects used in the header of
@@ -541,9 +524,42 @@ class Callable(Node):
         body = "\n\t".join([str(s) for s in self.body])
         return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
 
+
+class Conditional(Node):
+
+    """
+    A node to express if-then-else blocks.
+
+    :param condition: A SymPy expression representing the if condition.
+    :param then_body: Single or iterable of :class:`Node` objects defining the
+                      body of the 'then' part of the if-then-else.
+    :param else_body: (Optional) Single or iterable of :class:`Node` objects
+                      defining the body of the 'else' part of the if-then-else.
+    """
+
+    is_Conditional = True
+
+    _traversable = ['then_body', 'else_body']
+
+    def __init__(self, condition, then_body, else_body=None):
+        self.condition = condition
+        self.then_body = as_tuple(then_body)
+        self.else_body = as_tuple(else_body)
+
+    def __repr__(self):
+        if self.else_body:
+            return "<[%s] ? [%s] : [%s]>" %\
+                (ccode(self.condition), repr(self.then_body), repr(self.else_body))
+        else:
+            return "<[%s] ? [%s]" % (ccode(self.condition), repr(self.then_body))
+
     @property
-    def children(self):
-        return (self.body,)
+    def free_symbols(self):
+        """
+        Return all :class:`Symbol` objects used in the condition of this
+        :class:`Conditional`.
+        """
+        return tuple(self.condition.free_symbols)
 
 
 # Utilities

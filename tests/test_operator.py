@@ -7,12 +7,13 @@ from conftest import EVAL, dims, time, x, y, z, skipif_yask
 import numpy as np
 import pytest
 
-from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, Backward,
-                    Forward, TimeFunction, SparseFunction, Dimension, configuration,
+from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
+                    TimeFunction, SparseTimeFunction, Dimension, configuration,
                     error, INTERIOR)
 from devito.foreign import Operator as OperatorForeign
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
+from devito.ir.support import Any, Backward, Forward
 
 
 def dimify(dimensions):
@@ -323,7 +324,7 @@ class TestArguments(object):
         """
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
-        s = SparseFunction(name='s', grid=grid, npoint=3, nt=4)
+        s = SparseTimeFunction(name='s', grid=grid, npoint=3, nt=4)
         s.coordinates.data[:, 0] = np.arange(0., 3.)
         s.coordinates.data[:, 1] = np.arange(1., 4.)
         s.coordinates.data[:, 2] = np.arange(2., 5.)
@@ -332,8 +333,8 @@ class TestArguments(object):
         expected = {
             's': s.data, 's_coords': s.coordinates.data,
             # Default dimensions of the sparse data
-            'p_size': 3, 'p_s': 0, 'p_e': 3,
-            'd_size': 3, 'p_s': 0, 'p_e': 3,
+            'p_s_size': 3, 'p_s_s': 0, 'p_s_e': 3,
+            'd_size': 3, 'd_s': 0, 'd_e': 3,
             'time_size': 4, 'time_s': 0, 'time_e': 4,
         }
         self.verify_arguments(op.arguments(), expected)
@@ -398,7 +399,7 @@ class TestArguments(object):
         Test runtime start/end overrides for :class:`TimeFunction` dimensions.
         """
         grid = Grid(shape=(5, 6, 7))
-        f = TimeFunction(name='f', grid=grid, time_order=2)
+        f = TimeFunction(name='f', grid=grid, time_order=0)
 
         # Suppress DLE to work around a know bug with GCC and OpenMP:
         # https://github.com/opesci/devito/issues/320
@@ -419,7 +420,7 @@ class TestArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        mask = np.ones((3, 5, 6, 7), dtype=np.bool)
+        mask = np.ones((1, 5, 6, 7), dtype=np.bool)
         mask[:, 1:3, 2:4, 3:5] = False
         assert (f.data[mask] == 0.).all()
         assert (f.data[:, 1:3, 2:4, 3:5] == 1.).all()
@@ -460,7 +461,7 @@ class TestArguments(object):
         Test runtime data overrides for :class:`TimeFunction` symbols.
         """
         grid = Grid(shape=(5, 6, 7))
-        a = TimeFunction(name='a', grid=grid)
+        a = TimeFunction(name='a', grid=grid, save=2)
         # Suppress DLE to work around a know bug with GCC and OpenMP:
         # https://github.com/opesci/devito/issues/320
         op = Operator(Eq(a, a + 3), dle=None)
@@ -471,13 +472,13 @@ class TestArguments(object):
         assert (a.data[:] == 4.).all()
 
         # Override with symbol (different name)
-        a1 = TimeFunction(name='a1', grid=grid)
+        a1 = TimeFunction(name='a1', grid=grid, save=2)
         a1.data[:] = 2.
         op(t=2, a=a1)
         assert (a1.data[:] == 5.).all()
 
         # Override with symbol (same name as original)
-        a2 = TimeFunction(name='a', grid=grid)
+        a2 = TimeFunction(name='a', grid=grid, save=2)
         a2.data[:] = 3.
         op(t=2, a=a2)
         assert (a2.data[:] == 6.).all()
@@ -540,10 +541,10 @@ class TestArguments(object):
         p_dim = Dimension(name='p_src')
         u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
         time = u.indices[0]
-        src1 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
-                              npoint=1, nt=10, coordinates=original_coords)
-        src2 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
-                              npoint=1, nt=10, coordinates=new_coords)
+        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                                  npoint=1, nt=10, coordinates=original_coords)
+        src2 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                                  npoint=1, nt=10, coordinates=new_coords)
         op = Operator(src1.inject(u, src1))
 
         # Move the source from the location where the setup put it so we can test
@@ -602,6 +603,27 @@ class TestArguments(object):
         b.data = 4.
         op()
         assert np.allclose(g.data, 4.)
+
+    def test_argument_from_index_constant(self):
+        nx, ny = 30, 30
+        grid = Grid(shape=(nx, ny))
+        x, y = grid.dimensions
+
+        arbdim = Dimension('arb')
+        u = TimeFunction(name='u', grid=grid, save=None, time_order=2, space_order=0)
+        snap = Function(name='snap', dimensions=(arbdim, x, y), shape=(5, nx, ny),
+                        space_order=0)
+
+        save_t = Constant(name='save_t', dtype=np.int32)
+        save_slot = Constant(name='save_slot', dtype=np.int32)
+
+        expr = Eq(snap.subs(arbdim, save_slot), u.subs(grid.stepping_dim, save_t))
+        op = Operator(expr)
+        u.data[:] = 0.0
+        snap.data[:] = 0.0
+        u.data[0, 10, 10] = 1.0
+        op.apply(save_t=0, save_slot=1)
+        assert snap.data[1, 10, 10] == 1.0
 
 
 @skipif_yask
@@ -753,7 +775,7 @@ class TestLoopScheduler(object):
         ('Eq(ti0[x,y,z+2], ti0[x,y,z-1] + ti1[x,y,z+1])',
          'Eq(ti1[x,y,z+3], ti3[x,y,z+1])',
          'Eq(ti3[x,y,z+2], ti0[x,y,z+1]*ti3[x,y,z-1])'),
-        ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x+2,y+3,z+1])',
+        ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x-3,y+3,z+1])',
          'Eq(ti1[x+4,y+5,z+3], ti3[x+1,y-4,z+1])',
          'Eq(ti3[x+7,y,z+2], ti3[x+5,y,z-1] - ti0[x-3,y-2,z-4])')
     ])
@@ -778,75 +800,81 @@ class TestLoopScheduler(object):
             exprs = FindNodes(Expression).visit(tree[-1])
             assert len(exprs) == 3
 
-    @pytest.mark.parametrize('exprs,axis,expected,visit', [
+    @pytest.mark.parametrize('exprs,directions,expected,visit', [
         # WAR 2->3; expected=2
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         Forward, ['xyz'], 'xyz'),
+         '**-', ['xyz'], 'xyz'),
         # WAR 1->2, 2->3; one may think it should be expected=3, but these are all
         # Arrays, so ti0 gets optimized through index bumping and array contraction,
-        # which results in expected=2
+        # which results in expected=3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
-          'Eq(ti3[x,y,z], ti1[x,y,z+2] + 1.)'),
-         Forward, ['xyz', 'xyz'], 'xyzz'),
+          'Eq(ti3[x,y,z], ti1[x,y,z-2] + 1.)'),
+         '*****', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
         # WAR 1->3; expected=1
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y,z+1] + 1.)'),
-         Forward, ['xyz'], 'xyz'),
+         '**-', ['xyz'], 'xyz'),
         # WAR 1->2, 2->3; WAW 1->3; expected=2
         # ti0 is an Array, so the observation made above still holds (expected=2
         # rather than 3)
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], 3*ti0[x,y,z+2])',
           'Eq(ti0[x,y,0], ti0[x,y,0] + 1.)'),
-         Forward, ['xyz', 'xy'], 'xyz'),
-        # WAR 1->2; WAW 1->3; expected=3
+         '**-', ['xyz', 'xy'], 'xyz'),
+        # WAR 1->2; WAW 1->3; expected=2
         # Now tu, tv, tw are not Arrays, so they must end up in separate loops
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
-         Forward, ['txyz', 'txyz', 'txy'], 'txyzz'),
-        # WAR 1->2; WAW 2->3; expected=3
+         '***-', ['txyz', 'txy'], 'txyz'),
+        # WAR 1->2; RAW 2->3; expected=3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
-          'Eq(tw[t,x,y,z], tv[t,x,y,z+3] + 1.)'),
-         Forward, ['txyz', 'txyz', 'txyz'], 'txyzzz'),
-        # WAR 1->2; WAW 1->3; expected=3
+          'Eq(tw[t,x,y,z], tv[t,x,y,z-3] + 1.)'),
+         '******', ['txyz', 'txyz', 'txyz'], 'txyzzz'),
+        # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
           'Eq(tu[t,3,y,0], tu[t,3,y,0] + 1.)'),
-         Forward, ['txyz', 'txyz', 'ty'], 'txyzxyzy'),
-        # WAR 1->2, WAW 2->3; expected=3
+         '*-***', ['txyz', 'ty'], 'txyzy'),
+        # RAW 1->2, WAR 2->3; expected=1
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
-          'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
+          'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         Forward, ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
-        # WAR 1->2; WAW 1->3; expected=3
-        # Time Forward, anti dependence in time, end up in different loop nests
+         '**-+', ['txyz'], 'txyz'),
+        # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t-2,x,y,0], tu[t,x,y,0] + 1.)'),
-         Forward, ['txyz', 'txyz', 'txy'], 'txyztxyztxy'),
-        # Time Backward, so flow dependences in time
+         '-***', ['txyz', 'txy'], 'txyz'),
+        # WAR 1->2; expected=1
+        (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
+          'Eq(tv[t,x,y,z], tu[t,x,y,z+2] + tu[t,x,y,z-2])',
+          'Eq(tw[t,x,y,z], tv[t,x,y,z] + 2)'),
+         '-***', ['txyz'], 'txyz'),
+        # Time goes backward so that information flows in time
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         Backward, ['txyz'], 'txyz'),
-        # Time Backward, so flow dependences in time, interleaved with independent Eq
+         '-***', ['txyz'], 'txyz'),
+        # Time goes backward so that information flows in time, interleaved
+        # with independent Eq
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         Backward, ['txyz', 'xyz'], 'txyzxyz'),
-        # Time Backward, so flow dependences in time, interleaved with dependent Eq
+         '-******', ['txyz', 'xyz'], 'txyzxyz'),
+        # Time goes backward so that information flows in time, interleaved
+        # with independent Eq
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
-         Backward, ['xyz', 'txyz'], 'xyztxyz')
+         '*+*-*+*', ['xyz', 'txyz'], 'xyztxyz'),
     ])
-    def test_consistency_anti_dependences(self, exprs, axis, expected, visit,
+    def test_consistency_anti_dependences(self, exprs, directions, expected, visit,
                                           ti0, ti1, ti3, tu, tv, tw):
         """
         Test that anti dependences end up generating multi loop nests, rather
@@ -854,15 +882,19 @@ class TestLoopScheduler(object):
         """
         eq1, eq2, eq3 = EVAL(exprs, ti0.base, ti1.base, ti3.base,
                              tu.base, tv.base, tw.base)
-        op = Operator([eq1, eq2, eq3], dse='noop', dle='noop', time_axis=axis)
+        op = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
         assert len(trees) == len(expected)
+        assert len(iters) == len(directions)
         # mapper just makes it quicker to write out the test parametrization
         mapper = {'time': 't'}
         assert ["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
                 for j in trees] == expected
         assert "".join(mapper.get(i.dim.name, i.dim.name) for i in iters) == visit
+        # mapper just makes it quicker to write out the test parametrization
+        mapper = {'+': Forward, '-': Backward, '*': Any}
+        assert all(i.direction == mapper[j] for i, j in zip(iters, directions))
 
     def test_expressions_imperfect_loops(self, ti0, ti1, ti2, t0):
         """

@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from devito.ir import Cluster, ClusterGroup, groupby
+from devito.ir import Cluster, ClusterGroup, IterationSpace, groupby
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
 from devito.symbolics import Eq, estimate_cost, xreplace_constrained, iq_timeinvariant
@@ -140,9 +140,12 @@ class AdvancedRewriter(BasicRewriter):
             function = make(c)
             # Build new Cluster
             expression = Eq(Indexed(function, *indices), origin)
-            ispace = cluster.ispace.subtract(alias.anti_stencil.boxify().negate())
+            intervals, sub_iterators, directions = cluster.ispace.args
+            # Adjust intervals
+            intervals = intervals.subtract(alias.anti_stencil.boxify().negate())
             if all(time_invariants[i] for i in alias.aliased):
-                ispace = ispace.drop([i.dim for i in ispace.intervals if i.dim.is_Time])
+                intervals = intervals.drop([i for i in intervals.dimensions if i.is_Time])
+            ispace = IterationSpace(intervals, sub_iterators, directions)
             alias_clusters.append(Cluster([expression], ispace))
             # Update substitution rules
             for aliased, distance in alias.with_distance:

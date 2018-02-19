@@ -4,7 +4,8 @@ from cached_property import cached_property
 
 from devito.types import AbstractSymbol, Scalar, Symbol
 
-__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension']
+__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension',
+           'SubDimension', 'ConditionalDimension']
 
 
 class Dimension(AbstractSymbol):
@@ -14,8 +15,11 @@ class Dimension(AbstractSymbol):
     is_Time = False
 
     is_Derived = False
+    is_NonlinearDerived = False
     is_Sub = False
+    is_Conditional = False
     is_Stepping = False
+
     is_Lowered = False
 
     """
@@ -23,13 +27,11 @@ class Dimension(AbstractSymbol):
     potential iteration space.
 
     :param name: Name of the dimension symbol.
-    :param reverse: Optional, Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
 
     def __new__(cls, name, **kwargs):
         newobj = sympy.Symbol.__new__(cls, name)
-        newobj._reverse = kwargs.get('reverse', False)
         newobj._spacing = kwargs.get('spacing', Scalar(name='h_%s' % name))
         return newobj
 
@@ -83,26 +85,15 @@ class Dimension(AbstractSymbol):
         return "%s_e" % self.name
 
     @property
-    def reverse(self):
-        return self._reverse
-
-    @property
     def spacing(self):
         return self._spacing
-
-    @reverse.setter
-    def reverse(self, val):
-        # TODO: this is an outrageous hack. TimeFunctions are updating this value
-        # at construction time.
-        self._reverse = val
 
     @property
     def base(self):
         return self
 
     def _hashable_content(self):
-        return super(Dimension, self)._hashable_content() +\
-            (self.reverse, self.spacing)
+        return super(Dimension, self)._hashable_content() + (self.spacing,)
 
     def argument_defaults(self, size=None):
         """
@@ -144,7 +135,6 @@ class SpaceDimension(Dimension):
     symbols.
 
     :param name: Name of the dimension symbol.
-    :param reverse: Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
 
@@ -159,7 +149,6 @@ class TimeDimension(Dimension):
     time dimensions should inherit from :class:`TimeDimension`.
 
     :param name: Name of the dimension symbol.
-    :param reverse: Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
 
@@ -190,10 +179,6 @@ class DerivedDimension(Dimension):
         return self._parent
 
     @property
-    def reverse(self):
-        return self.parent.reverse
-
-    @property
     def spacing(self):
         return self.parent.spacing
 
@@ -206,7 +191,8 @@ class SubDimension(DerivedDimension):
     is_Sub = True
 
     """
-    Dimension symbol representing a sub-region of a ``parent`` Dimension.
+    Dimension symbol representing a contiguous sub-region of a given
+    ``parent`` Dimension.
 
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension from which the SubDimension is created.
@@ -215,7 +201,7 @@ class SubDimension(DerivedDimension):
     """
 
     def __new__(cls, name, parent, lower, upper, **kwargs):
-        newobj = DerivedDimension.__new__(cls, name, parent)
+        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
         newobj._lower = lower
         newobj._upper = upper
         return newobj
@@ -252,8 +238,44 @@ class SubDimension(DerivedDimension):
         return args
 
 
+class ConditionalDimension(DerivedDimension):
+
+    is_NonlinearDerived = True
+    is_Conditional = True
+
+    """
+    Dimension symbol representing a sub-region of a given ``parent`` Dimension.
+    Unlike a :class:`SubDimension`, a ConditionalDimension does not represent
+    a contiguous region. The iterations touched by a ConditionalDimension
+    are expressible in two different ways: ::
+
+        * ``factor``: an integer indicating the size of the increment.
+        * ``condition``: an arbitrary SymPy expression depending on ``parent``.
+                         All iterations for which the expression evaluates to
+                         True are part of the ``SubDimension`` region.
+    """
+
+    def __new__(cls, name, parent, **kwargs):
+        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
+        newobj._factor = kwargs.get('factor')
+        newobj._condition = kwargs.get('condition')
+        return newobj
+
+    @property
+    def factor(self):
+        return self._factor
+
+    @property
+    def condition(self):
+        return self._condition
+
+    def _hashable_content(self):
+        return (self.parent._hashable_content(), self.factor, self.condition)
+
+
 class SteppingDimension(DerivedDimension):
 
+    is_NonlinearDerived = True
     is_Stepping = True
 
     """
@@ -264,24 +286,6 @@ class SteppingDimension(DerivedDimension):
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension over which to loop in modulo fashion.
     """
-
-    def __new__(cls, name, parent, **kwargs):
-        newobj = DerivedDimension.__new__(cls, name, parent)
-        newobj._modulo = kwargs.get('modulo', 2)
-        return newobj
-
-    @property
-    def modulo(self):
-        return self._modulo
-
-    @modulo.setter
-    def modulo(self, val):
-        # TODO: this is an outrageous hack. TimeFunctions are updating this value
-        # at construction time.
-        self._modulo = val
-
-    def _hashable_content(self):
-        return (self.parent._hashable_content(), self.modulo)
 
     @property
     def symbolic_start(self):

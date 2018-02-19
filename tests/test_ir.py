@@ -3,8 +3,11 @@ import pytest
 from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
 
 from devito import Eq  # noqa
+from devito.ir.equations import LoweredEq
+from devito.ir.iet.nodes import Conditional, Expression
 from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
-from devito.ir.support.space import NullInterval, Interval, Space
+from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
+                                     Forward, Backward)
 
 
 @pytest.fixture(scope="session")
@@ -26,14 +29,14 @@ def ii_literal(fa, fc):
 
 @pytest.fixture(scope="session")
 def ta_literal(fc):
-    tcxy_w0 = TimedAccess(fc[x, y], 'W', 0)
-    tcxy_r0 = TimedAccess(fc[x, y], 'R', 0)
-    tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1)
-    tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1)
-    x.reverse = True
-    rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0)
-    rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1)
-    x.reverse = False
+    fwd_directions = {x: Forward, y: Forward}
+    mixed_directions = {x: Backward, y: Forward}
+    tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, fwd_directions)
+    tcxy_r0 = TimedAccess(fc[x, y], 'R', 0, fwd_directions)
+    tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, fwd_directions)
+    tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1, fwd_directions)
+    rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, mixed_directions)
+    rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, mixed_directions)
     return tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1
 
 
@@ -202,7 +205,11 @@ def test_dependences_eq(expr, expected, ti0, ti1, fa):
         * the dimension causing the dependence
         * whether it's direct or indirect (i.e., through A[B[i]])
     """
-    expr = EVAL(expr, ti0.base, ti1.base, fa)
+    expr = LoweredEq(EVAL(expr, ti0.base, ti1.base, fa))
+
+    # Force innatural flow, only to stress the compiler to see if it was
+    # capable of detecting anti-dependences
+    expr.ispace.directions = {i: Forward for i in expr.ispace.directions}
 
     scope = Scope(expr)
     deps = scope.d_all
@@ -299,8 +306,13 @@ def test_dependences_scope(exprs, expected, ti0, ti1, ti3, fa):
         * if it's a flow, anti, or output dependence
         * the dimension causing the dependence
     """
-    exprs = EVAL(exprs, ti0.base, ti1.base, ti3.base, fa)
+    exprs = [LoweredEq(i) for i in EVAL(exprs, ti0.base, ti1.base, ti3.base, fa)]
     expected = [tuple(i.split(',')) for i in expected]
+
+    # Force innatural flow, only to stress the compiler to see if it was
+    # capable of detecting anti-dependences
+    for i in exprs:
+        i.ispace.directions = {i: Forward for i in i.ispace.directions}
 
     scope = Scope(exprs)
     assert len(scope.d_all) == len(expected)
@@ -378,13 +390,13 @@ def test_intervals_union():
     nully = NullInterval(y)
     iy = Interval(y, -2, 2)
 
-    # Mixed disjoint (note: Space input order is irrelevant)
-    assert ix.union(ix4) == Space([ix4, ix])
+    # Mixed disjoint (note: IntervalGroup input order is irrelevant)
+    assert ix.union(ix4) == IntervalGroup([ix4, ix])
     assert ix.union(ix5) == Interval(x, -3, 2)
-    assert ix6.union(ix) == Space([ix, ix6])
-    assert ix.union(nully) == Space([ix, nully])
-    assert ix.union(iy) == Space([iy, ix])
-    assert iy.union(ix) == Space([iy, ix])
+    assert ix6.union(ix) == IntervalGroup([ix, ix6])
+    assert ix.union(nully) == IntervalGroup([ix, nully])
+    assert ix.union(iy) == IntervalGroup([iy, ix])
+    assert iy.union(ix) == IntervalGroup([iy, ix])
 
 
 @skipif_yask
@@ -408,3 +420,19 @@ def test_intervals_subtract():
     assert ix2.subtract(ix) == ix
     assert ix.subtract(ix2) == Interval(x, -2, 2)
     assert ix3.subtract(ix) == ix2
+
+
+@skipif_yask
+def test_iet_conditional(fc):
+    then_body = Expression(Eq(fc[x, y], fc[x, y] + 1))
+    else_body = Expression(Eq(fc[x, y], fc[x, y] + 2))
+    conditional = Conditional(x < 3, then_body, else_body)
+    assert str(conditional) == """\
+if (x < 3)
+{
+  fc[x][y] = fc[x][y] + 1;
+}
+else
+{
+  fc[x][y] = fc[x][y] + 2;
+}"""

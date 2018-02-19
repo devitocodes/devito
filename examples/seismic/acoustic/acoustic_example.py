@@ -11,7 +11,7 @@ from examples.seismic import demo_model, RickerSource, Receiver
 def smooth10(vel, shape):
     if np.isscalar(vel):
         return .9 * vel * np.ones(shape, dtype=np.float32)
-    out = np.ones(shape, dtype=np.float32)
+    out = np.ones(shape, dtype=vel.dtype)
     nz = shape[-1]
 
     for a in range(5, nz-6):
@@ -28,7 +28,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    constant=False, **kwargs):
     nrec = shape[0]
     preset = 'constant-isotropic' if constant else 'layers-isotropic'
-    model = demo_model(preset, shape=shape,
+    model = demo_model(preset, shape=shape, dtype=kwargs.pop('dtype', np.float32),
                        spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing
@@ -43,7 +43,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
     # Define receiver geometry (spread across x, just below surface)
-    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
