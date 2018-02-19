@@ -138,4 +138,9 @@ def dimension_sort(expr, key=None):
     dimensions = filter_sorted(dimensions, key=attrgetter('name'))  # for determinism
     ordering.extend([i for i in dimensions if i not in ordering])
 
+    # Add parent dimensions
+    derived = [i for i in ordering if i.is_Derived]
+    for i in derived:
+        ordering.insert(ordering.index(i), i.parent)
+
     return sorted(ordering, key=lambda i: not i.is_Time)

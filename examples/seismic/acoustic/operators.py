@@ -1,6 +1,6 @@
 from sympy import solve, Symbol
 
-from devito import Eq, Operator, Forward, Backward, Function, TimeFunction
+from devito import Eq, Operator, Function, TimeFunction
 from devito.logger import error
 from examples.seismic import PointSource, Receiver
 
@@ -86,7 +86,7 @@ def ForwardOperator(model, source, receiver, space_order=4,
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
-                    time_axis=Forward, name='Forward', **kwargs)
+                    name='Forward', **kwargs)
 
 
 def AdjointOperator(model, source, receiver, space_order=4,
@@ -121,7 +121,7 @@ def AdjointOperator(model, source, receiver, space_order=4,
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + receivers + source_a, subs=model.spacing_map,
-                    time_axis=Backward, name='Adjoint', **kwargs)
+                    name='Adjoint', **kwargs)
 
 
 def GradientOperator(model, source, receiver, space_order=4, save=True,
@@ -162,7 +162,7 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
-                    time_axis=Backward, name='Gradient', **kwargs)
+                    name='Gradient', **kwargs)
 
 
 def BornOperator(model, source, receiver, space_order=4,
@@ -204,4 +204,4 @@ def BornOperator(model, source, receiver, space_order=4,
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn1 + source + eqn2 + receivers, subs=model.spacing_map,
-                    time_axis=Forward, name='Born', **kwargs)
+                    name='Born', **kwargs)

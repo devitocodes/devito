@@ -1,16 +1,14 @@
-from collections import OrderedDict
-
 from sympy import Eq
 
 from devito.dimension import SubDimension
-from devito.ir.support import Interval, DataSpace, IterationSpace, Stencil
-from devito.region import DOMAIN, INTERIOR
-from devito.symbolics import dimension_sort, indexify
+from devito.equation import DOMAIN, INTERIOR
+from devito.ir.support import IterationSpace, Any, compute_intervals, compute_directions
+from devito.symbolics import FrozenExpr, dimension_sort, indexify
 
-__all__ = ['LoweredEq']
+__all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
 
 
-class EqMixin(object):
+class IREq(object):
 
     """
     A mixin providing operations common to all :mod:`ir` equation types.
@@ -24,20 +22,20 @@ class EqMixin(object):
     def is_Tensor(self):
         return self.lhs.is_Indexed
 
+    @property
+    def dimensions(self):
+        return self.ispace.dimensions
 
-class LoweredEq(Eq, EqMixin):
+
+class LoweredEq(Eq, IREq):
 
     """
     LoweredEq(expr, subs=None)
 
-    A SymPy equation with associated iteration and data spaces.
+    A SymPy equation with an associated iteration space.
 
     All :class:`Function` objects within ``expr`` get indexified and thus turned
     into objects of type :class:`types.Indexed`.
-
-    The data space is an object of type :class:`DataSpace`. It represents the
-    data points accessed by the equation along each :class:`Dimension`. The
-    :class:`Dimension`s are extracted directly from the equation.
 
     The iteration space is an object of type :class:`IterationSpace`. It
     represents the iteration points along each :class:`Dimension` that the
@@ -57,11 +55,10 @@ class LoweredEq(Eq, EqMixin):
             expr = Eq.__new__(cls, *args, evaluate=False)
             assert isinstance(stamp, Eq)
             expr.is_Increment = stamp.is_Increment
-            expr.dspace = stamp.dspace
             expr.ispace = stamp.ispace
             return expr
         else:
-            raise ValueError("Cannot construct Eq from args=%s "
+            raise ValueError("Cannot construct LoweredEq from args=%s "
                              "and kwargs=%s" % (str(args), str(kwargs)))
 
         # Indexification
@@ -83,27 +80,16 @@ class LoweredEq(Eq, EqMixin):
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
 
-        # Get the accessed data points
-        stencil = Stencil(expr)
-
-        # Split actual Intervals (the data spaces) from the "derived" iterators,
-        # to build an IterationSpace
-        iterators = OrderedDict()
-        for i in ordering:
-            if i.is_NonlinearDerived:
-                iterators.setdefault(i.parent, []).append(stencil.entry(i))
-            else:
-                iterators.setdefault(i, [])
-        intervals = []
-        for k, v in iterators.items():
-            offs = set.union(set(stencil.get(k)), *[i.ofs for i in v])
-            intervals.append(Interval(k, min(offs), max(offs)))
+        # Compute iteration space
+        intervals, iterators = compute_intervals(expr)
+        intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
+        directions, _ = compute_directions(expr, lambda i: Any)
+        ispace = IterationSpace([i.negate() for i in intervals], iterators, directions)
 
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
-        expr.dspace = DataSpace(intervals)
-        expr.ispace = IterationSpace([i.negate() for i in intervals], iterators)
+        expr.ispace = ispace
 
         return expr
 
@@ -112,3 +98,38 @@ class LoweredEq(Eq, EqMixin):
 
     def func(self, *args):
         return super(LoweredEq, self).func(*args, stamp=self, evaluate=False)
+
+
+class ClusterizedEq(Eq, IREq, FrozenExpr):
+
+    """
+    ClusterizedEq(expr, ispace)
+
+    A SymPy equation carrying its own :class:`IterationSpace`. Suitable for
+    use in a :class:`Cluster`.
+
+    Unlike a :class:`LoweredEq`, a ClusterizedEq is "frozen", meaning that any
+    call to ``xreplace`` will not trigger re-evaluation (e.g., mathematical
+    simplification) of the expression.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        # Parse input
+        if len(args) == 2:
+            maybe_ispace = args[1]
+            if isinstance(maybe_ispace, IterationSpace):
+                input_expr = args[0]
+                expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
+                expr.is_Increment = input_expr.is_Increment
+                expr.ispace = maybe_ispace
+            else:
+                expr = Eq.__new__(cls, *args, evaluate=False)
+                expr.ispace = kwargs['ispace']
+                expr.is_Increment = kwargs.get('is_Increment', False)
+        else:
+            raise ValueError("Cannot construct ClusterizedEq from args=%s "
+                             "and kwargs=%s" % (str(args), str(kwargs)))
+        return expr
+
+    def func(self, *args, **kwargs):
+        return super(ClusterizedEq, self).func(*args, evaluate=False, ispace=self.ispace)

@@ -6,44 +6,23 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 
-from devito.parameters import configuration
-from devito.logger import debug, error, warning
-from devito.data import Data, first_touch
-from devito.cgen_utils import INT, FLOAT
-from devito.dimension import Dimension
-from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.arguments import ArgumentMap
+from devito.cgen_utils import INT, FLOAT
+from devito.data import Data, first_touch
+from devito.dimension import Dimension
+from devito.equation import Eq, Inc
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
-from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
+from devito.logger import debug, error, warning
+from devito.parameters import configuration
+from devito.symbolics import indexify, retrieve_indexed
+from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.tools import EnrichedTuple
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'SparseTimeFunction', 'Forward', 'Backward']
-
-
-class TimeAxis(object):
-    """Direction in which to advance the time index on
-    :class:`TimeFunction` objects.
-
-    :param axis: Either 'Forward' or 'Backward'
-    """
-
-    def __init__(self, axis):
-        assert axis in ['Forward', 'Backward']
-        self._axis = {'Forward': 1, 'Backward': -1}[axis]
-
-    def __eq__(self, other):
-        return self._axis == other._axis
-
-    def __repr__(self):
-        return {-1: 'Backward', 1: 'Forward'}[self._axis]
-
-
-Forward = TimeAxis('Forward')
-Backward = TimeAxis('Backward')
+           'SparseTimeFunction']
 
 
 class Constant(AbstractCachedSymbol):
@@ -333,6 +312,7 @@ class TensorFunction(SymbolicFunction):
         # Collect default dimension arguments from all indices
         for i, s, o in zip(self.indices, self.shape, self.staggered):
             args.update(i.argument_defaults(size=s+o))
+
         return args
 
     def argument_values(self, alias=None, **kwargs):
@@ -348,6 +328,9 @@ class TensorFunction(SymbolicFunction):
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
+            if len(new.shape) != self.ndim:
+                raise ValueError("Array shape %s does not match" % (new.shape, ) +
+                                 "dimensions %s" % (self.indices, ))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
                 values[key] = new._data_buffer
@@ -355,11 +338,10 @@ class TensorFunction(SymbolicFunction):
             else:
                 # We've been provided a pure-data replacement (array)
                 values[key] = new
-                # TODO: Re-derive defaults from shape of array
+                # Add value overrides for all associated dimensions
+                for i, s, o in zip(self.indices, new.shape, self.staggered):
+                    values.update(i.argument_defaults(size=s+o))
 
-        # Add value overrides for all associated dimensions
-        for i in self.indices:
-            values.update(i.argument_values(**kwargs))
         return values
 
 
@@ -659,6 +641,7 @@ class TimeFunction(Function):
 
             self.time_dim = kwargs.get('time_dim')
             self.time_order = kwargs.get('time_order', 1)
+            self.save = type(kwargs.get('save', None) or None)
             if not isinstance(self.time_order, int):
                 raise ValueError("'time_order' must be int")
 
@@ -744,6 +727,23 @@ class TimeFunction(Function):
 
         return self.diff(_t, _t).as_finite_difference(indt)
 
+    def argument_values(self, alias=None, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
+        """
+        # Check if data has the right dimension
+        if self.name in kwargs:
+            new = kwargs.get(self.name)
+            if isinstance(new, TimeFunction) and new.save != self.save:
+                raise TypeError("Incorrect value encountered, save should be %s" %
+                                self.save)
+
+        values = super(TimeFunction, self).argument_values(alias=alias, **kwargs)
+        return values
+
 
 class SparseFunction(TensorFunction):
     """
@@ -816,7 +816,7 @@ class SparseFunction(TensorFunction):
         if dimensions is not None:
             return dimensions
         else:
-            return (Dimension(name='p'),)
+            return (Dimension(name='p_%s' % kwargs["name"]),)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1022,16 +1022,20 @@ class SparseFunction(TensorFunction):
         :param alias: (Optional) name under which to store values.
         """
         # Take a copy of the replacement before super pops it from kwargs
+
         new = kwargs.get(self.name)
-        values = super(SparseFunction, self).argument_values(alias=alias, **kwargs)
+        key = alias or self.name
+
+        values = super(SparseFunction, self).argument_values(alias=key, **kwargs)
+
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
-            values.update(new.argument_defaults(alias=alias).reduce_all())
+            values.update(new.argument_defaults(alias=key).reduce_all())
             values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
         else:
             # ..., but if not, we simply need to recurse over children.
-            values.update(self.coordinates.argument_values(alias=alias, **kwargs))
+            values.update(self.coordinates.argument_values(alias=key, **kwargs))
         return values
 
 
@@ -1080,7 +1084,7 @@ class SparseTimeFunction(SparseFunction):
         if dimensions is not None:
             return dimensions
         else:
-            return (kwargs['grid'].time_dim, Dimension(name='p'))
+            return (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

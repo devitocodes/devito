@@ -7,10 +7,9 @@ from sympy import Expr, Float
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
-from devito.region import DOMAIN
 from devito.tools import as_tuple
 
-__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Inc', 'Mul', 'Add', 'IntDiv',
+__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'IntDiv',
            'FunctionFromPointer', 'ListInitializer', 'taylor_sin', 'taylor_cos',
            'bhaskara_sin', 'bhaskara_cos']
 
@@ -48,14 +47,8 @@ class Eq(sympy.Eq, FrozenExpr):
 
     """A customized version of :class:`sympy.Eq` which suppresses evaluation."""
 
-    is_Increment = False
-
     def __new__(cls, *args, **kwargs):
-        kwargs['evaluate'] = False
-        region = kwargs.pop('region', DOMAIN)
-        obj = sympy.Eq.__new__(cls, *args, **kwargs)
-        obj._region = region
-        return obj
+        return sympy.Eq.__new__(cls, *args, evaluate=False)
 
 
 class CondEq(sympy.Eq, FrozenExpr):
@@ -63,8 +56,7 @@ class CondEq(sympy.Eq, FrozenExpr):
     equality. It suppresses evaluation."""
 
     def __new__(cls, *args, **kwargs):
-        kwargs['evaluate'] = False
-        return sympy.Eq.__new__(cls, *args, **kwargs)
+        return sympy.Eq.__new__(cls, *args, evaluate=False)
 
 
 class CondNe(sympy.Ne, FrozenExpr):
@@ -72,17 +64,7 @@ class CondNe(sympy.Ne, FrozenExpr):
     inequality. It suppresses evaluation."""
 
     def __new__(cls, *args, **kwargs):
-        kwargs['evaluate'] = False
-        return sympy.Ne.__new__(cls, *args, **kwargs)
-
-
-class Inc(Eq):
-    """
-    A special :class:`Eq` carrying the information that a linear increment is
-    performed.
-    """
-
-    is_Increment = True
+        return sympy.Ne.__new__(cls, *args, evaluate=False)
 
 
 class Mul(sympy.Mul, FrozenExpr):

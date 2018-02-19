@@ -83,6 +83,7 @@ def test_conditional_shifted():
             Eq(usave.subs(time_subsampled, time_subsampled - t_sub_shift), u)]
     op = Operator(eqns)
 
+    # Starting at time_s=10, so time_subsampled - t_sub_shift is in range
     op.apply(time_s=10, time_e=nt, t_sub_shift=3)
     assert np.all(np.allclose(u.data[0], 8))
     assert np.all([np.allclose(u2.data[i], i - 10) for i in range(10, nt)])

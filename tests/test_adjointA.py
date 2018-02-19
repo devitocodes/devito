@@ -33,7 +33,7 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     nrec = 130  # Number of receivers
 
     # Create model from preset
-    model = demo_model(spacing=[15. for _ in shape],
+    model = demo_model(spacing=[15. for _ in shape], dtype=np.float64,
                        shape=shape, nbpml=nbpml, **(presets[mkey]))
 
     # Derive timestepping from model spacing
@@ -47,7 +47,7 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     src.coordinates.data[0, -1] = 30.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -68,5 +68,5 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     term1 = np.dot(srca.data.reshape(-1), solver.source.data)
     term2 = linalg.norm(rec.data) ** 2
     info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
-         % (term1, term2, term1 - term2, term1 / term2))
-    assert np.isclose(term1, term2, rtol=1.e-5)
+         % (term1, term2, (term1 - term2)/term1, term1 / term2))
+    assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
