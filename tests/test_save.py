@@ -2,7 +2,7 @@ import numpy as np
 from sympy import solve
 from conftest import skipif_yask
 
-from devito import Grid, Eq, Operator, TimeFunction, Forward
+from devito import Grid, Eq, Operator, TimeFunction
 
 
 def initial(dx=0.01, dy=0.01):
@@ -34,7 +34,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
 
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
-    op = Operator(Eq(u.forward, stencil), time_axis=Forward)
+    op = Operator(Eq(u.forward, stencil))
     op.apply(time=timesteps, dt=dt)
 
     if save:

@@ -154,20 +154,14 @@ def test_find_sections(exprs, block1, block2, block3):
     assert len(sections) == 2
     found = list(sections.values())
     assert len(found[0]) == 1
-    assert found[0][0].stencil == exprs[0].stencil
     assert len(found[1]) == 1
-    assert found[1][0].stencil == exprs[1].stencil
 
     sections = finder.visit(block3)
     assert len(sections) == 3
     found = list(sections.values())
     assert len(found[0]) == 1
-    assert found[0][0].stencil == exprs[0].stencil
     assert len(found[1]) == 2
-    assert found[1][0].stencil == exprs[1].stencil
-    assert found[1][1].stencil == exprs[2].stencil
     assert len(found[2]) == 1
-    assert found[2][0].stencil == exprs[3].stencil
 
 
 @skipif_yask

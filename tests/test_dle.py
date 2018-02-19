@@ -12,6 +12,7 @@ from conftest import EVAL
 from devito.dle import transform
 from devito.dle.backends import DevitoRewriter as Rewriter
 from devito import Grid, Function, TimeFunction, Eq, Operator
+from devito.ir.equations import LoweredEq
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
                            Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)
 
@@ -391,7 +392,7 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
 ])
 def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
     scope = [fa, fb, fc, fd, t0, t1, t2, t3]
-    node_exprs = [Expression(EVAL(i, *scope)) for i in exprs]
+    node_exprs = [Expression(LoweredEq(EVAL(i, *scope))) for i in exprs]
     ast = iters[6](iters[7](node_exprs))
 
     ast = iet_analyze(ast)

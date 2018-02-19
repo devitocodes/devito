@@ -14,8 +14,8 @@ from devito.cgen_utils import ccode
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
                            tagger, ntags)
+from devito.ir.support import Forward
 from devito.dimension import Dimension
-from devito.ir.support import Stencil
 from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 import devito.types as types
@@ -278,11 +278,6 @@ class Expression(Node):
         return () if self.is_scalar else self.expr.lhs.shape
 
     @property
-    def stencil(self):
-        """Compute the stencil of the expression."""
-        return Stencil(self.expr)
-
-    @property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Expression`."""
         return tuple(self.expr.free_symbols)
@@ -297,6 +292,8 @@ class Iteration(Node):
                    tuple of the form (start, finish, stepping).
     :param index: Symbol to be used as iteration variable.
     :param offsets: A 2-tuple of start and end offsets to honour in the loop.
+    :param direction: The :class:`IterationDirection` of the Iteration. Defaults
+                      to ``Forward``.
     :param properties: A bag of :class:`IterationProperty` objects, decorating
                        the Iteration (sequential, parallel, vectorizable, ...).
     :param pragmas: A bag of pragmas attached to this Iteration.
@@ -310,18 +307,13 @@ class Iteration(Node):
     _traversable = ['nodes']
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None, pragmas=None, uindices=None):
+                 direction=None, properties=None, pragmas=None, uindices=None):
         # Ensure we deal with a list of Expression objects internally
-        nodes = as_tuple(nodes)
-        self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
-                               for n in nodes])
-        assert all(isinstance(i, Node) for i in self.nodes)
+        self.nodes = as_tuple(nodes)
 
         self.dim = dimension
         self.index = index or self.dim.name
-        # Store direction, as it might change on the dimension
-        # before we use it during code generation.
-        self.reverse = self.dim.reverse
+        self.direction = direction or Forward
 
         # Generate loop limits
         if isinstance(limits, Iterable):

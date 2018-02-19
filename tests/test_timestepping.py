@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Eq, Operator, Forward, Backward, TimeFunction
+from devito import Grid, Eq, Operator, TimeFunction
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def b(grid):
 @pytest.fixture
 def c(grid):
     """Forward time data object, buffered (save=False)"""
-    return TimeFunction(name='c', grid=grid, time_order=1, save=None, time_axis=Forward)
+    return TimeFunction(name='c', grid=grid, time_order=1, save=None)
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ def test_forward(a):
 @skipif_yask
 def test_backward(b):
     b.data[-1, :] = 7.
-    Operator(Eq(b.backward, b - 1.), time_axis=Backward)()
+    Operator(Eq(b.backward, b - 1.))()
     for i in range(b.shape[0]):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
@@ -69,10 +69,10 @@ def test_forward_backward(a, b, nt=5):
     a.data[0, :] = 1.
     b.data[0, :] = 1.
     eqn_a = Eq(a.forward, a + 1.)
-    Operator(eqn_a, time_axis=Forward)(time=nt)
+    Operator(eqn_a)(time=nt)
 
     eqn_b = Eq(b, a + 1.)
-    Operator(eqn_b, time_axis=Backward)(time=nt)
+    Operator(eqn_b)(time=nt)
     for i in range(nt):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
@@ -85,8 +85,8 @@ def test_forward_backward_overlapping(a, b, nt=5):
     """
     a.data[0, :] = 1.
     b.data[0, :] = 1.
-    op_fwd = Operator(Eq(a.forward, a + 1.), time_axis=Forward)
-    op_bwd = Operator(Eq(b, a + 1.), time_axis=Backward)
+    op_fwd = Operator(Eq(a.forward, a + 1.))
+    op_bwd = Operator(Eq(b, a + 1.))
 
     op_fwd(time=nt)
     op_bwd(time=nt)
@@ -99,7 +99,7 @@ def test_loop_bounds_forward(d):
     """Test the automatic bound detection for forward time loops"""
     d.data[:] = 1.
     eqn = Eq(d, 2. + d.dt2)
-    Operator(eqn, dle=None, dse=None, time_axis=Forward)(dt=1.)
+    Operator(eqn, dle=None, dse=None)(dt=1.)
     assert np.allclose(d.data[0, :], 1., rtol=1.e-12)
     assert np.allclose(d.data[-1, :], 1., rtol=1.e-12)
     for i in range(1, d.data.shape[0]-1):
@@ -109,10 +109,11 @@ def test_loop_bounds_forward(d):
 @skipif_yask
 def test_loop_bounds_backward(d):
     """Test the automatic bound detection for backward time loops"""
-    d.data[:] = 1.
-    eqn = Eq(d, 2. + d.dt2)
-    Operator(eqn, dle=None, dse=None, time_axis=Backward)(dt=1.)
-    assert np.allclose(d.data[0, :], 1., rtol=1.e-12)
-    assert np.allclose(d.data[-1, :], 1., rtol=1.e-12)
+    d.data[:] = 5.
+    eqn = Eq(d.backward, d - 1)
+    op = Operator(eqn, dle=None, dse=None)
+    op(dt=1.)
+    assert np.allclose(d.data[0, :], 0., rtol=1.e-12)
+    assert np.allclose(d.data[-1, :], 5., rtol=1.e-12)
     for i in range(1, d.data.shape[0]-1):
-        assert np.allclose(d.data[i, :], d.data.shape[0] - i, rtol=1.e-12)
+        assert np.allclose(d.data[i, :], i, rtol=1.e-12)

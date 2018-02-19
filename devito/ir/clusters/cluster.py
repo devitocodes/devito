@@ -1,9 +1,8 @@
 from cached_property import cached_property
 from frozendict import frozendict
 
-from devito.ir.support import IterationSpace
+from devito.ir.equations import ClusterizedEq
 from devito.ir.clusters.graph import FlowGraph
-from devito.symbolics import Eq
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -25,7 +24,7 @@ class PartialCluster(object):
     """
 
     def __init__(self, exprs, ispace, atomics=None, guards=None):
-        self._exprs = list(exprs)
+        self._exprs = list(ClusterizedEq(i, ispace) for i in exprs)
         self._ispace = ispace
         self._atomics = set(atomics or [])
         self._guards = guards or {}
@@ -74,7 +73,7 @@ class PartialCluster(object):
         """Concatenate the expressions in ``other`` to those in ``self``.
         ``self`` and ``other`` must have same ``ispace``. Duplicate
         expressions are dropped."""
-        assert self.ispace == other.ispace
+        assert self.ispace.is_compatible(other.ispace)
         self.exprs.extend([i for i in other.exprs if i not in self.exprs])
 
 
@@ -83,7 +82,10 @@ class Cluster(PartialCluster):
     """A Cluster is an immutable :class:`PartialCluster`."""
 
     def __init__(self, exprs, ispace, atomics=None, guards=None):
-        self._exprs = tuple(Eq(*i.args, evaluate=False) for i in exprs)
+        # Keep expressions ordered based on information flow
+        self._exprs = exprs
+        self._exprs = tuple(ClusterizedEq(v, ispace) for v in self.trace.values())
+
         self._ispace = ispace
         self._atomics = frozenset(atomics or ())
         self._guards = frozendict(guards or {})
@@ -118,15 +120,6 @@ class Cluster(PartialCluster):
 class ClusterGroup(list):
 
     """An iterable of :class:`PartialCluster`s."""
-
-    @property
-    def ispace(self):
-        """
-        Return the union of all Clusters' iteration spaces.
-        """
-        if not self:
-            return IterationSpace([])
-        return IterationSpace.generate('intersection', *[i.ispace for i in self])
 
     def unfreeze(self):
         """

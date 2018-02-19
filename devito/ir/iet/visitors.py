@@ -14,6 +14,7 @@ import cgen as c
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node
+from devito.ir.support.space import Backward
 from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C, GenericVisitor
 
 
@@ -249,8 +250,8 @@ class CGen(Visitor):
         else:
             end = o.limits[1]
 
-        # For reverse dimensions flip loop bounds
-        if o.reverse:
+        # For backward direction flip loop bounds
+        if o.direction == Backward:
             loop_init = 'int %s = %s' % (o.index, ccode('%s - 1' % end))
             loop_cond = '%s >= %s' % (o.index, ccode(start))
             loop_inc = '%s -= %s' % (o.index, o.limits[2])

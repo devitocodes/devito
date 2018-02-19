@@ -7,12 +7,13 @@ from conftest import EVAL, dims, time, x, y, z, skipif_yask
 import numpy as np
 import pytest
 
-from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, Backward,
-                    Forward, TimeFunction, SparseTimeFunction, Dimension, configuration,
+from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
+                    TimeFunction, SparseTimeFunction, Dimension, configuration,
                     error, INTERIOR)
 from devito.foreign import Operator as OperatorForeign
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
+from devito.ir.support import Any, Backward, Forward
 
 
 def dimify(dimensions):
@@ -774,7 +775,7 @@ class TestLoopScheduler(object):
         ('Eq(ti0[x,y,z+2], ti0[x,y,z-1] + ti1[x,y,z+1])',
          'Eq(ti1[x,y,z+3], ti3[x,y,z+1])',
          'Eq(ti3[x,y,z+2], ti0[x,y,z+1]*ti3[x,y,z-1])'),
-        ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x+2,y+3,z+1])',
+        ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x-3,y+3,z+1])',
          'Eq(ti1[x+4,y+5,z+3], ti3[x+1,y-4,z+1])',
          'Eq(ti3[x+7,y,z+2], ti3[x+5,y,z-1] - ti0[x-3,y-2,z-4])')
     ])
@@ -799,75 +800,81 @@ class TestLoopScheduler(object):
             exprs = FindNodes(Expression).visit(tree[-1])
             assert len(exprs) == 3
 
-    @pytest.mark.parametrize('exprs,axis,expected,visit', [
+    @pytest.mark.parametrize('exprs,directions,expected,visit', [
         # WAR 2->3; expected=2
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         Forward, ['xyz'], 'xyz'),
+         '**-', ['xyz'], 'xyz'),
         # WAR 1->2, 2->3; one may think it should be expected=3, but these are all
         # Arrays, so ti0 gets optimized through index bumping and array contraction,
-        # which results in expected=2
+        # which results in expected=3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
-          'Eq(ti3[x,y,z], ti1[x,y,z+2] + 1.)'),
-         Forward, ['xyz', 'xyz'], 'xyzz'),
+          'Eq(ti3[x,y,z], ti1[x,y,z-2] + 1.)'),
+         '*****', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
         # WAR 1->3; expected=1
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y,z+1] + 1.)'),
-         Forward, ['xyz'], 'xyz'),
+         '**-', ['xyz'], 'xyz'),
         # WAR 1->2, 2->3; WAW 1->3; expected=2
         # ti0 is an Array, so the observation made above still holds (expected=2
         # rather than 3)
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], 3*ti0[x,y,z+2])',
           'Eq(ti0[x,y,0], ti0[x,y,0] + 1.)'),
-         Forward, ['xyz', 'xy'], 'xyz'),
-        # WAR 1->2; WAW 1->3; expected=3
+         '**-', ['xyz', 'xy'], 'xyz'),
+        # WAR 1->2; WAW 1->3; expected=2
         # Now tu, tv, tw are not Arrays, so they must end up in separate loops
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
-         Forward, ['txyz', 'txyz', 'txy'], 'txyzz'),
-        # WAR 1->2; WAW 2->3; expected=3
+         '***-', ['txyz', 'txy'], 'txyz'),
+        # WAR 1->2; RAW 2->3; expected=3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
-          'Eq(tw[t,x,y,z], tv[t,x,y,z+3] + 1.)'),
-         Forward, ['txyz', 'txyz', 'txyz'], 'txyzzz'),
-        # WAR 1->2; WAW 1->3; expected=3
+          'Eq(tw[t,x,y,z], tv[t,x,y,z-3] + 1.)'),
+         '******', ['txyz', 'txyz', 'txyz'], 'txyzzz'),
+        # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
           'Eq(tu[t,3,y,0], tu[t,3,y,0] + 1.)'),
-         Forward, ['txyz', 'txyz', 'ty'], 'txyzxyzy'),
-        # WAR 1->2, WAW 2->3; expected=3
+         '*-***', ['txyz', 'ty'], 'txyzy'),
+        # RAW 1->2, WAR 2->3; expected=1
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
-          'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
+          'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         Forward, ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
-        # WAR 1->2; WAW 1->3; expected=3
-        # Time Forward, anti dependence in time, end up in different loop nests
+         '**-+', ['txyz'], 'txyz'),
+        # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t-2,x,y,0], tu[t,x,y,0] + 1.)'),
-         Forward, ['txyz', 'txyz', 'txy'], 'txyztxyztxy'),
-        # Time Backward, so flow dependences in time
+         '-***', ['txyz', 'txy'], 'txyz'),
+        # WAR 1->2; expected=1
+        (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
+          'Eq(tv[t,x,y,z], tu[t,x,y,z+2] + tu[t,x,y,z-2])',
+          'Eq(tw[t,x,y,z], tv[t,x,y,z] + 2)'),
+         '-***', ['txyz'], 'txyz'),
+        # Time goes backward so that information flows in time
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         Backward, ['txyz'], 'txyz'),
-        # Time Backward, so flow dependences in time, interleaved with independent Eq
+         '-***', ['txyz'], 'txyz'),
+        # Time goes backward so that information flows in time, interleaved
+        # with independent Eq
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         Backward, ['txyz', 'xyz'], 'txyzxyz'),
-        # Time Backward, so flow dependences in time, interleaved with dependent Eq
+         '-******', ['txyz', 'xyz'], 'txyzxyz'),
+        # Time goes backward so that information flows in time, interleaved
+        # with independent Eq
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
-         Backward, ['xyz', 'txyz'], 'xyztxyz')
+         '*+*-*+*', ['xyz', 'txyz'], 'xyztxyz'),
     ])
-    def test_consistency_anti_dependences(self, exprs, axis, expected, visit,
+    def test_consistency_anti_dependences(self, exprs, directions, expected, visit,
                                           ti0, ti1, ti3, tu, tv, tw):
         """
         Test that anti dependences end up generating multi loop nests, rather
@@ -875,15 +882,19 @@ class TestLoopScheduler(object):
         """
         eq1, eq2, eq3 = EVAL(exprs, ti0.base, ti1.base, ti3.base,
                              tu.base, tv.base, tw.base)
-        op = Operator([eq1, eq2, eq3], dse='noop', dle='noop', time_axis=axis)
+        op = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
         assert len(trees) == len(expected)
+        assert len(iters) == len(directions)
         # mapper just makes it quicker to write out the test parametrization
         mapper = {'time': 't'}
         assert ["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
                 for j in trees] == expected
         assert "".join(mapper.get(i.dim.name, i.dim.name) for i in iters) == visit
+        # mapper just makes it quicker to write out the test parametrization
+        mapper = {'+': Forward, '-': Backward, '*': Any}
+        assert all(i.direction == mapper[j] for i, j in zip(iters, directions))
 
     def test_expressions_imperfect_loops(self, ti0, ti1, ti2, t0):
         """

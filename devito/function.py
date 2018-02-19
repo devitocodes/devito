@@ -6,44 +6,23 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 
-from devito.parameters import configuration
-from devito.logger import debug, error, warning
-from devito.data import Data, first_touch
-from devito.cgen_utils import INT, FLOAT
-from devito.dimension import Dimension
-from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.arguments import ArgumentMap
+from devito.cgen_utils import INT, FLOAT
+from devito.data import Data, first_touch
+from devito.dimension import Dimension
+from devito.equation import Eq, Inc
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
-from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
+from devito.logger import debug, error, warning
+from devito.parameters import configuration
+from devito.symbolics import indexify, retrieve_indexed
+from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.tools import EnrichedTuple
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'SparseTimeFunction', 'Forward', 'Backward']
-
-
-class TimeAxis(object):
-    """Direction in which to advance the time index on
-    :class:`TimeFunction` objects.
-
-    :param axis: Either 'Forward' or 'Backward'
-    """
-
-    def __init__(self, axis):
-        assert axis in ['Forward', 'Backward']
-        self._axis = {'Forward': 1, 'Backward': -1}[axis]
-
-    def __eq__(self, other):
-        return self._axis == other._axis
-
-    def __repr__(self):
-        return {-1: 'Backward', 1: 'Forward'}[self._axis]
-
-
-Forward = TimeAxis('Forward')
-Backward = TimeAxis('Backward')
+           'SparseTimeFunction']
 
 
 class Constant(AbstractCachedSymbol):
