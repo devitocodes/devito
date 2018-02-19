@@ -6,7 +6,6 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.arguments import ArgumentMap
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import transform
@@ -20,7 +19,7 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify, retrieve_terminals
-from devito.tools import as_tuple, flatten, filter_sorted, numpy_to_ctypes
+from devito.tools import ReducerMap, as_tuple, flatten, filter_sorted, numpy_to_ctypes
 from devito.types import Object
 
 
@@ -122,7 +121,7 @@ class Operator(Callable):
         """
         Derive all default values from parameters and ensure uniqueness.
         """
-        default_args = ArgumentMap()
+        default_args = ReducerMap()
         for p in self.input:
             if p.name not in arguments:
                 default_args.update(p.argument_defaults())

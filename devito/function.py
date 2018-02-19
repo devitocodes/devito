@@ -6,7 +6,6 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 
-from devito.arguments import ArgumentMap
 from devito.cgen_utils import INT, FLOAT
 from devito.data import Data, first_touch
 from devito.dimension import Dimension
@@ -19,7 +18,7 @@ from devito.logger import debug, error, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import SymbolicFunction, AbstractCachedSymbol
-from devito.tools import EnrichedTuple
+from devito.tools import EnrichedTuple, ReducerMap
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction']
@@ -314,7 +313,7 @@ class TensorFunction(SymbolicFunction):
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
-        args = ArgumentMap({key.name: self._data_buffer})
+        args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
         for i, (start, size), k in zip(self.indices, self.argument_bounds(), key.indices):
