@@ -83,6 +83,7 @@ class Operator(Callable):
         # and apply the Devito Symbolic Engine (DSE) for flop optimization
         clusters = clusterize(expressions)
         clusters = rewrite(clusters, mode=set_dse_mode(dse))
+        self._aspace = clusters.aspace
 
         # Lower Clusters to an Iteration/Expression tree (IET)
         nodes = iet_build(clusters, self.dtype)
