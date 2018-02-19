@@ -11,6 +11,7 @@ from devito.tools import flatten, filter_sorted, partial_order
 
 __all__ = ['count', 'estimate_cost', 'estimate_memory', 'dimension_sort']
 
+
 def count(exprs, query):
     """
     Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``
