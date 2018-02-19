@@ -12,14 +12,15 @@ from devito.data import Data, first_touch
 from devito.dimension import Dimension
 from devito.equation import Eq, Inc
 from devito.finite_difference import (centered, cross_derivative,
-                                      first_derivative, left, right,
+                                      first_derivative, sparse_generic_derivative,
                                       second_derivative, generic_derivative,
-                                      second_cross_derivative)
+                                      sparse_cross_derivative,
+                                      second_cross_derivative, left, right)
 from devito.logger import debug, error, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import SymbolicFunction, AbstractCachedSymbol
-from devito.tools import EnrichedTuple
+from devito.tools import EnrichedTuple, sparse_fd_list
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction']
@@ -806,6 +807,38 @@ class SparseFunction(TensorFunction):
 
             # Padding region
             self._padding = tuple((0, 0) for i in range(self.ndim))
+            self._initialize_derivatives()
+
+    def _initialize_derivatives(self):
+        """
+        Dynamically create notational shortcuts for space derivatives.
+        """
+        for dim in self.grid.dimensions:
+            # First derivative, centred
+            dx = partial(sparse_generic_derivative, deriv_order=1, dim=dim,
+                         fd_order=self.space_order)
+            setattr(self.__class__, 'd%s' % dim.name,
+                    property(dx, 'Return the symbolic expression for '
+                             'the centered first derivative wrt. '
+                             'the %s dimension' % dim.name))
+
+            # Second derivative
+            dx2 = partial(sparse_generic_derivative, deriv_order=2, dim=dim,
+                          fd_order=self.space_order)
+            setattr(self.__class__, 'd%s2' % dim.name,
+                    property(dx2, 'Return the symbolic expression for '
+                             'the second derivative wrt. the '
+                             '%s dimension' % dim.name))
+
+            for dim2 in [d for d in self.grid.dimensions if d != dim]:
+                # First cross derivative
+                dxy = partial(sparse_cross_derivative, dims=(dim, dim2),
+                              fd_order=self.space_order)
+                setattr(self.__class__, 'd%s%s' % (dim.name, dim2.name),
+                        property(dxy, 'Return the symbolic expression for '
+                                 'the first cross derivative wrt. the '
+                                 '%s and %s dimensions' %
+                                 (dim.name, dim2.name)))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -903,22 +936,21 @@ class SparseFunction(TensorFunction):
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
-    @property
-    def coordinate_indices(self):
+    def coordinate_indices(self, offset):
         """Symbol for each grid index according to the coordinates"""
         indices = self.grid.dimensions
-        return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
-                      for c, o, i in zip(self.coordinate_symbols, self.grid.origin,
-                                         indices[:self.grid.dim])])
+        return tuple([INT(sympy.Function('floor')((c - o) / i.spacing + FLOAT(s)))
+                      for c, o, i, s in zip(self.coordinate_symbols, self.grid.origin,
+                                            indices[:self.grid.dim],
+                                            offset[:self.grid.dim])])
 
-    @property
-    def coordinate_bases(self):
+    def coordinate_bases(self, offset=(0, 0, 0)):
         """Symbol for the base coordinates of the reference grid point"""
         indices = self.grid.dimensions
         return tuple([FLOAT(c - o - idx * i.spacing)
                       for c, o, idx, i in zip(self.coordinate_symbols,
                                               self.grid.origin,
-                                              self.coordinate_indices,
+                                              self.coordinate_indices(offset),
                                               indices[:self.grid.dim])])
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
@@ -936,6 +968,7 @@ class SparseFunction(TensorFunction):
                             than an assignment. Defaults to False.
         """
         expr = indexify(expr)
+        offset = (offset, offset, offset)[::self.grid.dim]
 
         # Apply optional time symbol substitutions to expr
         if u_t is not None:
@@ -945,8 +978,8 @@ class SparseFunction(TensorFunction):
 
         variables = list(retrieve_indexed(expr))
         # List of indirection indices for all adjacent grid points
-        index_matrix = [tuple(idx + ii + offset for ii, idx
-                              in zip(inc, self.coordinate_indices))
+        index_matrix = [tuple(idx + ii for ii, idx
+                              in zip(inc, self.coordinate_indices(offset)))
                         for inc in self.point_increments]
         # Generate index substituions for all grid variables
         idx_subs = []
@@ -955,7 +988,7 @@ class SparseFunction(TensorFunction):
                       for v in variables]
             idx_subs += [OrderedDict(v_subs)]
         # Substitute coordinate base symbols into the coefficients
-        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases()))
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
         # Apply optional time symbol substitutions to lhs of assignment
@@ -966,6 +999,17 @@ class SparseFunction(TensorFunction):
         return [Eq(lhs, rhs)]
 
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+        if isinstance(expr, sparse_fd_list):
+            inject_src = []
+            for expr, shift in expr:
+                offsets = tuple([offset + shift[dim]/dim.spacing for dim in self.grid.dimensions])
+                inject_src += self.inject_expr(field, expr, offset=offsets, u_t=u_t, p_t=p_t)
+            return inject_src
+        else:
+            offsets = (offset, offset, offset)[::self.grid.dim]
+            return self.inject_expr(field, expr, offset=offsets, u_t=u_t, p_t=p_t)
+
+    def inject_expr(self, field, expr, offset=0, u_t=None, p_t=None):
         """Symbol for injection of an expression onto a grid
 
         :param field: The grid field into which we inject.
@@ -986,8 +1030,8 @@ class SparseFunction(TensorFunction):
             expr = expr.subs(self.indices[0], p_t)
 
         # List of indirection indices for all adjacent grid points
-        index_matrix = [tuple(idx + ii + offset for ii, idx
-                              in zip(inc, self.coordinate_indices))
+        index_matrix = [tuple(idx + ii for ii, idx
+                              in zip(inc, self.coordinate_indices(offset)))
                         for inc in self.point_increments]
 
         # Generate index substitutions for all grid variables except
@@ -999,7 +1043,7 @@ class SparseFunction(TensorFunction):
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
-        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases(offset)))
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
@@ -1089,3 +1133,25 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+    @property
+    def dt(self):
+        """Symbol for the first derivative wrt the time dimension"""
+        _t = self.indices[0]
+        if self.time_order == 1:
+            # This hack is needed for the first-order diffusion test
+            indices = [_t, _t + _t.spacing]
+        else:
+            width = int(self.time_order / 2)
+            indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
+
+        return self.diff(_t).as_finite_difference(indices)
+
+    @property
+    def dt2(self):
+        """Symbol for the second derivative wrt the t dimension"""
+        _t = self.indices[0]
+        width_t = int(self.time_order / 2)
+        indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
+
+        return self.diff(_t, _t).as_finite_difference(indt)

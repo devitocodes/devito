@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import ctypes
+from copy import copy
 import inspect
 from collections import Callable, Iterable, OrderedDict, Hashable
 from functools import partial, wraps
@@ -11,7 +12,7 @@ from distutils import version
 
 from devito.parameters import configuration
 
-__all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
+__all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio', 'sparse_fd_list']
 
 
 def as_tuple(item, type=None, length=None):
@@ -569,3 +570,16 @@ class EnrichedTuple(tuple):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
         return obj
+
+class sparse_fd_list(list):
+    """
+    A list of tuples (weight, position) for sparse finite differences
+    """
+    def __mul__(self, constant):
+        return sparse_fd_list([(i[0] * constant, i[1]) for i in self])
+
+    def __floordiv__(self, constant):
+        return sparse_fd_list([(i[0] / constant, i[1]) for i in self])
+
+    def __truediv__(self, constant):
+        return sparse_fd_list([(i[0] / constant, i[1]) for i in self])

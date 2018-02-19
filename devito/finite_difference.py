@@ -6,9 +6,10 @@ from operator import mul
 from sympy import finite_diff_weights
 
 from devito.logger import error
-
+from devito.tools import sparse_fd_list
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative',
+           'sparse_cross_derivative', 'sparse_generic_derivative',
            'left', 'right', 'centered']
 
 
@@ -221,3 +222,58 @@ def second_cross_derivative(function, dims, order):
     """
     first = second_derivative(function, dim=dims[0], width=order)
     return second_derivative(first, dim=dims[1], order=order)
+
+
+def sparse_generic_derivative(function, deriv_order, dim, fd_order):
+    """
+    First order spatial derivative of a SparseFunction.
+    To be consitent with Dipole sources
+    in geopphysics, the finite-differences are computed on 2 times finer grid (h_x/2).
+    This does not return a finite-difference
+    expression but a list of (weight, offset) to construct the interpolation at
+    the finite-difference locations.
+    e.g, for space_order = 1 it returns in 3D
+    [(1/h_x, (-h_x/2, 0, 0) ), (0, (0, 0, 0)), (-1/h_x, (h_x/2, 0, 0))]
+
+    These derivatives are to be used in combination with 'inject'.
+    """
+    # Check number of dimension and which dimension to set offset to
+    offsets = lambda x, y : dict([(d, 0) if d != x else (x, y)
+                                  for d in function.grid.dimensions])
+    # Computes fd offsets and cofficients
+    indices = [(dim + i * dim.spacing/2) for i in range(-fd_order, fd_order + 1)]
+    coeffs = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
+    coeffs = [c.subs({dim : 0}) for c in coeffs[::-1]]
+    indices = [offsets(dim, i.subs({dim : 0})) for i in indices]
+    # Build fd List
+
+    return sparse_fd_list([(w*function, pos) for w, pos in zip(coeffs, indices)])
+
+
+def sparse_cross_derivative(function, dims, fd_order):
+    """
+    Derives cross derivative for a product of given sparse functions.
+    This does not return a finite-difference
+    expression but a list of (weight, offset) to construct the interpolation at
+    the finite-difference locations.
+
+    :param dims: 2-tuple of symbols defining the dimension wrt. which
+       to differentiate, eg. `x`, `y`, `z`.
+    :returns: The cross derivative
+    """
+    offsets = lambda x, y : dict([(d, 0) for d in function.grid.dimensions if d not in x] +
+                                 [(xx, yy) for xx, yy in zip(x, y)])
+    # First dimension
+    indices1 = [(dims[0] + i * dims[0].spacing/2) for i in range(-fd_order, fd_order + 1)]
+    coeffs1 = finite_diff_weights(1, indices1, dims[0])[-1][-1]
+    coeffs1 = [c.subs({dims[0] : 0}) for c in coeffs1[::-1]]
+    indices1 = [i.subs({dims[0] : 0}) for i in indices1]
+    # Second dimension
+    indices2 = [(dims[1] + i * dims[1].spacing/2) for i in range(-fd_order, fd_order + 1)]
+    coeffs2 = finite_diff_weights(1, indices2, dims[1])[-1][-1]
+    coeffs2 = [c.subs({dims[1] : 0}) for c in coeffs2[::-1]]
+    indices2 = [i.subs({dims[1] : 0}) for i in indices2]
+
+    cross = sparse_fd_list([[(w1*w2*function, offsets(dims, (h1, h2))) for (w2, h2) in zip(coeffs2, indices2)]
+             for (w1, h1) in zip(coeffs1, indices1)])
+    return cross
