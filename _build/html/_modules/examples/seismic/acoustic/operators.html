@@ -161,7 +161,7 @@
   <h1>Source code for examples.seismic.acoustic.operators</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">solve</span><span class="p">,</span> <span class="n">Symbol</span>
 
-<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Operator</span><span class="p">,</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">TimeFunction</span>
+<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Operator</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">TimeFunction</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
 <span class="kn">from</span> <span class="nn">examples.seismic</span> <span class="k">import</span> <span class="n">PointSource</span><span class="p">,</span> <span class="n">Receiver</span>
 
@@ -247,7 +247,7 @@
 
     <span class="c1"># Substitute spacing terms to reduce flops</span>
     <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">eqn</span> <span class="o">+</span> <span class="n">src_term</span> <span class="o">+</span> <span class="n">rec_term</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span>
-                    <span class="n">time_axis</span><span class="o">=</span><span class="n">Forward</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+                    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AdjointOperator"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.AdjointOperator">[docs]</a><span class="k">def</span> <span class="nf">AdjointOperator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
@@ -282,7 +282,7 @@
 
     <span class="c1"># Substitute spacing terms to reduce flops</span>
     <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">eqn</span> <span class="o">+</span> <span class="n">receivers</span> <span class="o">+</span> <span class="n">source_a</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span>
-                    <span class="n">time_axis</span><span class="o">=</span><span class="n">Backward</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Adjoint&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+                    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Adjoint&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="GradientOperator"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.GradientOperator">[docs]</a><span class="k">def</span> <span class="nf">GradientOperator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -323,7 +323,7 @@
 
     <span class="c1"># Substitute spacing terms to reduce flops</span>
     <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">eqn</span> <span class="o">+</span> <span class="n">receivers</span> <span class="o">+</span> <span class="p">[</span><span class="n">gradient_update</span><span class="p">],</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span>
-                    <span class="n">time_axis</span><span class="o">=</span><span class="n">Backward</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Gradient&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+                    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Gradient&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="BornOperator"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.operators.BornOperator">[docs]</a><span class="k">def</span> <span class="nf">BornOperator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
@@ -365,7 +365,7 @@
 
     <span class="c1"># Substitute spacing terms to reduce flops</span>
     <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">eqn1</span> <span class="o">+</span> <span class="n">source</span> <span class="o">+</span> <span class="n">eqn2</span> <span class="o">+</span> <span class="n">receivers</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span>
-                    <span class="n">time_axis</span><span class="o">=</span><span class="n">Forward</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Born&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+                    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Born&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

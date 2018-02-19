@@ -28,6 +28,14 @@ devito\.ir\.support\.stencil module
     :undoc-members:
     :show-inheritance:
 
+devito\.ir\.support\.utils module
+---------------------------------
+
+.. automodule:: devito.ir.support.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

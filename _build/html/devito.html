@@ -113,6 +113,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.function">devito.function module</a></li>
@@ -121,7 +122,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.profiling">devito.profiling module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.region">devito.region module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.types">devito.types module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito">Module contents</a></li>
@@ -280,6 +280,7 @@
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.basic">devito.ir.support.basic module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.space">devito.ir.support.space module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.stencil">devito.ir.support.stencil module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.utils">devito.ir.support.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support">Module contents</a></li>
 </ul>
 </li>
@@ -1345,7 +1346,6 @@ potential iteration space.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the dimension symbol.</li>
-<li><strong>reverse</strong> – Optional, Traverse dimension in reverse order (default False)</li>
 <li><strong>spacing</strong> – Optional, symbol for the spacing along this dimension.</li>
 </ul>
 </td>
@@ -1382,11 +1382,6 @@ potential iteration space.</p>
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.limits">
 <code class="descname">limits</code><a class="headerlink" href="#devito.dimension.Dimension.limits" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.reverse">
-<code class="descname">reverse</code><a class="headerlink" href="#devito.dimension.Dimension.reverse" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -1453,7 +1448,6 @@ symbols.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the dimension symbol.</li>
-<li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
 <li><strong>spacing</strong> – Optional, symbol for the spacing along this dimension.</li>
 </ul>
 </td>
@@ -1485,7 +1479,6 @@ time dimensions should inherit from <a class="reference internal" href="#devito.
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the dimension symbol.</li>
-<li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
 <li><strong>spacing</strong> – Optional, symbol for the spacing along this dimension.</li>
 </ul>
 </td>
@@ -1676,6 +1669,59 @@ are expressible in two different ways:</p>
 <code class="descname">is_NonlinearDerived</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.ConditionalDimension.is_NonlinearDerived" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.equation">
+<span id="devito-equation-module"></span><h2>devito.equation module<a class="headerlink" href="#module-devito.equation" title="Permalink to this headline">¶</a></h2>
+<p>User API to specify equations.</p>
+<dl class="class">
+<dt id="devito.equation.Eq">
+<em class="property">class </em><code class="descclassname">devito.equation.</code><code class="descname">Eq</code><a class="reference internal" href="_modules/devito/equation.html#Eq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.equation.Eq" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.relational.Equality</span></code></p>
+<p>A <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code> that accepts the additional keyword parameter <code class="docutils literal"><span class="pre">region</span></code>.</p>
+<p>The <code class="docutils literal"><span class="pre">region</span></code>, an object of type <code class="xref py py-class docutils literal"><span class="pre">Region</span></code>, may be used to restrict
+the execution of the equation to a sub-domain.</p>
+<dl class="attribute">
+<dt id="devito.equation.Eq.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.equation.Eq.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.equation.Eq.is_Increment">
+<code class="descname">is_Increment</code><em class="property"> = False</em><a class="headerlink" href="#devito.equation.Eq.is_Increment" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.equation.Inc">
+<em class="property">class </em><code class="descclassname">devito.equation.</code><code class="descname">Inc</code><a class="reference internal" href="_modules/devito/equation.html#Inc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.equation.Inc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.equation.Eq" title="devito.equation.Eq"><code class="xref py py-class docutils literal"><span class="pre">devito.equation.Eq</span></code></a></p>
+<p>A <a class="reference internal" href="#devito.equation.Eq" title="devito.equation.Eq"><code class="xref py py-class docutils literal"><span class="pre">Eq</span></code></a> performing a linear increment.</p>
+<dl class="attribute">
+<dt id="devito.equation.Inc.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.equation.Inc.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.equation.Inc.is_Increment">
+<code class="descname">is_Increment</code><em class="property"> = True</em><a class="headerlink" href="#devito.equation.Inc.is_Increment" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="data">
+<dt id="devito.equation.DOMAIN">
+<code class="descclassname">devito.equation.</code><code class="descname">DOMAIN</code><em class="property"> = DOMAIN</em><a class="headerlink" href="#devito.equation.DOMAIN" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represent the physical domain of the PDE; that is, domain = boundary + interior</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="devito.equation.INTERIOR">
+<code class="descclassname">devito.equation.</code><code class="descname">INTERIOR</code><em class="property"> = INTERIOR</em><a class="headerlink" href="#devito.equation.INTERIOR" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represent the physical interior domain of the PDE; that is, PDE boundaries are
+not included.</p>
 </dd></dl>
 
 </div>
@@ -2718,22 +2764,6 @@ The following code sections are profiled:</p>
 * Any perfectly nested loops.
 </pre></div>
 </div>
-</dd></dl>
-
-</div>
-<div class="section" id="module-devito.region">
-<span id="devito-region-module"></span><h2>devito.region module<a class="headerlink" href="#module-devito.region" title="Permalink to this headline">¶</a></h2>
-<dl class="data">
-<dt id="devito.region.DOMAIN">
-<code class="descclassname">devito.region.</code><code class="descname">DOMAIN</code><em class="property"> = DOMAIN</em><a class="headerlink" href="#devito.region.DOMAIN" title="Permalink to this definition">¶</a></dt>
-<dd><p>Represent the physical domain of the PDE; that is, domain = boundary + interior</p>
-</dd></dl>
-
-<dl class="data">
-<dt id="devito.region.INTERIOR">
-<code class="descclassname">devito.region.</code><code class="descname">INTERIOR</code><em class="property"> = INTERIOR</em><a class="headerlink" href="#devito.region.INTERIOR" title="Permalink to this definition">¶</a></dt>
-<dd><p>Represent the physical interior domain of the PDE; that is, PDE boundaries are
-not included.</p>
 </dd></dl>
 
 </div>

@@ -175,6 +175,7 @@
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">blankline</span><span class="p">,</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">VisitorException</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet.nodes</span> <span class="k">import</span> <span class="n">Node</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support.space</span> <span class="k">import</span> <span class="n">Backward</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">ctypes_to_C</span><span class="p">,</span> <span class="n">GenericVisitor</span>
 
 
@@ -410,8 +411,8 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">end</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
 
-        <span class="c1"># For reverse dimensions flip loop bounds</span>
-        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">reverse</span><span class="p">:</span>
+        <span class="c1"># For backward direction flip loop bounds</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="n">Backward</span><span class="p">:</span>
             <span class="n">loop_init</span> <span class="o">=</span> <span class="s1">&#39;int </span><span class="si">%s</span><span class="s1"> = </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> - 1&#39;</span> <span class="o">%</span> <span class="n">end</span><span class="p">))</span>
             <span class="n">loop_cond</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> &gt;= </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
             <span class="n">loop_inc</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> -= </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>

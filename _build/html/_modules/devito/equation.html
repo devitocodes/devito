@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.region &mdash; Devito 1 documentation</title>
+  <title>devito.equation &mdash; Devito 1 documentation</title>
   
 
   
@@ -141,7 +141,7 @@
         
           <li><a href="../index.html">Module code</a> &raquo;</li>
         
-      <li>devito.region</li>
+      <li>devito.equation</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -158,11 +158,44 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for devito.region</h1><div class="highlight"><pre>
-<span></span><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;DOMAIN&#39;</span><span class="p">,</span> <span class="s1">&#39;INTERIOR&#39;</span><span class="p">]</span>
+  <h1>Source code for devito.equation</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;User API to specify equations.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">sympy</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;DOMAIN&#39;</span><span class="p">,</span> <span class="s1">&#39;INTERIOR&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../devito.html#devito.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A :class:`sympy.Eq` that accepts the additional keyword parameter ``region``.</span>
+
+<span class="sd">    The ``region``, an object of type :class:`Region`, may be used to restrict</span>
+<span class="sd">    the execution of the equation to a sub-domain.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;evaluate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">region</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;region&#39;</span><span class="p">,</span> <span class="n">DOMAIN</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_region</span> <span class="o">=</span> <span class="n">region</span>
+        <span class="k">return</span> <span class="n">obj</span></div>
+
+
+<div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../devito.html#devito.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A :class:`Eq` performing a linear increment.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
 <span class="k">class</span> <span class="nc">Region</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A region of the computational domain over which a :class:`Function` is</span>
 <span class="sd">    discretized.</span>

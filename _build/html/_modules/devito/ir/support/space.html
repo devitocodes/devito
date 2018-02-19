@@ -162,9 +162,10 @@
 <span></span><span class="kn">import</span> <span class="nn">abc</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;NullInterval&#39;</span><span class="p">,</span> <span class="s1">&#39;Interval&#39;</span><span class="p">,</span> <span class="s1">&#39;DataSpace&#39;</span><span class="p">,</span> <span class="s1">&#39;IterationSpace&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;NullInterval&#39;</span><span class="p">,</span> <span class="s1">&#39;Interval&#39;</span><span class="p">,</span> <span class="s1">&#39;IntervalGroup&#39;</span><span class="p">,</span> <span class="s1">&#39;IterationSpace&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="s1">&#39;Backward&#39;</span><span class="p">,</span> <span class="s1">&#39;Any&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">AbstractInterval</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -236,7 +237,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">Space</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(),</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">()])</span></div>
+            <span class="k">return</span> <span class="n">IntervalGroup</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(),</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">()])</span></div>
 
 <div class="viewcode-block" id="NullInterval.overlap"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.NullInterval.overlap">[docs]</a>    <span class="k">def</span> <span class="nf">overlap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">False</span></div></div>
@@ -285,7 +286,7 @@
         <span class="k">elif</span> <span class="n">o</span><span class="o">.</span><span class="n">is_Null</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">Space</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(),</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">()])</span></div>
+            <span class="k">return</span> <span class="n">IntervalGroup</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(),</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">()])</span></div>
 
 <div class="viewcode-block" id="Interval.subtract"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.Interval.subtract">[docs]</a>    <span class="k">def</span> <span class="nf">subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">!=</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span> <span class="ow">or</span> <span class="n">o</span><span class="o">.</span><span class="n">is_Null</span><span class="p">:</span>
@@ -316,26 +317,150 @@
         <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">))</span></div>
 
 
-<span class="k">class</span> <span class="nc">Space</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="IntervalGroup"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IntervalGroup">[docs]</a><span class="k">class</span> <span class="nc">IntervalGroup</span><span class="p">(</span><span class="nb">tuple</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A bag of :class:`Interval`s.</span>
-
-<span class="sd">    The intervals input ordering is honored.</span>
+<span class="sd">    A sequence of :class:`Interval`s with set-like operations exposed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">intervals</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">intervals</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
-                           <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">repr</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="s2">&quot;IntervalGroup[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">repr</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]))</span>
 
-    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">)</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">intervals</span><span class="p">)</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">filter_ordered</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
 
-    <span class="k">def</span> <span class="nf">_construct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">intervals</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Space</span><span class="p">(</span><span class="n">intervals</span><span class="p">)</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_well_defined</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return True if all :class:`Interval`s are over different :class:`Dimension`s,</span>
+<span class="sd">        False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">))</span>
+
+<div class="viewcode-block" id="IntervalGroup.generate"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IntervalGroup.generate">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">generate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">op</span><span class="p">,</span> <span class="o">*</span><span class="n">interval_groups</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        generate(op, *interval_groups)</span>
+
+<span class="sd">        Create a new :class:`IntervalGroup` from the iterative application of the</span>
+<span class="sd">        operation ``op`` to the :class:`IntervalGroup`s in ``interval_groups``.</span>
+
+<span class="sd">        :param op: Any legal :class:`Interval` operation, such as ``intersection``</span>
+<span class="sd">                   or ``union``. This should be provided as a string.</span>
+<span class="sd">        :param interval_groups: An iterable of :class:`IntervalGroup`s.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        ig0 = IntervalGroup([Interval(x, 1, -1)])</span>
+<span class="sd">        ig1 = IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3)])</span>
+<span class="sd">        ig2 = IntervalGroup([Interval(y, 2, -2), Interval(z, 1, -1)])</span>
+
+<span class="sd">        ret = IntervalGroup.generate(&#39;intersection&#39;, ig0, ig1, ig2)</span>
+<span class="sd">        ret -&gt; IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">ig</span> <span class="ow">in</span> <span class="n">interval_groups</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ig</span><span class="p">:</span>
+                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">IntervalGroup</span><span class="p">(</span><span class="n">Interval</span><span class="o">.</span><span class="n">_apply_op</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">op</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="IntervalGroup.intersection"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IntervalGroup.intersection">[docs]</a>    <span class="k">def</span> <span class="nf">intersection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">])</span>
+        <span class="n">intervals</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">IntervalGroup</span><span class="p">(</span><span class="n">intervals</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IntervalGroup.subtract"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IntervalGroup.subtract">[docs]</a>    <span class="k">def</span> <span class="nf">subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">])</span>
+        <span class="n">intervals</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">NullInterval</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">)))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">IntervalGroup</span><span class="p">(</span><span class="n">intervals</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IntervalGroup.drop"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IntervalGroup.drop">[docs]</a>    <span class="k">def</span> <span class="nf">drop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">IntervalGroup</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">d</span><span class="p">)])</span></div>
+
+<div class="viewcode-block" id="IntervalGroup.negate"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IntervalGroup.negate">[docs]</a>    <span class="k">def</span> <span class="nf">negate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">IntervalGroup</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">negate</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span></div>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="nb">slice</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">IntervalGroup</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_well_defined</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot fetch Interval from ill defined Space&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">key</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">i</span></div>
+
+
+<span class="k">class</span> <span class="nc">IterationDirection</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A representation of the direction in which an iteration space is traversed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">_name</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="p">)</span>
+
+
+<span class="n">Forward</span> <span class="o">=</span> <span class="n">IterationDirection</span><span class="p">(</span><span class="s1">&#39;++&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Forward iteration direction (&#39;++&#39;).&quot;&quot;&quot;</span>
+
+<span class="n">Backward</span> <span class="o">=</span> <span class="n">IterationDirection</span><span class="p">(</span><span class="s1">&#39;--&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Backward iteration direction (&#39;--&#39;).&quot;&quot;&quot;</span>
+
+<span class="n">Any</span> <span class="o">=</span> <span class="n">IterationDirection</span><span class="p">(</span><span class="s1">&#39;*&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Wildcard direction (both &#39;++&#39; and &#39;--&#39; would be OK).&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="IterationSpace"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IterationSpace">[docs]</a><span class="k">class</span> <span class="nc">IterationSpace</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A representation of an iteration space and its traversal through</span>
+<span class="sd">    :class:`Interval`s and :class:`IterationDirection`s.</span>
+
+<span class="sd">    :param intervals: An ordered sequence of :class:`Interval`s defining the</span>
+<span class="sd">                      iteration space.</span>
+<span class="sd">    :param sub_iterators: (Optional) a mapper from :class:`Dimension`s in</span>
+<span class="sd">                          ``intervals`` to iterables of :class:`DerivedDimension`,</span>
+<span class="sd">                          which represent sub-dimensions along which the iteration</span>
+<span class="sd">                          space is traversed.</span>
+<span class="sd">    :param directions: (Optional) a mapper from :class:`Dimension`s in</span>
+<span class="sd">                       ``intervals`` to :class:`IterationDirection`s.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">sub_iterators</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">directions</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span> <span class="o">=</span> <span class="n">IntervalGroup</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">intervals</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sub_iterators</span> <span class="o">=</span> <span class="n">sub_iterators</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">directions</span> <span class="o">=</span> <span class="n">directions</span> <span class="ow">or</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directions</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">]))</span>
+                         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">])</span>
+        <span class="k">return</span> <span class="s2">&quot;IterationSpace[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">ret</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">intervals</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">directions</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">directions</span>
+
+<div class="viewcode-block" id="IterationSpace.is_compatible"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IterationSpace.is_compatible">[docs]</a>    <span class="k">def</span> <span class="nf">is_compatible</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A relaxed version of ``__eq__``, in which only non-derived dimensions</span>
+<span class="sd">        are compared for equality.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">intervals</span> <span class="ow">and</span>\
+            <span class="bp">self</span><span class="o">.</span><span class="n">nonderived_directions</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">nonderived_directions</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_iterators</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">directions</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -346,88 +471,13 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_well_defined</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return True if the space :class:`Interval`s are over different</span>
-<span class="sd">        :class:`Dimension`s, False otherwise.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">]</span>
-        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">dims</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">dims</span><span class="p">))</span>
+    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">sub_dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_iterators</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">+</span> <span class="n">sub_dims</span><span class="p">)</span>
 
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">generate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">op</span><span class="p">,</span> <span class="o">*</span><span class="n">spaces</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        generate(op, *spaces)</span>
-
-<span class="sd">        Create a new :class:`Space` from the iterative application of the</span>
-<span class="sd">        operation ``op`` to the :class:`Space`s in ``spaces``.</span>
-
-<span class="sd">        :param op: Any legal :class:`Interval` operation, such as ``intersection``</span>
-<span class="sd">                   or ``union``. This should be provided as a string.</span>
-<span class="sd">        :param spaces: An iterable of :class:`Space`s.</span>
-
-<span class="sd">        Example</span>
-<span class="sd">        -------</span>
-<span class="sd">        space0 = Space([Interval(x, 1, -1)])</span>
-<span class="sd">        space1 = Space([Interval(x, 2, -2), Interval(y, 3, -3)])</span>
-<span class="sd">        space2 = Space([Interval(y, 2, -2), Interval(z, 1, -1)])</span>
-
-<span class="sd">        res = Space.generate(&#39;intersection&#39;, space0, space1, space2)</span>
-<span class="sd">        res --&gt; Space([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">spaces</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">interval</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">intervals</span><span class="p">:</span>
-                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">interval</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">Space</span><span class="p">([</span><span class="n">Interval</span><span class="o">.</span><span class="n">_apply_op</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">op</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
-
-    <span class="k">def</span> <span class="nf">intersection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">spaces</span><span class="p">):</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">])</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">spaces</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">interval</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">intervals</span><span class="p">:</span>
-                <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">interval</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_construct</span><span class="p">([</span><span class="n">Interval</span><span class="o">.</span><span class="n">_apply_op</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="s1">&#39;intersection&#39;</span><span class="p">)</span>
-                                <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
-
-    <span class="k">def</span> <span class="nf">subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">intervals</span><span class="p">])</span>
-        <span class="n">intervals</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">NullInterval</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">)))</span>
-                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">]</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_construct</span><span class="p">(</span><span class="n">intervals</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">drop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_construct</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span>
-                                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">d</span><span class="p">)])</span>
-
-    <span class="k">def</span> <span class="nf">negate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_construct</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">negate</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">])</span>
-
-    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_well_defined</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot fetch Interval from ill defined Space&quot;</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">intervals</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">dim</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">i</span>
-
-
-<div class="viewcode-block" id="DataSpace"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.DataSpace">[docs]</a><span class="k">class</span> <span class="nc">DataSpace</span><span class="p">(</span><span class="n">Space</span><span class="p">):</span>
-    <span class="k">pass</span></div>
-
-
-<div class="viewcode-block" id="IterationSpace"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.space.IterationSpace">[docs]</a><span class="k">class</span> <span class="nc">IterationSpace</span><span class="p">(</span><span class="n">Space</span><span class="p">):</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A :class:`Space` associating one or more :class:`Dimension`s to a</span>
-<span class="sd">    :class:`Interval`. The interval is the data space, whereas the dimensions</span>
-<span class="sd">    are the objects used to traverse the data space.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">sub_iterators</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">IterationSpace</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">intervals</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sub_iterators</span> <span class="o">=</span> <span class="n">sub_iterators</span>
-
-    <span class="k">def</span> <span class="nf">_construct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">intervals</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">IterationSpace</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_iterators</span><span class="p">)</span></div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">nonderived_directions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">directions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">}</span></div>
 </pre></div>
 
            </div>

@@ -174,7 +174,7 @@
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">rewrite</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidOperator</span>
-<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">Constant</span>
+<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Constant</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">bar</span><span class="p">,</span> <span class="n">info</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">LoweredEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="k">import</span> <span class="n">clusterize</span>
@@ -203,8 +203,6 @@
 <span class="sd">        * name : Name of the kernel function - defaults to &quot;Kernel&quot;.</span>
 <span class="sd">        * subs : Dict or list of dicts containing SymPy symbol substitutions</span>
 <span class="sd">                 for each expression respectively.</span>
-<span class="sd">        * time_axis : :class:`TimeAxis` object to indicate direction in which</span>
-<span class="sd">                      to advance time during computation.</span>
 <span class="sd">        * dse : Use the Devito Symbolic Engine to optimize the expressions -</span>
 <span class="sd">                defaults to ``configuration[&#39;dse&#39;]``.</span>
 <span class="sd">        * dle : Use the Devito Loop Engine to optimize the loops -</span>
@@ -219,7 +217,6 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;Kernel&quot;</span><span class="p">)</span>
         <span class="n">subs</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subs&quot;</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">time_axis</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;time_axis&quot;</span><span class="p">,</span> <span class="n">Forward</span><span class="p">)</span>
         <span class="n">dse</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dse&quot;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">])</span>
         <span class="n">dle</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dle&quot;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">])</span>
 
@@ -240,11 +237,6 @@
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">LoweredEq</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">subs</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">retrieve_dtype</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">retrieve_symbols</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
-
-        <span class="c1"># Set the direction of time acoording to the given TimeAxis</span>
-        <span class="k">for</span> <span class="n">time</span> <span class="ow">in</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Time</span><span class="p">]:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">time</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">:</span>
-                <span class="n">time</span><span class="o">.</span><span class="n">reverse</span> <span class="o">=</span> <span class="n">time_axis</span> <span class="o">==</span> <span class="n">Backward</span>
 
         <span class="c1"># Group expressions based on their iteration space and data dependences,</span>
         <span class="c1"># and apply the Devito Symbolic Engine (DSE) for flop optimization</span>

@@ -162,9 +162,8 @@
 <span></span><span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 <span class="kn">from</span> <span class="nn">frozendict</span> <span class="k">import</span> <span class="n">frozendict</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">IterationSpace</span>
+<span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">ClusterizedEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters.graph</span> <span class="k">import</span> <span class="n">FlowGraph</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Cluster&quot;</span><span class="p">,</span> <span class="s2">&quot;ClusterGroup&quot;</span><span class="p">]</span>
 
@@ -186,7 +185,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ispace</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">ispace</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">atomics</span> <span class="ow">or</span> <span class="p">[])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_guards</span> <span class="o">=</span> <span class="n">guards</span> <span class="ow">or</span> <span class="p">{}</span>
@@ -235,7 +234,7 @@
         <span class="sd">&quot;&quot;&quot;Concatenate the expressions in ``other`` to those in ``self``.</span>
 <span class="sd">        ``self`` and ``other`` must have same ``ispace``. Duplicate</span>
 <span class="sd">        expressions are dropped.&quot;&quot;&quot;</span>
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">ispace</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">is_compatible</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">exprs</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">])</span>
 
 
@@ -244,7 +243,10 @@
     <span class="sd">&quot;&quot;&quot;A Cluster is an immutable :class:`PartialCluster`.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
+        <span class="c1"># Keep expressions ordered based on information flow</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="n">exprs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">ispace</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">ispace</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">atomics</span> <span class="ow">or</span> <span class="p">())</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_guards</span> <span class="o">=</span> <span class="n">frozendict</span><span class="p">(</span><span class="n">guards</span> <span class="ow">or</span> <span class="p">{})</span>
@@ -279,15 +281,6 @@
 <div class="viewcode-block" id="ClusterGroup"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup">[docs]</a><span class="k">class</span> <span class="nc">ClusterGroup</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;An iterable of :class:`PartialCluster`s.&quot;&quot;&quot;</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">ispace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the union of all Clusters&#39; iteration spaces.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">IterationSpace</span><span class="p">([])</span>
-        <span class="k">return</span> <span class="n">IterationSpace</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s1">&#39;intersection&#39;</span><span class="p">,</span> <span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">ispace</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
 
 <div class="viewcode-block" id="ClusterGroup.unfreeze"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup.unfreeze">[docs]</a>    <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>

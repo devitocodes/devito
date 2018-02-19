@@ -73,6 +73,14 @@ devito\.dimension module
     :undoc-members:
     :show-inheritance:
 
+devito\.equation module
+-----------------------
+
+.. automodule:: devito.equation
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.exceptions module
 -------------------------
 
@@ -133,14 +141,6 @@ devito\.profiling module
 ------------------------
 
 .. automodule:: devito.profiling
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito\.region module
----------------------
-
-.. automodule:: devito.region
     :members:
     :undoc-members:
     :show-inheritance:

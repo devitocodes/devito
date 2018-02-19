@@ -118,6 +118,7 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
@@ -126,7 +127,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.region">devito.region module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
@@ -401,12 +401,6 @@ appears in this list are treated as traversable fields.</p>
 <dd><p>Return the shape of the written LHS.</p>
 </dd></dl>
 
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.Expression.stencil">
-<code class="descname">stencil</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.stencil" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the stencil of the expression.</p>
-</dd></dl>
-
 <dl class="method">
 <dt id="devito.ir.iet.nodes.Expression.substitute">
 <code class="descname">substitute</code><span class="sig-paren">(</span><em>substitutions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Expression.substitute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Expression.substitute" title="Permalink to this definition">¶</a></dt>
@@ -539,7 +533,7 @@ defining the body of the ‘else’ part of the if-then-else.</li>
 
 <dl class="class">
 <dt id="devito.ir.iet.nodes.Iteration">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Iteration</code><span class="sig-paren">(</span><em>nodes</em>, <em>dimension</em>, <em>limits</em>, <em>index=None</em>, <em>offsets=None</em>, <em>properties=None</em>, <em>pragmas=None</em>, <em>uindices=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Iteration" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Iteration</code><span class="sig-paren">(</span><em>nodes</em>, <em>dimension</em>, <em>limits</em>, <em>index=None</em>, <em>offsets=None</em>, <em>direction=None</em>, <em>properties=None</em>, <em>pragmas=None</em>, <em>uindices=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Iteration" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
 <p>Implement a for-loop over nodes.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -553,6 +547,8 @@ defining the body of the ‘else’ part of the if-then-else.</li>
 tuple of the form (start, finish, stepping).</li>
 <li><strong>index</strong> – Symbol to be used as iteration variable.</li>
 <li><strong>offsets</strong> – A 2-tuple of start and end offsets to honour in the loop.</li>
+<li><strong>direction</strong> – The <code class="xref py py-class docutils literal"><span class="pre">IterationDirection</span></code> of the Iteration. Defaults
+to <code class="docutils literal"><span class="pre">Forward</span></code>.</li>
 <li><strong>properties</strong> – A bag of <code class="xref py py-class docutils literal"><span class="pre">IterationProperty</span></code> objects, decorating
 the Iteration (sequential, parallel, vectorizable, …).</li>
 <li><strong>pragmas</strong> – A bag of pragmas attached to this Iteration.</li>
@@ -1011,7 +1007,7 @@ by collecting all symbols not defined in the tree itself.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x15237b763d90&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x15237b763d08&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x1456361a17b8&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x1456361a1730&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1083,7 +1079,7 @@ by collecting all symbols not defined in the tree itself.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x15237b7639d8&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x15237b763950&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x15237b763840&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x15237b7638c8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x1456361a1400&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x1456361a1378&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x1456361a1268&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x1456361a12f0&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">

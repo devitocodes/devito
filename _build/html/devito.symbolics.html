@@ -122,6 +122,7 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
@@ -130,7 +131,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.region">devito.region module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
@@ -248,11 +248,6 @@ new expression identical to self.</p>
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Eq.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
-<dt id="devito.symbolics.extended_sympy.Eq.is_Increment">
-<code class="descname">is_Increment</code><em class="property"> = False</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Eq.is_Increment" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 </dd></dl>
 
 <dl class="class">
@@ -277,24 +272,6 @@ inequality. It suppresses evaluation.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.CondNe.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.CondNe.default_assumptions" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="devito.symbolics.extended_sympy.Inc">
-<em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">Inc</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#Inc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.Inc" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.symbolics.extended_sympy.Eq" title="devito.symbolics.extended_sympy.Eq"><code class="xref py py-class docutils literal"><span class="pre">devito.symbolics.extended_sympy.Eq</span></code></a></p>
-<p>A special <a class="reference internal" href="#devito.symbolics.extended_sympy.Eq" title="devito.symbolics.extended_sympy.Eq"><code class="xref py py-class docutils literal"><span class="pre">Eq</span></code></a> carrying the information that a linear increment is
-performed.</p>
-<dl class="attribute">
-<dt id="devito.symbolics.extended_sympy.Inc.default_assumptions">
-<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Inc.default_assumptions" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.symbolics.extended_sympy.Inc.is_Increment">
-<code class="descname">is_Increment</code><em class="property"> = True</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Inc.is_Increment" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
