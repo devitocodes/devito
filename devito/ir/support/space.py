@@ -54,6 +54,9 @@ class AbstractInterval(object):
     def zero(self):
         return self._rebuild()
 
+    def flip(self):
+        return self._rebuild()
+
     @abc.abstractmethod
     def overlap(self, o):
         return
@@ -147,6 +150,9 @@ class Interval(AbstractInterval):
 
     def zero(self):
         return Interval(self.dim, 0, 0)
+
+    def flip(self):
+        return Interval(self.dim, self.upper, self.lower)
 
     def overlap(self, o):
         if self.dim != o.dim:
