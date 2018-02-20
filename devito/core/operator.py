@@ -102,15 +102,15 @@ class OperatorCore(OperatorRunnable):
 
         return expressions
 
-    def _autotune(self, arguments):
+    def _autotune(self, args):
         """
         Use auto-tuning on this Operator to determine empirically the
         best block sizes when loop blocking is in use.
         """
         if self.dle_flags.get('blocking', False):
-            return autotune(self, arguments, self.dle_arguments)
+            return autotune(self, args, self.dle_args)
         else:
-            return arguments
+            return args
 
 
 class OperatorDebug(OperatorCore):

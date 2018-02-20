@@ -25,13 +25,13 @@ class Constant(function.Constant):
     def data(self, val):
         self._value = DataScalar(val)
 
-    def argument_defaults(self):
-        args = super(Constant, self).argument_defaults()
+    def _arg_defaults(self):
+        args = super(Constant, self)._arg_defaults()
         args[namespace['code-grid-name'](self.name)] = None
         return args
 
-    def argument_values(self, alias=None, **kwargs):
-        values = super(Constant, self).argument_values(**kwargs)
+    def _arg_values(self, alias=None, **kwargs):
+        values = super(Constant, self)._arg_values(**kwargs)
         values[namespace['code-grid-name'](self.name)] = None
         return values
 
@@ -123,17 +123,17 @@ class Function(function.Function):
     def initialize(self):
         raise NotImplementedError
 
-    def argument_defaults(self, alias=None):
-        args = super(Function, self).argument_defaults(alias)
+    def _arg_defaults(self, alias=None):
+        args = super(Function, self)._arg_defaults(alias)
 
         key = alias or self.name
         args[namespace['code-grid-name'](key)] = self.data.rawpointer
 
         return args
 
-    def argument_values(self, alias=None, **kwargs):
+    def _arg_values(self, alias=None, **kwargs):
         new = kwargs.get(self.name)
-        values = super(Function, self).argument_values(alias=alias, **kwargs)
+        values = super(Function, self)._arg_values(alias=alias, **kwargs)
 
         key = alias or self.name
         if key in values and isinstance(new, Function):

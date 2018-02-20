@@ -95,7 +95,7 @@ class Dimension(AbstractSymbol):
     def _hashable_content(self):
         return super(Dimension, self)._hashable_content() + (self.spacing,)
 
-    def argument_defaults(self, start=None, size=None, alias=None):
+    def _arg_defaults(self, start=None, size=None, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
@@ -315,7 +315,7 @@ class SteppingDimension(DerivedDimension):
         """
         return self.parent.symbolic_end
 
-    def argument_defaults(self, start=None, size=None, **kwargs):
+    def _arg_defaults(self, start=None, size=None, **kwargs):
         """
         Returns a map of default argument values defined by this symbol.
 
@@ -330,13 +330,13 @@ class SteppingDimension(DerivedDimension):
         """
         return {self.parent.start_name: start}
 
-    def argument_values(self, **kwargs):
+    def _arg_values(self, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
         :param kwargs: Dictionary of user-provided argument overrides.
         """
-        values = self.parent.argument_values(**kwargs)
+        values = self.parent._arg_values(**kwargs)
 
         if self.start_name in kwargs:
             values[self.parent.start_name] = kwargs.pop(self.start_name)
