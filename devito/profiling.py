@@ -151,7 +151,7 @@ class Profiler(object):
             gpoints = iterspace/10**9
 
             # Compulsory traffic
-            datashape = [(arguments[dims[i].end_name] - arguments[dims[i].start_name])
+            datashape = [(arguments[dims[i].end_name] - arguments[dims[i].start_name] + 1)
                          for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = float(profile.memory*dataspace*dtype().itemsize)

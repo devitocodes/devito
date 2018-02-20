@@ -416,19 +416,19 @@ class Iteration(Node):
         """
         Return the symbolic extent of the Iteration.
         """
-        return self.bounds_symbolic[1] - self.bounds_symbolic[0]
+        return self.bounds_symbolic[1] - self.bounds_symbolic[0] + 1
 
     @property
     def start_symbolic(self):
         """
-        Return the symbolic extent of the Iteration.
+        Return the symbolic start of the Iteration.
         """
         return self.bounds_symbolic[0]
 
     @property
     def end_symbolic(self):
         """
-        Return the symbolic extent of the Iteration.
+        Return the symbolic end of the Iteration.
         """
         return self.bounds_symbolic[1]
 
@@ -457,7 +457,7 @@ class Iteration(Node):
         ``None`` otherwise."""
         start, finish = self.bounds(start, finish)
         try:
-            return finish - start
+            return finish - start + 1
         except TypeError:
             return None
 

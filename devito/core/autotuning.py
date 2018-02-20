@@ -37,10 +37,10 @@ def autotune(operator, arguments, tunable):
         timesteps = 1
     elif len(steppers) == 1:
         stepper = steppers[0]
-        start = 0
-        timesteps = stepper.extent(start=start, finish=options['at_squeezer'])
+        start = at_arguments[stepper.dim.start_name]
+        timesteps = stepper.extent(start=start, finish=options['at_squeezer']) - 1
         if timesteps < 0:
-            timesteps = options['at_squeezer'] - timesteps + 1
+            timesteps = options['at_squeezer'] - timesteps
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)
         at_arguments[stepper.dim.start_name] = start
         at_arguments[stepper.dim.end_name] = timesteps
@@ -168,7 +168,7 @@ def more_heuristic_attempts(blocksizes):
 
 
 options = {
-    'at_squeezer': 5,
+    'at_squeezer': 4,
     'at_blocksize': sorted({8, 16, 24, 32, 40, 64, 128}),
     'at_stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }

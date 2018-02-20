@@ -160,13 +160,13 @@ class DevitoRewriter(BasicRewriter):
                 bsize = dim.symbolic_size
                 bstart = i.limits[0]
                 binnersize = i.dim.symbolic_extent + (i.offsets[1] - i.offsets[0])
-                bfinish = i.dim.symbolic_end - (binnersize % bsize)
+                bfinish = i.dim.symbolic_end - (binnersize % bsize) - 1
                 inter_block = Iteration([], dim, [bstart, bfinish, bsize],
                                         offsets=i.offsets, properties=PARALLEL)
                 inter_blocks.append(inter_block)
 
                 # Build Iteration within a block
-                limits = (as_symbol(dim), as_symbol(dim) + bsize, 1)
+                limits = (as_symbol(dim), as_symbol(dim) + bsize - 1, 1)
                 intra_block = i._rebuild([], limits=limits, offsets=(0, 0),
                                          properties=i.properties + (TAG, ELEMENTAL))
                 intra_blocks.append(intra_block)
@@ -174,7 +174,7 @@ class DevitoRewriter(BasicRewriter):
                 # Build unitary-increment Iteration over the 'leftover' region.
                 # This will be used for remainder loops, executed when any
                 # dimension size is not a multiple of the block size.
-                remainder = i._rebuild([], limits=[bfinish, i.dim.symbolic_end, 1],
+                remainder = i._rebuild([], limits=[bfinish + 1, i.dim.symbolic_end, 1],
                                        offsets=(i.offsets[1], i.offsets[1]))
                 remainders.append(remainder)
 

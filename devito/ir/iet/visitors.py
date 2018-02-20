@@ -257,7 +257,7 @@ class CGen(Visitor):
             loop_inc = '%s -= %s' % (o.index, o.limits[2])
         else:
             loop_init = 'int %s = %s' % (o.index, ccode(start))
-            loop_cond = '%s < %s' % (o.index, ccode(end))
+            loop_cond = '%s <= %s' % (o.index, ccode(end))
             loop_inc = '%s += %s' % (o.index, o.limits[2])
 
         # Append unbounded indices, if any
