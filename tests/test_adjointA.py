@@ -17,13 +17,13 @@ presets = {
 @skipif_yask
 @pytest.mark.parametrize('mkey, shape, kernel, space_order, nbpml', [
     # 2D tests with varying time and space orders
-    ('layers', (60, 70), 'OT2', 4, 10), ('layers', (60, 70), 'OT2', 8, 10),
-    ('layers', (60, 70), 'OT2', 12, 10), ('layers', (60, 70), 'OT4', 4, 10),
-    ('layers', (60, 70), 'OT4', 8, 10), ('layers', (60, 70), 'OT4', 12, 10),
+    ('layers', (60, 70), 'OT2', 4, 20), ('layers', (60, 70), 'OT2', 8, 20),
+    ('layers', (60, 70), 'OT2', 12, 20), ('layers', (60, 70), 'OT4', 4, 20),
+    ('layers', (60, 70), 'OT4', 8, 20), ('layers', (60, 70), 'OT4', 12, 20),
     # 3D tests with varying time and space orders
-    ('layers', (60, 70, 80), 'OT2', 4, 10), ('layers', (60, 70, 80), 'OT2', 8, 10),
-    ('layers', (60, 70, 80), 'OT2', 12, 10), ('layers', (60, 70, 80), 'OT4', 4, 10),
-    ('layers', (60, 70, 80), 'OT4', 8, 10), ('layers', (60, 70, 80), 'OT4', 12, 10),
+    ('layers', (60, 70, 80), 'OT2', 4, 20), ('layers', (60, 70, 80), 'OT2', 8, 20),
+    ('layers', (60, 70, 80), 'OT2', 12, 20), ('layers', (60, 70, 80), 'OT4', 4, 20),
+    ('layers', (60, 70, 80), 'OT4', 8, 20), ('layers', (60, 70, 80), 'OT4', 12, 20),
     # Constant model in 2D and 3D
     ('constant', (60, 70), 'OT2', 8, 14), ('constant', (60, 70, 80), 'OT2', 8, 14),
 ])
@@ -42,12 +42,14 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     time_values = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values,
+                       dtype=np.float64)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = 30.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec,
+                   dtype=np.float64)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -58,7 +60,7 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
 
     # Create adjoint receiver symbol
     srca = Receiver(name='srca', grid=model.grid, ntime=solver.source.nt,
-                    coordinates=solver.source.coordinates.data)
+                    coordinates=solver.source.coordinates.data, dtype=np.float64)
 
     # Run forward and adjoint operators
     rec, _, _ = solver.forward(save=False)
@@ -67,6 +69,6 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
     term1 = np.dot(srca.data.reshape(-1), solver.source.data)
     term2 = linalg.norm(rec.data) ** 2
-    info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
+    info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %2.4e, ratio: %2.4f'
          % (term1, term2, (term1 - term2)/term1, term1 / term2))
     assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)

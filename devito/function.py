@@ -968,7 +968,7 @@ class SparseFunction(TensorFunction):
                             than an assignment. Defaults to False.
         """
         expr = indexify(expr)
-        offset = (offset, offset, offset)[::self.grid.dim]
+        offset = (offset, offset, offset)[:self.grid.dim]
 
         # Apply optional time symbol substitutions to expr
         if u_t is not None:
@@ -999,17 +999,29 @@ class SparseFunction(TensorFunction):
         return [Eq(lhs, rhs)]
 
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+        """
+        Symbol for injection of an expression onto a grid
+
+        :param field: The grid field into which we inject.
+        :param expr: The expression or list of fd expression to inject.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into `field`.
+        :param p_t: (Optional) time index to use for indexing into `expr`.
+        """
         if isinstance(expr, sparse_fd_list):
             inject_src = []
             for expr, shift in expr:
-                offsets = tuple([offset + shift[dim]/dim.spacing for dim in self.grid.dimensions])
-                inject_src += self.inject_expr(field, expr, offset=offsets, u_t=u_t, p_t=p_t)
+                offsets = tuple([offset + shift[dim]/dim.spacing
+                                for dim in self.grid.dimensions])
+                inject_src += self.inject_expr(field, expr,
+                                               offset=offsets, u_t=u_t, p_t=p_t)
             return inject_src
         else:
-            offsets = (offset, offset, offset)[::self.grid.dim]
+            offsets = (offset, offset, offset)[:self.grid.dim]
             return self.inject_expr(field, expr, offset=offsets, u_t=u_t, p_t=p_t)
 
-    def inject_expr(self, field, expr, offset=0, u_t=None, p_t=None):
+    def inject_expr(self, field, expr, offset=(0, 0, 0), u_t=None, p_t=None):
         """Symbol for injection of an expression onto a grid
 
         :param field: The grid field into which we inject.
@@ -1043,7 +1055,7 @@ class SparseFunction(TensorFunction):
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
-        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases(offset)))
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases()))
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]

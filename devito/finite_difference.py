@@ -238,13 +238,13 @@ def sparse_generic_derivative(function, deriv_order, dim, fd_order):
     These derivatives are to be used in combination with 'inject'.
     """
     # Check number of dimension and which dimension to set offset to
-    offsets = lambda x, y : dict([(d, 0) if d != x else (x, y)
-                                  for d in function.grid.dimensions])
+    offsets = lambda x, y: dict([(d, 0) if d != x else (x, y)
+                                 for d in function.grid.dimensions])
     # Computes fd offsets and cofficients
     indices = [(dim + i * dim.spacing/2) for i in range(-fd_order, fd_order + 1)]
     coeffs = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
-    coeffs = [c.subs({dim : 0}) for c in coeffs[::-1]]
-    indices = [offsets(dim, i.subs({dim : 0})) for i in indices]
+    coeffs = [c.subs({dim: 0}) for c in coeffs[::-1]]
+    indices = [offsets(dim, i.subs({dim: 0})) for i in indices]
     # Build fd List
 
     return sparse_fd_list([(w*function, pos) for w, pos in zip(coeffs, indices)])
@@ -261,19 +261,20 @@ def sparse_cross_derivative(function, dims, fd_order):
        to differentiate, eg. `x`, `y`, `z`.
     :returns: The cross derivative
     """
-    offsets = lambda x, y : dict([(d, 0) for d in function.grid.dimensions if d not in x] +
-                                 [(xx, yy) for xx, yy in zip(x, y)])
+    offsets = lambda x, y: dict([(d, 0) for d in function.grid.dimensions if d not in x] +
+                                [(xx, yy) for xx, yy in zip(x, y)])
     # First dimension
     indices1 = [(dims[0] + i * dims[0].spacing/2) for i in range(-fd_order, fd_order + 1)]
     coeffs1 = finite_diff_weights(1, indices1, dims[0])[-1][-1]
-    coeffs1 = [c.subs({dims[0] : 0}) for c in coeffs1[::-1]]
-    indices1 = [i.subs({dims[0] : 0}) for i in indices1]
+    coeffs1 = [c.subs({dims[0]: 0}) for c in coeffs1[::-1]]
+    indices1 = [i.subs({dims[0]: 0}) for i in indices1]
     # Second dimension
     indices2 = [(dims[1] + i * dims[1].spacing/2) for i in range(-fd_order, fd_order + 1)]
     coeffs2 = finite_diff_weights(1, indices2, dims[1])[-1][-1]
-    coeffs2 = [c.subs({dims[1] : 0}) for c in coeffs2[::-1]]
-    indices2 = [i.subs({dims[1] : 0}) for i in indices2]
+    coeffs2 = [c.subs({dims[1]: 0}) for c in coeffs2[::-1]]
+    indices2 = [i.subs({dims[1]: 0}) for i in indices2]
 
-    cross = sparse_fd_list([[(w1*w2*function, offsets(dims, (h1, h2))) for (w2, h2) in zip(coeffs2, indices2)]
-             for (w1, h1) in zip(coeffs1, indices1)])
+    cross = sparse_fd_list([[(w1*w2*function, offsets(dims, (h1, h2)))
+                            for (w2, h2) in zip(coeffs2, indices2)]
+                            for (w1, h1) in zip(coeffs1, indices1)])
     return cross
