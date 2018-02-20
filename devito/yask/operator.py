@@ -118,16 +118,14 @@ class Operator(OperatorRunnable):
 
         return List(body=casts + [nodes])
 
-    def _argument_defaults(self, arguments):
-        default_args = super(Operator, self)._argument_defaults(arguments)
+    def arguments(self, **kwargs):
+        args = {}
         # Add in solution pointer
-        default_args[namespace['code-soln-name']] = self.yk_soln.rawpointer
-
+        args[namespace['code-soln-name']] = self.yk_soln.rawpointer
         # Add in local grids pointers
         for k, v in self.yk_soln.local_grids.items():
-            default_args[namespace['code-grid-name'](k)] = rawpointer(v)
-
-        return default_args
+            args[namespace['code-grid-name'](k)] = rawpointer(v)
+        return super(Operator, self).arguments(backend=args, **kwargs)
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
