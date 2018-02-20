@@ -118,63 +118,57 @@ class Operator(Callable):
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
-    def _argument_defaults(self, arguments):
-        """
-        Derive all default values from parameters and ensure uniqueness.
-        """
-        default_args = ReducerMap()
-        for p in self.input:
-            if p.name not in arguments:
-                default_args.update(p.argument_defaults())
-        for p in self.dimensions:
-            if p.name not in arguments and p.is_Sub:
-                default_args.update(p.argument_defaults(default_args))
-        return {k: default_args.reduce(k) for k in default_args if k not in arguments}
-
     def arguments(self, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
-        arguments = {}
-        # First, we insert user-provided override
-        for p in self.input + self.dimensions:
-            arguments.update(p.argument_values(**kwargs))
+        # Handle data-carriers (first overrides, then defaults)
+        args = ReducerMap()
+        args.update([p._arg_values(**kwargs) for p in self.input if p.name in kwargs])
+        args.update([p._arg_defaults() for p in self.input if p.name not in args])
+        args = args.reduce_all()
 
-        # Second, derive all remaining default values from parameters
-        arguments.update(self._argument_defaults(arguments))
+        # Handle dimensions (first adjust data-carriers-induced defaults, then overrides)
+        for p in self.dimensions:
+            args.update(p._arg_infers(args, *self._aspace[p]))
+        for p in self.dimensions:
+            args.update(p._arg_values(**kwargs))
 
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
         # with the rest of the argument derivation procedure.
-        for arg in self.dle_arguments:
+        for arg in self.dle_args:
             dim = arg.argument
-            osize = arguments[arg.original_dim.symbolic_size.name]
+            osize = args[arg.original_dim.symbolic_size.name]
             if dim.symbolic_size in self.parameters:
                 if arg.value is None:
-                    arguments[dim.symbolic_size.name] = osize
+                    args[dim.symbolic_size.name] = osize
                 elif isinstance(arg.value, int):
-                    arguments[dim.symbolic_size.name] = arg.value
+                    args[dim.symbolic_size.name] = arg.value
                 else:
-                    arguments[dim.symbolic_size.name] = arg.value(osize)
+                    args[dim.symbolic_size.name] = arg.value(osize)
 
         # Add in the profiler argument
-        arguments[self.profiler.name] = self.profiler.new()
+        args[self.profiler.name] = self.profiler.new()
+
+        # Add in any backend-specific argument
+        args.update(kwargs.get('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
         autotune = kwargs.pop('autotune', False)
         if autotune:
             # AT assumes and ordered dict, so let's feed it one
-            at_args = OrderedDict([(p.name, arguments[p.name]) for p in self.parameters])
-            arguments = self._autotune(at_args)
+            at_args = OrderedDict([(p.name, args[p.name]) for p in self.parameters])
+            args = self._autotune(at_args)
 
-        # Check all argument are present
+        # Check all arguments are present
         for p in self.parameters:
-            if p.name not in arguments:
+            if p.name not in args:
                 raise ValueError("No value found for parameter %s" % p.name)
 
-        return arguments
+        return args
 
     @property
     def elemental_functions(self):

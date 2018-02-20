@@ -3,7 +3,7 @@ from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.clusters.graph import FlowGraph
-from devito.ir.support import AccessSpace, IntervalGroup, Any, Backward
+from devito.ir.support import AccessSpace, IntervalGroup, Any
 from devito.tools import ReducerMap
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -166,7 +166,4 @@ class ClusterGroup(list):
         all_directions = [i for items in all_directions for i in items]
         directions = ReducerMap([(i.name, j) for i, j in all_directions]).reduce_all()
         directions = {i.dim: directions.get(i.dim.name, Any) for i in intervals}
-        # Flip access intervals depending on traversal direction
-        intervals = IntervalGroup(i.flip().negate() if directions[i.dim] is Backward
-                                  else i for i in intervals)
         return AccessSpace(intervals, directions)

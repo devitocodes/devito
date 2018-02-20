@@ -3,7 +3,6 @@ from __future__ import absolute_import
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.exceptions import InvalidOperator
-from devito.ir.equations import LoweredEq
 from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
 from devito.operator import OperatorRunnable
 from devito.symbolics import retrieve_indexed, q_affine
@@ -81,10 +80,13 @@ class OperatorCore(OperatorRunnable):
                         raise InvalidOperator("Access `%s` in %s is not a translated "
                                               "identity function" % (i, indexed))
                     shift = abs(min(gap.left + ofs, 0)) + abs(min(gap.right - ofs, 0))
-                    if shift != 0 and shift != constraints.setdefault(d, shift):
+                    if shift == 0:
+                        continue
+                    constraint = constraints.setdefault(f, {d: shift})
+                    if shift != constraint.setdefault(d, shift):
                         raise InvalidOperator("Access `%s` in %s with halo %s "
                                               "has incompatible shift %d (expected %d)"
-                                              % (i, indexed, gap, shift, constraints[d]))
+                                              % (i, indexed, gap, shift, constraint[d]))
 
         # Calculate shifting
         mapper = {}
@@ -93,8 +95,8 @@ class OperatorCore(OperatorRunnable):
                 f = indexed.base.function
                 if not f.is_SymbolicFunction:
                     continue
-                subs = {i: i + gap.left - constraints.get(d, 0) for i, d, gap in
-                        zip(indexed.indices, f.dimensions, f._offset_domain)}
+                subs = {i: i + gap.left - constraints.get(f, {}).get(d, 0) for i, d, gap
+                        in zip(indexed.indices, f.dimensions, f._offset_domain)}
                 mapper[indexed] = indexed.xreplace(subs)
 
         # Transform expressions by applying the shifting
