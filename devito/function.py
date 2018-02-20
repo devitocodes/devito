@@ -1010,8 +1010,17 @@ class SparseFunction(TensorFunction):
 
         :param alias: (Optional) name under which to store values.
         """
-        args = super(SparseFunction, self).argument_defaults(alias=alias)
-        args.update(self.coordinates.argument_defaults())
+        key_name = self.name if alias is None else alias.name or self.name
+        key_indices = self.indices if alias is None else alias.indices
+        key_coords = self.coordinates.name if alias is None else alias.coordinates.name
+
+        args = ArgumentMap({key_name: self._data_buffer})
+
+        # Collect default dimension arguments from all indices
+        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key_indices):
+            args.update(i.argument_defaults(size=s+o, alias=k))
+
+        args.update(self.coordinates.argument_defaults(alias=key_coords))
         return args
 
     def argument_values(self, alias=None, **kwargs):
@@ -1024,18 +1033,17 @@ class SparseFunction(TensorFunction):
         # Take a copy of the replacement before super pops it from kwargs
 
         new = kwargs.get(self.name)
-        key = alias or self.name
+        key = alias or self
 
-        values = super(SparseFunction, self).argument_values(alias=key, **kwargs)
-
+        # values = super(SparseFunction, self).argument_values(alias=key, **kwargs)
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
-            values.update(new.argument_defaults(alias=key).reduce_all())
-            values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
+            values = new.argument_defaults(alias=key).reduce_all()
         else:
             # ..., but if not, we simply need to recurse over children.
-            values.update(self.coordinates.argument_values(alias=key, **kwargs))
+            values = self.coordinates.argument_values(alias=key, **kwargs)
+
         return values
 
 

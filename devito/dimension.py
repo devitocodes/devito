@@ -95,13 +95,15 @@ class Dimension(AbstractSymbol):
     def _hashable_content(self):
         return super(Dimension, self)._hashable_content() + (self.spacing,)
 
-    def argument_defaults(self, size=None):
+    def argument_defaults(self, size=None, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param size: Optional, known size as provided by data-carrying symbols
         """
-        return {self.start_name: 0, self.end_name: size, self.size_name: size}
+        dim = alias or self
+
+        return {dim.start_name: 0, dim.end_name: size, dim.size_name: size}
 
     def argument_values(self, **kwargs):
         """
@@ -217,7 +219,7 @@ class SubDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.lower, self.upper)
 
-    def argument_defaults(self, parent_defaults):
+    def argument_defaults(self, parent_defaults, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
@@ -311,7 +313,7 @@ class SteppingDimension(DerivedDimension):
         """
         return self.parent.symbolic_end
 
-    def argument_defaults(self, size=None):
+    def argument_defaults(self, size=None, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
