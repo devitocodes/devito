@@ -159,7 +159,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.symbolics.inspection</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Counter</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span>
@@ -178,13 +178,10 @@
 <span class="sd">    Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``</span>
 <span class="sd">    matching ``query`` and ``v`` is the number of its occurrences.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
-        <span class="n">found</span> <span class="o">=</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;bfs&#39;</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
-            <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-    <span class="k">return</span> <span class="n">mapper</span></div>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;bfs&#39;</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="estimate_cost"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.estimate_cost">[docs]</a><span class="k">def</span> <span class="nf">estimate_cost</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">estimate_functions</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
