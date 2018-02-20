@@ -23,6 +23,10 @@ class Eq(sympy.Eq):
         obj._region = region
         return obj
 
+    def xreplace(self, rules):
+        return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
+                         region=self._region)
+
 
 class Inc(Eq):
 
