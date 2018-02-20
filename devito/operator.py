@@ -98,11 +98,11 @@ class Operator(Callable):
         dle_state = transform(nodes, *set_dle_mode(dle))
 
         # Update the Operator state based on the DLE
-        self.dle_arguments = dle_state.arguments
+        self.dle_args = dle_state.arguments
         self.dle_flags = dle_state.flags
         self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                             for i in dle_state.elemental_functions]))
-        self.dimensions.extend([i.argument for i in self.dle_arguments
+        self.dimensions.extend([i.argument for i in self.dle_args
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
 
@@ -225,10 +225,10 @@ class Operator(Callable):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         return List(body=nodes), None
 
-    def _autotune(self, arguments):
+    def _autotune(self, args):
         """Use auto-tuning on this Operator to determine empirically the
         best block sizes when loop blocking is in use."""
-        return arguments
+        return args
 
     def _specialize_exprs(self, expressions, subs):
         """
@@ -278,18 +278,18 @@ class OperatorRunnable(Operator):
     def apply(self, **kwargs):
         """Apply the stencil kernel to a set of data objects"""
         # Build the arguments list to invoke the kernel function
-        arguments = self.arguments(**kwargs)
+        args = self.arguments(**kwargs)
 
         # Invoke kernel function with args
-        arg_values = [arguments[p.name] for p in self.parameters]
+        arg_values = [args[p.name] for p in self.parameters]
         self.cfunction(*arg_values)
 
         # Output summary of performance achieved
-        return self._profile_output(arguments)
+        return self._profile_output(args)
 
-    def _profile_output(self, arguments):
+    def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
-        summary = self.profiler.summary(arguments, self.dtype)
+        summary = self.profiler.summary(args, self.dtype)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))

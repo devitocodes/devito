@@ -131,7 +131,7 @@ class Operator(OperatorRunnable):
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
-        arguments = self.arguments(**kwargs)
+        args = self.arguments(**kwargs)
 
         # Map default Functions to runtime Functions; will be used for "grid sharing"
         toshare = {}
@@ -143,12 +143,12 @@ class Operator(OperatorRunnable):
                 toshare[v] = v.data
 
         log("Running YASK Operator through Devito...")
-        arg_values = [arguments[p.name] for p in self.parameters]
+        arg_values = [args[p.name] for p in self.parameters]
         self.yk_soln.run(self.cfunction, arg_values, toshare)
         log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
-        return self._profile_output(arguments)
+        return self._profile_output(args)
 
     @property
     def compile(self):
