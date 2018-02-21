@@ -579,6 +579,9 @@ class sparse_fd_list(list):
     def __mul__(self, constant):
         return sparse_fd_list([(i[0] * constant, i[1]) for i in self])
 
+    def __rmul__(self, constant):
+        return sparse_fd_list([(i[0] * constant, i[1]) for i in self])
+
     def __floordiv__(self, constant):
         return sparse_fd_list([(i[0] / constant, i[1]) for i in self])
 
