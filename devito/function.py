@@ -438,7 +438,7 @@ class Function(TensorFunction):
             self._padding = padding
 
             # Dynamically add derivative short-cuts
-            self.derivatives = self.derivatives if hasattr(self, 'derivatives') else []
+            self.derivatives = []
             self._initialize_derivatives()
 
     def _initialize_derivatives(self):
@@ -454,6 +454,7 @@ class Function(TensorFunction):
                              'the centered first derivative wrt. '
                              'the %s dimension' % dim.name))
             self.derivatives += ["d%s" % dim.name]
+
             # First derivative, left
             dxl = partial(first_derivative, order=self.space_order,
                           dim=dim, side=left)
@@ -462,6 +463,7 @@ class Function(TensorFunction):
                              'the left-sided first derivative wrt. '
                              'the %s dimension' % dim.name))
             self.derivatives += ["d%sl" % dim.name]
+
             # First derivative, right
             dxr = partial(first_derivative, order=self.space_order,
                           dim=dim, side=right)
@@ -480,6 +482,7 @@ class Function(TensorFunction):
                                  'the second derivative wrt. the '
                                  '%s dimension' % dim.name))
                 self.derivatives += ["d%s2" % dim.name]
+
             # Fourth derivative
             if self.space_order >= 4:
                 dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
@@ -489,6 +492,7 @@ class Function(TensorFunction):
                                  'the fourth derivative wrt. the '
                                  '%s dimension' % dim.name))
                 self.derivatives += ["d%s4" % dim.name]
+
             # Cross derivatives
             for dim2 in [d for d in self.space_dimensions if d != dim]:
                 # First cross derivative
@@ -500,6 +504,7 @@ class Function(TensorFunction):
                                  '%s and %s dimensions' %
                                  (dim.name, dim2.name)))
                 self.derivatives += ["d%s%s" % (dim.name, dim2.name)]
+
                 # Second cross derivative
                 if self.space_order >= 2:
                     dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
@@ -547,6 +552,11 @@ class Function(TensorFunction):
         return self.indices
 
     @property
+    def derivatives(self):
+        """Return the list of available derivatives shortcuts"""
+        return self.derivatives + ["div", "laplace", "laplace2"]
+
+    @property
     def laplace(self):
         """
         Generates a symbolic expression for the Laplacian, the second
@@ -558,10 +568,18 @@ class Function(TensorFunction):
         else:
             return sum([getattr(self, 'd%s2' % d.name) for d in self.space_dimensions])
 
+    @property
+    def div(self):
+        """
+        Generate a symbolic expression for the divergence
+        """
+        return sum([getattr(self, 'd%s' % d.name) for d in self.space_dimensions])
+
     def laplace2(self, weight=1):
         """
         Generates a symbolic expression for the double Laplacian
-        wrt. all spatial dimensions.
+        wrt. all spatial dimensions with weight:
+        laplace(weight * laplace(self))
         """
         if self.space_order < 2:
             warning("Space order has to be at least 2 for a laplacian, returning 0")
@@ -648,9 +666,9 @@ class TimeFunction(Function):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             time_order = kwargs.get('time_order', 1)
-            self.derivatives = ["dt"] if time_order > 0 else []
-            self.derivatives += ["dt2"] if time_order > 1 else []
             super(TimeFunction, self).__init__(**kwargs)
+            self.derivatives += ["dt"] if time_order > 0 else []
+            self.derivatives += ["dt2"] if time_order > 1 else []
 
             # Check we won't allocate too much memory for the system
             available_mem = virtual_memory().available
@@ -729,29 +747,26 @@ class TimeFunction(Function):
         """Symbol for the first derivative wrt the time dimension"""
         _t = self.indices[0]
         if self.time_order == 0:
-            warning("Time oder is 0, no time derivatives available, returning 0")
+            warning("Time order is 0, no time derivatives available, returning 0")
             return 0
-        elif self.time_order == 1:
-            # This hack is needed for the first-order diffusion test
-            indices = [_t, _t + _t.spacing]
         else:
             width = int(self.time_order / 2)
             indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
-
-        return self.diff(_t).as_finite_difference(indices)
+            return self.diff(_t).as_finite_difference(indices)
 
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
         if self.time_order < 2:
-            warning("Time oder smaller than 2, no second time derivatives available," +
+            warning("Time order smaller than 2, no second time derivatives available," +
                     " returning 0")
             return 0
-        _t = self.indices[0]
-        width_t = int(self.time_order / 2)
-        indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
+        else:
+            _t = self.indices[0]
+            width_t = int(self.time_order / 2)
+            indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
 
-        return self.diff(_t, _t).as_finite_difference(indt)
+            return self.diff(_t, _t).as_finite_difference(indt)
 
     def argument_values(self, alias=None, **kwargs):
         """
