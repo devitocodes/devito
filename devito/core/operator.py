@@ -79,7 +79,7 @@ class OperatorCore(OperatorRunnable):
                     if not ofs.is_Number:
                         raise InvalidOperator("Access `%s` in %s is not a translated "
                                               "identity function" % (i, indexed))
-                    shift = abs(min(gap.left + ofs, 0)) + abs(min(gap.right - ofs, 0))
+                    shift = abs(min(gap.right - ofs, 0))
                     if shift == 0:
                         continue
                     constraint = constraints.setdefault(f, {d: shift})
