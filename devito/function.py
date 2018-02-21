@@ -113,12 +113,16 @@ class TensorFunction(SymbolicFunction):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
                 self._data = Data(self.shape_allocated, self.indices, self.dtype)
-                if self._first_touch:
+                if self.initializer is not None:
+                    try:
+                        self.initializer(self._data)
+                    except ValueError:
+                        # Perhaps user only wants to initialise the physical domain
+                        self.initializer(self._data[self._mask_domain])
+                elif self._first_touch:
                     first_touch(self)
                 else:
                     self._data.fill(0)
-                if self.initializer is not None:
-                    self.initializer(self._data)
             return func(self)
         return wrapper
 
@@ -177,6 +181,18 @@ class TensorFunction(SymbolicFunction):
         extents = tuple(Extent(i, j) for i, j in self._padding)
 
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @property
+    def _mask_domain(self):
+        """A mask to access the domain region of the allocated data."""
+        return tuple(slice(i, -j) if j != 0 else slice(i, None)
+                     for i, j in self._offset_domain)
+
+    @property
+    def _mask_with_halo(self):
+        """A mask to access the domain+halo region of the allocated data."""
+        return tuple(slice(i, -j) if j != 0 else slice(i, None)
+                     for i, j in self._offset_halo)
 
     @property
     def _mem_external(self):
@@ -242,8 +258,7 @@ class TensorFunction(SymbolicFunction):
 
             Alias to ``self.data``.
         """
-        return self._data[tuple(slice(i, -j) if j != 0 else slice(i, None)
-                          for i, j in self._offset_domain)]
+        return self._data[self._mask_domain]
 
     @property
     @_allocate_memory
@@ -253,8 +268,7 @@ class TensorFunction(SymbolicFunction):
 
         Elements are stored in row-major format.
         """
-        return self._data[tuple(slice(i, -j) if j != 0 else slice(i, None)
-                          for i, j in self._offset_halo)]
+        return self._data[self._mask_with_halo]
 
     @property
     @_allocate_memory
