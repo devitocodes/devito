@@ -438,7 +438,7 @@ class Function(TensorFunction):
             self._padding = padding
 
             # Dynamically add derivative short-cuts
-            self.derivatives = []
+            self._derivatives = []
             self._initialize_derivatives()
 
     def _initialize_derivatives(self):
@@ -453,7 +453,7 @@ class Function(TensorFunction):
                     property(dx, 'Return the symbolic expression for '
                              'the centered first derivative wrt. '
                              'the %s dimension' % dim.name))
-            self.derivatives += ["d%s" % dim.name]
+            self._derivatives += ["d%s" % dim.name]
 
             # First derivative, left
             dxl = partial(first_derivative, order=self.space_order,
@@ -462,7 +462,7 @@ class Function(TensorFunction):
                     property(dxl, 'Return the symbolic expression for '
                              'the left-sided first derivative wrt. '
                              'the %s dimension' % dim.name))
-            self.derivatives += ["d%sl" % dim.name]
+            self._derivatives += ["d%sl" % dim.name]
 
             # First derivative, right
             dxr = partial(first_derivative, order=self.space_order,
@@ -471,7 +471,7 @@ class Function(TensorFunction):
                     property(dxr, 'Return the symbolic expression for '
                              'the right-sided first derivative wrt. '
                              'the %s dimension' % dim.name))
-            self.derivatives += ["d%sr" % dim.name]
+            self._derivatives += ["d%sr" % dim.name]
 
             # Second derivative
             if self.space_order >= 2:
@@ -481,7 +481,7 @@ class Function(TensorFunction):
                         property(dx2, 'Return the symbolic expression for '
                                  'the second derivative wrt. the '
                                  '%s dimension' % dim.name))
-                self.derivatives += ["d%s2" % dim.name]
+                self._derivatives += ["d%s2" % dim.name]
 
             # Fourth derivative
             if self.space_order >= 4:
@@ -491,7 +491,7 @@ class Function(TensorFunction):
                         property(dx4, 'Return the symbolic expression for '
                                  'the fourth derivative wrt. the '
                                  '%s dimension' % dim.name))
-                self.derivatives += ["d%s4" % dim.name]
+                self._derivatives += ["d%s4" % dim.name]
 
             # Cross derivatives
             for dim2 in [d for d in self.space_dimensions if d != dim]:
@@ -503,7 +503,7 @@ class Function(TensorFunction):
                                  'the first cross derivative wrt. the '
                                  '%s and %s dimensions' %
                                  (dim.name, dim2.name)))
-                self.derivatives += ["d%s%s" % (dim.name, dim2.name)]
+                self._derivatives += ["d%s%s" % (dim.name, dim2.name)]
 
                 # Second cross derivative
                 if self.space_order >= 2:
@@ -514,10 +514,10 @@ class Function(TensorFunction):
                                      'the second cross derivative wrt. the '
                                      '%s and %s dimensions' %
                                      (dim.name, dim2.name)))
-                    self.derivatives += ["d%s2%s2" % (dim.name, dim2.name)]
+                    self._derivatives += ["d%s2%s2" % (dim.name, dim2.name)]
 
         debug("Spatial derivatives shortcuts generated for %s are:  %s" %
-              (self, self.derivatives))
+              (self, self._derivatives))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -554,7 +554,7 @@ class Function(TensorFunction):
     @property
     def derivatives(self):
         """Return the list of available derivatives shortcuts"""
-        return self.derivatives + ["div", "laplace", "laplace2"]
+        return self._derivatives + ["div", "laplace", "laplace2"]
 
     @property
     def laplace(self):
@@ -667,8 +667,8 @@ class TimeFunction(Function):
         if not self._cached():
             time_order = kwargs.get('time_order', 1)
             super(TimeFunction, self).__init__(**kwargs)
-            self.derivatives += ["dt"] if time_order > 0 else []
-            self.derivatives += ["dt2"] if time_order > 1 else []
+            self._derivatives += ["dt"] if time_order > 0 else []
+            self._derivatives += ["dt2"] if time_order > 1 else []
 
             # Check we won't allocate too much memory for the system
             available_mem = virtual_memory().available
