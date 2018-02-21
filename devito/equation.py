@@ -2,7 +2,22 @@
 
 import sympy
 
-__all__ = ['Eq', 'Inc', 'DOMAIN', 'INTERIOR']
+__all__ = ['Eq', 'solve', 'Inc', 'DOMAIN', 'INTERIOR']
+
+
+def solve(*args, **kwargs):
+
+    """
+    Devito `sympy.slove` that bypasses operations simplifications and
+    rational values evaluations
+
+    Skiping  simplifcations as it is really slow for complex equations and done
+    again by DSE for optimizations.
+    Skiping rational to avoid floating point indices
+    """
+    kwargs["simplify"] = False
+    kwargs["rational"] = False
+    return sympy.solve(*args, **kwargs)
 
 
 class Eq(sympy.Eq):

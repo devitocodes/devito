@@ -5,13 +5,12 @@ from operator import mul
 import numpy as np
 import pytest
 from conftest import skipif_yask
-from sympy import solve
 
 from conftest import EVAL
 
 from devito.dle import transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import Grid, Function, TimeFunction, Eq, Operator
+from devito import Grid, Function, TimeFunction, Eq, Operator, solve
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
                            Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)

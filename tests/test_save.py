@@ -1,8 +1,7 @@
 import numpy as np
-from sympy import solve
 from conftest import skipif_yask
 
-from devito import Grid, Eq, Operator, TimeFunction
+from devito import Grid, Eq, Operator, TimeFunction, solve
 
 
 def initial(dx=0.01, dy=0.01):
