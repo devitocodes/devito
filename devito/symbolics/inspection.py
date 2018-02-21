@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import Counter
 from operator import attrgetter
 
 from sympy import Indexed, cos, sin
@@ -17,13 +17,10 @@ def count(exprs, query):
     Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``
     matching ``query`` and ``v`` is the number of its occurrences.
     """
-    mapper = OrderedDict()
+    mapper = Counter()
     for expr in exprs:
-        found = search(expr, query, 'all', 'bfs')
-        for i in found:
-            mapper.setdefault(i, 0)
-            mapper[i] += 1
-    return mapper
+        mapper.update(Counter(search(expr, query, 'all', 'bfs')))
+    return dict(mapper)
 
 
 def estimate_cost(handle, estimate_functions=False):
