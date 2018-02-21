@@ -195,8 +195,8 @@
         <span class="n">subs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">:</span> <span class="n">LoweredDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">uindices</span><span class="p">})</span>
     <span class="n">iet</span> <span class="o">=</span> <span class="n">SubstituteExpression</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">iet</span></div>
+</div>
+    <span class="k">return</span> <span class="n">iet</span>
 
 
 <span class="k">def</span> <span class="nf">iet_make</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
@@ -338,8 +338,8 @@
     <span class="k">if</span> <span class="n">allocator</span><span class="o">.</span><span class="n">onheap</span><span class="p">:</span>
         <span class="n">decls</span><span class="p">,</span> <span class="n">allocs</span><span class="p">,</span> <span class="n">frees</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">allocator</span><span class="o">.</span><span class="n">onheap</span><span class="p">)</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">decls</span> <span class="o">+</span> <span class="n">allocs</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">iet</span><span class="p">,</span> <span class="n">footer</span><span class="o">=</span><span class="n">frees</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">iet</span></div>
+</div>
+    <span class="k">return</span> <span class="n">iet</span>
 </pre></div>
 
            </div>

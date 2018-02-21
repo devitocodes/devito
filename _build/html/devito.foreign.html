@@ -208,22 +208,24 @@
 <dl class="class">
 <dt id="devito.foreign.operator.Operator">
 <em class="property">class </em><code class="descclassname">devito.foreign.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/foreign/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.foreign.operator.Operator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="devito.html#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">devito.operator.Operator</span></code></a></p>
-<p>A special <a class="reference internal" href="#devito.foreign.operator.Operator" title="devito.foreign.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">Operator</span></code></a> for use outside of Python.</p>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.operator.Operator</span></code></a></p>
+<p>A special <a class="reference internal" href="#devito.foreign.operator.Operator" title="devito.foreign.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a> for use outside of Python.</p>
 <dl class="method">
 <dt id="devito.foreign.operator.Operator.arguments">
 <code class="descname">arguments</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/foreign/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.foreign.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Process runtime arguments passed to <a href="#id1"><span class="problematic" id="id2">``</span></a>.apply()` and derive
+default values for any remaining arguments.</p>
+</dd></dl>
 
 </dd></dl>
 
 </div>
 <div class="section" id="module-devito.foreign">
 <span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.foreign" title="Permalink to this headline">¶</a></h2>
-<p>The <code class="docutils literal"><span class="pre">foreign</span></code> Devito backend is meant to be used by codes that don’t
+<p>The <code class="docutils literal notranslate"><span class="pre">foreign</span></code> Devito backend is meant to be used by codes that don’t
 run Python natively. This backend is only capable of generating and compiling
 kernels; however, kernels must be executed explicitly from outside Devito.
-Further, with the <code class="docutils literal"><span class="pre">foreign</span></code> backed, Devito doesn’t allocate any data.</p>
+Further, with the <code class="docutils literal notranslate"><span class="pre">foreign</span></code> backed, Devito doesn’t allocate any data.</p>
 </div>
 </div>
 

@@ -1,5 +1,5 @@
-devito\.dse package
-===================
+devito.dse package
+==================
 
 Subpackages
 -----------
@@ -11,24 +11,24 @@ Subpackages
 Submodules
 ----------
 
-devito\.dse\.aliases module
----------------------------
+devito.dse.aliases module
+-------------------------
 
 .. automodule:: devito.dse.aliases
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.dse\.manipulation module
---------------------------------
+devito.dse.manipulation module
+------------------------------
 
 .. automodule:: devito.dse.manipulation
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.dse\.transformer module
--------------------------------
+devito.dse.transformer module
+-----------------------------
 
 .. automodule:: devito.dse.transformer
     :members:

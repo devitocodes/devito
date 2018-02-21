@@ -200,8 +200,8 @@
                              <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">)</span> <span class="o">-</span>
             <span class="n">first_derivative</span><span class="p">(</span><span class="n">Gx2</span> <span class="o">*</span> <span class="n">sintheta</span><span class="p">,</span>
                              <span class="n">dim</span><span class="o">=</span><span class="n">z</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">centered</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">space_order</span><span class="p">,</span>
-                             <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span>
-    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gxx1</span> <span class="o">+</span> <span class="n">Gxx2</span><span class="p">)</span></div>
+                             <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span></div>
+    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gxx1</span> <span class="o">+</span> <span class="n">Gxx2</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Gxx_shifted_2d"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.Gxx_shifted_2d">[docs]</a><span class="k">def</span> <span class="nf">Gxx_shifted_2d</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -229,8 +229,8 @@
             <span class="n">first_derivative</span><span class="p">(</span><span class="n">Gx2p</span> <span class="o">*</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">y</span><span class="p">,</span>
                              <span class="n">side</span><span class="o">=</span><span class="n">right</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">space_order</span><span class="p">,</span>
                              <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span>
-
-    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gxx1</span> <span class="o">+</span> <span class="n">Gxx2</span><span class="p">)</span></div>
+</div>
+    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gxx1</span> <span class="o">+</span> <span class="n">Gxx2</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Gyy_shifted"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.Gyy_shifted">[docs]</a><span class="k">def</span> <span class="nf">Gyy_shifted</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -257,8 +257,8 @@
                              <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">)</span> <span class="o">-</span>
             <span class="n">first_derivative</span><span class="p">(</span><span class="n">Gyp2</span> <span class="o">*</span> <span class="n">cosphi</span><span class="p">,</span>
                              <span class="n">dim</span><span class="o">=</span><span class="n">y</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">centered</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">space_order</span><span class="p">,</span>
-                             <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span>
-    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gyy</span> <span class="o">+</span> <span class="n">Gyy2</span><span class="p">)</span></div>
+                             <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span></div>
+    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gyy</span> <span class="o">+</span> <span class="n">Gyy2</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Gzz_shifted"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.Gzz_shifted">[docs]</a><span class="k">def</span> <span class="nf">Gzz_shifted</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -295,8 +295,8 @@
                              <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">)</span> <span class="o">+</span>
             <span class="n">first_derivative</span><span class="p">(</span><span class="n">Gzr2</span> <span class="o">*</span> <span class="n">costheta</span><span class="p">,</span>
                              <span class="n">dim</span><span class="o">=</span><span class="n">z</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">centered</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">space_order</span><span class="p">,</span>
-                             <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span>
-    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gzz</span> <span class="o">+</span> <span class="n">Gzz2</span><span class="p">)</span></div>
+                             <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span></div>
+    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gzz</span> <span class="o">+</span> <span class="n">Gzz2</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Gzz_shifted_2d"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.Gzz_shifted_2d">[docs]</a><span class="k">def</span> <span class="nf">Gzz_shifted_2d</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -324,8 +324,8 @@
             <span class="n">first_derivative</span><span class="p">(</span><span class="n">Gz2r</span> <span class="o">*</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">y</span><span class="p">,</span>
                              <span class="n">side</span><span class="o">=</span><span class="n">right</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">space_order</span><span class="p">,</span>
                              <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span>
-
-    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gzz1</span> <span class="o">+</span> <span class="n">Gzz2</span><span class="p">)</span></div>
+</div>
+    <span class="k">return</span> <span class="o">-.</span><span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Gzz1</span> <span class="o">+</span> <span class="n">Gzz2</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Gzz_centered"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.Gzz_centered">[docs]</a><span class="k">def</span> <span class="nf">Gzz_centered</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -355,8 +355,8 @@
                             <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">)</span> <span class="o">+</span>
            <span class="n">first_derivative</span><span class="p">(</span><span class="n">Gz</span> <span class="o">*</span> <span class="n">costheta</span><span class="p">,</span>
                             <span class="n">dim</span><span class="o">=</span><span class="n">z</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">centered</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order1</span><span class="p">,</span>
-                            <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">Gzz</span></div>
+                            <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span></div>
+    <span class="k">return</span> <span class="n">Gzz</span>
 
 
 <div class="viewcode-block" id="Gzz_centered_2d"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.Gzz_centered_2d">[docs]</a><span class="k">def</span> <span class="nf">Gzz_centered_2d</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -377,8 +377,8 @@
                             <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">)</span> <span class="o">+</span>
            <span class="n">first_derivative</span><span class="p">(</span><span class="n">Gz</span> <span class="o">*</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">y</span><span class="p">,</span>
                             <span class="n">side</span><span class="o">=</span><span class="n">centered</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order1</span><span class="p">,</span>
-                            <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">Gzz</span></div>
+                            <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">))</span></div>
+    <span class="k">return</span> <span class="n">Gzz</span>
 
 
 <span class="c1"># Centered case produces directly Gxx + Gyy</span>
@@ -396,8 +396,8 @@
 <span class="sd">    :param space_order: discretization order</span>
 <span class="sd">    :return: Sum of the 3D rotated second order derivative in the direction x and y</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_centered</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">field</span><span class="o">.</span><span class="n">laplace</span> <span class="o">-</span> <span class="n">Gzz</span></div>
+    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_centered</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">field</span><span class="o">.</span><span class="n">laplace</span> <span class="o">-</span> <span class="n">Gzz</span>
 
 
 <div class="viewcode-block" id="Gxx_centered_2d"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.Gxx_centered_2d">[docs]</a><span class="k">def</span> <span class="nf">Gxx_centered_2d</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -413,8 +413,8 @@
 <span class="sd">    :param sinphi: sine of the azymuth angle</span>
 <span class="sd">    :param space_order: discretization order</span>
 <span class="sd">    :return: Sum of the 3D rotated second order derivative in the direction x</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">field</span><span class="o">.</span><span class="n">laplace</span> <span class="o">-</span> <span class="n">Gzz_centered_2d</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span></div>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+    <span class="k">return</span> <span class="n">field</span><span class="o">.</span><span class="n">laplace</span> <span class="o">-</span> <span class="n">Gzz_centered_2d</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="kernel_shifted_2d"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.kernel_shifted_2d">[docs]</a><span class="k">def</span> <span class="nf">kernel_shifted_2d</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -438,8 +438,8 @@
 <span class="sd">    :return: u and v component of the rotated Laplacian in 2D</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">Gxx</span> <span class="o">=</span> <span class="n">Gxx_shifted_2d</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_shifted_2d</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">Gxx</span><span class="p">,</span> <span class="n">Gzz</span></div>
+    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_shifted_2d</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">Gxx</span><span class="p">,</span> <span class="n">Gzz</span>
 
 
 <div class="viewcode-block" id="kernel_shifted_3d"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.kernel_shifted_3d">[docs]</a><span class="k">def</span> <span class="nf">kernel_shifted_3d</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -464,8 +464,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">Gxx</span> <span class="o">=</span> <span class="n">Gxx_shifted</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
     <span class="n">Gyy</span> <span class="o">=</span> <span class="n">Gyy_shifted</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_shifted</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">Gxx</span> <span class="o">+</span> <span class="n">Gyy</span><span class="p">,</span> <span class="n">Gzz</span></div>
+    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_shifted</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">Gxx</span> <span class="o">+</span> <span class="n">Gyy</span><span class="p">,</span> <span class="n">Gzz</span>
 
 
 <div class="viewcode-block" id="kernel_centered_2d"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.kernel_centered_2d">[docs]</a><span class="k">def</span> <span class="nf">kernel_centered_2d</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -489,8 +489,8 @@
 <span class="sd">    :return: u and v component of the rotated Laplacian in 2D</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">Gxx</span> <span class="o">=</span> <span class="n">Gxx_centered_2d</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_centered_2d</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">Gxx</span><span class="p">,</span> <span class="n">Gzz</span></div>
+    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_centered_2d</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">Gxx</span><span class="p">,</span> <span class="n">Gzz</span>
 
 
 <div class="viewcode-block" id="kernel_centered_3d"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.kernel_centered_3d">[docs]</a><span class="k">def</span> <span class="nf">kernel_centered_3d</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">):</span>
@@ -514,8 +514,8 @@
 <span class="sd">    :return: u and v component of the rotated Laplacian in 2D</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">Gxx</span> <span class="o">=</span> <span class="n">Gxxyy_centered</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_centered</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">Gxx</span><span class="p">,</span> <span class="n">Gzz</span></div>
+    <span class="n">Gzz</span> <span class="o">=</span> <span class="n">Gzz_centered</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">costheta</span><span class="p">,</span> <span class="n">sintheta</span><span class="p">,</span> <span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="p">,</span> <span class="n">space_order</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">Gxx</span><span class="p">,</span> <span class="n">Gzz</span>
 
 
 <div class="viewcode-block" id="ForwardOperator"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.operators.ForwardOperator">[docs]</a><span class="k">def</span> <span class="nf">ForwardOperator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
@@ -577,8 +577,8 @@
                            <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
     <span class="n">stencils</span> <span class="o">+=</span> <span class="n">rec</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">u</span> <span class="o">+</span> <span class="n">v</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
 
-    <span class="c1"># Substitute spacing terms to reduce flops</span>
-    <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">stencils</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;ForwardTTI&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+    <span class="c1"># Substitute spacing terms to reduce flops</span></div>
+    <span class="k">return</span> <span class="n">Operator</span><span class="p">(</span><span class="n">stencils</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">spacing_map</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;ForwardTTI&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
 <span class="n">kernels</span> <span class="o">=</span> <span class="p">{(</span><span class="s1">&#39;shifted&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span> <span class="n">kernel_shifted_3d</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;shifted&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span> <span class="n">kernel_shifted_2d</span><span class="p">,</span>

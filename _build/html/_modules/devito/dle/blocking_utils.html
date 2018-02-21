@@ -218,8 +218,8 @@
 
     <span class="c1"># Insert the IterationFolds in the Iteration/Expression tree</span>
     <span class="n">processed</span> <span class="o">=</span> <span class="n">NestedTransformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">processed</span></div>
+</div>
+    <span class="k">return</span> <span class="n">processed</span>
 
 
 <div class="viewcode-block" id="unfold_blocked_tree"><a class="viewcode-back" href="../../../devito.dle.html#devito.dle.blocking_utils.unfold_blocked_tree">[docs]</a><span class="k">def</span> <span class="nf">unfold_blocked_tree</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
@@ -265,8 +265,8 @@
 
     <span class="c1"># Insert the unfolded Iterations in the Iteration/Expression tree</span>
     <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">processed</span></div>
+</div>
+    <span class="k">return</span> <span class="n">processed</span>
 
 
 <span class="k">def</span> <span class="nf">optimize_unfolded_tree</span><span class="p">(</span><span class="n">unfolded</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>

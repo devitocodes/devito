@@ -1,11 +1,11 @@
-devito\.foreign package
-=======================
+devito.foreign package
+======================
 
 Submodules
 ----------
 
-devito\.foreign\.operator module
---------------------------------
+devito.foreign.operator module
+------------------------------
 
 .. automodule:: devito.foreign.operator
     :members:

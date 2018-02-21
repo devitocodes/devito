@@ -190,8 +190,8 @@
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="s2">&quot;Property: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s2">&quot;Property: </span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span></div>
+        <span class="k">else</span><span class="p">:</span></div>
+            <span class="k">return</span> <span class="s2">&quot;Property: </span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span>
 
 
 <span class="n">SEQUENTIAL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;sequential&#39;</span><span class="p">)</span>
@@ -215,12 +215,12 @@
 <span class="sd">u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --&gt; u[t-1, ...] = f(u[t, ...], u[t-1, ...]).&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="tagger"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.tagger">[docs]</a><span class="k">def</span> <span class="nf">tagger</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
-    <span class="k">return</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;tag&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span></div>
+<div class="viewcode-block" id="tagger"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.tagger">[docs]</a><span class="k">def</span> <span class="nf">tagger</span><span class="p">(</span><span class="n">i</span><span class="p">):</span></div>
+    <span class="k">return</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;tag&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="ntags"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.ntags">[docs]</a><span class="k">def</span> <span class="nf">ntags</span><span class="p">():</span>
-    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span><span class="p">)</span> <span class="o">-</span> <span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span></div>
+<div class="viewcode-block" id="ntags"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.ntags">[docs]</a><span class="k">def</span> <span class="nf">ntags</span><span class="p">():</span></div>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span><span class="p">)</span> <span class="o">-</span> <span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span>
 <span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span><span class="p">)</span>  <span class="c1"># noqa</span>
 </pre></div>
 

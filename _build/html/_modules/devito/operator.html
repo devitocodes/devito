@@ -331,8 +331,8 @@
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">arguments</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No value found for parameter </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">arguments</span></div>
+</div>
+        <span class="k">return</span> <span class="n">arguments</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">elemental_functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -404,8 +404,8 @@
 <span class="sd">        tree ``nodes``.&quot;&quot;&quot;</span>
         <span class="n">casts</span> <span class="o">=</span> <span class="p">[</span><span class="n">ArrayCast</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Tensor</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">]</span>
         <span class="n">profiler</span> <span class="o">=</span> <span class="n">Object</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">)</span>
-        <span class="n">casts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PointerCast</span><span class="p">(</span><span class="n">profiler</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">casts</span> <span class="o">+</span> <span class="p">[</span><span class="n">nodes</span><span class="p">])</span></div>
+        <span class="n">casts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PointerCast</span><span class="p">(</span><span class="n">profiler</span><span class="p">))</span></div>
+        <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">casts</span> <span class="o">+</span> <span class="p">[</span><span class="n">nodes</span><span class="p">])</span>
 
 
 <div class="viewcode-block" id="OperatorRunnable"><a class="viewcode-back" href="../../devito.html#devito.operator.OperatorRunnable">[docs]</a><span class="k">class</span> <span class="nc">OperatorRunnable</span><span class="p">(</span><span class="n">Operator</span><span class="p">):</span>
@@ -426,8 +426,8 @@
         <span class="n">arg_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">arguments</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="n">arg_values</span><span class="p">)</span>
 
-        <span class="c1"># Output summary of performance achieved</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_output</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span></div>
+        <span class="c1"># Output summary of performance achieved</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_output</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_profile_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return a performance summary of the profiled sections.&quot;&quot;&quot;</span>
@@ -443,8 +443,8 @@
     <span class="k">def</span> <span class="nf">_profile_sections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,):</span>
         <span class="sd">&quot;&quot;&quot;Introduce C-level profiling nodes within the Iteration/Expression tree.&quot;&quot;&quot;</span>
         <span class="n">nodes</span><span class="p">,</span> <span class="n">profiler</span> <span class="o">=</span> <span class="n">create_profile</span><span class="p">(</span><span class="s1">&#39;timers&#39;</span><span class="p">,</span> <span class="n">nodes</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_globals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">cdef</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">profiler</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_globals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">cdef</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">profiler</span>
 
 
 <span class="c1"># Functions collecting information from a bag of expressions</span>
@@ -457,8 +457,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">lhss</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">dtype</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">])</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lhss</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Expression types mismatch.&quot;</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">lhss</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span></div>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Expression types mismatch.&quot;</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">lhss</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
 
 
 <div class="viewcode-block" id="retrieve_symbols"><a class="viewcode-back" href="../../devito.html#devito.operator.retrieve_symbols">[docs]</a><span class="k">def</span> <span class="nf">retrieve_symbols</span><span class="p">(</span><span class="n">expressions</span><span class="p">):</span>
@@ -492,8 +492,8 @@
         <span class="n">dimensions</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">))</span>
     <span class="n">dimensions</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">])</span>
     <span class="n">dimensions</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">attrgetter</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span>
-
-    <span class="k">return</span> <span class="nb">input</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">dimensions</span></div>
+</div>
+    <span class="k">return</span> <span class="nb">input</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">dimensions</span>
 
 
 <span class="c1"># Misc helpers</span>
@@ -510,8 +510,8 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">return</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
-        <span class="k">except</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal DSE mode </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span></div>
+        <span class="k">except</span><span class="p">:</span></div>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal DSE mode </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>
 
 
 <div class="viewcode-block" id="set_dle_mode"><a class="viewcode-back" href="../../devito.html#devito.operator.set_dle_mode">[docs]</a><span class="k">def</span> <span class="nf">set_dle_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">):</span>
@@ -528,8 +528,8 @@
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
             <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mode</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])),</span> <span class="n">mode</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mode</span><span class="p">)),</span> <span class="p">{}</span>
-    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal DLE mode </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span></div>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mode</span><span class="p">)),</span> <span class="p">{}</span></div>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal DLE mode </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>
 </pre></div>
 
            </div>

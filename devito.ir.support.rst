@@ -1,35 +1,35 @@
-devito\.ir\.support package
-===========================
+devito.ir.support package
+=========================
 
 Submodules
 ----------
 
-devito\.ir\.support\.basic module
----------------------------------
+devito.ir.support.basic module
+------------------------------
 
 .. automodule:: devito.ir.support.basic
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.ir\.support\.space module
----------------------------------
+devito.ir.support.space module
+------------------------------
 
 .. automodule:: devito.ir.support.space
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.ir\.support\.stencil module
------------------------------------
+devito.ir.support.stencil module
+--------------------------------
 
 .. automodule:: devito.ir.support.stencil
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.ir\.support\.utils module
----------------------------------
+devito.ir.support.utils module
+------------------------------
 
 .. automodule:: devito.ir.support.utils
     :members:

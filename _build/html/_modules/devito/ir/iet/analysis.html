@@ -217,8 +217,8 @@
         <span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;properties&#39;</span><span class="p">))</span> <span class="o">+</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
         <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">Iteration</span><span class="p">(</span><span class="n">properties</span><span class="o">=</span><span class="n">properties</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
     <span class="n">processed</span> <span class="o">=</span> <span class="n">NestedTransformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">processed</span></div>
+</div>
+    <span class="k">return</span> <span class="n">processed</span>
 
 
 <span class="nd">@propertizer</span>

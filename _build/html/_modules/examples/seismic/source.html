@@ -211,8 +211,8 @@
         <span class="k">return</span> <span class="n">obj</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
-            <span class="nb">super</span><span class="p">(</span><span class="n">PointSource</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span></div>
+            <span class="nb">super</span><span class="p">(</span><span class="n">PointSource</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
 <span class="n">Receiver</span> <span class="o">=</span> <span class="n">PointSource</span>
@@ -294,8 +294,8 @@
 <span class="sd">        :param f0: Peak frequency in kHz</span>
 <span class="sd">        :param t: Discretized values of time in ms</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">f0</span> <span class="o">*</span> <span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="mf">1.</span><span class="o">/</span><span class="n">f0</span><span class="p">))</span>
-        <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mf">2.</span><span class="o">*</span><span class="n">r</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">r</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div></div>
+        <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">f0</span> <span class="o">*</span> <span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="mf">1.</span><span class="o">/</span><span class="n">f0</span><span class="p">))</span></div></div>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mf">2.</span><span class="o">*</span><span class="n">r</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">r</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="GaborSource"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.GaborSource">[docs]</a><span class="k">class</span> <span class="nc">GaborSource</span><span class="p">(</span><span class="n">WaveletSource</span><span class="p">):</span>
@@ -320,8 +320,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">agauss</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">f0</span>
         <span class="n">tcut</span> <span class="o">=</span> <span class="mf">1.5</span> <span class="o">/</span> <span class="n">agauss</span>
-        <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span><span class="o">-</span><span class="n">tcut</span><span class="p">)</span> <span class="o">*</span> <span class="n">agauss</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">s</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span></div></div>
+        <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span><span class="o">-</span><span class="n">tcut</span><span class="p">)</span> <span class="o">*</span> <span class="n">agauss</span></div></div>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">s</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span>
 </pre></div>
 
            </div>

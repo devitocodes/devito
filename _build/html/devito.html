@@ -310,8 +310,8 @@
 <dl class="class">
 <dt id="devito.arguments.ArgumentMap">
 <em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">ArgumentMap</code><a class="reference internal" href="_modules/devito/arguments.html#ArgumentMap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ArgumentMap" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">multidict._multidict.MultiDict</span></code></p>
-<p>Specialised <code class="xref py py-class docutils literal"><span class="pre">MultiDict</span></code> object that maps a single key to a
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">multidict._multidict.MultiDict</span></code></p>
+<p>Specialised <code class="xref py py-class docutils literal notranslate"><span class="pre">MultiDict</span></code> object that maps a single key to a
 list of potential values and provides a reduction method for
 retrieval.</p>
 <dl class="method">
@@ -326,7 +326,7 @@ retrieval.</p>
 <li><strong>key</strong> – Key for which to retrieve candidate values</li>
 <li><strong>op</strong> – Operator for reduction among candidate values.
 If not provided, a unique value will be returned,
-or a <code class="docutils literal"><span class="pre">ValueError</span></code> raised if no unique value exists.</li>
+or a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> raised if no unique value exists.</li>
 </ul>
 </td>
 </tr>
@@ -344,7 +344,7 @@ or a <code class="docutils literal"><span class="pre">ValueError</span></code> r
 <dt id="devito.arguments.ArgumentMap.unique">
 <code class="descname">unique</code><span class="sig-paren">(</span><em>key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ArgumentMap.unique"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ArgumentMap.unique" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns a unique value for a given key, if such a value
-exists, and raises a <code class="docutils literal"><span class="pre">ValueError</span></code> if it does not.</p>
+exists, and raises a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if it does not.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -369,7 +369,7 @@ exists, and raises a <code class="docutils literal"><span class="pre">ValueError
 <p>The Devito backend configuration engine.</p>
 <div class="admonition warning">
 <p class="first admonition-title">Warning</p>
-<p class="last">The backend should always be set via <code class="xref py py-func docutils literal"><span class="pre">devito.init()</span></code></p>
+<p class="last">The backend should always be set via <code class="xref py py-func docutils literal notranslate"><span class="pre">devito.init()</span></code></p>
 </div>
 <dl class="function">
 <dt id="devito.backends.get_backend">
@@ -398,7 +398,7 @@ exists, and raises a <code class="docutils literal"><span class="pre">ValueError
 <dl class="class">
 <dt id="devito.backends.void">
 <em class="property">class </em><code class="descclassname">devito.backends.</code><code class="descname">void</code><a class="reference internal" href="_modules/devito/backends.html#void"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.backends.void" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Dummy backend.</p>
 </dd></dl>
 
@@ -409,7 +409,7 @@ exists, and raises a <code class="docutils literal"><span class="pre">ValueError
 <dl class="class">
 <dt id="devito.base.Array">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Array</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Array"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Array" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.Array</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.Array</span></code></p>
 <p>Symbolic object representing a tensor.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -438,7 +438,7 @@ exists, and raises a <code class="docutils literal"><span class="pre">ValueError
 <dl class="class">
 <dt id="devito.base.CacheManager">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">CacheManager</code><a class="reference internal" href="_modules/devito/base.html#CacheManager"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.CacheManager" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.CacheManager</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.CacheManager</span></code></p>
 <p>Drop unreferenced objects from the SymPy and Devito caches. The associated
 data is lost (and thus memory is freed).</p>
 <dl class="attribute">
@@ -576,12 +576,12 @@ data is lost (and thus memory is freed).</p>
 <dl class="class">
 <dt id="devito.base.Constant">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Constant</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Constant" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.function.Constant" title="devito.function.Constant"><code class="xref py py-class docutils literal"><span class="pre">devito.function.Constant</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.function.Constant" title="devito.function.Constant"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.Constant</span></code></a></p>
 <p>Symbol representing constant values in symbolic equations.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">The parameters must always be given as keyword arguments, since
-SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+SymPy uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
 <dl class="attribute">
@@ -594,16 +594,16 @@ symbolic function.</p>
 <dl class="class">
 <dt id="devito.base.Function">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Function</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Function" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">devito.function.Function</span></code></a></p>
-<p>Data object for spatially varying data acting as a <code class="xref py py-class docutils literal"><span class="pre">SymbolicFunction</span></code>.</p>
+<dd><p>Bases: <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.Function</span></code></a></p>
+<p>Data object for spatially varying data acting as a <code class="xref py py-class docutils literal notranslate"><span class="pre">SymbolicFunction</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the symbol</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
-and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object from which to infer the data shape
+and <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> indices.</li>
 <li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
@@ -618,11 +618,11 @@ then the number of space dimensions.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives. By default,
 space derivatives are expressed in terms of centered
-approximations, with <code class="docutils literal"><span class="pre">ceil(space_order/2)</span></code> points
+approximations, with <code class="docutils literal notranslate"><span class="pre">ceil(space_order/2)</span></code> points
 on each side of the point of interest. For asymmetric
-approximations, one may pass a 3-tuple <code class="docutils literal"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
-instead of a single integer. Here, <code class="docutils literal"><span class="pre">o</span></code> is the
-approximation order, while <code class="docutils literal"><span class="pre">lp</span></code> and <code class="docutils literal"><span class="pre">rp</span></code> indicate
+approximations, one may pass a 3-tuple <code class="docutils literal notranslate"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
+instead of a single integer. Here, <code class="docutils literal notranslate"><span class="pre">o</span></code> is the
+approximation order, while <code class="docutils literal notranslate"><span class="pre">lp</span></code> and <code class="docutils literal notranslate"><span class="pre">rp</span></code> indicate
 the maximum number of points that an approximation can
 use on the two sides of the point of interest.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
@@ -634,25 +634,25 @@ use on the two sides of the point of interest.</li>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">The parameters must always be given as keyword arguments, since
-SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+SymPy uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
-<code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
-<p class="last"><a class="reference internal" href="#devito.base.Function" title="devito.base.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a> objects are assumed to be constant in time
+<p>If the parameter <code class="docutils literal notranslate"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal notranslate"><span class="pre">shape</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dimensions</span></code> and <code class="docutils literal notranslate"><span class="pre">dtype</span></code> will be derived from it.</p>
+<p class="last"><a class="reference internal" href="#devito.base.Function" title="devito.base.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code></a> objects are assumed to be constant in time
 and therefore do not support time derivatives. Use
-<a class="reference internal" href="#devito.base.TimeFunction" title="devito.base.TimeFunction"><code class="xref py py-class docutils literal"><span class="pre">TimeFunction</span></code></a> for time-varying grid data.</p>
+<a class="reference internal" href="#devito.base.TimeFunction" title="devito.base.TimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeFunction</span></code></a> for time-varying grid data.</p>
 </div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">The tuple :param staggered: contains a <code class="docutils literal"><span class="pre">1</span></code> in each dimension
-entry that should be staggered, and <code class="docutils literal"><span class="pre">0</span></code> otherwise. For example,
-<code class="docutils literal"><span class="pre">staggered=(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> entails discretization on horizontal edges,
-<code class="docutils literal"><span class="pre">staggered=(0,</span> <span class="pre">0,</span> <span class="pre">1)</span></code> entails discretization on vertical edges,
-<code class="docutils literal"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
-<code class="docutils literal"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
+<p class="last">The tuple :param staggered: contains a <code class="docutils literal notranslate"><span class="pre">1</span></code> in each dimension
+entry that should be staggered, and <code class="docutils literal notranslate"><span class="pre">0</span></code> otherwise. For example,
+<code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> entails discretization on horizontal edges,
+<code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">0,</span> <span class="pre">1)</span></code> entails discretization on vertical edges,
+<code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
+<code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
 </div>
 <dl class="attribute">
 <dt id="devito.base.Function.default_assumptions">
@@ -664,7 +664,7 @@ entry that should be staggered, and <code class="docutils literal"><span class="
 <dl class="class">
 <dt id="devito.base.Operator">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Operator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">devito.operator.Operator</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.operator.Operator</span></code></a></p>
 <p>A node representing a function.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -672,11 +672,11 @@ entry that should be staggered, and <code class="docutils literal"><span class="
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – The name of the function.</li>
-<li><strong>body</strong> – A <code class="xref py py-class docutils literal"><span class="pre">Node</span></code> or an iterable of <code class="xref py py-class docutils literal"><span class="pre">Node</span></code> objects representing
+<li><strong>body</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code> or an iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code> objects representing
 the body of the function.</li>
 <li><strong>retval</strong> – The type of the value returned by the function.</li>
-<li><strong>parameters</strong> – An iterable of <code class="xref py py-class docutils literal"><span class="pre">SymbolicData</span></code> objects in input to the
-function, or <code class="docutils literal"><span class="pre">None</span></code> if the function takes no parameter.</li>
+<li><strong>parameters</strong> – An iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">SymbolicData</span></code> objects in input to the
+function, or <code class="docutils literal notranslate"><span class="pre">None</span></code> if the function takes no parameter.</li>
 <li><strong>prefix</strong> – An iterable of qualifiers to prepend to the function declaration.
 The default value is (‘static’, ‘inline’).</li>
 </ul>
@@ -819,7 +819,7 @@ The default value is (‘static’, ‘inline’).</li>
 <dl class="class">
 <dt id="devito.base.Scalar">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Scalar</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Scalar"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Scalar" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.Scalar</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.Scalar</span></code></p>
 <p>Symbolic object representing a scalar.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -843,11 +843,11 @@ The default value is (‘static’, ‘inline’).</li>
 <dl class="class">
 <dt id="devito.base.SparseFunction">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">SparseFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#SparseFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.SparseFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal"><span class="pre">devito.function.SparseFunction</span></code></a></p>
-<p>A special <code class="xref py py-class docutils literal"><span class="pre">TensorFunction</span></code> representing a set of sparse point
+<dd><p>Bases: <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.SparseFunction</span></code></a></p>
+<p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code> representing a set of sparse point
 objects that are not aligned with the computational grid.</p>
-<p>A <a class="reference internal" href="#devito.base.SparseFunction" title="devito.base.SparseFunction"><code class="xref py py-class docutils literal"><span class="pre">SparseFunction</span></code></a> provides symbolic interpolation routines
-to convert between grid-aligned <a class="reference internal" href="#devito.base.Function" title="devito.base.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a> objects and sparse
+<p>A <a class="reference internal" href="#devito.base.SparseFunction" title="devito.base.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a> provides symbolic interpolation routines
+to convert between grid-aligned <a class="reference internal" href="#devito.base.Function" title="devito.base.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code></a> objects and sparse
 data points.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -856,8 +856,8 @@ data points.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the function.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
-<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal"><span class="pre">(npoints,)</span></code>.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
@@ -885,8 +885,8 @@ symbolic function.</p>
 <dl class="class">
 <dt id="devito.base.SparseTimeFunction">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">SparseTimeFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#SparseTimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.SparseTimeFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.function.SparseTimeFunction" title="devito.function.SparseTimeFunction"><code class="xref py py-class docutils literal"><span class="pre">devito.function.SparseTimeFunction</span></code></a></p>
-<p>A time-dependent <a class="reference internal" href="#devito.base.SparseFunction" title="devito.base.SparseFunction"><code class="xref py py-class docutils literal"><span class="pre">SparseFunction</span></code></a>.</p>
+<dd><p>Bases: <a class="reference internal" href="#devito.function.SparseTimeFunction" title="devito.function.SparseTimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.SparseTimeFunction</span></code></a></p>
+<p>A time-dependent <a class="reference internal" href="#devito.base.SparseFunction" title="devito.base.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -895,8 +895,8 @@ symbolic function.</p>
 <li><strong>name</strong> – Name of the function.</li>
 <li><strong>nt</strong> – Size of the time dimension for point data.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
-<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
@@ -925,16 +925,16 @@ symbolic function.</p>
 <dl class="class">
 <dt id="devito.base.TimeFunction">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">TimeFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#TimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.TimeFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal"><span class="pre">devito.function.TimeFunction</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.TimeFunction</span></code></a></p>
 <p>Data object for time-varying data that acts as a Function symbol</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
-and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Function</span></code> symbol</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object from which to infer the data shape
+and <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> indices.</li>
 <li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
@@ -949,11 +949,11 @@ then the number of space dimensions.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives. By default,
 space derivatives are expressed in terms of centered
-approximations, with <code class="docutils literal"><span class="pre">ceil(space_order/2)</span></code> points
+approximations, with <code class="docutils literal notranslate"><span class="pre">ceil(space_order/2)</span></code> points
 on each side of the point of interest. For asymmetric
-approximations, one may pass a 3-tuple <code class="docutils literal"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
-instead of a single integer. Here, <code class="docutils literal"><span class="pre">o</span></code> is the
-approximation order, while <code class="docutils literal"><span class="pre">lp</span></code> and <code class="docutils literal"><span class="pre">rp</span></code> indicate
+approximations, one may pass a 3-tuple <code class="docutils literal notranslate"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
+instead of a single integer. Here, <code class="docutils literal notranslate"><span class="pre">o</span></code> is the
+approximation order, while <code class="docutils literal notranslate"><span class="pre">lp</span></code> and <code class="docutils literal notranslate"><span class="pre">rp</span></code> indicate
 the maximum number of points that an approximation can
 use on the two sides of the point of interest.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
@@ -961,11 +961,11 @@ use on the two sides of the point of interest.</li>
 to <cite>None</cite>, indicating the use of alternating buffers. If
 intermediate results are required, the value of save must
 be set to the required size of the time dimension.</li>
-<li><strong>time_dim</strong> – The <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> object to use to represent time in this
-symbol. Defaults to the time dimension provided by the <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code>.</li>
+<li><strong>time_dim</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent time in this
+symbol. Defaults to the time dimension provided by the <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code>.</li>
 <li><strong>time_order</strong> – Order of the time discretization which affects the
 final size of the leading time dimension of the
-data buffer. Unlike <code class="docutils literal"><span class="pre">space_order</span></code>, this can only be
+data buffer. Unlike <code class="docutils literal notranslate"><span class="pre">space_order</span></code>, this can only be
 an integer.</li>
 </ul>
 </td>
@@ -975,21 +975,21 @@ an integer.</li>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">The parameters must always be given as keyword arguments, since
-SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+SymPy uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
-<code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
-<p>The parameter <code class="docutils literal"><span class="pre">shape</span></code> should only define the spatial shape of
+<p>If the parameter <code class="docutils literal notranslate"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal notranslate"><span class="pre">shape</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dimensions</span></code> and <code class="docutils literal notranslate"><span class="pre">dtype</span></code> will be derived from it.</p>
+<p>The parameter <code class="docutils literal notranslate"><span class="pre">shape</span></code> should only define the spatial shape of
 the grid. The temporal dimension will be inserted automatically
-as the leading dimension, according to the <code class="docutils literal"><span class="pre">time_dim</span></code>,
-<code class="docutils literal"><span class="pre">time_order</span></code> and whether we want to write intermediate
+as the leading dimension, according to the <code class="docutils literal notranslate"><span class="pre">time_dim</span></code>,
+<code class="docutils literal notranslate"><span class="pre">time_order</span></code> and whether we want to write intermediate
 timesteps in the buffer. The same is true for explicitly
 provided dimensions, which will be added to the automatically
 derived time dimensions symbol. For example:</p>
-<div class="last highlight-python"><div class="highlight"><pre><span></span><span class="n">In</span> <span class="p">[]:</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">))</span>
+<div class="last highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">In</span> <span class="p">[]:</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">))</span>
 <span class="n">Out</span><span class="p">[]:</span> <span class="n">a</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
 
 <span class="n">In</span> <span class="p">[]:</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">))</span>
@@ -1010,7 +1010,7 @@ derived time dimensions symbol. For example:</p>
 <dl class="class">
 <dt id="devito.cgen_utils.Allocator">
 <em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">Allocator</code><a class="reference internal" href="_modules/devito/cgen_utils.html#Allocator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.Allocator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Generate C strings to declare pointers, allocate and free memory.</p>
 <dl class="attribute">
 <dt id="devito.cgen_utils.Allocator.onheap">
@@ -1026,13 +1026,13 @@ derived time dimensions symbol. For example:</p>
 <dt id="devito.cgen_utils.Allocator.push_heap">
 <code class="descname">push_heap</code><span class="sig-paren">(</span><em>obj</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#Allocator.push_heap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.Allocator.push_heap" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate cgen objects to declare, allocate memory, and free memory for
-<code class="docutils literal"><span class="pre">obj</span></code>, of type <code class="xref py py-class docutils literal"><span class="pre">SymbolicData</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">obj</span></code>, of type <code class="xref py py-class docutils literal notranslate"><span class="pre">SymbolicData</span></code>.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.cgen_utils.Allocator.push_stack">
 <code class="descname">push_stack</code><span class="sig-paren">(</span><em>scope</em>, <em>obj</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#Allocator.push_stack"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.Allocator.push_stack" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generate a cgen statement that allocates <code class="docutils literal"><span class="pre">obj</span></code> on the stack.</p>
+<dd><p>Generate a cgen statement that allocates <code class="docutils literal notranslate"><span class="pre">obj</span></code> on the stack.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1040,7 +1040,7 @@ derived time dimensions symbol. For example:</p>
 <dl class="class">
 <dt id="devito.cgen_utils.CodePrinter">
 <em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">CodePrinter</code><span class="sig-paren">(</span><em>settings={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#CodePrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.CodePrinter" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.printing.ccode.C99CodePrinter</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.printing.ccode.C99CodePrinter</span></code></p>
 <dl class="attribute">
 <dt id="devito.cgen_utils.CodePrinter.custom_functions">
 <code class="descname">custom_functions</code><em class="property"> = {'FLOAT': '(float)', 'INT': '(int)'}</em><a class="headerlink" href="#devito.cgen_utils.CodePrinter.custom_functions" title="Permalink to this definition">¶</a></dt>
@@ -1060,7 +1060,7 @@ derived time dimensions symbol. For example:</p>
 <dl class="class">
 <dt id="devito.cgen_utils.FLOAT">
 <em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">FLOAT</code><a class="headerlink" href="#devito.cgen_utils.FLOAT" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.function.AppliedUndef</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.function.AppliedUndef</span></code></p>
 <dl class="attribute">
 <dt id="devito.cgen_utils.FLOAT.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.cgen_utils.FLOAT.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -1071,7 +1071,7 @@ derived time dimensions symbol. For example:</p>
 <dl class="class">
 <dt id="devito.cgen_utils.INT">
 <em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">INT</code><a class="headerlink" href="#devito.cgen_utils.INT" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.function.AppliedUndef</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.function.AppliedUndef</span></code></p>
 <dl class="attribute">
 <dt id="devito.cgen_utils.INT.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.cgen_utils.INT.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -1158,13 +1158,13 @@ derived time dimensions symbol. For example:</p>
 <dl class="function">
 <dt id="devito.compiler.make">
 <code class="descclassname">devito.compiler.</code><code class="descname">make</code><span class="sig-paren">(</span><em>loc</em>, <em>args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#make"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.make" title="Permalink to this definition">¶</a></dt>
-<dd><p>Invoke <code class="docutils literal"><span class="pre">make</span></code> command from within <code class="docutils literal"><span class="pre">loc</span></code> with arguments <code class="docutils literal"><span class="pre">args</span></code>.</p>
+<dd><p>Invoke <code class="docutils literal notranslate"><span class="pre">make</span></code> command from within <code class="docutils literal notranslate"><span class="pre">loc</span></code> with arguments <code class="docutils literal notranslate"><span class="pre">args</span></code>.</p>
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.compiler.GNUCompiler">
 <em class="property">class </em><code class="descclassname">devito.compiler.</code><code class="descname">GNUCompiler</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#GNUCompiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.GNUCompiler" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.compiler.Compiler</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.compiler.Compiler</span></code></p>
 <p>Set of standard compiler flags for the GCC toolchain.</p>
 <dl class="attribute">
 <dt id="devito.compiler.GNUCompiler.CC">
@@ -1184,10 +1184,10 @@ derived time dimensions symbol. For example:</p>
 <dl class="class">
 <dt id="devito.data.Data">
 <em class="property">class </em><code class="descclassname">devito.data.</code><code class="descname">Data</code><a class="reference internal" href="_modules/devito/data.html#Data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.Data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></p>
-<p>A special <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> allowing logical indexing.</p>
-<p>The type <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> is subclassed as indicated at:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">docs</span><span class="o">.</span><span class="n">scipy</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">doc</span><span class="o">/</span><span class="n">numpy</span><span class="o">-</span><span class="mf">1.13</span><span class="o">.</span><span class="mi">0</span><span class="o">/</span><span class="n">user</span><span class="o">/</span><span class="n">basics</span><span class="o">.</span><span class="n">subclassing</span><span class="o">.</span><span class="n">html</span>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></p>
+<p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> allowing logical indexing.</p>
+<p>The type <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> is subclassed as indicated at:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">docs</span><span class="o">.</span><span class="n">scipy</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">doc</span><span class="o">/</span><span class="n">numpy</span><span class="o">-</span><span class="mf">1.13</span><span class="o">.</span><span class="mi">0</span><span class="o">/</span><span class="n">user</span><span class="o">/</span><span class="n">basics</span><span class="o">.</span><span class="n">subclassing</span><span class="o">.</span><span class="n">html</span>
 </pre></div>
 </div>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1196,9 +1196,9 @@ derived time dimensions symbol. For example:</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>shape</strong> – Shape of the domain region in grid points.</li>
-<li><strong>dimensions</strong> – A tuple of <code class="xref py py-class docutils literal"><span class="pre">Dimension`s,</span> <span class="pre">representing</span> <span class="pre">the</span> <span class="pre">dimensions</span>
+<li><strong>dimensions</strong> – A tuple of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s,</span> <span class="pre">representing</span> <span class="pre">the</span> <span class="pre">dimensions</span>
 <span class="pre">of</span> <span class="pre">the</span> <span class="pre">``Data`</span></code>.</li>
-<li><strong>dtype</strong> – A <code class="docutils literal"><span class="pre">numpy.dtype</span></code> for the raw data.</li>
+<li><strong>dtype</strong> – A <code class="docutils literal notranslate"><span class="pre">numpy.dtype</span></code> for the raw data.</li>
 </ul>
 </td>
 </tr>
@@ -1210,10 +1210,10 @@ derived time dimensions symbol. For example:</p>
 </div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">Any view or copy <code class="docutils literal"><span class="pre">A</span></code> created starting from <code class="docutils literal"><span class="pre">self</span></code>, for instance via
+<p class="last">Any view or copy <code class="docutils literal notranslate"><span class="pre">A</span></code> created starting from <code class="docutils literal notranslate"><span class="pre">self</span></code>, for instance via
 a slice operation or a universal function (“ufunc” in NumPy jargon), will
-still be of type <a class="reference internal" href="#devito.data.Data" title="devito.data.Data"><code class="xref py py-class docutils literal"><span class="pre">Data</span></code></a>. However, if <code class="docutils literal"><span class="pre">A</span></code>’s rank is different than
-<code class="docutils literal"><span class="pre">self</span></code>’s rank, namely if <code class="docutils literal"><span class="pre">A.ndim</span> <span class="pre">!=</span> <span class="pre">self.ndim</span></code>, then the capability of
+still be of type <a class="reference internal" href="#devito.data.Data" title="devito.data.Data"><code class="xref py py-class docutils literal notranslate"><span class="pre">Data</span></code></a>. However, if <code class="docutils literal notranslate"><span class="pre">A</span></code>’s rank is different than
+<code class="docutils literal notranslate"><span class="pre">self</span></code>’s rank, namely if <code class="docutils literal notranslate"><span class="pre">A.ndim</span> <span class="pre">!=</span> <span class="pre">self.ndim</span></code>, then the capability of
 performing logical indexing is lost.</p>
 </div>
 <dl class="method">
@@ -1241,7 +1241,7 @@ given pointer.</p>
 <dl class="function">
 <dt id="devito.data.malloc_aligned">
 <code class="descclassname">devito.data.</code><code class="descname">malloc_aligned</code><span class="sig-paren">(</span><em>shape</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>alignment=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#malloc_aligned"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.malloc_aligned" title="Permalink to this definition">¶</a></dt>
-<dd><p>Allocate memory using the C function <code class="docutils literal"><span class="pre">malloc_aligned</span></code>.</p>
+<dd><p>Allocate memory using the C function <code class="docutils literal notranslate"><span class="pre">malloc_aligned</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1271,7 +1271,7 @@ reference that is needed only for the call to free.</p>
 <dl class="class">
 <dt id="devito.dimension.Dimension">
 <em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">Dimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.AbstractSymbol</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.AbstractSymbol</span></code></p>
 <dl class="method">
 <dt id="devito.dimension.Dimension.argument_defaults">
 <code class="descname">argument_defaults</code><span class="sig-paren">(</span><em>size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#Dimension.argument_defaults"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.Dimension.argument_defaults" title="Permalink to this definition">¶</a></dt>
@@ -1429,7 +1429,7 @@ Would be the same as size if using default values</p>
 <dl class="class">
 <dt id="devito.dimension.SpaceDimension">
 <em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">SpaceDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SpaceDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SpaceDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal"><span class="pre">devito.dimension.Dimension</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.Dimension</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dimension.SpaceDimension.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.SpaceDimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -1439,8 +1439,8 @@ Would be the same as size if using default values</p>
 <dt id="devito.dimension.SpaceDimension.is_Space">
 <code class="descname">is_Space</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.SpaceDimension.is_Space" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol to represent a space dimension that defines the
-extent of physical grid. <code class="xref py py-class docutils literal"><span class="pre">SpaceDimensions</span></code> create dedicated
-shortcut notations for spatial derivatives on <code class="xref py py-class docutils literal"><span class="pre">Function</span></code>
+extent of physical grid. <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimensions</span></code> create dedicated
+shortcut notations for spatial derivatives on <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>
 symbols.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1461,7 +1461,7 @@ symbols.</p>
 <dl class="class">
 <dt id="devito.dimension.TimeDimension">
 <em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">TimeDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#TimeDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.TimeDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal"><span class="pre">devito.dimension.Dimension</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.Dimension</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dimension.TimeDimension.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.TimeDimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -1472,7 +1472,7 @@ symbols.</p>
 <code class="descname">is_Time</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.TimeDimension.is_Time" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol to represent a dimension that defines the extent
 of time. As time might be used in different contexts, all derived
-time dimensions should inherit from <a class="reference internal" href="#devito.dimension.TimeDimension" title="devito.dimension.TimeDimension"><code class="xref py py-class docutils literal"><span class="pre">TimeDimension</span></code></a>.</p>
+time dimensions should inherit from <a class="reference internal" href="#devito.dimension.TimeDimension" title="devito.dimension.TimeDimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDimension</span></code></a>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1492,7 +1492,7 @@ time dimensions should inherit from <a class="reference internal" href="#devito.
 <dl class="class">
 <dt id="devito.dimension.SteppingDimension">
 <em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">SteppingDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SteppingDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SteppingDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
 <dl class="method">
 <dt id="devito.dimension.SteppingDimension.argument_defaults">
 <code class="descname">argument_defaults</code><span class="sig-paren">(</span><em>size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SteppingDimension.argument_defaults"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SteppingDimension.argument_defaults" title="Permalink to this definition">¶</a></dt>
@@ -1506,7 +1506,7 @@ time dimensions should inherit from <a class="reference internal" href="#devito.
 </tbody>
 </table>
 <p>note</p>
-<p>A <a class="reference internal" href="#devito.dimension.SteppingDimension" title="devito.dimension.SteppingDimension"><code class="xref py py-class docutils literal"><span class="pre">SteppingDimension</span></code></a> neither knows its size nor its
+<p>A <a class="reference internal" href="#devito.dimension.SteppingDimension" title="devito.dimension.SteppingDimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">SteppingDimension</span></code></a> neither knows its size nor its
 iteration end point. So all we can provide is a starting point.</p>
 </dd></dl>
 
@@ -1538,7 +1538,7 @@ iteration end point. So all we can provide is a starting point.</p>
 <dt id="devito.dimension.SteppingDimension.is_Stepping">
 <code class="descname">is_Stepping</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.SteppingDimension.is_Stepping" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol that defines the stepping direction of an
-<code class="xref py py-class docutils literal"><span class="pre">Operator</span></code> and implies modulo buffered iteration. This is most
+<code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code> and implies modulo buffered iteration. This is most
 commonly use to represent a timestepping dimension.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1577,7 +1577,7 @@ of the parent variable.</p>
 <dl class="class">
 <dt id="devito.dimension.SubDimension">
 <em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">SubDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
 <dl class="method">
 <dt id="devito.dimension.SubDimension.argument_defaults">
 <code class="descname">argument_defaults</code><span class="sig-paren">(</span><em>parent_defaults</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension.argument_defaults"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension.argument_defaults" title="Permalink to this definition">¶</a></dt>
@@ -1601,7 +1601,7 @@ of the parent variable.</p>
 <dt id="devito.dimension.SubDimension.is_Sub">
 <code class="descname">is_Sub</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.SubDimension.is_Sub" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol representing a contiguous sub-region of a given
-<code class="docutils literal"><span class="pre">parent</span></code> Dimension.</p>
+<code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1609,8 +1609,8 @@ of the parent variable.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the dimension symbol.</li>
 <li><strong>parent</strong> – Parent dimension from which the SubDimension is created.</li>
-<li><strong>lower</strong> – Lower offset from the <code class="docutils literal"><span class="pre">parent</span></code> dimension.</li>
-<li><strong>upper</strong> – Upper offset from the <code class="docutils literal"><span class="pre">parent</span></code> dimension.</li>
+<li><strong>lower</strong> – Lower offset from the <code class="docutils literal notranslate"><span class="pre">parent</span></code> dimension.</li>
+<li><strong>upper</strong> – Upper offset from the <code class="docutils literal notranslate"><span class="pre">parent</span></code> dimension.</li>
 </ul>
 </td>
 </tr>
@@ -1633,7 +1633,7 @@ of the parent variable.</p>
 <dl class="class">
 <dt id="devito.dimension.ConditionalDimension">
 <em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">ConditionalDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#ConditionalDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.ConditionalDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
 <dl class="attribute">
 <dt id="devito.dimension.ConditionalDimension.condition">
 <code class="descname">condition</code><a class="headerlink" href="#devito.dimension.ConditionalDimension.condition" title="Permalink to this definition">¶</a></dt>
@@ -1647,16 +1647,17 @@ of the parent variable.</p>
 <dl class="attribute">
 <dt id="devito.dimension.ConditionalDimension.factor">
 <code class="descname">factor</code><a class="headerlink" href="#devito.dimension.ConditionalDimension.factor" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>See the factor() function in sympy.polys.polytools</p>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.dimension.ConditionalDimension.is_Conditional">
 <code class="descname">is_Conditional</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.ConditionalDimension.is_Conditional" title="Permalink to this definition">¶</a></dt>
-<dd><p>Dimension symbol representing a sub-region of a given <code class="docutils literal"><span class="pre">parent</span></code> Dimension.
-Unlike a <a class="reference internal" href="#devito.dimension.SubDimension" title="devito.dimension.SubDimension"><code class="xref py py-class docutils literal"><span class="pre">SubDimension</span></code></a>, a ConditionalDimension does not represent
+<dd><p>Dimension symbol representing a sub-region of a given <code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension.
+Unlike a <a class="reference internal" href="#devito.dimension.SubDimension" title="devito.dimension.SubDimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubDimension</span></code></a>, a ConditionalDimension does not represent
 a contiguous region. The iterations touched by a ConditionalDimension
 are expressible in two different ways:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span>* ``factor``: an integer indicating the size of the increment.
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* ``factor``: an integer indicating the size of the increment.
 * ``condition``: an arbitrary SymPy expression depending on ``parent``.
                  All iterations for which the expression evaluates to
                  True are part of the ``SubDimension`` region.
@@ -1678,9 +1679,9 @@ are expressible in two different ways:</p>
 <dl class="class">
 <dt id="devito.equation.Eq">
 <em class="property">class </em><code class="descclassname">devito.equation.</code><code class="descname">Eq</code><a class="reference internal" href="_modules/devito/equation.html#Eq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.equation.Eq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.relational.Equality</span></code></p>
-<p>A <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code> that accepts the additional keyword parameter <code class="docutils literal"><span class="pre">region</span></code>.</p>
-<p>The <code class="docutils literal"><span class="pre">region</span></code>, an object of type <code class="xref py py-class docutils literal"><span class="pre">Region</span></code>, may be used to restrict
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code></p>
+<p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> that accepts the additional keyword parameter <code class="docutils literal notranslate"><span class="pre">region</span></code>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">region</span></code>, an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">Region</span></code>, may be used to restrict
 the execution of the equation to a sub-domain.</p>
 <dl class="attribute">
 <dt id="devito.equation.Eq.default_assumptions">
@@ -1697,8 +1698,8 @@ the execution of the equation to a sub-domain.</p>
 <dl class="class">
 <dt id="devito.equation.Inc">
 <em class="property">class </em><code class="descclassname">devito.equation.</code><code class="descname">Inc</code><a class="reference internal" href="_modules/devito/equation.html#Inc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.equation.Inc" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.equation.Eq" title="devito.equation.Eq"><code class="xref py py-class docutils literal"><span class="pre">devito.equation.Eq</span></code></a></p>
-<p>A <a class="reference internal" href="#devito.equation.Eq" title="devito.equation.Eq"><code class="xref py py-class docutils literal"><span class="pre">Eq</span></code></a> performing a linear increment.</p>
+<dd><p>Bases: <a class="reference internal" href="#devito.equation.Eq" title="devito.equation.Eq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.equation.Eq</span></code></a></p>
+<p>A <a class="reference internal" href="#devito.equation.Eq" title="devito.equation.Eq"><code class="xref py py-class docutils literal notranslate"><span class="pre">Eq</span></code></a> performing a linear increment.</p>
 <dl class="attribute">
 <dt id="devito.equation.Inc.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.equation.Inc.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -1730,43 +1731,43 @@ not included.</p>
 <dl class="exception">
 <dt id="devito.exceptions.CompilationError">
 <em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">CompilationError</code><a class="reference internal" href="_modules/devito/exceptions.html#CompilationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.CompilationError" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
 </dd></dl>
 
 <dl class="exception">
 <dt id="devito.exceptions.DLEException">
 <em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">DLEException</code><a class="reference internal" href="_modules/devito/exceptions.html#DLEException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.DLEException" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
 </dd></dl>
 
 <dl class="exception">
 <dt id="devito.exceptions.DSEException">
 <em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">DSEException</code><a class="reference internal" href="_modules/devito/exceptions.html#DSEException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.DSEException" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
 </dd></dl>
 
 <dl class="exception">
 <dt id="devito.exceptions.DevitoError">
 <em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">DevitoError</code><a class="reference internal" href="_modules/devito/exceptions.html#DevitoError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.DevitoError" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
 </dd></dl>
 
 <dl class="exception">
 <dt id="devito.exceptions.InvalidArgument">
 <em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">InvalidArgument</code><a class="reference internal" href="_modules/devito/exceptions.html#InvalidArgument"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.InvalidArgument" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
 </dd></dl>
 
 <dl class="exception">
 <dt id="devito.exceptions.InvalidOperator">
 <em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">InvalidOperator</code><a class="reference internal" href="_modules/devito/exceptions.html#InvalidOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.InvalidOperator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
 </dd></dl>
 
 <dl class="exception">
 <dt id="devito.exceptions.VisitorException">
 <em class="property">exception </em><code class="descclassname">devito.exceptions.</code><code class="descname">VisitorException</code><a class="reference internal" href="_modules/devito/exceptions.html#VisitorException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.exceptions.VisitorException" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.exceptions.DevitoError" title="devito.exceptions.DevitoError"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.exceptions.DevitoError</span></code></a></p>
 </dd></dl>
 
 </div>
@@ -1797,9 +1798,9 @@ to differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t<
 </table>
 <dl class="docutils">
 <dt>Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:</dt>
-<dd><code class="docutils literal"><span class="pre">cross_derivative(f(x),</span> <span class="pre">g(x),</span> <span class="pre">dim=x,</span> <span class="pre">side=1,</span> <span class="pre">order=1)</span></code>
+<dd><code class="docutils literal notranslate"><span class="pre">cross_derivative(f(x),</span> <span class="pre">g(x),</span> <span class="pre">dim=x,</span> <span class="pre">side=1,</span> <span class="pre">order=1)</span></code>
 results in:
-<code class="docutils literal"><span class="pre">*(-f(x)*g(x)</span> <span class="pre">+</span> <span class="pre">f(x</span> <span class="pre">+</span> <span class="pre">h)*g(x</span> <span class="pre">+</span> <span class="pre">h)</span> <span class="pre">)</span> <span class="pre">/</span> <span class="pre">h</span></code></dd>
+<code class="docutils literal notranslate"><span class="pre">*(-f(x)*g(x)</span> <span class="pre">+</span> <span class="pre">f(x</span> <span class="pre">+</span> <span class="pre">h)*g(x</span> <span class="pre">+</span> <span class="pre">h)</span> <span class="pre">)</span> <span class="pre">/</span> <span class="pre">h</span></code></dd>
 </dl>
 </dd></dl>
 
@@ -1828,8 +1829,8 @@ differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</ci
 </table>
 <dl class="docutils">
 <dt>Example: Deriving the second derivative of f(x, y)*g(x, y) wrt. x via</dt>
-<dd><code class="docutils literal"><span class="pre">second_derivative(f(x,</span> <span class="pre">y),</span> <span class="pre">g(x,</span> <span class="pre">y),</span> <span class="pre">order=2,</span> <span class="pre">dim=x)</span></code>
-results in <code class="docutils literal"><span class="pre">(-2.0*f(x,</span> <span class="pre">y)*g(x,</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">1.0*f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">+</span>
+<dd><code class="docutils literal notranslate"><span class="pre">second_derivative(f(x,</span> <span class="pre">y),</span> <span class="pre">g(x,</span> <span class="pre">y),</span> <span class="pre">order=2,</span> <span class="pre">dim=x)</span></code>
+results in <code class="docutils literal notranslate"><span class="pre">(-2.0*f(x,</span> <span class="pre">y)*g(x,</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">1.0*f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">+</span>
 <span class="pre">1.0*f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y))</span> <span class="pre">/</span> <span class="pre">h**2</span></code>.</dd>
 </dl>
 </dd></dl>
@@ -1858,12 +1859,12 @@ to differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t<
 </table>
 <dl class="docutils">
 <dt>Example: Deriving the cross-derivative of f(x, y)*g(x, y) wrt. x and y via:</dt>
-<dd><code class="docutils literal"><span class="pre">cross_derivative(f(x,</span> <span class="pre">y),</span> <span class="pre">g(x,</span> <span class="pre">y),</span> <span class="pre">dims=(x,</span> <span class="pre">y))</span></code>
+<dd><code class="docutils literal notranslate"><span class="pre">cross_derivative(f(x,</span> <span class="pre">y),</span> <span class="pre">g(x,</span> <span class="pre">y),</span> <span class="pre">dims=(x,</span> <span class="pre">y))</span></code>
 results in:
-<code class="docutils literal"><span class="pre">0.5*(-2.0*f(x,</span> <span class="pre">y)*g(x,</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)*g(x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span></code>
-<code class="docutils literal"><span class="pre">f(x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)*g(x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">-</span></code>
-<code class="docutils literal"><span class="pre">f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">-</span></code>
-<code class="docutils literal"><span class="pre">f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y))</span> <span class="pre">/</span> <span class="pre">h**2</span></code></dd>
+<code class="docutils literal notranslate"><span class="pre">0.5*(-2.0*f(x,</span> <span class="pre">y)*g(x,</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)*g(x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span></code>
+<code class="docutils literal notranslate"><span class="pre">f(x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)*g(x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">-</span></code>
+<code class="docutils literal notranslate"><span class="pre">f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">-</span></code>
+<code class="docutils literal notranslate"><span class="pre">f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y))</span> <span class="pre">/</span> <span class="pre">h**2</span></code></dd>
 </dl>
 </dd></dl>
 
@@ -1871,9 +1872,9 @@ results in:
 <dt id="devito.finite_difference.generic_derivative">
 <code class="descclassname">devito.finite_difference.</code><code class="descname">generic_derivative</code><span class="sig-paren">(</span><em>function</em>, <em>deriv_order</em>, <em>dim</em>, <em>fd_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Create generic arbitrary order derivative expression from a
-single <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> object. This methods is essentially a
+single <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> object. This methods is essentially a
 dedicated wrapper around SymPy’s <cite>as_finite_diff</cite> utility for
-<code class="xref py py-class docutils literal"><span class="pre">devito.Function</span></code> objects.</p>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">devito.Function</span></code> objects.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1916,12 +1917,12 @@ the width of the resulting stencil expression.</li>
 <dl class="class">
 <dt id="devito.function.Constant">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">Constant</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Constant" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.AbstractCachedSymbol</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.AbstractCachedSymbol</span></code></p>
 <p>Symbol representing constant values in symbolic equations.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">The parameters must always be given as keyword arguments, since
-SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+SymPy uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
 <dl class="method">
@@ -1975,16 +1976,16 @@ symbolic function.</p>
 <dl class="class">
 <dt id="devito.function.Function">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">Function</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Function" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.function.TensorFunction</span></code></p>
-<p>Data object for spatially varying data acting as a <code class="xref py py-class docutils literal"><span class="pre">SymbolicFunction</span></code>.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.TensorFunction</span></code></p>
+<p>Data object for spatially varying data acting as a <code class="xref py py-class docutils literal notranslate"><span class="pre">SymbolicFunction</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the symbol</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
-and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object from which to infer the data shape
+and <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> indices.</li>
 <li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
@@ -1999,11 +2000,11 @@ then the number of space dimensions.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives. By default,
 space derivatives are expressed in terms of centered
-approximations, with <code class="docutils literal"><span class="pre">ceil(space_order/2)</span></code> points
+approximations, with <code class="docutils literal notranslate"><span class="pre">ceil(space_order/2)</span></code> points
 on each side of the point of interest. For asymmetric
-approximations, one may pass a 3-tuple <code class="docutils literal"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
-instead of a single integer. Here, <code class="docutils literal"><span class="pre">o</span></code> is the
-approximation order, while <code class="docutils literal"><span class="pre">lp</span></code> and <code class="docutils literal"><span class="pre">rp</span></code> indicate
+approximations, one may pass a 3-tuple <code class="docutils literal notranslate"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
+instead of a single integer. Here, <code class="docutils literal notranslate"><span class="pre">o</span></code> is the
+approximation order, while <code class="docutils literal notranslate"><span class="pre">lp</span></code> and <code class="docutils literal notranslate"><span class="pre">rp</span></code> indicate
 the maximum number of points that an approximation can
 use on the two sides of the point of interest.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
@@ -2015,25 +2016,25 @@ use on the two sides of the point of interest.</li>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">The parameters must always be given as keyword arguments, since
-SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+SymPy uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
-<code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
-<p class="last"><a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a> objects are assumed to be constant in time
+<p>If the parameter <code class="docutils literal notranslate"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal notranslate"><span class="pre">shape</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dimensions</span></code> and <code class="docutils literal notranslate"><span class="pre">dtype</span></code> will be derived from it.</p>
+<p class="last"><a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code></a> objects are assumed to be constant in time
 and therefore do not support time derivatives. Use
-<a class="reference internal" href="#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal"><span class="pre">TimeFunction</span></code></a> for time-varying grid data.</p>
+<a class="reference internal" href="#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeFunction</span></code></a> for time-varying grid data.</p>
 </div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">The tuple :param staggered: contains a <code class="docutils literal"><span class="pre">1</span></code> in each dimension
-entry that should be staggered, and <code class="docutils literal"><span class="pre">0</span></code> otherwise. For example,
-<code class="docutils literal"><span class="pre">staggered=(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> entails discretization on horizontal edges,
-<code class="docutils literal"><span class="pre">staggered=(0,</span> <span class="pre">0,</span> <span class="pre">1)</span></code> entails discretization on vertical edges,
-<code class="docutils literal"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
-<code class="docutils literal"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
+<p class="last">The tuple :param staggered: contains a <code class="docutils literal notranslate"><span class="pre">1</span></code> in each dimension
+entry that should be staggered, and <code class="docutils literal notranslate"><span class="pre">0</span></code> otherwise. For example,
+<code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> entails discretization on horizontal edges,
+<code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">0,</span> <span class="pre">1)</span></code> entails discretization on vertical edges,
+<code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
+<code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
 </div>
 <dl class="attribute">
 <dt id="devito.function.Function.default_assumptions">
@@ -2064,16 +2065,16 @@ wrt. all spatial dimensions.</p>
 <dl class="class">
 <dt id="devito.function.TimeFunction">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">TimeFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#TimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.TimeFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">devito.function.Function</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.Function</span></code></a></p>
 <p>Data object for time-varying data that acts as a Function symbol</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
-and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Function</span></code> symbol</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object from which to infer the data shape
+and <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> indices.</li>
 <li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
@@ -2088,11 +2089,11 @@ then the number of space dimensions.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives. By default,
 space derivatives are expressed in terms of centered
-approximations, with <code class="docutils literal"><span class="pre">ceil(space_order/2)</span></code> points
+approximations, with <code class="docutils literal notranslate"><span class="pre">ceil(space_order/2)</span></code> points
 on each side of the point of interest. For asymmetric
-approximations, one may pass a 3-tuple <code class="docutils literal"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
-instead of a single integer. Here, <code class="docutils literal"><span class="pre">o</span></code> is the
-approximation order, while <code class="docutils literal"><span class="pre">lp</span></code> and <code class="docutils literal"><span class="pre">rp</span></code> indicate
+approximations, one may pass a 3-tuple <code class="docutils literal notranslate"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code>
+instead of a single integer. Here, <code class="docutils literal notranslate"><span class="pre">o</span></code> is the
+approximation order, while <code class="docutils literal notranslate"><span class="pre">lp</span></code> and <code class="docutils literal notranslate"><span class="pre">rp</span></code> indicate
 the maximum number of points that an approximation can
 use on the two sides of the point of interest.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
@@ -2100,11 +2101,11 @@ use on the two sides of the point of interest.</li>
 to <cite>None</cite>, indicating the use of alternating buffers. If
 intermediate results are required, the value of save must
 be set to the required size of the time dimension.</li>
-<li><strong>time_dim</strong> – The <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> object to use to represent time in this
-symbol. Defaults to the time dimension provided by the <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code>.</li>
+<li><strong>time_dim</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent time in this
+symbol. Defaults to the time dimension provided by the <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code>.</li>
 <li><strong>time_order</strong> – Order of the time discretization which affects the
 final size of the leading time dimension of the
-data buffer. Unlike <code class="docutils literal"><span class="pre">space_order</span></code>, this can only be
+data buffer. Unlike <code class="docutils literal notranslate"><span class="pre">space_order</span></code>, this can only be
 an integer.</li>
 </ul>
 </td>
@@ -2114,21 +2115,21 @@ an integer.</li>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">The parameters must always be given as keyword arguments, since
-SymPy uses <code class="docutils literal"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
+SymPy uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
-<code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
-<p>The parameter <code class="docutils literal"><span class="pre">shape</span></code> should only define the spatial shape of
+<p>If the parameter <code class="docutils literal notranslate"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal notranslate"><span class="pre">shape</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dimensions</span></code> and <code class="docutils literal notranslate"><span class="pre">dtype</span></code> will be derived from it.</p>
+<p>The parameter <code class="docutils literal notranslate"><span class="pre">shape</span></code> should only define the spatial shape of
 the grid. The temporal dimension will be inserted automatically
-as the leading dimension, according to the <code class="docutils literal"><span class="pre">time_dim</span></code>,
-<code class="docutils literal"><span class="pre">time_order</span></code> and whether we want to write intermediate
+as the leading dimension, according to the <code class="docutils literal notranslate"><span class="pre">time_dim</span></code>,
+<code class="docutils literal notranslate"><span class="pre">time_order</span></code> and whether we want to write intermediate
 timesteps in the buffer. The same is true for explicitly
 provided dimensions, which will be added to the automatically
 derived time dimensions symbol. For example:</p>
-<div class="last highlight-python"><div class="highlight"><pre><span></span><span class="n">In</span> <span class="p">[]:</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">))</span>
+<div class="last highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">In</span> <span class="p">[]:</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">))</span>
 <span class="n">Out</span><span class="p">[]:</span> <span class="n">a</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
 
 <span class="n">In</span> <span class="p">[]:</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">))</span>
@@ -2193,11 +2194,11 @@ derived time dimensions symbol. For example:</p>
 <dl class="class">
 <dt id="devito.function.SparseFunction">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">SparseFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.function.TensorFunction</span></code></p>
-<p>A special <code class="xref py py-class docutils literal"><span class="pre">TensorFunction</span></code> representing a set of sparse point
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.TensorFunction</span></code></p>
+<p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code> representing a set of sparse point
 objects that are not aligned with the computational grid.</p>
-<p>A <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal"><span class="pre">SparseFunction</span></code></a> provides symbolic interpolation routines
-to convert between grid-aligned <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal"><span class="pre">Function</span></code></a> objects and sparse
+<p>A <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a> provides symbolic interpolation routines
+to convert between grid-aligned <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code></a> objects and sparse
 data points.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -2206,8 +2207,8 @@ data points.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the function.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
-<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal"><span class="pre">(npoints,)</span></code>.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
@@ -2321,7 +2322,7 @@ absorbing boundary conditions.</li>
 <dl class="method">
 <dt id="devito.function.SparseFunction.interpolate">
 <code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>cummulative=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
-<dd><p>Creates a <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code> equation for the interpolation
+<dd><p>Creates a <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> equation for the interpolation
 of an expression onto this sparse point collection.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -2366,8 +2367,8 @@ than an assignment. Defaults to False.</li>
 <dl class="class">
 <dt id="devito.function.SparseTimeFunction">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">SparseTimeFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseTimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseTimeFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal"><span class="pre">devito.function.SparseFunction</span></code></a></p>
-<p>A time-dependent <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal"><span class="pre">SparseFunction</span></code></a>.</p>
+<dd><p>Bases: <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.SparseFunction</span></code></a></p>
+<p>A time-dependent <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -2376,8 +2377,8 @@ than an assignment. Defaults to False.</li>
 <li><strong>name</strong> – Name of the function.</li>
 <li><strong>nt</strong> – Size of the time dimension for point data.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
-<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
@@ -2414,7 +2415,7 @@ symbolic function.</p>
 <dl class="class">
 <dt id="devito.grid.Grid">
 <em class="property">class </em><code class="descclassname">devito.grid.</code><code class="descname">Grid</code><span class="sig-paren">(</span><em>shape</em>, <em>extent=None</em>, <em>origin=None</em>, <em>dimensions=None</em>, <em>time_dimension=None</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/grid.html#Grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.Grid" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>A cartesian grid that encapsulates a physical domain over which
 to discretize :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Function`s.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -2427,30 +2428,30 @@ to discretize :class:<a href="#id1"><span class="problematic" id="id2">`</span><
 unit box of extent 1m in all dimensions.</li>
 <li><strong>origin</strong> – Physical coordinate of the origin of the domain;
 defaults to 0. in all dimensions.</li>
-<li><strong>dimensions</strong> – (Optional) list of <code class="xref py py-class docutils literal"><span class="pre">SpaceDimension</span></code>
+<li><strong>dimensions</strong> – (Optional) list of <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code>
 symbols that defines the spatial directions of
 the physical domain encapsulated by this
-<a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal"><span class="pre">Grid</span></code></a>.</li>
-<li><strong>time_dimension</strong> – (Optional) <code class="xref py py-class docutils literal"><span class="pre">TimeDimension</span></code> symbols
+<a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
+<li><strong>time_dimension</strong> – (Optional) <code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDimension</span></code> symbols
 to to define the time dimension for all
-<code class="xref py py-class docutils literal"><span class="pre">TimeFunction</span></code> symbols created
-from this <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal"><span class="pre">Grid</span></code></a>.</li>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">TimeFunction</span></code> symbols created
+from this <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
 <li><strong>dtype</strong> – Default data type to be inherited by all Functions
-created from this <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal"><span class="pre">Grid</span></code></a>.</li>
+created from this <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
-<p>The <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal"><span class="pre">Grid</span></code></a> encapsulates the topology and geometry
-information of the computational domain that <code class="xref py py-class docutils literal"><span class="pre">Function</span></code>
+<p>The <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a> encapsulates the topology and geometry
+information of the computational domain that <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>
 objects can be discretized on. As such it defines and provides the
 physical coordinate information of the logically cartesian grid
-underlying the discretized <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> objects. For example,
+underlying the discretized <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> objects. For example,
 the conventions for defining the coordinate space in 2D are:</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<div class="last highlight-python"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">^</span>
+<div class="last highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">^</span>
   <span class="o">|</span>
   <span class="o">|</span>           <span class="n">origin</span> <span class="o">+</span> <span class="n">extent</span>
   <span class="o">|</span>     <span class="n">x</span><span class="o">------------</span><span class="n">x</span>
@@ -2489,13 +2490,13 @@ the conventions for defining the coordinate space in 2D are:</p>
 <dl class="attribute">
 <dt id="devito.grid.Grid.spacing_map">
 <code class="descname">spacing_map</code><a class="headerlink" href="#devito.grid.Grid.spacing_map" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map between spacing symbols and their values for each <code class="xref py py-class docutils literal"><span class="pre">SpaceDimension</span></code></p>
+<dd><p>Map between spacing symbols and their values for each <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code></p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="devito.grid.Grid.spacing_symbols">
 <code class="descname">spacing_symbols</code><a class="headerlink" href="#devito.grid.Grid.spacing_symbols" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbols representing the grid spacing in each <code class="xref py py-class docutils literal"><span class="pre">SpaceDimension</span></code></p>
+<dd><p>Symbols representing the grid spacing in each <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code></p>
 </dd></dl>
 
 </dd></dl>
@@ -2606,7 +2607,7 @@ DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 <dl class="class">
 <dt id="devito.operator.Operator">
 <em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="devito.ir.iet.html#devito.ir.iet.nodes.Callable" title="devito.ir.iet.nodes.Callable"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.iet.nodes.Callable</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="devito.ir.iet.html#devito.ir.iet.nodes.Callable" title="devito.ir.iet.nodes.Callable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.Callable</span></code></a></p>
 <dl class="method">
 <dt id="devito.operator.Operator.arguments">
 <code class="descname">arguments</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
@@ -2625,7 +2626,7 @@ default values for any remaining arguments.</p>
 <code class="descname">compile</code><a class="headerlink" href="#devito.operator.Operator.compile" title="Permalink to this definition">¶</a></dt>
 <dd><p>JIT-compile the C code generated by the Operator.</p>
 <p>It is ensured that JIT compilation will only be performed once per
-<a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">Operator</span></code></a>, reagardless of how many times this method is invoked.</p>
+<a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a>, reagardless of how many times this method is invoked.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -2646,8 +2647,8 @@ default values for any remaining arguments.</p>
 <dl class="class">
 <dt id="devito.operator.OperatorRunnable">
 <em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">OperatorRunnable</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#OperatorRunnable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.OperatorRunnable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">devito.operator.Operator</span></code></a></p>
-<p>A special <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">Operator</span></code></a> that, besides generation and compilation of
+<dd><p>Bases: <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.operator.Operator</span></code></a></p>
+<p>A special <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a> that, besides generation and compilation of
 C code evaluating stencil expressions, can also execute the computation.</p>
 <dl class="method">
 <dt id="devito.operator.OperatorRunnable.apply">
@@ -2668,20 +2669,20 @@ data type).</p>
 <dl class="function">
 <dt id="devito.operator.retrieve_symbols">
 <code class="descclassname">devito.operator.</code><code class="descname">retrieve_symbols</code><span class="sig-paren">(</span><em>expressions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#retrieve_symbols"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.retrieve_symbols" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> objects appearing
-in <code class="docutils literal"><span class="pre">expressions</span></code>.</p>
+<dd><p>Return the <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> objects appearing
+in <code class="docutils literal notranslate"><span class="pre">expressions</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.operator.set_dle_mode">
 <code class="descclassname">devito.operator.</code><code class="descname">set_dle_mode</code><span class="sig-paren">(</span><em>mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#set_dle_mode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.set_dle_mode" title="Permalink to this definition">¶</a></dt>
-<dd><p>Transform <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">Operator</span></code></a> input in a format understandable by the DLE.</p>
+<dd><p>Transform <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a> input in a format understandable by the DLE.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.operator.set_dse_mode">
 <code class="descclassname">devito.operator.</code><code class="descname">set_dse_mode</code><span class="sig-paren">(</span><em>mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#set_dse_mode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.set_dse_mode" title="Permalink to this definition">¶</a></dt>
-<dd><p>Transform <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal"><span class="pre">Operator</span></code></a> input in a format understandable by the DLE.</p>
+<dd><p>Transform <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a> input in a format understandable by the DLE.</p>
 </dd></dl>
 
 </div>
@@ -2723,7 +2724,7 @@ as well as all of the accepted values.</p>
 <dl class="class">
 <dt id="devito.profiling.Profile">
 <em class="property">class </em><code class="descclassname">devito.profiling.</code><code class="descname">Profile</code><span class="sig-paren">(</span><em>name</em>, <em>ops</em>, <em>memory</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.profiling.Profile" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">tuple</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
 <p>Metadata for a profiled code section.</p>
 <dl class="attribute">
 <dt id="devito.profiling.Profile.memory">
@@ -2748,9 +2749,9 @@ as well as all of the accepted values.</p>
 <dl class="function">
 <dt id="devito.profiling.create_profile">
 <code class="descclassname">devito.profiling.</code><code class="descname">create_profile</code><span class="sig-paren">(</span><em>name</em>, <em>node</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#create_profile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.create_profile" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a <code class="xref py py-class docutils literal"><span class="pre">Profiler</span></code> for the Iteration/Expression tree <code class="docutils literal"><span class="pre">node</span></code>.
+<dd><p>Create a <code class="xref py py-class docutils literal notranslate"><span class="pre">Profiler</span></code> for the Iteration/Expression tree <code class="docutils literal notranslate"><span class="pre">node</span></code>.
 The following code sections are profiled:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span>* The whole ``node``;
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* The whole ``node``;
 * A sequence of perfectly nested loops that have common :class:`Iteration`
   dimensions, but possibly different extent. For example: ::
 
@@ -2772,14 +2773,14 @@ The following code sections are profiled:</p>
 <dl class="class">
 <dt id="devito.tools.memoized_func">
 <em class="property">class </em><code class="descclassname">devito.tools.</code><code class="descname">memoized_func</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#memoized_func"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.memoized_func" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Decorator. Caches a function’s return value each time it is called.
 If called later with the same arguments, the cached value is returned
 (not reevaluated). This decorator may also be used on class methods,
 but it will cache at the class level; to cache at the instance level,
-use <code class="docutils literal"><span class="pre">memoized_meth</span></code>.</p>
+use <code class="docutils literal notranslate"><span class="pre">memoized_meth</span></code>.</p>
 <p>Adapted from:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">wiki</span><span class="o">.</span><span class="n">python</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">moin</span><span class="o">/</span><span class="n">PythonDecoratorLibrary</span><span class="c1">#Memoize</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">wiki</span><span class="o">.</span><span class="n">python</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">moin</span><span class="o">/</span><span class="n">PythonDecoratorLibrary</span><span class="c1">#Memoize</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -2787,14 +2788,14 @@ use <code class="docutils literal"><span class="pre">memoized_meth</span></code>
 <dl class="class">
 <dt id="devito.tools.memoized_meth">
 <em class="property">class </em><code class="descclassname">devito.tools.</code><code class="descname">memoized_meth</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#memoized_meth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.memoized_meth" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Decorator. Cache the return value of a class method.</p>
-<p>Unlike <code class="docutils literal"><span class="pre">memoized_func</span></code>, the return value of a given method invocation
+<p>Unlike <code class="docutils literal notranslate"><span class="pre">memoized_func</span></code>, the return value of a given method invocation
 will be cached on the instance whose method was invoked. All arguments
 passed to a method decorated with memoize must be hashable.</p>
 <p>If a memoized method is invoked directly on its class the result will not
 be cached. Instead the method will be invoked like a static method:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">Obj</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">Obj</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="nd">@memoize</span>
     <span class="k">def</span> <span class="nf">add_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span> <span class="o">+</span> <span class="n">arg</span>
@@ -2803,7 +2804,7 @@ be cached. Instead the method will be invoked like a static method:</p>
 </pre></div>
 </div>
 <p>Adapted from:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">code</span><span class="o">.</span><span class="n">activestate</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">recipes</span><span class="o">/</span><span class="mi">577452</span><span class="o">-</span><span class="n">a</span><span class="o">-</span><span class="n">memoize</span><span class="o">-</span><span class="n">decorator</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">instance</span><span class="o">-</span><span class="n">methods</span><span class="o">/</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">code</span><span class="o">.</span><span class="n">activestate</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">recipes</span><span class="o">/</span><span class="mi">577452</span><span class="o">-</span><span class="n">a</span><span class="o">-</span><span class="n">memoize</span><span class="o">-</span><span class="n">decorator</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">instance</span><span class="o">-</span><span class="n">methods</span><span class="o">/</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -2826,7 +2827,7 @@ or value lists.</p>
 <dl class="class">
 <dt id="devito.tools.silencio">
 <em class="property">class </em><code class="descclassname">devito.tools.</code><code class="descname">silencio</code><span class="sig-paren">(</span><em>log_level='WARNING'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#silencio"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.silencio" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Decorator to temporarily change log levels.</p>
 </dd></dl>
 
@@ -2836,8 +2837,8 @@ or value lists.</p>
 <dl class="class">
 <dt id="devito.types.Symbol">
 <em class="property">class </em><code class="descclassname">devito.types.</code><code class="descname">Symbol</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types.html#Symbol"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Symbol" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.AbstractCachedSymbol</span></code></p>
-<p>A <code class="xref py py-class docutils literal"><span class="pre">sympy.Symbol</span></code> capable of mimicking an <code class="xref py py-class docutils literal"><span class="pre">sympy.Indexed</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.AbstractCachedSymbol</span></code></p>
+<p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Symbol</span></code> capable of mimicking an <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Indexed</span></code></p>
 <dl class="attribute">
 <dt id="devito.types.Symbol.base">
 <code class="descname">base</code><a class="headerlink" href="#devito.types.Symbol.base" title="Permalink to this definition">¶</a></dt>
@@ -2858,7 +2859,7 @@ or value lists.</p>
 <dl class="class">
 <dt id="devito.types.Indexed">
 <em class="property">class </em><code class="descclassname">devito.types.</code><code class="descname">Indexed</code><a class="reference internal" href="_modules/devito/types.html#Indexed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Indexed" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.tensor.indexed.Indexed</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.tensor.indexed.Indexed</span></code></p>
 <dl class="attribute">
 <dt id="devito.types.Indexed.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {'commutative': True}</em><a class="headerlink" href="#devito.types.Indexed.default_assumptions" title="Permalink to this definition">¶</a></dt>

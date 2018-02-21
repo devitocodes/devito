@@ -1,5 +1,5 @@
-devito\.dle package
-===================
+devito.dle package
+==================
 
 Subpackages
 -----------
@@ -11,16 +11,16 @@ Subpackages
 Submodules
 ----------
 
-devito\.dle\.blocking\_utils module
------------------------------------
+devito.dle.blocking\_utils module
+---------------------------------
 
 .. automodule:: devito.dle.blocking_utils
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.dle\.transformer module
--------------------------------
+devito.dle.transformer module
+-----------------------------
 
 .. automodule:: devito.dle.transformer
     :members:

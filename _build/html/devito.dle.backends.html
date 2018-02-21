@@ -212,10 +212,10 @@
 <dl class="class">
 <dt id="devito.dle.backends.advanced.DevitoCustomRewriter">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.advanced.</code><code class="descname">DevitoCustomRewriter</code><span class="sig-paren">(</span><em>nodes</em>, <em>passes</em>, <em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/advanced.html#DevitoCustomRewriter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.advanced.DevitoCustomRewriter" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoSpeculativeRewriter" title="devito.dle.backends.advanced.DevitoSpeculativeRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.advanced.DevitoSpeculativeRewriter</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoSpeculativeRewriter" title="devito.dle.backends.advanced.DevitoSpeculativeRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.advanced.DevitoSpeculativeRewriter</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper">
-<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x152339ff8488&gt;, 'denormals': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x152339fd82f0&gt;, 'fission': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x152339fea400&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x152339ff86a8&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x152339ff8598&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x152339fd8400&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
+<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x145bec20f400&gt;, 'denormals': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x145bec268268&gt;, 'fission': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x145bec279378&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x145bec20f620&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x145bec20f510&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x145bec268378&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -223,14 +223,14 @@
 <dl class="class">
 <dt id="devito.dle.backends.advanced.DevitoRewriter">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.advanced.</code><code class="descname">DevitoRewriter</code><span class="sig-paren">(</span><em>nodes</em>, <em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/advanced.html#DevitoRewriter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.advanced.DevitoRewriter" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.basic.BasicRewriter" title="devito.dle.backends.basic.BasicRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.basic.BasicRewriter</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.basic.BasicRewriter" title="devito.dle.backends.basic.BasicRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.basic.BasicRewriter</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.dle.backends.advanced.DevitoRewriterSafeMath">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.advanced.</code><code class="descname">DevitoRewriterSafeMath</code><span class="sig-paren">(</span><em>nodes</em>, <em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/advanced.html#DevitoRewriterSafeMath"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.advanced.DevitoRewriterSafeMath" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoRewriter" title="devito.dle.backends.advanced.DevitoRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.advanced.DevitoRewriter</span></code></a></p>
-<p>This Rewriter is slightly less aggressive than <a class="reference internal" href="#devito.dle.backends.advanced.DevitoRewriter" title="devito.dle.backends.advanced.DevitoRewriter"><code class="xref py py-class docutils literal"><span class="pre">DevitoRewriter</span></code></a>, as it
+<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoRewriter" title="devito.dle.backends.advanced.DevitoRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.advanced.DevitoRewriter</span></code></a></p>
+<p>This Rewriter is slightly less aggressive than <a class="reference internal" href="#devito.dle.backends.advanced.DevitoRewriter" title="devito.dle.backends.advanced.DevitoRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">DevitoRewriter</span></code></a>, as it
 doesn’t drop denormal numbers, which may sometimes harm the numerical precision.
 Loop fission is also avoided (to avoid reassociation of operations).</p>
 </dd></dl>
@@ -238,7 +238,7 @@ Loop fission is also avoided (to avoid reassociation of operations).</p>
 <dl class="class">
 <dt id="devito.dle.backends.advanced.DevitoSpeculativeRewriter">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.advanced.</code><code class="descname">DevitoSpeculativeRewriter</code><span class="sig-paren">(</span><em>nodes</em>, <em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/advanced.html#DevitoSpeculativeRewriter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.advanced.DevitoSpeculativeRewriter" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoRewriter" title="devito.dle.backends.advanced.DevitoRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.advanced.DevitoRewriter</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoRewriter" title="devito.dle.backends.advanced.DevitoRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.advanced.DevitoRewriter</span></code></a></p>
 </dd></dl>
 
 </div>
@@ -247,7 +247,7 @@ Loop fission is also avoided (to avoid reassociation of operations).</p>
 <dl class="class">
 <dt id="devito.dle.backends.basic.BasicRewriter">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.basic.</code><code class="descname">BasicRewriter</code><span class="sig-paren">(</span><em>nodes</em>, <em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/basic.html#BasicRewriter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.basic.BasicRewriter" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.common.AbstractRewriter" title="devito.dle.backends.common.AbstractRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.common.AbstractRewriter</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.common.AbstractRewriter" title="devito.dle.backends.common.AbstractRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.common.AbstractRewriter</span></code></a></p>
 </dd></dl>
 
 </div>
@@ -256,10 +256,10 @@ Loop fission is also avoided (to avoid reassociation of operations).</p>
 <dl class="class">
 <dt id="devito.dle.backends.common.AbstractRewriter">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.common.</code><code class="descname">AbstractRewriter</code><span class="sig-paren">(</span><em>nodes</em>, <em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/common.html#AbstractRewriter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.common.AbstractRewriter" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Transform Iteration/Expression trees to generate high performance C.</p>
 <p>This is just an abstract class. Actual transformers should implement the
-abstract method <code class="docutils literal"><span class="pre">_pipeline</span></code>, which performs a sequence of AST transformations.</p>
+abstract method <code class="docutils literal notranslate"><span class="pre">_pipeline</span></code>, which performs a sequence of AST transformations.</p>
 <dl class="method">
 <dt id="devito.dle.backends.common.AbstractRewriter.run">
 <code class="descname">run</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/common.html#AbstractRewriter.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.common.AbstractRewriter.run" title="Permalink to this definition">¶</a></dt>
@@ -276,14 +276,14 @@ abstract method <code class="docutils literal"><span class="pre">_pipeline</span
 <dl class="class">
 <dt id="devito.dle.backends.common.Arg">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.common.</code><code class="descname">Arg</code><span class="sig-paren">(</span><em>argument</em>, <em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/common.html#Arg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.common.Arg" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>A DLE-produced argument.</p>
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.dle.backends.common.BlockingArg">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.common.</code><code class="descname">BlockingArg</code><span class="sig-paren">(</span><em>blocked_dim</em>, <em>iteration</em>, <em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/common.html#BlockingArg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.common.BlockingArg" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.common.Arg" title="devito.dle.backends.common.Arg"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.common.Arg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.common.Arg" title="devito.dle.backends.common.Arg"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.common.Arg</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dle.backends.common.BlockingArg.original_dim">
 <code class="descname">original_dim</code><a class="headerlink" href="#devito.dle.backends.common.BlockingArg.original_dim" title="Permalink to this definition">¶</a></dt>
@@ -294,7 +294,7 @@ abstract method <code class="docutils literal"><span class="pre">_pipeline</span
 <dl class="class">
 <dt id="devito.dle.backends.common.State">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.common.</code><code class="descname">State</code><span class="sig-paren">(</span><em>nodes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/common.html#State"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.common.State" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Represent the output of the DLE.</p>
 <dl class="method">
 <dt id="devito.dle.backends.common.State.update">
@@ -320,13 +320,13 @@ abstract method <code class="docutils literal"><span class="pre">_pipeline</span
 <dl class="function">
 <dt id="devito.dle.backends.utils.get_simd_items">
 <code class="descclassname">devito.dle.backends.utils.</code><code class="descname">get_simd_items</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/utils.html#get_simd_items"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.utils.get_simd_items" title="Permalink to this definition">¶</a></dt>
-<dd><p>Determine the number of items of type <code class="docutils literal"><span class="pre">dtype</span></code> that can fit in a SIMD
+<dd><p>Determine the number of items of type <code class="docutils literal notranslate"><span class="pre">dtype</span></code> that can fit in a SIMD
 register on the current architecture.</p>
 </dd></dl>
 
 <dl class="data">
 <dt id="devito.dle.backends.utils.omplang">
-<code class="descclassname">devito.dle.backends.utils.</code><code class="descname">omplang</code><em class="property"> = {'collapse': &lt;function &lt;lambda&gt; at 0x15233a04ed08&gt;, 'for': &lt;cgen.Pragma object at 0x15233a04f9e8&gt;, 'par-for': &lt;cgen.Pragma object at 0x15233a04fa20&gt;, 'par-region': &lt;function &lt;lambda&gt; at 0x15233a04ed90&gt;, 'simd-for': &lt;cgen.Pragma object at 0x15233a04fa58&gt;, 'simd-for-aligned': &lt;function &lt;lambda&gt; at 0x15233a04ee18&gt;}</em><a class="headerlink" href="#devito.dle.backends.utils.omplang" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.dle.backends.utils.</code><code class="descname">omplang</code><em class="property"> = {'collapse': &lt;function &lt;lambda&gt; at 0x145bec262c80&gt;, 'for': &lt;cgen.Pragma object at 0x145bec2a19e8&gt;, 'par-for': &lt;cgen.Pragma object at 0x145bec260e10&gt;, 'par-region': &lt;function &lt;lambda&gt; at 0x145bec262d08&gt;, 'simd-for': &lt;cgen.Pragma object at 0x145bec260e48&gt;, 'simd-for-aligned': &lt;function &lt;lambda&gt; at 0x145bec262d90&gt;}</em><a class="headerlink" href="#devito.dle.backends.utils.omplang" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compiler-specific language</p>
 </dd></dl>
 

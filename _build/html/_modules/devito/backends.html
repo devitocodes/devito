@@ -181,8 +181,8 @@
 <div class="viewcode-block" id="void"><a class="viewcode-back" href="../../devito.html#devito.backends.void">[docs]</a><span class="k">class</span> <span class="nc">void</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dummy backend.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">pass</span></div>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+    <span class="k">pass</span>
 
 
 <span class="k">class</span> <span class="nc">_BackendSelector</span><span class="p">(</span><span class="n">FunctionClass</span><span class="p">):</span>
@@ -262,8 +262,8 @@
 <div class="viewcode-block" id="get_backend"><a class="viewcode-back" href="../../devito.html#devito.backends.get_backend">[docs]</a><span class="k">def</span> <span class="nf">get_backend</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the Devito backend.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__name__</span></div>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+    <span class="k">return</span> <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__name__</span>
 
 
 <div class="viewcode-block" id="set_backend"><a class="viewcode-back" href="../../devito.html#devito.backends.set_backend">[docs]</a><span class="k">def</span> <span class="nf">set_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">):</span>
@@ -282,13 +282,13 @@
     <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Unable to import backend </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">backend</span><span class="p">)</span>
         <span class="k">raise</span> <span class="n">e</span>
-    <span class="n">backends</span><span class="p">[</span><span class="n">backend</span><span class="p">]</span> <span class="o">=</span> <span class="n">mod</span>
-    <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="n">mod</span></div>
+    <span class="n">backends</span><span class="p">[</span><span class="n">backend</span><span class="p">]</span> <span class="o">=</span> <span class="n">mod</span></div>
+    <span class="n">_BackendSelector</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="n">mod</span>
 
 
 <div class="viewcode-block" id="initialised_backend"><a class="viewcode-back" href="../../devito.html#devito.backends.initialised_backend">[docs]</a><span class="k">def</span> <span class="nf">initialised_backend</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Check whether Devito has been yet initialised.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">backends</span><span class="o">.</span><span class="n">get_backend</span><span class="p">()</span> <span class="o">!=</span> <span class="s1">&#39;void&#39;</span></div>
+    <span class="sd">&quot;&quot;&quot;Check whether Devito has been yet initialised.&quot;&quot;&quot;</span></div>
+    <span class="k">return</span> <span class="n">backends</span><span class="o">.</span><span class="n">get_backend</span><span class="p">()</span> <span class="o">!=</span> <span class="s1">&#39;void&#39;</span>
 
 
 <div class="viewcode-block" id="init_backend"><a class="viewcode-back" href="../../devito.html#devito.backends.init_backend">[docs]</a><span class="k">def</span> <span class="nf">init_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">):</span>
@@ -300,8 +300,8 @@
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">set_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
-    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="n">DevitoError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t initialize Devito.&quot;</span><span class="p">)</span></div>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span></div>
+        <span class="k">raise</span> <span class="n">DevitoError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t initialize Devito.&quot;</span><span class="p">)</span>
 </pre></div>
 
            </div>

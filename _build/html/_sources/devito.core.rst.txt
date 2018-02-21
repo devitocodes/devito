@@ -1,19 +1,19 @@
-devito\.core package
-====================
+devito.core package
+===================
 
 Submodules
 ----------
 
-devito\.core\.autotuning module
--------------------------------
+devito.core.autotuning module
+-----------------------------
 
 .. automodule:: devito.core.autotuning
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.core\.operator module
------------------------------
+devito.core.operator module
+---------------------------
 
 .. automodule:: devito.core.operator
     :members:

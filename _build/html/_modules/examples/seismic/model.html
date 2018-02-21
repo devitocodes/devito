@@ -417,8 +417,8 @@
                      <span class="n">epsilon</span><span class="o">=</span><span class="n">epsilon</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">,</span> <span class="n">theta</span><span class="o">=</span><span class="n">theta</span><span class="p">,</span> <span class="n">phi</span><span class="o">=</span><span class="n">phi</span><span class="p">,</span>
                      <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">error</span><span class="p">(</span><span class="s1">&#39;Unknown model preset name </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">preset</span><span class="p">)</span></div>
+    <span class="k">else</span><span class="p">:</span></div>
+        <span class="n">error</span><span class="p">(</span><span class="s1">&#39;Unknown model preset name </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">preset</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">damp_boundary</span><span class="p">(</span><span class="n">damp</span><span class="p">,</span> <span class="n">nbpml</span><span class="p">,</span> <span class="n">spacing</span><span class="p">):</span>
@@ -616,8 +616,8 @@
 <span class="sd">        absorbing boundary conditions.</span>
 
 <span class="sd">        :param data : Data array to be padded&quot;&quot;&quot;</span>
-        <span class="n">pad_list</span> <span class="o">=</span> <span class="p">[(</span><span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">pad_list</span><span class="p">,</span> <span class="s1">&#39;edge&#39;</span><span class="p">)</span></div></div>
+        <span class="n">pad_list</span> <span class="o">=</span> <span class="p">[(</span><span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span></div></div>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">pad_list</span><span class="p">,</span> <span class="s1">&#39;edge&#39;</span><span class="p">)</span>
 </pre></div>
 
            </div>

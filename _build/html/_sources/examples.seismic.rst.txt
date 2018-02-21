@@ -1,5 +1,5 @@
-examples\.seismic package
-=========================
+examples.seismic package
+========================
 
 Subpackages
 -----------
@@ -12,32 +12,32 @@ Subpackages
 Submodules
 ----------
 
-examples\.seismic\.benchmark module
------------------------------------
+examples.seismic.benchmark module
+---------------------------------
 
 .. automodule:: examples.seismic.benchmark
     :members:
     :undoc-members:
     :show-inheritance:
 
-examples\.seismic\.model module
--------------------------------
+examples.seismic.model module
+-----------------------------
 
 .. automodule:: examples.seismic.model
     :members:
     :undoc-members:
     :show-inheritance:
 
-examples\.seismic\.plotting module
-----------------------------------
+examples.seismic.plotting module
+--------------------------------
 
 .. automodule:: examples.seismic.plotting
     :members:
     :undoc-members:
     :show-inheritance:
 
-examples\.seismic\.source module
---------------------------------
+examples.seismic.source module
+------------------------------
 
 .. automodule:: examples.seismic.source
     :members:

@@ -209,12 +209,12 @@
 <dl class="class">
 <dt id="devito.ir.equations.equation.LoweredEq">
 <em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">LoweredEq</code><span class="sig-paren">(</span><em>expr</em>, <em>subs=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#LoweredEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.ir.equations.equation.IREq" title="devito.ir.equations.equation.IREq"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.equations.equation.IREq</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.ir.equations.equation.IREq" title="devito.ir.equations.equation.IREq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code></a></p>
 <p>A SymPy equation with an associated iteration space.</p>
-<p>All <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> objects within <code class="docutils literal"><span class="pre">expr</span></code> get indexified and thus turned
-into objects of type <code class="xref py py-class docutils literal"><span class="pre">types.Indexed</span></code>.</p>
-<p>The iteration space is an object of type <code class="xref py py-class docutils literal"><span class="pre">IterationSpace</span></code>. It
-represents the iteration points along each <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> that the
+<p>All <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> objects within <code class="docutils literal notranslate"><span class="pre">expr</span></code> get indexified and thus turned
+into objects of type <code class="xref py py-class docutils literal notranslate"><span class="pre">types.Indexed</span></code>.</p>
+<p>The iteration space is an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code>. It
+represents the iteration points along each <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> that the
 equation may traverse with the guarantee that no out-of-bounds accesses
 will be performed.</p>
 <dl class="attribute">
@@ -225,23 +225,89 @@ will be performed.</p>
 <dl class="method">
 <dt id="devito.ir.equations.equation.LoweredEq.func">
 <code class="descname">func</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#LoweredEq.func"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq.func" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>The top-level function in an expression.</p>
+<p>The following should hold for all objects:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">x</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">func</span>
+<span class="go">&lt;class &#39;sympy.core.mul.Mul&#39;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">args</span>
+<span class="go">(2, x)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+<span class="go">2*x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">==</span> <span class="n">a</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.equations.equation.LoweredEq.xreplace">
 <code class="descname">xreplace</code><span class="sig-paren">(</span><em>rules</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#LoweredEq.xreplace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq.xreplace" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Replace occurrences of objects within the expression.</p>
+<dl class="docutils">
+<dt>rule <span class="classifier-delimiter">:</span> <span class="classifier">dict-like</span></dt>
+<dd>Expresses a replacement rule</dd>
+</dl>
+<p>xreplace : the result of the replacement</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">exp</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x y z&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="p">:</span> <span class="n">pi</span><span class="p">})</span>
+<span class="go">pi*y + 1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="p">:</span> <span class="n">pi</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="go">1 + 2*pi</span>
+</pre></div>
+</div>
+<p>Replacements occur only if an entire node in the expression tree is
+matched:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">x</span><span class="o">*</span><span class="n">y</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">:</span> <span class="n">pi</span><span class="p">})</span>
+<span class="go">z + pi</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="o">*</span><span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">:</span> <span class="n">pi</span><span class="p">})</span>
+<span class="go">x*y*z</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">:</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">z</span><span class="p">})</span>
+<span class="go">y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">:</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">z</span><span class="p">})</span>
+<span class="go">4*z</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="go">x + y + 2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">exp</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span> <span class="o">+</span> <span class="mi">2</span><span class="p">:</span> <span class="n">y</span><span class="p">})</span>
+<span class="go">x + exp(y) + 2</span>
+</pre></div>
+</div>
+<p>xreplace doesn’t differentiate between free and bound symbols. In the
+following, subs(x, y) would not change x since it is a bound symbol,
+but xreplace does:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Integral</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Integral</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="p">:</span> <span class="n">y</span><span class="p">})</span>
+<span class="go">Integral(y, (y, 1, 2*y))</span>
+</pre></div>
+</div>
+<p>Trying to replace x with an expression raises an error:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">Integral</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">y</span><span class="p">})</span> 
+<span class="go">ValueError: Invalid limits given: ((2*y, 1, 4*y),)</span>
+</pre></div>
+</div>
+<dl class="docutils">
+<dt>replace: replacement capable of doing wildcard-like matching,</dt>
+<dd>parsing of match, and conditional replacements</dd>
+<dt>subs: substitution of subexpressions as defined by the objects</dt>
+<dd>themselves.</dd>
+</dl>
+</dd></dl>
 
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.ir.equations.equation.ClusterizedEq">
 <em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">ClusterizedEq</code><span class="sig-paren">(</span><em>expr</em>, <em>ispace</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#ClusterizedEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.ClusterizedEq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.ir.equations.equation.IREq" title="devito.ir.equations.equation.IREq"><code class="xref py py-class docutils literal"><span class="pre">devito.ir.equations.equation.IREq</span></code></a>, <a class="reference internal" href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
-<p>A SymPy equation carrying its own <code class="xref py py-class docutils literal"><span class="pre">IterationSpace</span></code>. Suitable for
-use in a <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code>.</p>
-<p>Unlike a <a class="reference internal" href="#devito.ir.equations.equation.LoweredEq" title="devito.ir.equations.equation.LoweredEq"><code class="xref py py-class docutils literal"><span class="pre">LoweredEq</span></code></a>, a ClusterizedEq is “frozen”, meaning that any
-call to <code class="docutils literal"><span class="pre">xreplace</span></code> will not trigger re-evaluation (e.g., mathematical
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.ir.equations.equation.IREq" title="devito.ir.equations.equation.IREq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code></a>, <a class="reference internal" href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
+<p>A SymPy equation carrying its own <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code>. Suitable for
+use in a <code class="xref py py-class docutils literal notranslate"><span class="pre">Cluster</span></code>.</p>
+<p>Unlike a <a class="reference internal" href="#devito.ir.equations.equation.LoweredEq" title="devito.ir.equations.equation.LoweredEq"><code class="xref py py-class docutils literal notranslate"><span class="pre">LoweredEq</span></code></a>, a ClusterizedEq is “frozen”, meaning that any
+call to <code class="docutils literal notranslate"><span class="pre">xreplace</span></code> will not trigger re-evaluation (e.g., mathematical
 simplification) of the expression.</p>
 <dl class="attribute">
 <dt id="devito.ir.equations.equation.ClusterizedEq.default_assumptions">
@@ -251,15 +317,32 @@ simplification) of the expression.</p>
 <dl class="method">
 <dt id="devito.ir.equations.equation.ClusterizedEq.func">
 <code class="descname">func</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#ClusterizedEq.func"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.ClusterizedEq.func" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>The top-level function in an expression.</p>
+<p>The following should hold for all objects:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">x</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">func</span>
+<span class="go">&lt;class &#39;sympy.core.mul.Mul&#39;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">args</span>
+<span class="go">(2, x)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+<span class="go">2*x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">==</span> <span class="n">a</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
 
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.ir.equations.equation.IREq">
 <em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">IREq</code><a class="reference internal" href="_modules/devito/ir/equations/equation.html#IREq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.IREq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
-<p>A mixin providing operations common to all <code class="xref py py-mod docutils literal"><span class="pre">ir</span></code> equation types.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A mixin providing operations common to all <code class="xref py py-mod docutils literal notranslate"><span class="pre">ir</span></code> equation types.</p>
 <dl class="attribute">
 <dt id="devito.ir.equations.equation.IREq.dimensions">
 <code class="descname">dimensions</code><a class="headerlink" href="#devito.ir.equations.equation.IREq.dimensions" title="Permalink to this definition">¶</a></dt>

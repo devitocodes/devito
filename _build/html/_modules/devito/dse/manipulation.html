@@ -193,8 +193,8 @@
 
     <span class="c1"># Propagate the transformed LHS through the expressions</span>
     <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
-
-    <span class="k">return</span> <span class="n">processed</span></div>
+</div>
+    <span class="k">return</span> <span class="n">processed</span>
 
 
 <div class="viewcode-block" id="collect_nested"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.collect_nested">[docs]</a><span class="k">def</span> <span class="nf">collect_nested</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">aggressive</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -236,8 +236,8 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">rebuilt</span><span class="p">,</span> <span class="n">candidates</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">run</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
             <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt</span><span class="p">),</span> <span class="n">flatten</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
+</div>
+    <span class="k">return</span> <span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="common_subexprs_elimination"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.common_subexprs_elimination">[docs]</a><span class="k">def</span> <span class="nf">common_subexprs_elimination</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">make</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">):</span>
@@ -287,8 +287,8 @@
     <span class="c1"># Simply renumber the temporaries in ascending order</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">:</span> <span class="n">j</span><span class="o">.</span><span class="n">lhs</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mapped</span><span class="p">,</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">mapped</span><span class="p">))}</span>
     <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
-
-    <span class="k">return</span> <span class="n">processed</span></div>
+</div>
+    <span class="k">return</span> <span class="n">processed</span>
 
 
 <div class="viewcode-block" id="compact_temporaries"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.compact_temporaries">[docs]</a><span class="k">def</span> <span class="nf">compact_temporaries</span><span class="p">(</span><span class="n">temporaries</span><span class="p">,</span> <span class="n">leaves</span><span class="p">):</span>
@@ -312,8 +312,8 @@
             <span class="n">handle</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">xreplace_constrained</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
             <span class="n">processed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">processed</span></div>
+</div>
+    <span class="k">return</span> <span class="n">processed</span>
 </pre></div>
 
            </div>

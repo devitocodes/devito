@@ -280,8 +280,8 @@
 <div class="viewcode-block" id="Data.reset"><a class="viewcode-back" href="../../devito.html#devito.data.Data.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Set all grid entries to 0.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="p">[:]</span> <span class="o">=</span> <span class="mf">0.0</span></div></div>
+<span class="sd">        &quot;&quot;&quot;</span></div></div>
+        <span class="bp">self</span><span class="p">[:]</span> <span class="o">=</span> <span class="mf">0.0</span>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -318,24 +318,24 @@
 
     <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">))</span>
 
-    <span class="n">pointer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">as_array</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span>
-    <span class="k">return</span> <span class="p">(</span><span class="n">pointer</span><span class="p">,</span> <span class="n">c_pointer</span><span class="p">)</span></div>
+    <span class="n">pointer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">as_array</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="p">(</span><span class="n">pointer</span><span class="p">,</span> <span class="n">c_pointer</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="free"><a class="viewcode-back" href="../../devito.html#devito.data.free">[docs]</a><span class="k">def</span> <span class="nf">free</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Use the C function free to free the memory allocated for the</span>
 <span class="sd">    given pointer.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">libc</span><span class="o">.</span><span class="n">free</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">)</span></div>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+    <span class="n">libc</span><span class="o">.</span><span class="n">free</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="first_touch"><a class="viewcode-back" href="../../devito.html#devito.data.first_touch">[docs]</a><span class="k">def</span> <span class="nf">first_touch</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Uses an Operator to initialize the given array in the same pattern that</span>
 <span class="sd">    would later be used to access it.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">devito</span><span class="o">.</span><span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="mf">0.</span><span class="p">))()</span></div>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+    <span class="n">devito</span><span class="o">.</span><span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="mf">0.</span><span class="p">))()</span>
 </pre></div>
 
            </div>

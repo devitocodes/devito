@@ -212,8 +212,8 @@
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.FrozenExpr">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">FrozenExpr</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#FrozenExpr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.FrozenExpr" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.expr.Expr</span></code></p>
-<p>Use <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal"><span class="pre">FrozenExpr</span></code></a> in place of <code class="xref py py-class docutils literal"><span class="pre">sympy.Expr</span></code> to make sure than
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.expr.Expr</span></code></p>
+<p>Use <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">FrozenExpr</span></code></a> in place of <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Expr</span></code> to make sure than
 an expression is no longer transformable; that is, standard manipulations
 such as xreplace, collect, expand, … have no effect, thus building a
 new expression identical to self.</p>
@@ -234,15 +234,64 @@ new expression identical to self.</p>
 <dl class="method">
 <dt id="devito.symbolics.extended_sympy.FrozenExpr.xreplace">
 <code class="descname">xreplace</code><span class="sig-paren">(</span><em>rule</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#FrozenExpr.xreplace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.FrozenExpr.xreplace" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Replace occurrences of objects within the expression.</p>
+<dl class="docutils">
+<dt>rule <span class="classifier-delimiter">:</span> <span class="classifier">dict-like</span></dt>
+<dd>Expresses a replacement rule</dd>
+</dl>
+<p>xreplace : the result of the replacement</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">exp</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x y z&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="p">:</span> <span class="n">pi</span><span class="p">})</span>
+<span class="go">pi*y + 1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="p">:</span> <span class="n">pi</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="go">1 + 2*pi</span>
+</pre></div>
+</div>
+<p>Replacements occur only if an entire node in the expression tree is
+matched:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">x</span><span class="o">*</span><span class="n">y</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">:</span> <span class="n">pi</span><span class="p">})</span>
+<span class="go">z + pi</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="o">*</span><span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">:</span> <span class="n">pi</span><span class="p">})</span>
+<span class="go">x*y*z</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">:</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">z</span><span class="p">})</span>
+<span class="go">y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">:</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">z</span><span class="p">})</span>
+<span class="go">4*z</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="go">x + y + 2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">exp</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span> <span class="o">+</span> <span class="mi">2</span><span class="p">:</span> <span class="n">y</span><span class="p">})</span>
+<span class="go">x + exp(y) + 2</span>
+</pre></div>
+</div>
+<p>xreplace doesn’t differentiate between free and bound symbols. In the
+following, subs(x, y) would not change x since it is a bound symbol,
+but xreplace does:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Integral</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Integral</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="p">:</span> <span class="n">y</span><span class="p">})</span>
+<span class="go">Integral(y, (y, 1, 2*y))</span>
+</pre></div>
+</div>
+<p>Trying to replace x with an expression raises an error:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">Integral</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">x</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">y</span><span class="p">})</span> 
+<span class="go">ValueError: Invalid limits given: ((2*y, 1, 4*y),)</span>
+</pre></div>
+</div>
+<dl class="docutils">
+<dt>replace: replacement capable of doing wildcard-like matching,</dt>
+<dd>parsing of match, and conditional replacements</dd>
+<dt>subs: substitution of subexpressions as defined by the objects</dt>
+<dd>themselves.</dd>
+</dl>
+</dd></dl>
 
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.Eq">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">Eq</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#Eq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.Eq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
-<p>A customized version of <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code> which suppresses evaluation.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
+<p>A customized version of <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> which suppresses evaluation.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.Eq.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Eq.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -253,8 +302,8 @@ new expression identical to self.</p>
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.CondEq">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">CondEq</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#CondEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.CondEq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
-<p>A customized version of <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code> representing a conditional
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
+<p>A customized version of <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> representing a conditional
 equality. It suppresses evaluation.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.CondEq.default_assumptions">
@@ -266,8 +315,8 @@ equality. It suppresses evaluation.</p>
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.CondNe">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">CondNe</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#CondNe"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.CondNe" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.relational.Unequality</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
-<p>A customized version of <code class="xref py py-class docutils literal"><span class="pre">sympy.Ne</span></code> representing a conditional
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Unequality</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
+<p>A customized version of <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Ne</span></code> representing a conditional
 inequality. It suppresses evaluation.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.CondNe.default_assumptions">
@@ -279,7 +328,7 @@ inequality. It suppresses evaluation.</p>
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.Mul">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">Mul</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#Mul"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.Mul" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.mul.Mul</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.mul.Mul</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.Mul.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Mul.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -290,7 +339,7 @@ inequality. It suppresses evaluation.</p>
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.Add">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">Add</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#Add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.Add" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.add.Add</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.add.Add</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.Add.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Add.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -301,11 +350,11 @@ inequality. It suppresses evaluation.</p>
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.IntDiv">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">IntDiv</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#IntDiv"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.IntDiv" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.expr.Expr</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.expr.Expr</span></code></p>
 <p>A support type for integer division. Should only be used by the compiler
 for code generation purposes (i.e., not for symbolic manipulation).
 This works around the annoying way SymPy represents integer division,
-namely as a <code class="docutils literal"><span class="pre">Mul</span></code> between the numerator and the reciprocal of the
+namely as a <code class="docutils literal notranslate"><span class="pre">Mul</span></code> between the numerator and the reciprocal of the
 denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></a>a*3.args -&gt; (a, 1/3)), which ends up generating
 “weird” C code.</p>
 <dl class="attribute">
@@ -323,8 +372,8 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.FunctionFromPointer">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">FunctionFromPointer</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#FunctionFromPointer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.FunctionFromPointer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.expr.Expr</span></code></p>
-<p>Symbolic representation of the C notation <code class="docutils literal"><span class="pre">pointer-&gt;function(params)</span></code>.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.expr.Expr</span></code></p>
+<p>Symbolic representation of the C notation <code class="docutils literal notranslate"><span class="pre">pointer-&gt;function(params)</span></code>.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.FunctionFromPointer.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.FunctionFromPointer.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -335,8 +384,8 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.ListInitializer">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">ListInitializer</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#ListInitializer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.ListInitializer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.symbol.Symbol</span></code></p>
-<p>Symbolic representation of the C++ list initializer notation <code class="docutils literal"><span class="pre">{a,</span> <span class="pre">b,</span> <span class="pre">...}</span></code>.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.symbol.Symbol</span></code></p>
+<p>Symbolic representation of the C++ list initializer notation <code class="docutils literal notranslate"><span class="pre">{a,</span> <span class="pre">b,</span> <span class="pre">...}</span></code>.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.ListInitializer.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.ListInitializer.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -347,7 +396,7 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.taylor_sin">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">taylor_sin</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#taylor_sin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.taylor_sin" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.functions.elementary.trigonometric.TrigonometricFunction</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.functions.elementary.trigonometric.TrigonometricFunction</span></code></p>
 <p>Approximation of the sine function using a Taylor polynomial.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.taylor_sin.default_assumptions">
@@ -357,14 +406,37 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="classmethod">
 <dt id="devito.symbolics.extended_sympy.taylor_sin.eval">
 <em class="property">classmethod </em><code class="descname">eval</code><span class="sig-paren">(</span><em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#taylor_sin.eval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.taylor_sin.eval" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Returns a canonical form of cls applied to arguments args.</p>
+<p>The eval() method is called when the class cls is about to be
+instantiated and it should return either some simplified instance
+(possible of some other class), or if the class cls should be
+unmodified, return None.</p>
+<p>&#64;classmethod
+def eval(cls, arg):</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>if arg is S.NaN:</dt>
+<dd>return S.NaN</dd>
+</dl>
+<p>if arg is S.Zero: return S.Zero
+if arg.is_positive: return S.One
+if arg.is_negative: return S.NegativeOne
+if isinstance(arg, Mul):</p>
+<blockquote>
+<div><p>coeff, terms = arg.as_coeff_Mul(rational=True)
+if coeff is not S.One:</p>
+<blockquote>
+<div>return cls(coeff) * cls(terms)</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+</dd></dl>
 
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.taylor_cos">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">taylor_cos</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#taylor_cos"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.taylor_cos" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.functions.elementary.trigonometric.TrigonometricFunction</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.functions.elementary.trigonometric.TrigonometricFunction</span></code></p>
 <p>Approximation of the cosine function using a Taylor polynomial.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.taylor_cos.default_assumptions">
@@ -374,14 +446,37 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="classmethod">
 <dt id="devito.symbolics.extended_sympy.taylor_cos.eval">
 <em class="property">classmethod </em><code class="descname">eval</code><span class="sig-paren">(</span><em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#taylor_cos.eval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.taylor_cos.eval" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Returns a canonical form of cls applied to arguments args.</p>
+<p>The eval() method is called when the class cls is about to be
+instantiated and it should return either some simplified instance
+(possible of some other class), or if the class cls should be
+unmodified, return None.</p>
+<p>&#64;classmethod
+def eval(cls, arg):</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>if arg is S.NaN:</dt>
+<dd>return S.NaN</dd>
+</dl>
+<p>if arg is S.Zero: return S.Zero
+if arg.is_positive: return S.One
+if arg.is_negative: return S.NegativeOne
+if isinstance(arg, Mul):</p>
+<blockquote>
+<div><p>coeff, terms = arg.as_coeff_Mul(rational=True)
+if coeff is not S.One:</p>
+<blockquote>
+<div>return cls(coeff) * cls(terms)</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+</dd></dl>
 
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.bhaskara_sin">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">bhaskara_sin</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#bhaskara_sin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.bhaskara_sin" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.functions.elementary.trigonometric.TrigonometricFunction</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.functions.elementary.trigonometric.TrigonometricFunction</span></code></p>
 <p>Approximation of the sine function using a Bhaskara polynomial.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.bhaskara_sin.default_assumptions">
@@ -391,14 +486,37 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="classmethod">
 <dt id="devito.symbolics.extended_sympy.bhaskara_sin.eval">
 <em class="property">classmethod </em><code class="descname">eval</code><span class="sig-paren">(</span><em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#bhaskara_sin.eval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.bhaskara_sin.eval" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Returns a canonical form of cls applied to arguments args.</p>
+<p>The eval() method is called when the class cls is about to be
+instantiated and it should return either some simplified instance
+(possible of some other class), or if the class cls should be
+unmodified, return None.</p>
+<p>&#64;classmethod
+def eval(cls, arg):</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>if arg is S.NaN:</dt>
+<dd>return S.NaN</dd>
+</dl>
+<p>if arg is S.Zero: return S.Zero
+if arg.is_positive: return S.One
+if arg.is_negative: return S.NegativeOne
+if isinstance(arg, Mul):</p>
+<blockquote>
+<div><p>coeff, terms = arg.as_coeff_Mul(rational=True)
+if coeff is not S.One:</p>
+<blockquote>
+<div>return cls(coeff) * cls(terms)</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+</dd></dl>
 
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.symbolics.extended_sympy.bhaskara_cos">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">bhaskara_cos</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#bhaskara_cos"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.bhaskara_cos" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.functions.elementary.trigonometric.TrigonometricFunction</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.functions.elementary.trigonometric.TrigonometricFunction</span></code></p>
 <p>Approximation of the cosine function using a Bhaskara polynomial.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.bhaskara_cos.default_assumptions">
@@ -408,7 +526,30 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="classmethod">
 <dt id="devito.symbolics.extended_sympy.bhaskara_cos.eval">
 <em class="property">classmethod </em><code class="descname">eval</code><span class="sig-paren">(</span><em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#bhaskara_cos.eval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.bhaskara_cos.eval" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Returns a canonical form of cls applied to arguments args.</p>
+<p>The eval() method is called when the class cls is about to be
+instantiated and it should return either some simplified instance
+(possible of some other class), or if the class cls should be
+unmodified, return None.</p>
+<p>&#64;classmethod
+def eval(cls, arg):</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>if arg is S.NaN:</dt>
+<dd>return S.NaN</dd>
+</dl>
+<p>if arg is S.Zero: return S.Zero
+if arg.is_positive: return S.One
+if arg.is_negative: return S.NegativeOne
+if isinstance(arg, Mul):</p>
+<blockquote>
+<div><p>coeff, terms = arg.as_coeff_Mul(rational=True)
+if coeff is not S.One:</p>
+<blockquote>
+<div>return cls(coeff) * cls(terms)</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+</dd></dl>
 
 </dd></dl>
 
@@ -418,14 +559,14 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="function">
 <dt id="devito.symbolics.inspection.count">
 <code class="descclassname">devito.symbolics.inspection.</code><code class="descname">count</code><span class="sig-paren">(</span><em>exprs</em>, <em>query</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/inspection.html#count"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.inspection.count" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a mapper <code class="docutils literal"><span class="pre">{(k,</span> <span class="pre">v)}</span></code> where <code class="docutils literal"><span class="pre">k</span></code> is a sub-expression in <code class="docutils literal"><span class="pre">exprs</span></code>
-matching <code class="docutils literal"><span class="pre">query</span></code> and <code class="docutils literal"><span class="pre">v</span></code> is the number of its occurrences.</p>
+<dd><p>Return a mapper <code class="docutils literal notranslate"><span class="pre">{(k,</span> <span class="pre">v)}</span></code> where <code class="docutils literal notranslate"><span class="pre">k</span></code> is a sub-expression in <code class="docutils literal notranslate"><span class="pre">exprs</span></code>
+matching <code class="docutils literal notranslate"><span class="pre">query</span></code> and <code class="docutils literal notranslate"><span class="pre">v</span></code> is the number of its occurrences.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.inspection.estimate_cost">
 <code class="descclassname">devito.symbolics.inspection.</code><code class="descname">estimate_cost</code><span class="sig-paren">(</span><em>handle</em>, <em>estimate_functions=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/inspection.html#estimate_cost"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.inspection.estimate_cost" title="Permalink to this definition">¶</a></dt>
-<dd><p>Estimate the operation count of <code class="docutils literal"><span class="pre">handle</span></code>.</p>
+<dd><p>Estimate the operation count of <code class="docutils literal notranslate"><span class="pre">handle</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -457,8 +598,8 @@ functions (eg, sin, cos).</li>
 </tr>
 </tbody>
 </table>
-<p>Estimate <code class="docutils literal"><span class="pre">mode</span></code> might be any of:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">ideal</span><span class="p">:</span> <span class="n">Also</span> <span class="n">known</span> <span class="k">as</span> <span class="s2">&quot;compulsory traffic&quot;</span><span class="p">,</span> <span class="n">which</span> <span class="ow">is</span> <span class="n">the</span> <span class="n">minimum</span>
+<p>Estimate <code class="docutils literal notranslate"><span class="pre">mode</span></code> might be any of:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">ideal</span><span class="p">:</span> <span class="n">Also</span> <span class="n">known</span> <span class="k">as</span> <span class="s2">&quot;compulsory traffic&quot;</span><span class="p">,</span> <span class="n">which</span> <span class="ow">is</span> <span class="n">the</span> <span class="n">minimum</span>
          <span class="n">number</span> <span class="n">of</span> <span class="n">read</span><span class="o">/</span><span class="n">writes</span> <span class="n">to</span> <span class="n">be</span> <span class="n">performed</span> <span class="p">(</span><span class="n">ie</span><span class="p">,</span> <span class="n">models</span> <span class="n">an</span> <span class="n">infinite</span> <span class="n">cache</span><span class="p">)</span><span class="o">.</span>
 <span class="o">*</span> <span class="n">ideal_with_stores</span><span class="p">:</span> <span class="n">Like</span> <span class="n">ideal</span><span class="p">,</span> <span class="n">but</span> <span class="n">a</span> <span class="n">data</span> <span class="n">item</span> <span class="n">which</span> <span class="ow">is</span> <span class="n">both</span> <span class="n">read</span><span class="o">.</span>
                      <span class="ow">and</span> <span class="n">written</span> <span class="ow">is</span> <span class="n">counted</span> <span class="n">twice</span> <span class="p">(</span><span class="n">ie</span> <span class="n">both</span> <span class="n">load</span> <span class="n">an</span>
@@ -472,14 +613,14 @@ functions (eg, sin, cos).</li>
 <dl class="function">
 <dt id="devito.symbolics.inspection.dimension_sort">
 <code class="descclassname">devito.symbolics.inspection.</code><code class="descname">dimension_sort</code><span class="sig-paren">(</span><em>expr</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/inspection.html#dimension_sort"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.inspection.dimension_sort" title="Permalink to this definition">¶</a></dt>
-<dd><p>Topologically sort the <code class="xref py py-class docutils literal"><span class="pre">Dimension`s</span> <span class="pre">in</span> <span class="pre">``expr`</span></code>, based on the order
-in which they are encountered when visiting <code class="docutils literal"><span class="pre">expr</span></code>.</p>
+<dd><p>Topologically sort the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">in</span> <span class="pre">``expr`</span></code>, based on the order
+in which they are encountered when visiting <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>expr</strong> – The <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code> from which the :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Dimension`s are
+<li><strong>expr</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> from which the :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Dimension`s are
 extracted. They can appear both as array indices or as free
 symbols.</li>
 <li><strong>key</strong> – A callable used as key to enforce a final ordering.</li>
@@ -496,16 +637,16 @@ symbols.</li>
 <dl class="function">
 <dt id="devito.symbolics.manipulation.freeze_expression">
 <code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">freeze_expression</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#freeze_expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.freeze_expression" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reconstruct <code class="docutils literal"><span class="pre">expr</span></code> turning all <code class="xref py py-class docutils literal"><span class="pre">sympy.Mul</span></code> and <code class="xref py py-class docutils literal"><span class="pre">sympy.Add</span></code>
-into, respectively, <code class="xref py py-class docutils literal"><span class="pre">devito.Mul</span></code> and <code class="xref py py-class docutils literal"><span class="pre">devito.Add</span></code>.</p>
+<dd><p>Reconstruct <code class="docutils literal notranslate"><span class="pre">expr</span></code> turning all <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Mul</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Add</span></code>
+into, respectively, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.Mul</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.Add</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.manipulation.xreplace_constrained">
 <code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">xreplace_constrained</code><span class="sig-paren">(</span><em>exprs</em>, <em>make</em>, <em>rule=None</em>, <em>costmodel=&lt;function &lt;lambda&gt;&gt;</em>, <em>repeat=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#xreplace_constrained"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.xreplace_constrained" title="Permalink to this definition">¶</a></dt>
-<dd><p>Unlike <code class="docutils literal"><span class="pre">xreplace</span></code>, which replaces all objects specified in a mapper,
+<dd><p>Unlike <code class="docutils literal notranslate"><span class="pre">xreplace</span></code>, which replaces all objects specified in a mapper,
 this function replaces all objects satisfying two criteria:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span>* The &quot;matching rule&quot; -- a function returning True if a node within ``expr``
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* The &quot;matching rule&quot; -- a function returning True if a node within ``expr``
     satisfies a given property, and as such should be replaced;
 * A &quot;cost model&quot; -- a function triggering replacement only if a certain
     cost (e.g., operation count) is exceeded. This function is optional.
@@ -513,9 +654,9 @@ this function replaces all objects satisfying two criteria:</p>
 </div>
 <p>Note that there is not necessarily a relationship between the set of nodes
 for which the matching rule returns True and those nodes passing the cost
-model check. It might happen for example that, given the expression <code class="docutils literal"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">b</span></code>,
-all of <code class="docutils literal"><span class="pre">a</span></code>, <code class="docutils literal"><span class="pre">b</span></code>, and <code class="docutils literal"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">b</span></code> satisfy the matching rule, but only
-<code class="docutils literal"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">b</span></code> satisfies the cost model.</p>
+model check. It might happen for example that, given the expression <code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">b</span></code>,
+all of <code class="docutils literal notranslate"><span class="pre">a</span></code>, <code class="docutils literal notranslate"><span class="pre">b</span></code>, and <code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">b</span></code> satisfy the matching rule, but only
+<code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">b</span></code> satisfies the cost model.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -527,9 +668,9 @@ in K with a symbol in V, or a function, used to construct new, unique
 symbols. Such a function should take as input a parameter, used to
 enumerate the new symbols.</li>
 <li><strong>rule</strong> – The matching rule (a lambda function). May be left unspecified if
-<code class="docutils literal"><span class="pre">make</span></code> is a mapper.</li>
+<code class="docutils literal notranslate"><span class="pre">make</span></code> is a mapper.</li>
 <li><strong>costmodel</strong> – The cost model (a lambda function, optional).</li>
-<li><strong>repeat</strong> – Repeatedly apply <code class="docutils literal"><span class="pre">xreplace</span></code> until no more replacements are
+<li><strong>repeat</strong> – Repeatedly apply <code class="docutils literal notranslate"><span class="pre">xreplace</span></code> until no more replacements are
 possible (optional, defaults to False).</li>
 </ul>
 </td>
@@ -541,9 +682,9 @@ possible (optional, defaults to False).</li>
 <dl class="function">
 <dt id="devito.symbolics.manipulation.xreplace_indices">
 <code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">xreplace_indices</code><span class="sig-paren">(</span><em>exprs</em>, <em>mapper</em>, <em>candidates=None</em>, <em>only_rhs=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#xreplace_indices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.xreplace_indices" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create new expressions from <code class="docutils literal"><span class="pre">exprs</span></code>, by replacing all index variables
+<dd><p>Create new expressions from <code class="docutils literal notranslate"><span class="pre">exprs</span></code>, by replacing all index variables
 specified in mapper appearing as a tensor index. Only tensors whose symbolic
-name appears in <code class="docutils literal"><span class="pre">candidates</span></code> are considered if <code class="docutils literal"><span class="pre">candidates</span></code> is not None.</p>
+name appears in <code class="docutils literal notranslate"><span class="pre">candidates</span></code> are considered if <code class="docutils literal notranslate"><span class="pre">candidates</span></code> is not None.</p>
 </dd></dl>
 
 <dl class="function">
@@ -561,7 +702,7 @@ name appears in <code class="docutils literal"><span class="pre">candidates</spa
 <dt id="devito.symbolics.manipulation.indexify">
 <code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">indexify</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#indexify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.indexify" title="Permalink to this definition">¶</a></dt>
 <dd><p>Given a SymPy expression, return a new SymPy expression in which all
-<code class="xref py py-class docutils literal"><span class="pre">AbstractFunction</span></code> objects have been converted into <code class="xref py py-class docutils literal"><span class="pre">Indexed</span></code>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractFunction</span></code> objects have been converted into <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed</span></code>
 objects.</p>
 </dd></dl>
 
@@ -572,7 +713,7 @@ objects.</p>
 <dt id="devito.symbolics.queries.q_leaf">
 <code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_leaf</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_leaf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_leaf" title="Permalink to this definition">¶</a></dt>
 <dd><p>The DSE interprets the following SymPy objects as tree leaves:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Number</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">Number</span>
 <span class="o">*</span> <span class="n">Symbol</span>
 <span class="o">*</span> <span class="n">Indexed</span>
 </pre></div>
@@ -612,7 +753,7 @@ objects.</p>
 <dl class="function">
 <dt id="devito.symbolics.queries.q_indirect">
 <code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_indirect</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_indirect"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_indirect" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return True if <code class="docutils literal"><span class="pre">indexed</span></code> has indirect accesses, False otherwise.</p>
+<dd><p>Return True if <code class="docutils literal notranslate"><span class="pre">indexed</span></code> has indirect accesses, False otherwise.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -633,7 +774,7 @@ a[b[i]] –&gt; True</p>
 <dl class="function">
 <dt id="devito.symbolics.queries.q_affine">
 <code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_affine</code><span class="sig-paren">(</span><em>expr</em>, <em>vars</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_affine"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_affine" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return True if <code class="docutils literal"><span class="pre">expr</span></code> is (separately) affine in the variables <code class="docutils literal"><span class="pre">vars</span></code>,
+<dd><p>Return True if <code class="docutils literal notranslate"><span class="pre">expr</span></code> is (separately) affine in the variables <code class="docutils literal notranslate"><span class="pre">vars</span></code>,
 False otherwise.</p>
 <p>Readapted from: <a class="reference external" href="https://stackoverflow.com/questions/36283548">https://stackoverflow.com/questions/36283548</a>        /check-if-an-equation-is-linear-for-a-specific-set-of-variables/</p>
 </dd></dl>
@@ -641,16 +782,16 @@ False otherwise.</p>
 <dl class="function">
 <dt id="devito.symbolics.queries.q_linear">
 <code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_linear</code><span class="sig-paren">(</span><em>expr</em>, <em>vars</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_linear"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_linear" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return True if <code class="docutils literal"><span class="pre">expr</span></code> is (separately) linear in the variables <code class="docutils literal"><span class="pre">vars</span></code>,
+<dd><p>Return True if <code class="docutils literal notranslate"><span class="pre">expr</span></code> is (separately) linear in the variables <code class="docutils literal notranslate"><span class="pre">vars</span></code>,
 False otherwise.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.queries.q_identity">
 <code class="descclassname">devito.symbolics.queries.</code><code class="descname">q_identity</code><span class="sig-paren">(</span><em>expr</em>, <em>var</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/queries.html#q_identity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.queries.q_identity" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return True if <code class="docutils literal"><span class="pre">expr</span></code> is the identity function in <code class="docutils literal"><span class="pre">var</span></code>, modulo a constant
-(that is, a function affine in <code class="docutils literal"><span class="pre">var</span></code> in which the value of the coefficient of
-<code class="docutils literal"><span class="pre">var</span></code> is 1), False otherwise.</p>
+<dd><p>Return True if <code class="docutils literal notranslate"><span class="pre">expr</span></code> is the identity function in <code class="docutils literal notranslate"><span class="pre">var</span></code>, modulo a constant
+(that is, a function affine in <code class="docutils literal notranslate"><span class="pre">var</span></code> in which the value of the coefficient of
+<code class="docutils literal notranslate"><span class="pre">var</span></code> is 1), False otherwise.</p>
 <p>3x -&gt; False
 3x + 1 -&gt; False
 x + 2 -&gt; True</p>
@@ -677,31 +818,31 @@ x + 2 -&gt; True</p>
 <dl class="function">
 <dt id="devito.symbolics.search.retrieve_indexed">
 <code class="descclassname">devito.symbolics.search.</code><code class="descname">retrieve_indexed</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/search.html#retrieve_indexed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.search.retrieve_indexed" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal"><span class="pre">Indexed</span></code> objects in <code class="docutils literal"><span class="pre">expr</span></code>.</p>
+<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed</span></code> objects in <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.search.retrieve_functions">
 <code class="descclassname">devito.symbolics.search.</code><code class="descname">retrieve_functions</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/search.html#retrieve_functions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.search.retrieve_functions" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> objects in <code class="docutils literal"><span class="pre">expr</span></code>.</p>
+<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Function</span></code> objects in <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.search.retrieve_terminals">
 <code class="descclassname">devito.symbolics.search.</code><code class="descname">retrieve_terminals</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/search.html#retrieve_terminals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.search.retrieve_terminals" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal"><span class="pre">Indexed</span></code> and <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects in <code class="docutils literal"><span class="pre">expr</span></code>.</p>
+<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">Symbol</span></code> objects in <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.search.retrieve_ops">
 <code class="descclassname">devito.symbolics.search.</code><code class="descname">retrieve_ops</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/search.html#retrieve_ops"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.search.retrieve_ops" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shorthand to retrieve arithmetic operations rooted in <code class="docutils literal"><span class="pre">expr</span></code>.</p>
+<dd><p>Shorthand to retrieve arithmetic operations rooted in <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.search.retrieve_trigonometry">
 <code class="descclassname">devito.symbolics.search.</code><code class="descname">retrieve_trigonometry</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/search.html#retrieve_trigonometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.search.retrieve_trigonometry" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shorthand to retrieve trigonometric function objects in <code class="docutils literal"><span class="pre">expr</span></code>.</p>
+<dd><p>Shorthand to retrieve trigonometric function objects in <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </dd></dl>
 
 <dl class="function">

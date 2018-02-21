@@ -219,13 +219,13 @@
 <dl class="function">
 <dt id="examples.seismic.benchmark.get_ob_bench">
 <code class="descclassname">examples.seismic.benchmark.</code><code class="descname">get_ob_bench</code><span class="sig-paren">(</span><em>problem</em>, <em>resultsdir</em>, <em>parameters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/benchmark.html#get_ob_bench"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.benchmark.get_ob_bench" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a special <code class="xref py py-class docutils literal"><span class="pre">opescibench.Benchmark</span></code> to manage performance runs.</p>
+<dd><p>Return a special <code class="xref py py-class docutils literal notranslate"><span class="pre">opescibench.Benchmark</span></code> to manage performance runs.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="examples.seismic.benchmark.get_ob_exec">
 <code class="descclassname">examples.seismic.benchmark.</code><code class="descname">get_ob_exec</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/benchmark.html#get_ob_exec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.benchmark.get_ob_exec" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a special <code class="xref py py-class docutils literal"><span class="pre">opescibench.Executor</span></code> to execute performance runs.</p>
+<dd><p>Return a special <code class="xref py py-class docutils literal notranslate"><span class="pre">opescibench.Executor</span></code> to execute performance runs.</p>
 </dd></dl>
 
 <dl class="function">
@@ -268,7 +268,7 @@
 <dl class="class">
 <dt id="examples.seismic.model.Model">
 <em class="property">class </em><code class="descclassname">examples.seismic.model.</code><code class="descname">Model</code><span class="sig-paren">(</span><em>origin</em>, <em>spacing</em>, <em>shape</em>, <em>vp</em>, <em>nbpml=20</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>The physical model used in seismic inversion processes.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -290,7 +290,7 @@
 </tr>
 </tbody>
 </table>
-<p>The <a class="reference internal" href="#examples.seismic.model.Model" title="examples.seismic.model.Model"><code class="xref py py-class docutils literal"><span class="pre">Model</span></code></a> provides two symbolic data objects for the
+<p>The <a class="reference internal" href="#examples.seismic.model.Model" title="examples.seismic.model.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code></a> provides two symbolic data objects for the
 creation of seismic wave propagation operators:</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -351,16 +351,16 @@ absorbing boundary conditions.</p>
 <dl class="attribute">
 <dt id="examples.seismic.model.Model.spacing_map">
 <code class="descname">spacing_map</code><a class="headerlink" href="#examples.seismic.model.Model.spacing_map" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map between spacing symbols and their values for each <code class="xref py py-class docutils literal"><span class="pre">SpaceDimension</span></code></p>
+<dd><p>Map between spacing symbols and their values for each <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code></p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="examples.seismic.model.Model.vp">
 <code class="descname">vp</code><a class="headerlink" href="#examples.seismic.model.Model.vp" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> holding the model velocity in km/s.</p>
+<dd><p><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> holding the model velocity in km/s.</p>
 <p>Updating the velocity field also updates the square slowness
-<code class="docutils literal"><span class="pre">self.m</span></code>. However, only <code class="docutils literal"><span class="pre">self.m</span></code> should be used in seismic
-operators, since it is of type <code class="xref py py-class docutils literal"><span class="pre">Function</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">self.m</span></code>. However, only <code class="docutils literal notranslate"><span class="pre">self.m</span></code> should be used in seismic
+operators, since it is of type <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>.</p>
 </dd></dl>
 
 </dd></dl>
@@ -368,9 +368,9 @@ operators, since it is of type <code class="xref py py-class docutils literal"><
 <dl class="function">
 <dt id="examples.seismic.model.demo_model">
 <code class="descclassname">examples.seismic.model.</code><code class="descname">demo_model</code><span class="sig-paren">(</span><em>preset</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#demo_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.demo_model" title="Permalink to this definition">¶</a></dt>
-<dd><p>Utility function to create preset <a class="reference internal" href="#examples.seismic.model.Model" title="examples.seismic.model.Model"><code class="xref py py-class docutils literal"><span class="pre">Model</span></code></a> objects for
+<dd><p>Utility function to create preset <a class="reference internal" href="#examples.seismic.model.Model" title="examples.seismic.model.Model"><code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code></a> objects for
 demonstration and testing purposes. The particular presets are</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span>* `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model
 * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and
 </pre></div>
 </div>
@@ -399,19 +399,19 @@ are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.
 </li>
 <li><dl class="first docutils">
 <dt>‘marmousi2d-isotropic’: Loads the 2D Marmousi data set from the given</dt>
-<dd>filepath. Requires the <code class="docutils literal"><span class="pre">opesci/data</span></code> repository
+<dd>filepath. Requires the <code class="docutils literal notranslate"><span class="pre">opesci/data</span></code> repository
 to be available on your machine.</dd>
 </dl>
 </li>
 <li><dl class="first docutils">
 <dt>‘marmousi2d-tti’: Loads the 2D Marmousi data set from the given</dt>
-<dd>filepath. Requires the <code class="docutils literal"><span class="pre">opesci/data</span></code> repository
+<dd>filepath. Requires the <code class="docutils literal notranslate"><span class="pre">opesci/data</span></code> repository
 to be available on your machine.</dd>
 </dl>
 </li>
 <li><dl class="first docutils">
 <dt>‘marmousi3d-tti’: Loads the 2D Marmousi data set from the given</dt>
-<dd>filepath. Requires the <code class="docutils literal"><span class="pre">opesci/data</span></code> repository
+<dd>filepath. Requires the <code class="docutils literal notranslate"><span class="pre">opesci/data</span></code> repository
 to be available on your machine.</dd>
 </dl>
 </li>
@@ -443,15 +443,15 @@ to be available on your machine.</dd>
 <dl class="function">
 <dt id="examples.seismic.plotting.plot_perturbation">
 <code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_perturbation</code><span class="sig-paren">(</span><em>model</em>, <em>model1</em>, <em>colorbar=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_perturbation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_perturbation" title="Permalink to this definition">¶</a></dt>
-<dd><p>Plot a two-dimensional velocity difference from two seismic <code class="xref py py-class docutils literal"><span class="pre">Model</span></code>
+<dd><p>Plot a two-dimensional velocity difference from two seismic <code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code>
 objects.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object of first velocity model.</li>
-<li><strong>model1</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object of the second velocity model.</li>
+<li><strong>model</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code> object of first velocity model.</li>
+<li><strong>model1</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code> object of the second velocity model.</li>
 <li><strong>source</strong> – Coordinates of the source point.</li>
 <li><strong>receiver</strong> – Coordinates of the receiver points.</li>
 </ul>
@@ -471,7 +471,7 @@ objects.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>rec</strong> – Receiver data with shape (time, points)</li>
-<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object that holds the velocity model.</li>
+<li><strong>model</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code> object that holds the velocity model.</li>
 <li><strong>t0</strong> – Start of time dimension to plot</li>
 <li><strong>tn</strong> – End of time dimension to plot</li>
 </ul>
@@ -484,14 +484,14 @@ objects.</p>
 <dl class="function">
 <dt id="examples.seismic.plotting.plot_velocity">
 <code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_velocity</code><span class="sig-paren">(</span><em>model</em>, <em>source=None</em>, <em>receiver=None</em>, <em>colorbar=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_velocity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_velocity" title="Permalink to this definition">¶</a></dt>
-<dd><p>Plot a two-dimensional velocity field from a seismic <code class="xref py py-class docutils literal"><span class="pre">Model</span></code>
+<dd><p>Plot a two-dimensional velocity field from a seismic <code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code>
 object. Optionally also includes point markers for sources and receivers.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object that holds the velocity model.</li>
+<li><strong>model</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code> object that holds the velocity model.</li>
 <li><strong>source</strong> – Coordinates of the source point.</li>
 <li><strong>receiver</strong> – Coordinates of the receiver points.</li>
 </ul>
@@ -507,7 +507,7 @@ object. Optionally also includes point markers for sources and receivers.</p>
 <dl class="class">
 <dt id="examples.seismic.source.PointSource">
 <em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">PointSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#PointSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.PointSource" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="devito.html#devito.function.SparseTimeFunction" title="devito.function.SparseTimeFunction"><code class="xref py py-class docutils literal"><span class="pre">devito.function.SparseTimeFunction</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.function.SparseTimeFunction" title="devito.function.SparseTimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.SparseTimeFunction</span></code></a></p>
 <p>Symbolic data object for a set of sparse point sources</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -515,7 +515,7 @@ object. Optionally also includes point markers for sources and receivers.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the symbol representing this source</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
 <li><strong>coordinates</strong> – Point coordinates for this source</li>
 <li><strong>data</strong> – (Optional) Data values to initialise point data</li>
 <li><strong>ntime</strong> – (Optional) Number of timesteps for which to allocate data</li>
@@ -539,19 +539,19 @@ initialised <cite>data</cite> array need to be provided.</p>
 <dl class="attribute">
 <dt id="examples.seismic.source.Receiver">
 <code class="descclassname">examples.seismic.source.</code><code class="descname">Receiver</code><a class="headerlink" href="#examples.seismic.source.Receiver" title="Permalink to this definition">¶</a></dt>
-<dd><p>alias of <a class="reference internal" href="#examples.seismic.source.PointSource" title="examples.seismic.source.PointSource"><code class="xref py py-class docutils literal"><span class="pre">PointSource</span></code></a></p>
+<dd><p>alias of <a class="reference internal" href="#examples.seismic.source.PointSource" title="examples.seismic.source.PointSource"><code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.PointSource</span></code></a></p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="examples.seismic.source.Shot">
 <code class="descclassname">examples.seismic.source.</code><code class="descname">Shot</code><a class="headerlink" href="#examples.seismic.source.Shot" title="Permalink to this definition">¶</a></dt>
-<dd><p>alias of <a class="reference internal" href="#examples.seismic.source.PointSource" title="examples.seismic.source.PointSource"><code class="xref py py-class docutils literal"><span class="pre">PointSource</span></code></a></p>
+<dd><p>alias of <a class="reference internal" href="#examples.seismic.source.PointSource" title="examples.seismic.source.PointSource"><code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.PointSource</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="examples.seismic.source.RickerSource">
 <em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">RickerSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#RickerSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.RickerSource" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">examples.seismic.source.WaveletSource</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.WaveletSource</span></code></p>
 <p>Symbolic object that encapsulate a set of sources with a
 pre-defined Ricker wavelet:</p>
 <p><a class="reference external" href="http://subsurfwiki.org/wiki/Ricker_wavelet">http://subsurfwiki.org/wiki/Ricker_wavelet</a></p>
@@ -561,7 +561,7 @@ pre-defined Ricker wavelet:</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name for the resulting symbol</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
 <li><strong>f0</strong> – Peak frequency for Ricker wavelet in kHz</li>
 <li><strong>time</strong> – Discretized values of time in ms</li>
 </ul>
@@ -597,7 +597,7 @@ pre-defined Ricker wavelet:</p>
 <dl class="class">
 <dt id="examples.seismic.source.GaborSource">
 <em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">GaborSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#GaborSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.GaborSource" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">examples.seismic.source.WaveletSource</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.WaveletSource</span></code></p>
 <p>Symbolic object that encapsulate a set of sources with a
 pre-defined Gabor wavelet:</p>
 <p><a class="reference external" href="https://en.wikipedia.org/wiki/Gabor_wavelet">https://en.wikipedia.org/wiki/Gabor_wavelet</a></p>
@@ -607,7 +607,7 @@ pre-defined Gabor wavelet:</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name for the resulting symbol</li>
-<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
 <li><strong>f0</strong> – Peak frequency for Ricker wavelet in kHz</li>
 <li><strong>time</strong> – Discretized values of time in ms</li>
 </ul>

@@ -1,5 +1,5 @@
-devito\.ir package
-==================
+devito.ir package
+=================
 
 Subpackages
 -----------

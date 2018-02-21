@@ -1,19 +1,19 @@
-examples\.cfd package
-=====================
+examples.cfd package
+====================
 
 Submodules
 ----------
 
-examples\.cfd\.example\_diffusion module
-----------------------------------------
+examples.cfd.example\_diffusion module
+--------------------------------------
 
 .. automodule:: examples.cfd.example_diffusion
     :members:
     :undoc-members:
     :show-inheritance:
 
-examples\.cfd\.tools module
----------------------------
+examples.cfd.tools module
+-------------------------
 
 .. automodule:: examples.cfd.tools
     :members:

@@ -200,40 +200,40 @@
                     <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
             <span class="n">args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">_aresame</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
-                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span></div></div>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="bp">self</span>
 
 
 <div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;A customized version of :class:`sympy.Eq` which suppresses evaluation.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span></div>
+        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="CondEq"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.CondEq">[docs]</a><span class="k">class</span> <span class="nc">CondEq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A customized version of :class:`sympy.Eq` representing a conditional</span>
 <span class="sd">    equality. It suppresses evaluation.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span></div>
+        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="CondNe"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.CondNe">[docs]</a><span class="k">class</span> <span class="nc">CondNe</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Ne</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A customized version of :class:`sympy.Ne` representing a conditional</span>
 <span class="sd">    inequality. It suppresses evaluation.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Ne</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span></div>
+        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Ne</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="Mul"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Mul">[docs]</a><span class="k">class</span> <span class="nc">Mul</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Mul</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
-    <span class="k">pass</span></div>
+<div class="viewcode-block" id="Mul"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Mul">[docs]</a><span class="k">class</span> <span class="nc">Mul</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Mul</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span></div>
+    <span class="k">pass</span>
 
 
-<div class="viewcode-block" id="Add"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Add">[docs]</a><span class="k">class</span> <span class="nc">Add</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
-    <span class="k">pass</span></div>
+<div class="viewcode-block" id="Add"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Add">[docs]</a><span class="k">class</span> <span class="nc">Add</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span></div>
+    <span class="k">pass</span>
 
 
 <div class="viewcode-block" id="IntDiv"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.IntDiv">[docs]</a><span class="k">class</span> <span class="nc">IntDiv</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Expr</span><span class="p">):</span>
@@ -256,8 +256,8 @@
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> / </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
-
-    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+</div>
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
 
 
 <div class="viewcode-block" id="FunctionFromPointer"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.FunctionFromPointer">[docs]</a><span class="k">class</span> <span class="nc">FunctionFromPointer</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Expr</span><span class="p">):</span>
@@ -280,8 +280,8 @@
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">FunctionFromPointer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span>\
-            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pointer</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span></div>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">FunctionFromPointer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span>\</div>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pointer</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span>
 
 
 <div class="viewcode-block" id="ListInitializer"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.ListInitializer">[docs]</a><span class="k">class</span> <span class="nc">ListInitializer</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">):</span>
@@ -297,8 +297,8 @@
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;{</span><span class="si">%s</span><span class="s2">}&quot;</span> <span class="o">%</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-
-    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+</div>
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
 
 
 <div class="viewcode-block" id="taylor_sin"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_sin">[docs]</a><span class="k">class</span> <span class="nc">taylor_sin</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
@@ -308,8 +308,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="taylor_sin.eval"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_sin.eval">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">eval_taylor_sin</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span></div></div>
+    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span></div></div>
+        <span class="k">return</span> <span class="n">eval_taylor_sin</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="taylor_cos"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_cos">[docs]</a><span class="k">class</span> <span class="nc">taylor_cos</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
@@ -319,8 +319,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="taylor_cos.eval"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_cos.eval">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
-        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="n">eval_taylor_cos</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span></div></div>
+    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span></div></div>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="n">eval_taylor_cos</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="bhaskara_sin"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_sin">[docs]</a><span class="k">class</span> <span class="nc">bhaskara_sin</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
@@ -330,8 +330,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="bhaskara_sin.eval"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_sin.eval">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">eval_bhaskara_sin</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span></div></div>
+    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span></div></div>
+        <span class="k">return</span> <span class="n">eval_bhaskara_sin</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="bhaskara_cos"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_cos">[docs]</a><span class="k">class</span> <span class="nc">bhaskara_cos</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
@@ -341,8 +341,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="bhaskara_cos.eval"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_cos.eval">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
-        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="n">eval_bhaskara_sin</span><span class="p">(</span><span class="n">arg</span> <span class="o">+</span> <span class="mf">1.5708</span><span class="p">)</span></div></div>
+    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span></div></div>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="n">eval_bhaskara_sin</span><span class="p">(</span><span class="n">arg</span> <span class="o">+</span> <span class="mf">1.5708</span><span class="p">)</span>
 
 
 <span class="c1"># Utils</span>

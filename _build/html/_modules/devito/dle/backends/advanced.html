@@ -550,8 +550,8 @@
             <span class="n">mapper</span><span class="p">[</span><span class="n">tree</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">init</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">compose_nodes</span><span class="p">(</span><span class="n">rebuilt</span><span class="p">))</span>
 
         <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{}</span></div>
+</div>
+        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{}</span>
 
 
 <div class="viewcode-block" id="DevitoRewriterSafeMath"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoRewriterSafeMath">[docs]</a><span class="k">class</span> <span class="nc">DevitoRewriterSafeMath</span><span class="p">(</span><span class="n">DevitoRewriter</span><span class="p">):</span>
@@ -567,8 +567,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="DevitoSpeculativeRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoSpeculativeRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoSpeculativeRewriter</span><span class="p">(</span><span class="n">DevitoRewriter</span><span class="p">):</span>
@@ -609,8 +609,8 @@
                 <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">:</span>
                     <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">pragma</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
         <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;flags&#39;</span><span class="p">:</span> <span class="s1">&#39;ntstores&#39;</span><span class="p">}</span></div>
+</div>
+        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;flags&#39;</span><span class="p">:</span> <span class="s1">&#39;ntstores&#39;</span><span class="p">}</span>
 
 
 <div class="viewcode-block" id="DevitoCustomRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoCustomRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoCustomRewriter</span><span class="p">(</span><span class="n">DevitoSpeculativeRewriter</span><span class="p">):</span>
@@ -635,8 +635,8 @@
         <span class="nb">super</span><span class="p">(</span><span class="n">DevitoCustomRewriter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">passes</span><span class="p">:</span>
-            <span class="n">DevitoCustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></div>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">passes</span><span class="p">:</span></div>
+            <span class="n">DevitoCustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
 </pre></div>
 
            </div>

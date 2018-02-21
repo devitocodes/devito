@@ -1,35 +1,35 @@
-devito\.dle\.backends package
-=============================
+devito.dle.backends package
+===========================
 
 Submodules
 ----------
 
-devito\.dle\.backends\.advanced module
---------------------------------------
+devito.dle.backends.advanced module
+-----------------------------------
 
 .. automodule:: devito.dle.backends.advanced
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.dle\.backends\.basic module
------------------------------------
+devito.dle.backends.basic module
+--------------------------------
 
 .. automodule:: devito.dle.backends.basic
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.dle\.backends\.common module
-------------------------------------
+devito.dle.backends.common module
+---------------------------------
 
 .. automodule:: devito.dle.backends.common
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.dle\.backends\.utils module
------------------------------------
+devito.dle.backends.utils module
+--------------------------------
 
 .. automodule:: devito.dle.backends.utils
     :members:

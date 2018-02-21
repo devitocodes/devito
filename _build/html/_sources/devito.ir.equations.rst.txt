@@ -1,11 +1,11 @@
-devito\.ir\.equations package
-=============================
+devito.ir.equations package
+===========================
 
 Submodules
 ----------
 
-devito\.ir\.equations\.equation module
---------------------------------------
+devito.ir.equations.equation module
+-----------------------------------
 
 .. automodule:: devito.ir.equations.equation
     :members:

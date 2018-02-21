@@ -1,35 +1,35 @@
-examples\.seismic\.acoustic package
-===================================
+examples.seismic.acoustic package
+=================================
 
 Submodules
 ----------
 
-examples\.seismic\.acoustic\.acoustic\_example module
------------------------------------------------------
+examples.seismic.acoustic.acoustic\_example module
+--------------------------------------------------
 
 .. automodule:: examples.seismic.acoustic.acoustic_example
     :members:
     :undoc-members:
     :show-inheritance:
 
-examples\.seismic\.acoustic\.gradient\_example module
------------------------------------------------------
+examples.seismic.acoustic.gradient\_example module
+--------------------------------------------------
 
 .. automodule:: examples.seismic.acoustic.gradient_example
     :members:
     :undoc-members:
     :show-inheritance:
 
-examples\.seismic\.acoustic\.operators module
----------------------------------------------
+examples.seismic.acoustic.operators module
+------------------------------------------
 
 .. automodule:: examples.seismic.acoustic.operators
     :members:
     :undoc-members:
     :show-inheritance:
 
-examples\.seismic\.acoustic\.wavesolver module
-----------------------------------------------
+examples.seismic.acoustic.wavesolver module
+-------------------------------------------
 
 .. automodule:: examples.seismic.acoustic.wavesolver
     :members:

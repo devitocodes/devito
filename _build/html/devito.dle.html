@@ -226,13 +226,13 @@
 <dl class="function">
 <dt id="devito.dle.blocking_utils.fold_blockable_tree">
 <code class="descclassname">devito.dle.blocking_utils.</code><code class="descname">fold_blockable_tree</code><span class="sig-paren">(</span><em>node</em>, <em>exclude_innermost=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/blocking_utils.html#fold_blockable_tree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.blocking_utils.fold_blockable_tree" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create <code class="xref py py-class docutils literal"><span class="pre">IterationFold`s</span> <span class="pre">from</span> <span class="pre">sequences</span> <span class="pre">of</span> <span class="pre">nested</span> <span class="pre">:class:`Iteration</span></code>.</p>
+<dd><p>Create <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationFold`s</span> <span class="pre">from</span> <span class="pre">sequences</span> <span class="pre">of</span> <span class="pre">nested</span> <span class="pre">:class:`Iteration</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.dle.blocking_utils.unfold_blocked_tree">
 <code class="descclassname">devito.dle.blocking_utils.</code><code class="descname">unfold_blocked_tree</code><span class="sig-paren">(</span><em>node</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/blocking_utils.html#unfold_blocked_tree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.blocking_utils.unfold_blocked_tree" title="Permalink to this definition">¶</a></dt>
-<dd><p>Unfold nested <code class="xref py py-class docutils literal"><span class="pre">IterationFold</span></code>.</p>
+<dd><p>Unfold nested <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationFold</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -242,13 +242,13 @@
 </tbody>
 </table>
 <p>Given a section of Iteration/Expression tree as below:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">N</span><span class="o">-</span><span class="mi">1</span>  <span class="o">//</span> <span class="n">folded</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">N</span><span class="o">-</span><span class="mi">1</span>  <span class="o">//</span> <span class="n">folded</span>
   <span class="k">for</span> <span class="n">j</span> <span class="o">=</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">N</span><span class="o">-</span><span class="mi">1</span>  <span class="o">//</span> <span class="n">folded</span>
     <span class="n">foo1</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>Assuming a fold with offset 1 in both /i/ and /j/ and body <code class="docutils literal"><span class="pre">foo2()</span></code>, create:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">N</span><span class="o">-</span><span class="mi">1</span>
+<p>Assuming a fold with offset 1 in both /i/ and /j/ and body <code class="docutils literal notranslate"><span class="pre">foo2()</span></code>, create:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">N</span><span class="o">-</span><span class="mi">1</span>
   <span class="k">for</span> <span class="n">j</span> <span class="o">=</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">N</span><span class="o">-</span><span class="mi">1</span>
     <span class="n">foo1</span><span class="p">()</span>
 <span class="k">for</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">2</span> <span class="n">to</span> <span class="n">N</span><span class="o">-</span><span class="mi">2</span>
@@ -272,7 +272,7 @@
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>node</strong> – The Iteration/Expression tree to be transformed, or an iterable
 of Iteration/Expression trees.</li>
-<li><strong>mode</strong> – Drive the tree transformation. <code class="docutils literal"><span class="pre">mode</span></code> is a string indicating
+<li><strong>mode</strong> – Drive the tree transformation. <code class="docutils literal notranslate"><span class="pre">mode</span></code> is a string indicating
 a certain optimization pipeline.</li>
 <li><strong>options</strong> – A dictionary with additional information to drive the DLE.</li>
 </ul>
@@ -280,8 +280,8 @@ a certain optimization pipeline.</li>
 </tr>
 </tbody>
 </table>
-<p>The <code class="docutils literal"><span class="pre">mode</span></code> parameter accepts the following values:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="s1">&#39;noop&#39;</span><span class="p">:</span> <span class="n">Do</span> <span class="n">nothing</span><span class="o">.</span>
+<p>The <code class="docutils literal notranslate"><span class="pre">mode</span></code> parameter accepts the following values:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="s1">&#39;noop&#39;</span><span class="p">:</span> <span class="n">Do</span> <span class="n">nothing</span><span class="o">.</span>
 <span class="o">*</span> <span class="s1">&#39;basic&#39;</span><span class="p">:</span> <span class="n">Add</span> <span class="n">instructions</span> <span class="n">to</span> <span class="n">avoid</span> <span class="n">denormal</span> <span class="n">numbers</span> <span class="ow">and</span> <span class="n">create</span> <span class="n">elemental</span>
            <span class="n">functions</span> <span class="k">for</span> <span class="n">rapid</span> <span class="n">JIT</span><span class="o">-</span><span class="n">compilation</span><span class="o">.</span>
 <span class="o">*</span> <span class="s1">&#39;advanced&#39;</span><span class="p">:</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="n">vectorization</span><span class="p">,</span> <span class="n">loop</span> <span class="n">blocking</span><span class="o">.</span>
@@ -290,8 +290,8 @@ a certain optimization pipeline.</li>
                  <span class="n">performance</span><span class="o">.</span>
 </pre></div>
 </div>
-<p>The <code class="docutils literal"><span class="pre">options</span></code> parameter accepts the following values:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="s1">&#39;blockshape&#39;</span><span class="p">:</span> <span class="n">The</span> <span class="n">block</span> <span class="n">shape</span> <span class="k">for</span> <span class="n">loop</span> <span class="n">blocking</span> <span class="p">(</span><span class="n">a</span> <span class="nb">tuple</span><span class="p">)</span><span class="o">.</span>
+<p>The <code class="docutils literal notranslate"><span class="pre">options</span></code> parameter accepts the following values:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="s1">&#39;blockshape&#39;</span><span class="p">:</span> <span class="n">The</span> <span class="n">block</span> <span class="n">shape</span> <span class="k">for</span> <span class="n">loop</span> <span class="n">blocking</span> <span class="p">(</span><span class="n">a</span> <span class="nb">tuple</span><span class="p">)</span><span class="o">.</span>
 <span class="o">*</span> <span class="s1">&#39;blockinner&#39;</span><span class="p">:</span> <span class="n">By</span> <span class="n">default</span><span class="p">,</span> <span class="n">loop</span> <span class="n">blocking</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">applied</span> <span class="n">to</span> <span class="n">the</span> <span class="n">innermost</span>
                 <span class="n">dimension</span> <span class="n">of</span> <span class="n">an</span> <span class="n">Iteration</span><span class="o">/</span><span class="n">Expression</span> <span class="n">tree</span> <span class="p">(</span><span class="n">to</span> <span class="n">maximize</span>
                 <span class="n">vectorization</span><span class="p">)</span><span class="o">.</span> <span class="n">Set</span> <span class="n">this</span> <span class="n">flag</span> <span class="n">to</span> <span class="kc">True</span> <span class="n">to</span> <span class="n">override</span> <span class="n">this</span>

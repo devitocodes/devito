@@ -125,6 +125,7 @@
 ./_build/html/_static/css/badge_only.css
 ./_build/html/_static/css/theme.css
 ./_build/html/_static/doctools.js
+./_build/html/_static/documentation_options.js
 ./_build/html/_static/down-pressed.png
 ./_build/html/_static/down.png
 ./_build/html/_static/file.png
@@ -138,7 +139,7 @@
 ./_build/html/_static/fonts/fontawesome-webfont.svg
 ./_build/html/_static/fonts/fontawesome-webfont.ttf
 ./_build/html/_static/fonts/fontawesome-webfont.woff
-./_build/html/_static/jquery-3.1.0.js
+./_build/html/_static/jquery-3.2.1.js
 ./_build/html/_static/jquery.js
 ./_build/html/_static/js/modernizr.min.js
 ./_build/html/_static/js/theme.js

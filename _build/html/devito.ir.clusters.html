@@ -230,8 +230,8 @@ based upon classic Lamport theory.</p>
 <dl class="class">
 <dt id="devito.ir.clusters.cluster.Cluster">
 <em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">Cluster</code><span class="sig-paren">(</span><em>exprs</em>, <em>ispace</em>, <em>atomics=None</em>, <em>guards=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.ir.clusters.cluster.PartialCluster</span></code></p>
-<p>A Cluster is an immutable <code class="xref py py-class docutils literal"><span class="pre">PartialCluster</span></code>.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.clusters.cluster.PartialCluster</span></code></p>
+<p>A Cluster is an immutable <code class="xref py py-class docutils literal notranslate"><span class="pre">PartialCluster</span></code>.</p>
 <dl class="attribute">
 <dt id="devito.ir.clusters.cluster.Cluster.exprs">
 <code class="descname">exprs</code><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.exprs" title="Permalink to this definition">¶</a></dt>
@@ -250,14 +250,17 @@ based upon classic Lamport theory.</p>
 <dl class="method">
 <dt id="devito.ir.clusters.cluster.Cluster.rebuild">
 <code class="descname">rebuild</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster.rebuild"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.rebuild" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build a new cluster with expressions <code class="docutils literal"><span class="pre">exprs</span></code> having same iteration
-space and atomics as <code class="docutils literal"><span class="pre">self</span></code>.</p>
+<dd><p>Build a new cluster with expressions <code class="docutils literal notranslate"><span class="pre">exprs</span></code> having same iteration
+space and atomics as <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.clusters.cluster.Cluster.squash">
 <code class="descname">squash</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster.squash"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.squash" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Concatenate the expressions in <code class="docutils literal notranslate"><span class="pre">other</span></code> to those in <code class="docutils literal notranslate"><span class="pre">self</span></code>.
+<code class="docutils literal notranslate"><span class="pre">self</span></code> and <code class="docutils literal notranslate"><span class="pre">other</span></code> must have same <code class="docutils literal notranslate"><span class="pre">ispace</span></code>. Duplicate
+expressions are dropped.</p>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.clusters.cluster.Cluster.trace">
@@ -269,19 +272,19 @@ space and atomics as <code class="docutils literal"><span class="pre">self</span
 <dl class="class">
 <dt id="devito.ir.clusters.cluster.ClusterGroup">
 <em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">ClusterGroup</code><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">list</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code></p>
 <p>An iterable of :class:<a href="#id9"><span class="problematic" id="id10">`</span></a>PartialCluster`s.</p>
 <dl class="method">
 <dt id="devito.ir.clusters.cluster.ClusterGroup.finalize">
 <code class="descname">finalize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup.finalize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.finalize" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a new ClusterGroup in which all of <code class="docutils literal"><span class="pre">self</span></code>’s PartialClusters
+<dd><p>Return a new ClusterGroup in which all of <code class="docutils literal notranslate"><span class="pre">self</span></code>’s PartialClusters
 have been turned into actual Clusters.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.clusters.cluster.ClusterGroup.unfreeze">
 <code class="descname">unfreeze</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup.unfreeze"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.unfreeze" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a new ClusterGroup in which all of <code class="docutils literal"><span class="pre">self</span></code>’s Clusters have
+<dd><p>Return a new ClusterGroup in which all of <code class="docutils literal notranslate"><span class="pre">self</span></code>’s Clusters have
 been promoted to PartialClusters. Any metadata attached to self is lost.</p>
 </dd></dl>
 
@@ -293,37 +296,37 @@ been promoted to PartialClusters. Any metadata attached to self is lost.</p>
 <dl class="class">
 <dt id="devito.ir.clusters.graph.FlowGraph">
 <em class="property">class </em><code class="descclassname">devito.ir.clusters.graph.</code><code class="descname">FlowGraph</code><span class="sig-paren">(</span><em>exprs</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/graph.html#FlowGraph"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">collections.OrderedDict</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></p>
 <p>A FlowGraph represents an ordered sequence of operations. Operations,
-of type <code class="xref py py-class docutils literal"><span class="pre">Node</span></code>, are the nodes of the graph. An edge from <code class="docutils literal"><span class="pre">n0</span></code> to
-<code class="docutils literal"><span class="pre">n1</span></code> indicates that <code class="docutils literal"><span class="pre">n1</span></code> reads from <code class="docutils literal"><span class="pre">n0</span></code>. For example, the sequence:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">temp0</span> <span class="o">=</span> <span class="n">a</span><span class="o">*</span><span class="n">b</span>
+of type <code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code>, are the nodes of the graph. An edge from <code class="docutils literal notranslate"><span class="pre">n0</span></code> to
+<code class="docutils literal notranslate"><span class="pre">n1</span></code> indicates that <code class="docutils literal notranslate"><span class="pre">n1</span></code> reads from <code class="docutils literal notranslate"><span class="pre">n0</span></code>. For example, the sequence:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">temp0</span> <span class="o">=</span> <span class="n">a</span><span class="o">*</span><span class="n">b</span>
 <span class="n">temp1</span> <span class="o">=</span> <span class="n">temp0</span><span class="o">*</span><span class="n">c</span>
 <span class="n">temp2</span> <span class="o">=</span> <span class="n">temp0</span><span class="o">*</span><span class="n">d</span>
 <span class="n">temp3</span> <span class="o">=</span> <span class="n">temp1</span> <span class="o">+</span> <span class="n">temp2</span>
 </pre></div>
 </div>
 <p>is represented by the following FlowGraph:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">temp0</span> <span class="o">---&gt;</span> <span class="n">temp1</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">temp0</span> <span class="o">---&gt;</span> <span class="n">temp1</span>
   <span class="o">|</span>          <span class="o">|</span>
   <span class="o">|</span>          <span class="o">|</span>
   <span class="n">v</span>          <span class="n">v</span>
 <span class="n">temp2</span> <span class="o">---&gt;</span> <span class="n">temp3</span>
 </pre></div>
 </div>
-<p>The input and output edges of a node <code class="docutils literal"><span class="pre">n</span></code> are encoded in <code class="docutils literal"><span class="pre">n.reads</span></code> and
-<code class="docutils literal"><span class="pre">n.readby</span></code>, respectively.</p>
+<p>The input and output edges of a node <code class="docutils literal notranslate"><span class="pre">n</span></code> are encoded in <code class="docutils literal notranslate"><span class="pre">n.reads</span></code> and
+<code class="docutils literal notranslate"><span class="pre">n.readby</span></code>, respectively.</p>
 <p>Operations may involve scalars and indexed objects (arrays). The indices
 of the indexed objects represent either “space” or “time” dimensions.</p>
 <dl class="method">
 <dt id="devito.ir.clusters.graph.FlowGraph.extract">
 <code class="descname">extract</code><span class="sig-paren">(</span><em>key</em>, <em>readby=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/graph.html#FlowGraph.extract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph.extract" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the list of nodes appearing in <code class="docutils literal"><span class="pre">key.reads</span></code>, in program order
-(ie, based on the order in which the temporaries appear in <code class="docutils literal"><span class="pre">self</span></code>). If
-<code class="docutils literal"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">True</span></code>, then return instead the list of nodes appearing
-<code class="docutils literal"><span class="pre">key.readby</span></code>, in program order.</p>
+<dd><p>Return the list of nodes appearing in <code class="docutils literal notranslate"><span class="pre">key.reads</span></code>, in program order
+(ie, based on the order in which the temporaries appear in <code class="docutils literal notranslate"><span class="pre">self</span></code>). If
+<code class="docutils literal notranslate"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">True</span></code>, then return instead the list of nodes appearing
+<code class="docutils literal notranslate"><span class="pre">key.readby</span></code>, in program order.</p>
 <p>Given the following sequence of operations:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">t1</span> <span class="o">=</span> <span class="o">...</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">t1</span> <span class="o">=</span> <span class="o">...</span>
 <span class="n">t0</span> <span class="o">=</span> <span class="o">...</span>
 <span class="n">u</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span> <span class="n">v</span> <span class="o">...</span>
 <span class="n">u</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span>
@@ -331,13 +334,13 @@ of the indexed objects represent either “space” or “time” dimensions.</p
 <span class="n">t2</span> <span class="o">=</span> <span class="o">...</span>
 </pre></div>
 </div>
-<p>Assuming <code class="docutils literal"><span class="pre">key</span> <span class="pre">==</span> <span class="pre">v</span></code> and <code class="docutils literal"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">False</span></code> (as by default), return
-the following list of <code class="xref py py-class docutils literal"><span class="pre">Node</span></code> objects:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">t1</span><span class="p">,</span> <span class="n">t0</span><span class="p">,</span> <span class="n">u</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">u</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="n">j</span><span class="p">]]</span>
+<p>Assuming <code class="docutils literal notranslate"><span class="pre">key</span> <span class="pre">==</span> <span class="pre">v</span></code> and <code class="docutils literal notranslate"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">False</span></code> (as by default), return
+the following list of <code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code> objects:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">t1</span><span class="p">,</span> <span class="n">t0</span><span class="p">,</span> <span class="n">u</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">u</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="n">j</span><span class="p">]]</span>
 </pre></div>
 </div>
-<p>If <code class="docutils literal"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">True</span></code>, return:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">v</span><span class="p">,</span> <span class="n">t2</span><span class="p">]</span>
+<p>If <code class="docutils literal notranslate"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">True</span></code>, return:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">v</span><span class="p">,</span> <span class="n">t2</span><span class="p">]</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -345,31 +348,31 @@ the following list of <code class="xref py py-class docutils literal"><span clas
 <dl class="method">
 <dt id="devito.ir.clusters.graph.FlowGraph.is_index">
 <code class="descname">is_index</code><span class="sig-paren">(</span><em>key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/graph.html#FlowGraph.is_index"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph.is_index" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return True if <code class="docutils literal"><span class="pre">key</span></code> is used as array index in an expression of the
+<dd><p>Return True if <code class="docutils literal notranslate"><span class="pre">key</span></code> is used as array index in an expression of the
 FlowGraph, False otherwise.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.clusters.graph.FlowGraph.tensors">
 <code class="descname">tensors</code><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph.tensors" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return all occurrences of the tensors in <code class="docutils literal"><span class="pre">self</span></code> keyed by function.</p>
+<dd><p>Return all occurrences of the tensors in <code class="docutils literal notranslate"><span class="pre">self</span></code> keyed by function.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.clusters.graph.FlowGraph.time_invariant">
 <code class="descname">time_invariant</code><span class="sig-paren">(</span><em>expr=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/graph.html#FlowGraph.time_invariant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph.time_invariant" title="Permalink to this definition">¶</a></dt>
-<dd><p>Check if <code class="docutils literal"><span class="pre">expr</span></code> is time invariant. <code class="docutils literal"><span class="pre">expr</span></code> may be an expression <code class="docutils literal"><span class="pre">e</span></code>
+<dd><p>Check if <code class="docutils literal notranslate"><span class="pre">expr</span></code> is time invariant. <code class="docutils literal notranslate"><span class="pre">expr</span></code> may be an expression <code class="docutils literal notranslate"><span class="pre">e</span></code>
 explicitly tracked by the FlowGraph or even a generic subexpression
-of <code class="docutils literal"><span class="pre">e</span></code>. If no <code class="docutils literal"><span class="pre">expr</span></code> is provided, then time invariance of the entire
+of <code class="docutils literal notranslate"><span class="pre">e</span></code>. If no <code class="docutils literal notranslate"><span class="pre">expr</span></code> is provided, then time invariance of the entire
 FlowGraph is assessed.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.clusters.graph.FlowGraph.trace">
 <code class="descname">trace</code><span class="sig-paren">(</span><em>key</em>, <em>readby=False</em>, <em>strict=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/graph.html#FlowGraph.trace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph.trace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the sequence of operations required to compute the temporary <code class="docutils literal"><span class="pre">key</span></code>.
-If <code class="docutils literal"><span class="pre">readby</span> <span class="pre">=</span> <span class="pre">True</span></code>, then return the sequence of operations that will
-depend on <code class="docutils literal"><span class="pre">key</span></code>, instead. With <code class="docutils literal"><span class="pre">strict</span> <span class="pre">=</span> <span class="pre">True</span></code>, drop <code class="docutils literal"><span class="pre">key</span></code> from the
+<dd><p>Return the sequence of operations required to compute the temporary <code class="docutils literal notranslate"><span class="pre">key</span></code>.
+If <code class="docutils literal notranslate"><span class="pre">readby</span> <span class="pre">=</span> <span class="pre">True</span></code>, then return the sequence of operations that will
+depend on <code class="docutils literal notranslate"><span class="pre">key</span></code>, instead. With <code class="docutils literal notranslate"><span class="pre">strict</span> <span class="pre">=</span> <span class="pre">True</span></code>, drop <code class="docutils literal notranslate"><span class="pre">key</span></code> from the
 result.</p>
 </dd></dl>
 

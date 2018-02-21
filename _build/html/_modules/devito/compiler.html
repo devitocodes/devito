@@ -271,8 +271,8 @@
                 <span class="c1"># they support `#pragma omp simd`</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-fopenmp&#39;</span><span class="p">]</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-fopenmp&#39;</span><span class="p">]</span></div>
+            <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]:</span></div>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-fopenmp&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">GNUCompilerNoAVX</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">):</span>
@@ -382,8 +382,8 @@
 <span class="sd">    :param basename: Name of the .so file.</span>
 <span class="sd">    :param compiler: The toolchain used for compilation.</span>
 <span class="sd">    :return: The loaded library.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">npct</span><span class="o">.</span><span class="n">load_library</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span></div>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+    <span class="k">return</span> <span class="n">npct</span><span class="o">.</span><span class="n">load_library</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="jit_compile"><a class="viewcode-back" href="../../devito.html#devito.compiler.jit_compile">[docs]</a><span class="k">def</span> <span class="nf">jit_compile</span><span class="p">(</span><span class="n">ccode</span><span class="p">,</span> <span class="n">compiler</span><span class="p">):</span>
@@ -411,8 +411,8 @@
                                <span class="n">debug</span><span class="o">=</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;debug_compiler&#39;</span><span class="p">])</span>
     <span class="n">toc</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
     <span class="n">log</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: compiled </span><span class="si">%s</span><span class="s2"> [</span><span class="si">%.2f</span><span class="s2"> s]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">src_file</span><span class="p">,</span> <span class="n">toc</span><span class="o">-</span><span class="n">tic</span><span class="p">))</span>
-
-    <span class="k">return</span> <span class="n">basename</span></div>
+</div>
+    <span class="k">return</span> <span class="n">basename</span>
 
 
 <div class="viewcode-block" id="make"><a class="viewcode-back" href="../../devito.html#devito.compiler.make">[docs]</a><span class="k">def</span> <span class="nf">make</span><span class="p">(</span><span class="n">loc</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
@@ -437,8 +437,8 @@
                     <span class="k">raise</span> <span class="n">CompilationError</span><span class="p">(</span><span class="s1">&#39;Command &quot;</span><span class="si">%s</span><span class="s1">&quot; return error status </span><span class="si">%d</span><span class="s1">. &#39;</span>
                                            <span class="s1">&#39;Unable to compile code.</span><span class="se">\n</span><span class="s1">&#39;</span>
                                            <span class="s1">&#39;Compile log in </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span>
-                                           <span class="s1">&#39;Compile errors in </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span>
-                                           <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">cmd</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span> <span class="n">logfile</span><span class="p">,</span> <span class="n">errfile</span><span class="p">))</span></div>
+                                           <span class="s1">&#39;Compile errors in </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span></div>
+                                           <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">cmd</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span> <span class="n">logfile</span><span class="p">,</span> <span class="n">errfile</span><span class="p">))</span>
 
 
 <span class="c1"># Registry dict for deriving Compiler classes according to the environment variable</span>

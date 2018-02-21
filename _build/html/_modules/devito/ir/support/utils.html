@@ -207,8 +207,8 @@
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">iterators</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">offs</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">ofs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">])</span>
         <span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">offs</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">offs</span><span class="p">)))</span>
-
-    <span class="k">return</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">iterators</span></div>
+</div>
+    <span class="k">return</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">iterators</span>
 
 
 <div class="viewcode-block" id="detect_flow_directions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_flow_directions">[docs]</a><span class="k">def</span> <span class="nf">detect_flow_directions</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
@@ -261,8 +261,8 @@
     <span class="c1"># Add in derived dimensions parents</span>
     <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
                    <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Derived</span> <span class="ow">and</span> <span class="n">k</span><span class="o">.</span><span class="n">parent</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">})</span>
-
-    <span class="k">return</span> <span class="n">mapper</span></div>
+</div>
+    <span class="k">return</span> <span class="n">mapper</span>
 
 
 <div class="viewcode-block" id="compute_directions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.compute_directions">[docs]</a><span class="k">def</span> <span class="nf">compute_directions</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
@@ -279,8 +279,8 @@
 <span class="sd">    for a given dimension in order to have a flow dependence), the function</span>
 <span class="sd">    ``key : D -&gt; I`` is used to pick one value.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="n">detect_flow_directions</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">force_directions</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span></div>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">detect_flow_directions</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">force_directions</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="force_directions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.force_directions">[docs]</a><span class="k">def</span> <span class="nf">force_directions</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
@@ -313,8 +313,8 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">assert</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">clashes</span>
             <span class="n">directions</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">key</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">directions</span><span class="p">,</span> <span class="n">clashes</span></div>
+</div>
+    <span class="k">return</span> <span class="n">directions</span><span class="p">,</span> <span class="n">clashes</span>
 
 
 <div class="viewcode-block" id="group_expressions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.group_expressions">[docs]</a><span class="k">def</span> <span class="nf">group_expressions</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
@@ -350,8 +350,8 @@
 
     <span class="c1"># Sanity check</span>
     <span class="k">assert</span> <span class="nb">max</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span></div>
+</div>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span>
 </pre></div>
 
            </div>

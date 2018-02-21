@@ -181,8 +181,8 @@
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;evaluate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="n">region</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;region&#39;</span><span class="p">,</span> <span class="n">DOMAIN</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">_region</span> <span class="o">=</span> <span class="n">region</span>
-        <span class="k">return</span> <span class="n">obj</span></div>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_region</span> <span class="o">=</span> <span class="n">region</span></div>
+        <span class="k">return</span> <span class="n">obj</span>
 
 
 <div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../devito.html#devito.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
@@ -190,8 +190,8 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A :class:`Eq` performing a linear increment.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span></div>
+</div>
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span>
 
 
 <span class="k">class</span> <span class="nc">Region</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
