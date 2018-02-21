@@ -750,23 +750,18 @@ class TimeFunction(Function):
             warning("Time order is 0, no time derivatives available, returning 0")
             return 0
         else:
-            width = int(self.time_order / 2)
-            indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
-            return self.diff(_t).as_finite_difference(indices)
+            return first_derivative(self, dim=_t, order=self.time_order)
 
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
+        _t = self.indices[0]
         if self.time_order < 2:
             warning("Time order smaller than 2, no second time derivatives available," +
                     " returning 0")
             return 0
         else:
-            _t = self.indices[0]
-            width_t = int(self.time_order / 2)
-            indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
-
-            return self.diff(_t, _t).as_finite_difference(indt)
+            return second_derivative(self, dim=_t, order=self.time_order)
 
     def argument_values(self, alias=None, **kwargs):
         """
