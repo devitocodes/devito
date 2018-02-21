@@ -1,6 +1,5 @@
 from collections import OrderedDict, namedtuple
 from functools import partial
-from math import ceil
 
 import sympy
 import numpy as np
@@ -351,32 +350,35 @@ class TensorFunction(SymbolicFunction):
 
 
 class Function(TensorFunction):
-    """Data object for spatially varying data acting as a :class:`SymbolicFunction`.
+    """A :class:`TensorFunction` providing operations to express
+    finite-difference approximation. A ``Function`` encapsulates
+    space-varying data; for time-varying data, use :class:`TimeFunction`.
 
     :param name: Name of the symbol
     :param grid: :class:`Grid` object from which to infer the data shape
                  and :class:`Dimension` indices.
+    :param space_order: Discretisation order for space derivatives. By default,
+                        ``space_order`` points are available on both sides of
+                        a generic point of interest, including those on the grid
+                        border. Sometimes, fewer points may be necessary; in
+                        other cases, depending on the PDE being approximated,
+                        more points may be necessary. In such cases, one
+                        can pass a 3-tuple ``(o, lp, rp)`` instead of a single
+                        integer representing the discretization order. Here,
+                        ``o`` is the discretization order, while ``lp`` and ``rp``
+                        indicate how many points are expected on left (``lp``)
+                        and right (``rp``) of a point of interest.
     :param shape: (Optional) shape of the domain region in grid points.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
+    :param dtype: (Optional) data type of the buffered data.
     :param staggered: (Optional) tuple containing staggering offsets.
     :param padding: (Optional) allocate extra grid points at a space dimension
-                    boundary. These may be used for non-symmetric stencils
-                    or simply to enforce data alignment. Defaults to 0.
-                    In alternative to an integer, an iterable, indicating
-                    the padding in each dimension, may be passed; in this
-                    case, an error is raised if such iterable has fewer entries
-                    then the number of space dimensions.
-    :param dtype: (Optional) data type of the buffered data.
-    :param space_order: Discretisation order for space derivatives. By default,
-                        space derivatives are expressed in terms of centered
-                        approximations, with ``ceil(space_order/2)`` points
-                        on each side of the point of interest. For asymmetric
-                        approximations, one may pass a 3-tuple ``(o, lp, rp)``
-                        instead of a single integer. Here, ``o`` is the
-                        approximation order, while ``lp`` and ``rp`` indicate
-                        the maximum number of points that an approximation can
-                        use on the two sides of the point of interest.
+                    boundary. These may be used for data alignment. Defaults to 0.
+                    In alternative to an integer, a tuple, indicating the padding
+                    in each dimension, may be passed; in this case, an error is
+                    raised if such tuple has fewer entries then the number of space
+                    dimensions.
     :param initializer: (Optional) A callable to initialize the data
 
     .. note::
@@ -389,6 +391,8 @@ class Function(TensorFunction):
 
        If the parameter ``grid`` is provided, the values for ``shape``,
        ``dimensions`` and ``dtype`` will be derived from it.
+
+    .. note::
 
        :class:`Function` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
@@ -423,7 +427,7 @@ class Function(TensorFunction):
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 self.space_order = space_order
-                halo = (ceil(space_order/2), ceil(space_order/2))
+                halo = (space_order, space_order)
             elif isinstance(space_order, tuple) and len(space_order) == 3:
                 self.space_order, left_points, right_points = space_order
                 halo = (left_points, right_points)
@@ -565,43 +569,42 @@ class Function(TensorFunction):
 
 class TimeFunction(Function):
     """
-    Data object for time-varying data that acts as a Function symbol
+    A special :class:`Function` encapsulating time-varying data.
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param grid: :class:`Grid` object from which to infer the data shape
                  and :class:`Dimension` indices.
+    :param space_order: Discretisation order for space derivatives. By default,
+                        ``space_order`` points are available on both sides of
+                        a generic point of interest, including those on the grid
+                        border. Sometimes, fewer points may be necessary; in
+                        other cases, depending on the PDE being approximated,
+                        more points may be necessary. In such cases, one
+                        can pass a 3-tuple ``(o, lp, rp)`` instead of a single
+                        integer representing the discretization order. Here,
+                        ``o`` is the discretization order, while ``lp`` and ``rp``
+                        indicate how many points are expected on left (``lp``)
+                        and right (``rp``) of a point of interest.
+    :param time_order: Discretization order for time derivatives.
     :param shape: (Optional) shape of the domain region in grid points.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
+    :param dtype: (Optional) data type of the buffered data
+    :param save: (Optional) Save the intermediate results to the data buffer.
+                 Defaults to `None`, indicating the use of alternating buffers.
+                 If intermediate results are required, the value of save must be
+                 set to the required size of the time dimension.
+    :param time_dim: (Optional) The :class:`Dimension` object to use to represent
+                     time in this symbol. Defaults to the time dimension provided
+                     by the :class:`Grid`.
     :param staggered: (Optional) tuple containing staggering offsets.
     :param padding: (Optional) allocate extra grid points at a space dimension
-                    boundary. These may be used for non-symmetric stencils
-                    or simply to enforce data alignment. Defaults to 0.
-                    In alternative to an integer, a tuple, indicating
-                    the padding in each dimension, may be passed; in this
-                    case, an error is raised if such tuple has fewer entries
-                    then the number of space dimensions.
-    :param dtype: (Optional) data type of the buffered data
-    :param space_order: Discretisation order for space derivatives. By default,
-                        space derivatives are expressed in terms of centered
-                        approximations, with ``ceil(space_order/2)`` points
-                        on each side of the point of interest. For asymmetric
-                        approximations, one may pass a 3-tuple ``(o, lp, rp)``
-                        instead of a single integer. Here, ``o`` is the
-                        approximation order, while ``lp`` and ``rp`` indicate
-                        the maximum number of points that an approximation can
-                        use on the two sides of the point of interest.
+                    boundary. These may be used for data alignment. Defaults to 0.
+                    In alternative to an integer, a tuple, indicating the padding
+                    in each dimension, may be passed; in this case, an error is
+                    raised if such tuple has fewer entries then the number of
+                    space dimensions.
     :param initializer: (Optional) A callable to initialize the data
-    :param save: Save the intermediate results to the data buffer. Defaults
-                 to `None`, indicating the use of alternating buffers. If
-                 intermediate results are required, the value of save must
-                 be set to the required size of the time dimension.
-    :param time_dim: The :class:`Dimension` object to use to represent time in this
-                     symbol. Defaults to the time dimension provided by the :class:`Grid`.
-    :param time_order: Order of the time discretization which affects the
-                       final size of the leading time dimension of the
-                       data buffer. Unlike ``space_order``, this can only be
-                       an integer.
 
     .. note::
 
@@ -777,8 +780,9 @@ class SparseFunction(TensorFunction):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param dtype: Data type of the buffered data.
+    :param space_order: (Optional) Discretisation order for space derivatives.
+                        Defaults to 0.
+    :param dtype: (Optional) Data type of the buffered data.
     :param initializer: (Optional) A callable to initialize the data
 
     .. note::
@@ -1066,9 +1070,11 @@ class SparseTimeFunction(SparseFunction):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param time_order: Discretisation order for time derivatives.
-    :param dtype: Data type of the buffered data.
+    :param space_order: (Optional) Discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) Discretisation order for time derivatives.
+                       Default to 1.
+    :param dtype: (Optional) Data type of the buffered data.
     :param initializer: (Optional) A callable to initialize the data
 
     .. note::

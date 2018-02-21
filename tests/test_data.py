@@ -55,14 +55,14 @@ def test_halo_indexing():
     u = Function(name='yu3D', grid=grid, space_order=2)
 
     assert u.shape == u.data.shape == domain_shape
-    assert u.shape_with_halo == u.data_with_halo.shape == (18, 18, 18)
+    assert u.shape_with_halo == u.data_with_halo.shape == (20, 20, 20)
 
     # Test simple insertion and extraction
     u.data_with_halo[0, 0, 0] = 1.
     u.data[0, 0, 0] = 2.
     assert u.data_with_halo[0, 0, 0] == 1.
     assert u.data[0, 0, 0] == 2.
-    assert u.data_with_halo[1, 1, 1] == 2.
+    assert u.data_with_halo[2, 2, 2] == 2.
 
     # Test negative indices
     u.data_with_halo[-1, -1, -1] = 3.
@@ -159,9 +159,9 @@ def test_domain_vs_halo():
     assert all(i == 0 for i in u0._offset_domain.left)
     assert all(i == 0 for i in u0._offset_domain.right)
 
-    assert all(i == (1, 1) for i in u2._offset_domain)
-    assert all(i == 1 for i in u2._offset_domain.left)
-    assert all(i == 1 for i in u2._offset_domain.right)
+    assert all(i == (2, 2) for i in u2._offset_domain)
+    assert all(i == 2 for i in u2._offset_domain.left)
+    assert all(i == 2 for i in u2._offset_domain.right)
 
     # With some random padding
     v = Function(name='v', grid=grid, space_order=2, padding=(1, 3, 4))
@@ -169,8 +169,8 @@ def test_domain_vs_halo():
     assert tuple(i + j + k for i, (j, k) in zip(v.shape_with_halo, v._padding)) ==\
         v.shape_allocated
 
-    assert all(i == (1, 1) for i in v._halo)
-    assert v._offset_domain == ((2, 2), (4, 4), (5, 5))
-    assert v._offset_domain.left == v._offset_domain.right == (2, 4, 5)
+    assert all(i == (2, 2) for i in v._halo)
+    assert v._offset_domain == ((3, 3), (5, 5), (6, 6))
+    assert v._offset_domain.left == v._offset_domain.right == (3, 5, 6)
     assert v._extent_padding == ((1, 1), (3, 3), (4, 4))
     assert v._extent_padding.left == v._extent_padding.right == (1, 3, 4)
