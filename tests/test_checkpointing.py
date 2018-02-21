@@ -25,24 +25,19 @@ def test_segmented_incremment():
     fi = f.indexed
     op = Operator(Eq(fi[t, x, y], fi[t-1, x, y] + 1.))
 
-    # Reference solution with a single invocation, 20 timesteps.
-    # ==========================================================
-    # Developer note: With the current absolute indexing scheme
-    # the final time dimension index is 21, and the "write range"
-    # is [1 - 20] or [1, 21).
+    # Reference solution with a single invocation, up to timestep 21 (included)
+    # IOW, run for 20 timesteps in total (time_s=1 is implicit)
     f_ref = TimeFunction(name='f', grid=grid, time_order=1)
     op(f=f_ref, time=21)
-    assert (f_ref.data[19] == 19.).all()
     assert (f_ref.data[20] == 20.).all()
+    assert (f_ref.data[21] == 21.).all()
 
-    # Now run with 5 invocations of 4 timesteps each
+    # Now run with 5 invocations of 4 timesteps each (again, 20 timesteps in total)
     nsteps = 4
     for i in range(5):
-        # Adjust the endpoint by the stencil order to
-        # counteract the loop offsets generated in the C code
-        op(f=f, time_s=i*nsteps, time_e=(i+1)*nsteps+1)
-    assert (f.data[19] == 19.).all()
+        op(f=f, time_s=1+i*nsteps, time_e=1+(i+1)*nsteps)
     assert (f.data[20] == 20.).all()
+    assert (f.data[21] == 21.).all()
 
 
 @silencio(log_level='WARNING')
@@ -64,24 +59,20 @@ def test_segmented_fibonacci():
     fi = f.indexed
     op = Operator(Eq(fi[t, x, y], fi[t-1, x, y] + fi[t-2, x, y]))
 
-    # Reference solution with a single invocation, 12 timesteps.
-    # ==========================================================
-    # Developer note: the 13th Fibonacci number resides at logical
-    # index 12, but we need to give a final index of 13 due to the
-    # current convention of computing [t_s+offset(t), t_end).
+    # Reference solution with a single invocation, up to timestep=12 (included)
+    # =========================================================================
+    # Developer note: the i-th Fibonacci number resides at logical index i-1
     f_ref = TimeFunction(name='f', grid=grid, time_order=2)
     f_ref.data[:] = 1.
-    op(f=f_ref, time=13)
+    op(f=f_ref, time=12)
     assert (f_ref.data[11] == fib(12)).all()
     assert (f_ref.data[12] == fib(13)).all()
 
-    # Now run with 5 invocations of 4 timesteps each
-    nsteps = 4
+    # Now run with 2 invocations of 5 timesteps each
+    nsteps = 5
     f.data[:] = 1.
-    for i in range(3):
-        # Adjust the endpoint by the stencil order to
-        # counteract the loop offsets generated in the C code
-        op(f=f, time_s=i*nsteps, time_e=(i+1)*nsteps+2)
+    for i in range(2):
+        op(f=f, time_s=2+i*nsteps, time_e=2+(i+1)*nsteps)
     assert (f.data[11] == fib(12)).all()
     assert (f.data[12] == fib(13)).all()
 
@@ -104,22 +95,20 @@ def test_segmented_averaging():
     # We add the average to the point itself, so the grid "interior"
     # (domain) is updated only.
     f_ref = TimeFunction(name='f', grid=grid)
-    f_ref.data[:] = 1.
-    op(f=f_ref, time=2)
-    assert (f_ref.data[1, 0, :] == 1.).all()
-    assert (f_ref.data[1, 19, :] == 1.).all()
-    assert (f_ref.data[1, 1:19, :] == 2.).all()
+    f_ref.data_allocated[:] = 1.
+    op(f=f_ref, time=1)
+    assert (f_ref.data[1, :] == 2.).all()
+    assert (f_ref.data_allocated[1, 0] == 1.).all()
+    assert (f_ref.data_allocated[1, -1] == 1.).all()
 
-    # Now we sweep the x direction in 3 segmented steps
-    nsteps = 6
-    f.data[:] = 1.
-    for i in range(3):
-        # Adjust the endpoint by the stencil order to
-        # counteract the loop offsets generated in the C code
-        op(f=f, time=2, x_s=i*nsteps, x_e=(i+1)*nsteps+2)
-    assert (f.data[1, 0, :] == 1.).all()
-    assert (f.data[1, 19, :] == 1.).all()
-    assert (f.data[1, 1:19, :] == 2.).all()
+    # Now we sweep the x direction in 4 segmented steps of 5 iterations each
+    nsteps = 5
+    f.data_allocated[:] = 1.
+    for i in range(4):
+        op(f=f, time=1, x_s=i*nsteps, x_e=(i+1)*nsteps-1)
+    assert (f_ref.data[1, :] == 2.).all()
+    assert (f_ref.data_allocated[1, 0] == 1.).all()
+    assert (f_ref.data_allocated[1, -1] == 1.).all()
 
 
 @silencio(log_level='WARNING')
@@ -145,7 +134,7 @@ def test_forward_with_breaks(shape, kernel, space_order):
                                   v=example.adjoint_field, m=m0, rec=example.rec_g,
                                   grad=example.grad, dt=example.dt,
                                   time_order=time_order)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-time_order)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-1)
     example.forward_operator.apply(u=example.forward_field, rec=example.rec, m=m0,
                                    src=example.src, dt=example.dt)
     u_temp = np.copy(example.forward_field.data)
@@ -186,8 +175,8 @@ def test_checkpointed_gradient_test(shape, kernel, space_order):
     tn = 500.
     example = CheckpointingExample(shape, spacing, tn, kernel, space_order)
     m0, dm = example.initial_estimate()
-    gradient, rec_data = example.gradient(m0)
-    example.verify(m0, gradient, rec_data, dm)
+    gradient, rec = example.gradient(m0)
+    example.verify(m0, gradient, rec, dm)
 
 
 @skipif_yask
@@ -218,7 +207,7 @@ def test_index_alignment(const):
     fwd_op = Operator(Eq(u.forward, u + 1.*const))
 
     # Invocation 1
-    fwd_op(time=nt, constant=1)
+    fwd_op(time=nt-2, constant=1)
 
     last_time_step_v = (last_time_step_u) % modulo_factor
     # Last time step should be equal to the number of timesteps we ran
@@ -231,7 +220,7 @@ def test_index_alignment(const):
     adj_op = Operator(adj_eqn)
 
     # Invocation 2
-    adj_op(t=nt, constant=1)
+    adj_op(t=nt-1, constant=1)
     # Last time step should be back to 0
     assert(np.allclose(v.data[0, :, :], 0))
 
@@ -244,7 +233,7 @@ def test_index_alignment(const):
     comb_op = Operator([adj_eqn, prod_eqn])
 
     # Invocation 3
-    comb_op(time=nt, constant=1)
+    comb_op(time=nt-1, constant=1)
     final_value = sum([n**2 for n in range(nt)])
     # Final value should be sum of squares of first nt natural numbers
     assert(np.allclose(prod.data, final_value))
@@ -258,14 +247,12 @@ def test_index_alignment(const):
     fwd_eqn_2 = Eq(u_nosave.forward, u_nosave + 1.*const)
     fwd_op_2 = Operator(fwd_eqn_2)
     cp = DevitoCheckpoint([u_nosave])
-    wrap_fw = CheckpointOperator(fwd_op_2, constant=1,
-                                 time_order=order_of_eqn)
+    wrap_fw = CheckpointOperator(fwd_op_2, constant=1, time_order=order_of_eqn)
 
     prod_eqn_2 = Eq(prod, prod + u_nosave * v)
     comb_op_2 = Operator([adj_eqn, prod_eqn_2])
-    wrap_rev = CheckpointOperator(comb_op_2, constant=1,
-                                  time_order=order_of_eqn)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt-order_of_eqn)
+    wrap_rev = CheckpointOperator(comb_op_2, constant=1, time_order=order_of_eqn)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt-1)
 
     # Invocation 4
     wrp.apply_forward()
