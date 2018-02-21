@@ -38,7 +38,7 @@ class CheckpointingExample(GradientExample):
         wrap_rev = CheckpointOperator(self.gradient_operator, u=self.forward_field,
                                       v=self.adjoint_field, m=m0, rec=self.rec_g,
                                       grad=self.grad, dt=self.dt, time_order=2)
-        wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, self.nt-2)
+        wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, self.nt-1)
 
         wrp.apply_forward()
 
@@ -47,7 +47,7 @@ class CheckpointingExample(GradientExample):
         wrp.apply_reverse()
 
         # The result is in grad
-        return self.grad.data, self.rec.data
+        return self.grad, self.rec
 
 
 @silencio(log_level='WARNING')
@@ -55,8 +55,8 @@ def run(shape=(150, 150), tn=None, spacing=None, kernel='OT2', space_order=4, nb
         maxmem=None):
     example = CheckpointingExample(shape, spacing, tn, kernel, space_order, nbpml)
     m0, dm = example.initial_estimate()
-    gradient, rec_data = example.gradient(m0, maxmem)
-    example.verify(m0, gradient, rec_data, dm)
+    gradient, rec = example.gradient(m0, maxmem)
+    example.verify(m0, gradient, rec, dm)
 
 
 if __name__ == "__main__":

@@ -27,8 +27,11 @@ class CheckpointOperator(Operator):
             this method passes them on correctly to devito.Operator
         """
         args = self.args.copy()
+        if t_start == 0:
+            # FIXME: ugly hack to work around the fact that Revolver inits t_start=0
+            t_start = 1
         args[self.t_arg_names['t_start']] = t_start
-        args[self.t_arg_names['t_end']] = t_end + self.time_order
+        args[self.t_arg_names['t_end']] = t_end - 1
         self.op.apply(**args)
 
 

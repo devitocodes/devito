@@ -55,8 +55,9 @@ class GradientExample(object):
         self.grad = Function(name="grad", grid=model.grid)
 
     def initial_estimate(self):
-        m0 = smooth10(self.model.m.data, self.model.shape_domain)
-        dm = np.float32(self.model.m.data - m0)
+        m0 = Function(name='m0', grid=self.model.m.grid, space_order=self.space_order)
+        m0.data[:] = smooth10(self.model.m.data, self.model.shape_domain)
+        dm = np.float32(self.model.m.data - m0.data)
         return m0, dm
 
     def _true_data(self):
@@ -113,12 +114,12 @@ class GradientExample(object):
     def _objective_function_value(self, rec_data):
         return .5*linalg.norm(rec_data - self.rec_t.data)**2
 
-    def verify(self, m0, gradient, rec_data, dm):
+    def verify(self, m0, gradient, rec, dm):
         # Objective function value
-        F0 = self._objective_function_value(rec_data)
+        F0 = self._objective_function_value(rec.data)
 
         # <J^T \delta d, dm>
-        G = np.dot(gradient.reshape(-1), dm.reshape(-1))
+        G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
         # FWI Gradient test
         H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
         error1 = np.zeros(7)
@@ -126,7 +127,10 @@ class GradientExample(object):
 
         for i in range(0, 7):
             # Add the perturbation to the model
-            mloc = m0 + H[i] * dm
+            def initializer(data):
+                data[:] = m0.data + H[i] * dm
+            mloc = Function(name='mloc', grid=self.model.m.grid,
+                            space_order=self.space_order, initializer=initializer)
             # Set field to zero (we're re-using it)
             self.temp_field.data.fill(0)
             # Receiver data for the new model
@@ -151,8 +155,8 @@ def run(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500., kernel='OT2',
         space_order=4, nbpml=10):
     example = GradientExample(shape, spacing, tn, kernel, space_order, nbpml)
     m0, dm = example.initial_estimate()
-    gradient, rec_data = example.gradient(m0)
-    example.verify(m0, gradient, rec_data, dm)
+    gradient, rec = example.gradient(m0)
+    example.verify(m0, gradient, rec, dm)
 
 
 if __name__ == "__main__":
