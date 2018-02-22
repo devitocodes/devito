@@ -135,6 +135,10 @@ class Operator(Callable):
         for p in self.dimensions:
             args.update(p._arg_values(**kwargs))
 
+        # Sanity check
+        for p in self.input:
+            p._arg_check(args, self._dspace[p])
+
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
