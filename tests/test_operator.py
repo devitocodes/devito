@@ -562,7 +562,7 @@ class TestArguments(object):
     def test_override_sparse_data_default_dim(self):
         """
         Ensure the arguments are derived correctly for an input SparseFunction.
-        The dimensions are the defaults (name dependant p_% name) in this case to verify
+        The dimensions are the defaults (name dependant 'p_name') in this case to verify
         the aliasing on the SparseFunction coordinates and dimensions.
         """
         grid = Grid(shape=(10, 10))
