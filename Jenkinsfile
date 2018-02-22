@@ -6,7 +6,7 @@ pipeline {
     PATH = "/usr/local/bin:/usr/bin:/bin"
   }
   stages {
-    stage('Null') {
+    stage('True') {
       steps {
         sh 'true'
       }
