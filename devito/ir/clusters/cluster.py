@@ -3,8 +3,7 @@ from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.clusters.graph import FlowGraph
-from devito.ir.support import AccessSpace, IntervalGroup, Any
-from devito.tools import ReducerMap
+from devito.ir.support import DataSpace
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -80,14 +79,16 @@ class PartialCluster(object):
 
     @dspace.setter
     def dspace(self, val):
-        raise AttributeError
+        self._dspace = val
 
     def squash(self, other):
         """Concatenate the expressions in ``other`` to those in ``self``.
         ``self`` and ``other`` must have same ``ispace``. Duplicate
-        expressions are dropped."""
+        expressions are dropped. The :class:`DataSpace` is updated
+        accordingly."""
         assert self.ispace.is_compatible(other.ispace)
         self.exprs.extend([i for i in other.exprs if i not in self.exprs])
+        self.dspace = DataSpace.merge(self.dspace, other.dspace)
 
 
 class Cluster(PartialCluster):
@@ -157,13 +158,6 @@ class ClusterGroup(list):
         return clusters
 
     @property
-    def aspace(self):
-        """Return the global :class:`AccessSpace` of this ClusterGroup."""
-        # Data intervals
-        intervals = IntervalGroup.generate('union', *[i.dspace.intervals for i in self])
-        # Directions
-        all_directions = [list(i.ispace.directions.items()) for i in self]
-        all_directions = [i for items in all_directions for i in items]
-        directions = ReducerMap([(i.name, j) for i, j in all_directions]).reduce_all()
-        directions = {i.dim: directions.get(i.dim.name, Any) for i in intervals}
-        return AccessSpace(intervals, directions)
+    def dspace(self):
+        """Return the cumulative :class:`DataSpace` of this ClusterGroup."""
+        return DataSpace.merge(*[i.dspace for i in self])
