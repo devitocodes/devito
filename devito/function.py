@@ -14,13 +14,13 @@ from devito.equation import Eq, Inc
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, sparse_generic_derivative,
                                       second_derivative, generic_derivative,
-                                      sparse_cross_derivative,
+                                      sparse_cross_derivative, sparse_fd_list,
                                       second_cross_derivative, left, right)
 from devito.logger import debug, error, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import SymbolicFunction, AbstractCachedSymbol
-from devito.tools import EnrichedTuple, sparse_fd_list
+from devito.tools import EnrichedTuple
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction']
@@ -505,6 +505,28 @@ class Function(TensorFunction):
                                  '%s and %s dimensions' %
                                  (dim.name, dim2.name)))
 
+    @property
+    def div(self):
+        """
+        Divergence of a function. Sum of the first oreder spatial derivatives
+        Returns 0 if self.space_order < 1
+        """
+        if self.space_order < 1:
+            return 0
+        else:
+            return sum([getattr(self, 'd%s' % d.name) for d in self.space_dimensions])
+
+    @property
+    def laplace(self):
+        """
+        Laplacian of a function. Sum of the second oreder spatial derivatives
+        Returns 0 if self.space_order < 2
+        """
+        if self.space_order < 2:
+            return 0
+        else:
+            return sum([getattr(self, 'd%s2' % d.name) for d in self.space_dimensions])
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
@@ -536,16 +558,6 @@ class Function(TensorFunction):
     def _halo_indices(self):
         """Return the function indices for which a halo region is defined."""
         return self.indices
-
-    @property
-    def laplace(self):
-        """
-        Generates a symbolic expression for the Laplacian, the second
-        derivative wrt. all spatial dimensions.
-        """
-        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-
-        return sum([getattr(self, d) for d in derivs[:self.ndim]])
 
     def laplace2(self, weight=1):
         """
@@ -840,6 +852,28 @@ class SparseFunction(TensorFunction):
                                  '%s and %s dimensions' %
                                  (dim.name, dim2.name)))
 
+    @property
+    def div(self):
+        """
+        Divergence of a function. Sum of the first oreder spatial derivatives
+        Returns 0 if self.space_order < 1
+        """
+        if self.space_order < 1:
+            return 0
+        else:
+            return sum([getattr(self, 'd%s' % d.name) for d in self.space_dimensions])
+
+    @property
+    def laplace(self):
+        """
+        Laplacian of a function. Sum of the second oreder spatial derivatives
+        Returns 0 if self.space_order < 2
+        """
+        if self.space_order < 2:
+            return 0
+        else:
+            return sum([getattr(self, 'd%s2' % d.name) for d in self.space_dimensions])
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """
@@ -1014,14 +1048,14 @@ class SparseFunction(TensorFunction):
             for expr, shift in expr:
                 offsets = tuple([offset + shift[dim]/dim.spacing
                                 for dim in self.grid.dimensions])
-                inject_src += self.inject_expr(field, expr,
-                                               offset=offsets, u_t=u_t, p_t=p_t)
+                inject_src += self._inject_expr(field, expr,
+                                                offset=offsets, u_t=u_t, p_t=p_t)
             return inject_src
         else:
             offsets = (offset, offset, offset)[:self.grid.dim]
-            return self.inject_expr(field, expr, offset=offsets, u_t=u_t, p_t=p_t)
+            return self._inject_expr(field, expr, offset=offsets, u_t=u_t, p_t=p_t)
 
-    def inject_expr(self, field, expr, offset=(0, 0, 0), u_t=None, p_t=None):
+    def _inject_expr(self, field, expr, offset=(0, 0, 0), u_t=None, p_t=None):
         """Symbol for injection of an expression onto a grid
 
         :param field: The grid field into which we inject.

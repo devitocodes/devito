@@ -6,11 +6,10 @@ from operator import mul
 from sympy import finite_diff_weights
 
 from devito.logger import error
-from devito.tools import sparse_fd_list
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative',
            'sparse_cross_derivative', 'sparse_generic_derivative',
-           'left', 'right', 'centered']
+           'left', 'right', 'centered', 'sparse_fd_list']
 
 
 class Transpose(object):
@@ -226,8 +225,7 @@ def second_cross_derivative(function, dims, order):
 
 def sparse_generic_derivative(function, deriv_order, dim, fd_order):
     """
-    First order spatial derivative of a SparseFunction.
-    To be consitent with Dipole sources
+    First order spatial derivative of a SparseFunction. Consitent with Dipole sources
     in geopphysics, the finite-differences are computed on 2 times finer grid (h_x/2).
     This does not return a finite-difference
     expression but a list of (weight, offset) to construct the interpolation at
@@ -252,10 +250,9 @@ def sparse_generic_derivative(function, deriv_order, dim, fd_order):
 
 def sparse_cross_derivative(function, dims, fd_order):
     """
-    Derives cross derivative for a product of given sparse functions.
-    This does not return a finite-difference
-    expression but a list of (weight, offset) to construct the interpolation at
-    the finite-difference locations.
+    Derives cross derivative for a product of given sparse functions. This does not
+    return a finite-difference expression but a list of (weight, offset) to construct
+    the interpolation at the finite-difference locations.
 
     :param dims: 2-tuple of symbols defining the dimension wrt. which
        to differentiate, eg. `x`, `y`, `z`.
@@ -278,3 +275,20 @@ def sparse_cross_derivative(function, dims, fd_order):
                             for (w2, h2) in zip(coeffs2, indices2)]
                             for (w1, h1) in zip(coeffs1, indices1)])
     return cross
+
+
+class sparse_fd_list(list):
+    """
+    A list of tuples (weight, position) for sparse finite differences
+    """
+    def __mul__(self, constant):
+        return sparse_fd_list([(i[0] * constant, i[1]) for i in self])
+
+    def __rmul__(self, constant):
+        return sparse_fd_list([(i[0] * constant, i[1]) for i in self])
+
+    def __floordiv__(self, constant):
+        return sparse_fd_list([(i[0] / constant, i[1]) for i in self])
+
+    def __truediv__(self, constant):
+        return sparse_fd_list([(i[0] / constant, i[1]) for i in self])

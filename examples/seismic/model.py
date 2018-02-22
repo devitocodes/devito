@@ -323,7 +323,6 @@ class Model(object):
             self.m = Function(name="m", grid=self.grid)
         else:
             self.m = Constant(name="m", value=1/vp**2)
-
         # Set model velocity, which will also set `m`
         self.vp = vp
 

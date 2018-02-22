@@ -11,8 +11,7 @@ from distutils import version
 
 from devito.parameters import configuration
 
-__all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio',
-           'sparse_fd_list']
+__all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
 
 
 def as_tuple(item, type=None, length=None):
@@ -570,20 +569,3 @@ class EnrichedTuple(tuple):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
         return obj
-
-
-class sparse_fd_list(list):
-    """
-    A list of tuples (weight, position) for sparse finite differences
-    """
-    def __mul__(self, constant):
-        return sparse_fd_list([(i[0] * constant, i[1]) for i in self])
-
-    def __rmul__(self, constant):
-        return sparse_fd_list([(i[0] * constant, i[1]) for i in self])
-
-    def __floordiv__(self, constant):
-        return sparse_fd_list([(i[0] / constant, i[1]) for i in self])
-
-    def __truediv__(self, constant):
-        return sparse_fd_list([(i[0] / constant, i[1]) for i in self])
