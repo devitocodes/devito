@@ -2,10 +2,10 @@ from __future__ import absolute_import
 
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
-from devito.exceptions import InvalidOperator
 from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
+from devito.ir.support import compute_domain_misalignment
 from devito.operator import OperatorRunnable
-from devito.symbolics import retrieve_indexed, q_affine
+from devito.symbolics import retrieve_indexed
 from devito.tools import flatten
 
 __all__ = ['Operator']
@@ -23,6 +23,8 @@ class OperatorCore(OperatorRunnable):
             * Indexification (:class:`Function` --> :class:`Indexed`).
             * Application of user-provided substitution rules.
             * Translation of array accesses w.r.t. the computational domain.
+              This ensures that computational domain and dimension indices are
+              aligned.
 
         The latter task requires some thought. One may think that adding the
         halo+padding region to the index functions would suffice. There is,
@@ -32,27 +34,17 @@ class OperatorCore(OperatorRunnable):
         halo and padding tuples. A user may express an iteration update in many
         different formats, such as ``u[t+1, x, y] = f(u[t, x, y], u[t-1, x, y])``
         or ``u[t+2, x, y] = f(u[t+1, x, y], u[t, x, y])``. Not only are these
-        two formats mathematically meaningful, but also they are considered
-        equivalent by Devito. What really matters is that users can execute a
-        :class:`Operator` in a natural way. So if the user writes: ::
+        two formats mathematically meaningful, but they are also considered
+        equivalent by Devito. Thus, if the user writes: ::
 
             .. code-block::
                 op = Operator(...)
-                op.apply(t=(2, 5))
+                op.apply(t_start=2, t_end=4)
 
         then 3 timesteps need to be computed -- in particular, ``u[2, ...],
-        u[3, ...], u[4, ....]`` -- no matter whether the left hand side
-        of the input equation is expressed as ``u[t+1, ...] = ...`` rather than
-        ``u[t+2, ...] = ...`` or ``u[t, ...] = ...``. To systematically achieve
-        this behavior, we use the following compilation strategy: ::
-
-            * Any offsets appearing on the left hand side of a user-provided
-              equation are dropped; all other index functions are translated accordingly.
-            * All index functions are further translated up based on the extent of their
-              halo+padding region.
-            * A loop along a certain :class:`Dimension` ``x`` enclosing a user-provided
-              equation will always range from ``x_start`` to ``x_end`` (i.e., no offsets
-              will ever be used in user-input-generated loop headers).
+        u[3, ...], u[4, ....]`` -- no matter whether the left hand side of the
+        input equation is expressed as ``u[t+1, ...] = ...`` rather than as
+        ``u[t+2, ...] = ...`` or ``u[t, ...] = ...``.
 
         Thus, for the above scenario, the compiler will eventually generate: ::
 
@@ -64,31 +56,8 @@ class OperatorCore(OperatorRunnable):
         """
         expressions = super(OperatorCore, self)._specialize_exprs(expressions, subs)
 
-        # Calculate normalization offset
-        constraints = {}
-        for e in expressions:
-            for indexed in retrieve_indexed(e):
-                f = indexed.base.function
-                if not f.is_SymbolicFunction:
-                    continue
-                for i, d, gap in zip(indexed.indices, f.dimensions, f._offset_domain):
-                    if not q_affine(i, d):
-                        # Sparse iteration, no check possible
-                        continue
-                    ofs = i - d
-                    if not ofs.is_Number:
-                        raise InvalidOperator("Access `%s` in %s is not a translated "
-                                              "identity function" % (i, indexed))
-                    shift = abs(min(gap.right - ofs, 0))
-                    if shift == 0:
-                        continue
-                    constraint = constraints.setdefault(f, {d: shift})
-                    if shift != constraint.setdefault(d, shift):
-                        raise InvalidOperator("Access `%s` in %s with halo %s "
-                                              "has incompatible shift %d (expected %d)"
-                                              % (i, indexed, gap, shift, constraint[d]))
-
-        # Calculate shifting
+        # Determine Function-wise shifting
+        constraints = compute_domain_misalignment(expressions)
         mapper = {}
         for e in expressions:
             for indexed in retrieve_indexed(e):
@@ -99,7 +68,7 @@ class OperatorCore(OperatorRunnable):
                         in zip(indexed.indices, f.dimensions, f._offset_domain)}
                 mapper[indexed] = indexed.xreplace(subs)
 
-        # Transform expressions by applying the shifting
+        # Apply shifting
         expressions = [e.xreplace(mapper) for e in expressions]
 
         return expressions
