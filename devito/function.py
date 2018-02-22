@@ -9,6 +9,7 @@ from devito.cgen_utils import INT, FLOAT
 from devito.data import Data, first_touch
 from devito.dimension import Dimension
 from devito.equation import Eq, Inc
+from devito.exceptions import InvalidArgument
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
@@ -74,6 +75,22 @@ class Constant(AbstractCachedSymbol):
             new = kwargs.pop(self.name)
             values[self.name] = new.data if isinstance(new, Constant) else new
         return values
+
+    def _arg_check(self, args, dspace):
+        """
+        :raises InvalidArgument: If, given the runtime arguments ``args``, an
+                                 out-of-bounds access will be performed.
+        """
+        if self.name not in args:
+            raise InvalidArgument("No runtime value for %s" % self.name)
+        key = args[self.name]
+        try:
+            # Might be a plain number, w/o a dtype field
+            if key.dtype != self.dtype:
+                warning("Data type %s of runtime value `%s` does not match the "
+                        "Constant data type %s" % (key.dtype, self.name, self.dtype))
+        except AttributeError:
+            pass
 
 
 class TensorFunction(SymbolicFunction):
@@ -343,9 +360,6 @@ class TensorFunction(SymbolicFunction):
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
-            if len(new.shape) != self.ndim:
-                raise ValueError("Array shape %s does not match" % (new.shape, ) +
-                                 "dimensions %s" % (self.indices, ))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
                 values[key.name] = new._data_buffer
@@ -358,6 +372,23 @@ class TensorFunction(SymbolicFunction):
                     values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
 
         return values
+
+    def _arg_check(self, args, intervals):
+        """
+        :raises InvalidArgument: If, given the runtime arguments ``args``, an
+                                 out-of-bounds access will be performed.
+        """
+        if self.name not in args:
+            raise InvalidArgument("No runtime value for `%s`" % self.name)
+        key = args[self.name]
+        if len(key.shape) != self.ndim:
+            raise InvalidArgument("Shape %s of runtime value `%s` does not match "
+                                  "dimensions %s" % (key.shape, self.name, self.indices))
+        if key.dtype != self.dtype:
+            warning("Data type %s of runtime value `%s` does not match the "
+                    "Function data type %s" % (key.dtype, self.name, self.dtype))
+        for i, s in zip(self.indices, key.shape):
+            i._arg_check(args, s, intervals[i])
 
 
 class Function(TensorFunction):
