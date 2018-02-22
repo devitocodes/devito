@@ -20,6 +20,7 @@ from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.tools import EnrichedTuple
+from devito.interpolators import LinearInterpolator
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction']
@@ -807,6 +808,9 @@ class SparseFunction(TensorFunction):
             # Padding region
             self._padding = tuple((0, 0) for i in range(self.ndim))
 
+            self.interpolator = LinearInterpolator(self.point_symbols,
+                                                   self.grid.dimensions)
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """
@@ -824,60 +828,7 @@ class SparseFunction(TensorFunction):
 
     @property
     def coefficients(self):
-        """Symbolic expression for the coefficients for sparse point
-        interpolation according to:
-        https://en.wikipedia.org/wiki/Bilinear_interpolation.
-
-        :returns: List of coefficients, eg. [b_11, b_12, b_21, b_22]
-        """
-        # Grid indices corresponding to the corners of the cell
-        x1, y1, z1, x2, y2, z2 = sympy.symbols('x1, y1, z1, x2, y2, z2')
-        # Coordinate values of the sparse point
-        px, py, pz = self.point_symbols
-        if self.grid.dim == 2:
-            A = sympy.Matrix([[1, x1, y1, x1*y1],
-                              [1, x1, y2, x1*y2],
-                              [1, x2, y1, x2*y1],
-                              [1, x2, y2, x2*y2]])
-
-            p = sympy.Matrix([[1],
-                              [px],
-                              [py],
-                              [px*py]])
-
-            # Map to reference cell
-            x, y = self.grid.dimensions
-            reference_cell = {x1: 0, y1: 0, x2: x.spacing, y2: y.spacing}
-
-        elif self.grid.dim == 3:
-            A = sympy.Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
-                              [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
-                              [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
-                              [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
-                              [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
-                              [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
-                              [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
-                              [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
-
-            p = sympy.Matrix([[1],
-                              [px],
-                              [py],
-                              [pz],
-                              [px*py],
-                              [px*pz],
-                              [py*pz],
-                              [px*py*pz]])
-
-            # Map to reference cell
-            x, y, z = self.grid.dimensions
-            reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing,
-                              y2: y.spacing, z2: z.spacing}
-        else:
-            raise NotImplementedError('Interpolation coefficients not implemented '
-                                      'for %d dimensions.' % self.grid.dim)
-
-        A = A.subs(reference_cell)
-        return A.inv().T.dot(p)
+        return self.interpolator.coefficients
 
     @property
     def point_symbols(self):
@@ -886,15 +837,7 @@ class SparseFunction(TensorFunction):
 
     @property
     def point_increments(self):
-        """Index increments in each dimension for each point symbol"""
-        if self.grid.dim == 2:
-            return ((0, 0), (0, 1), (1, 0), (1, 1))
-        elif self.grid.dim == 3:
-            return ((0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1),
-                    (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))
-        else:
-            raise NotImplementedError('Point increments not defined '
-                                      'for %d dimensions.' % self.grid.dim)
+        return self.interpolator.point_increments
 
     @property
     def coordinate_symbols(self):

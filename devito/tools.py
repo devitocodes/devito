@@ -18,6 +18,7 @@ __all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
 def prod(iterable):
     return reduce(mul, iterable, 1)
 
+
 def as_tuple(item, type=None, length=None):
     """
     Force item to a tuple.
