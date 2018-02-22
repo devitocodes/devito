@@ -416,6 +416,41 @@ def test_intervals_union():
 
 
 @skipif_yask
+def test_intervals_merge():
+    nullx = NullInterval(x)
+
+    # All nulls
+    assert nullx.merge(nullx) == nullx
+
+    ix = Interval(x, -2, 2)
+
+    # Mixed nulls and defined on the same dimension
+    assert nullx.merge(ix) == ix
+    assert ix.merge(ix) == ix
+    assert ix.merge(nullx) == ix
+
+    ix2 = Interval(x, 1, 4)
+    ix3 = Interval(x, -3, 6)
+
+    # All defined overlapping
+    assert ix.merge(ix2) == Interval(x, -2, 4)
+    assert ix.merge(ix3) == ix3
+    assert ix2.merge(ix3) == ix3
+
+    ix4 = Interval(x, 0, 0)
+    ix5 = Interval(x, -1, -1)
+    ix6 = Interval(x, 9, 11)
+
+    # Non-overlapping
+    assert ix.merge(ix4) == Interval(x, -2, 2)
+    assert ix.merge(ix5) == Interval(x, -2, 2)
+    assert ix4.merge(ix5) == Interval(x, -1, 0)
+    assert ix.merge(ix6) == Interval(x, -2, 11)
+    assert ix6.merge(ix) == Interval(x, -2, 11)
+    assert ix5.merge(ix6) == Interval(x, -1, 11)
+
+
+@skipif_yask
 def test_intervals_subtract():
     nullx = NullInterval(x)
 

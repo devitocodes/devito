@@ -72,15 +72,15 @@ class LoweredEq(Eq, IREq):
             ordering = [mapper.get(i, i) for i in ordering]
 
         # Compute iteration space
-        intervals, iterators = compute_intervals(expr)
+        intervals, iterators, parts = compute_intervals(expr)
         intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
         directions, _ = compute_directions(expr, lambda i: Any)
         ispace = IterationSpace([i.zero() for i in intervals], iterators, directions)
 
         # Compute data space (w.r.t. IterationSpace, add in pure data dimensions,
         # e.g. those only indexed via integers, rather than via Dimensions)
-        dspace = DataSpace(intervals + [Interval(i, 0, 0) for i in ordering
-                                        if i not in ispace.dimensions])
+        intervals += [Interval(i, 0, 0) for i in ordering if i not in ispace.dimensions]
+        dspace = DataSpace(intervals, parts)
 
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)

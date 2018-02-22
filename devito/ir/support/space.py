@@ -1,10 +1,12 @@
 import abc
 from collections import OrderedDict
 
+from frozendict import frozendict
+
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
-           'DataSpace', 'AccessSpace', 'Forward', 'Backward', 'Any']
+__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
+           'Forward', 'Backward', 'Any']
 
 
 class AbstractInterval(object):
@@ -45,17 +47,16 @@ class AbstractInterval(object):
     def union(self, o):
         return self._rebuild()
 
+    merge = union
+
     def subtract(self, o):
         return self._rebuild()
 
     def negate(self):
         return self._rebuild()
 
-    def zero(self):
-        return self._rebuild()
-
-    def flip(self):
-        return self._rebuild()
+    zero = negate
+    flip = negate
 
     @abc.abstractmethod
     def overlap(self, o):
@@ -86,6 +87,8 @@ class NullInterval(AbstractInterval):
             return o._rebuild()
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
+
+    merge = union
 
     def overlap(self, o):
         return False
@@ -138,6 +141,12 @@ class Interval(AbstractInterval):
             return self._rebuild()
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
+
+    def merge(self, o):
+        if self.dim != o.dim or o.is_Null:
+            return self._rebuild()
+        else:
+            return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper))
 
     def subtract(self, o):
         if self.dim != o.dim or o.is_Null:
@@ -241,6 +250,10 @@ class IntervalGroup(tuple):
     def negate(self):
         return IntervalGroup([i.negate() for i in self])
 
+    def zero(self, d=None):
+        d = self.dimensions if d is None else as_tuple(d)
+        return IntervalGroup([i.zero() if i.dim in d else i for i in self])
+
     def __getitem__(self, key):
         if isinstance(key, (slice, int)):
             return super(IntervalGroup, self).__getitem__(key)
@@ -249,6 +262,7 @@ class IntervalGroup(tuple):
         for i in self:
             if i.dim == key:
                 return i
+        return NullInterval(key)
 
 
 class IterationDirection(object):
@@ -320,7 +334,54 @@ class Space(object):
 
 
 class DataSpace(Space):
-    pass
+
+    """
+    A representation of a data space.
+
+    :param intervals: A sequence of :class:`Interval`s describing the data space.
+    :param parts: A mapper from :class:`Function`s to iterables of :class:`Interval`
+                  describing the individual components of the data space.
+    """
+
+    def __init__(self, intervals, parts):
+        super(DataSpace, self).__init__(intervals)
+        self._parts = frozendict(parts)
+
+    def __eq__(self, other):
+        return self.intervals == other.intervals and self.parts == other.parts
+
+    def __hash__(self):
+        return hash((super(DataSpace, self).__hash__(), self.parts))
+
+    @classmethod
+    def merge(cls, *others):
+        if not others:
+            return DataSpace(IntervalGroup(), {})
+        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
+        parts = {}
+        for i in others:
+            for k, v in i.parts.items():
+                parts.setdefault(k, []).append(v)
+        parts = {k: IntervalGroup.generate('merge', *v) for k, v in parts.items()}
+        return DataSpace(intervals, parts)
+
+    @property
+    def parts(self):
+        return self._parts
+
+    def __getitem__(self, key):
+        ret = self.intervals[key]
+        if ret.is_Null:
+            try:
+                ret = self._parts[key]
+            except KeyError:
+                ret = IntervalGroup()
+        return ret
+
+    def zero(self, d=None):
+        intervals = self.intervals.zero(d)
+        parts = {k: v.zero(d) for k, v in self.parts.items()}
+        return DataSpace(intervals, parts)
 
 
 class IterationSpace(Space):
@@ -342,8 +403,8 @@ class IterationSpace(Space):
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
         super(IterationSpace, self).__init__(intervals)
-        self._sub_iterators = sub_iterators or {}
-        self._directions = directions or {}
+        self._sub_iterators = frozendict(sub_iterators or {})
+        self._directions = frozendict(directions or {})
 
     def __repr__(self):
         ret = ', '.join(["%s%s" % (repr(i), repr(self.directions[i.dim]))
@@ -383,39 +444,3 @@ class IterationSpace(Space):
     @property
     def nonderived_directions(self):
         return {k: v for k, v in self.directions.items() if not k.is_Derived}
-
-
-class AccessSpace(Space):
-
-    """
-    A representation of an access space through :class:`Interval`s, which
-    identify the data space, and :class:`IterationDirection`s, which indicate
-    the direction in which the data points are touched.
-
-    :param intervals: A sequence of :class:`Interval`s describing the space.
-    :param directions: A mapper from :class:`Dimension`s in ``intervals``
-                       to :class:`IterationDirection`s.
-    """
-
-    def __init__(self, intervals, directions):
-        super(AccessSpace, self).__init__(intervals)
-        self._directions = directions
-
-    def __eq__(self, other):
-        return self.intervals == other.intervals and self.directions == other.directions
-
-    def __hash__(self):
-        return hash((super(AccessSpace, self).__hash__(), self.directions))
-
-    @property
-    def directions(self):
-        return self._directions
-
-    def __getitem__(self, key):
-        interval = self.intervals[key]
-        if interval is None:
-            interval = NullInterval(key)
-        direction = self.directions.get(key)
-        if direction is None:
-            direction = Any
-        return interval, direction
