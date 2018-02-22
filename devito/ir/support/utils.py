@@ -5,11 +5,12 @@ from devito.dimension import Dimension
 from devito.ir.support.basic import Access, Scope
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
-from devito.symbolics import retrieve_indexed, retrieve_terminals
+from devito.symbolics import retrieve_indexed, retrieve_terminals, q_affine
 from devito.tools import as_tuple, flatten, filter_sorted
 
 __all__ = ['compute_intervals', 'detect_flow_directions', 'compute_directions',
-           'force_directions', 'group_expressions', 'detect_io']
+           'force_directions', 'group_expressions', 'compute_domain_misalignment',
+           'detect_io']
 
 
 def compute_intervals(expr):
@@ -222,3 +223,35 @@ def detect_io(exprs, relax=False):
             writes.append(f)
 
     return filter_sorted(reads), filter_sorted(writes)
+
+
+def compute_domain_misalignment(exprs):
+    """
+    Return a mapper ``M : F -> [D -> Z]``, where F is the set of :class:`Function`
+    appearing in ``expr``, D is the set of :class:`Dimension` appearing in ``expr``
+    and Z is the set of integer numbers. M provides the misalignment between
+    actual function accesses and computational domain.
+    """
+    mapper = {}
+    for e in exprs:
+        for indexed in retrieve_indexed(e):
+            f = indexed.base.function
+            if not f.is_SymbolicFunction:
+                continue
+            for i, d, gap in zip(indexed.indices, f.dimensions, f._offset_domain):
+                if not q_affine(i, d):
+                    # Sparse iteration, no check possible
+                    continue
+                ofs = i - d
+                if not ofs.is_Number:
+                    raise ValueError("Access `%s` in %s is not a translated "
+                                     "identity function" % (i, indexed))
+                shift = abs(min(gap.right - ofs, 0))
+                if shift == 0:
+                    continue
+                constraint = mapper.setdefault(f, {d: shift})
+                if shift != constraint.setdefault(d, shift):
+                    raise ValueError("Access `%s` in %s with halo %s "
+                                     "has incompatible shift %d (expected %d)"
+                                     % (i, indexed, gap, shift, constraint[d]))
+    return mapper
