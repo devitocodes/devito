@@ -69,9 +69,10 @@ class Operator(Callable):
         # References to local or external routines
         self.func_table = OrderedDict()
 
-        # Lower expressions
-        expressions = self._specialize_exprs(expressions, subs)
-        expressions = [LoweredEq(i) for i in expressions]
+        # Expression lowering: indexification, substitution rules, enrichment
+        expressions = [indexify(i) for i in expressions]
+        expressions = [i.xreplace(subs) for i in expressions]
+        expressions = self._specialize_exprs(expressions)
 
         # Expression analysis
         self.dtype = retrieve_dtype(expressions)
@@ -228,21 +229,9 @@ class Operator(Callable):
         best block sizes when loop blocking is in use."""
         return args
 
-    def _specialize_exprs(self, expressions, subs):
-        """
-        Transform the SymPy expressions in input to the Operator into a
-        backend-specific representation.
-
-        Two tasks are carried out: ::
-
-            * Indexification (:class:`Function` --> :class:`Indexed`).
-            * Application of user-provided substitution rules.
-        """
-        # Indexification
-        expressions = [indexify(i) for i in expressions]
-        # Apply user-provided substitution rules
-        expressions = [i.xreplace(subs) for i in expressions]
-        return expressions
+    def _specialize_exprs(self, expressions):
+        """Transform ``expressions`` into a backend-specific representation."""
+        return [LoweredEq(i) for i in expressions]
 
     def _specialize_iet(self, nodes):
         """Transform the Iteration/Expression tree into a backend-specific
