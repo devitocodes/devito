@@ -126,7 +126,7 @@ class Dimension(AbstractSymbol):
             inferred[self.start_name] = args[self.start_name] - min(interval.lower, 0)
 
         if self.end_name in args:
-            inferred[self.end_name] = args[self.end_name] - 1
+            inferred[self.end_name] = args[self.end_name] - (1 + max(interval.upper, 0))
 
         return inferred
 

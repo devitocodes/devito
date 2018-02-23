@@ -2,8 +2,9 @@ from sympy import Eq
 
 from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
-from devito.ir.support import (IterationSpace, DataSpace, Interval, Any,
-                               compute_intervals, compute_directions, detect_io)
+from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup, Any,
+                               detect_accesses, detect_oobs, force_directions, detect_io,
+                               build_intervals, detect_flow_directions, align_accesses)
 from devito.symbolics import FrozenExpr, dimension_sort
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
@@ -31,14 +32,10 @@ class IREq(object):
 class LoweredEq(Eq, IREq):
 
     """
-    LoweredEq(expr, subs=None)
+    LoweredEq(expr)
 
-    A SymPy equation with an associated iteration space.
-
-    The iteration space is an object of type :class:`IterationSpace`. It
-    represents the iteration points along each :class:`Dimension` that the
-    equation may traverse with the guarantee that no out-of-bounds accesses
-    will be performed.
+    A SymPy equation with associated :class:`IterationSpace` and
+    :class:`DataSpace`.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -71,15 +68,25 @@ class LoweredEq(Eq, IREq):
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
 
-        # Compute iteration space
-        intervals, iterators, parts = compute_intervals(expr)
+        # Align data accesses to the computational domain
+        expr = align_accesses(expr)
+
+        # Analyze data accesses
+        mapper = detect_accesses(expr)
+        oobs = detect_oobs(mapper)
+
+        # The iteration space is constructed so that information always flows
+        # from an iteration to another (i.e., no anti-dependences are created)
+        directions, _ = force_directions(detect_flow_directions(expr), lambda i: Any)
+        intervals, iterators = build_intervals(mapper)
         intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
-        directions, _ = compute_directions(expr, lambda i: Any)
         ispace = IterationSpace([i.zero() for i in intervals], iterators, directions)
 
-        # Compute data space (w.r.t. IterationSpace, add in pure data dimensions,
-        # e.g. those only indexed via integers, rather than via Dimensions)
+        # The data space is relative to the computational domain
+        intervals = [i if i.dim in oobs else i.zero() for i in intervals]
         intervals += [Interval(i, 0, 0) for i in ordering if i not in ispace.dimensions]
+        parts = {k: IntervalGroup(Interval(i, min(j), max(j)) for i, j in v.items())
+                 for k, v in mapper.items()}
         dspace = DataSpace(intervals, parts)
 
         # Finally create the LoweredEq with all metadata attached
@@ -104,12 +111,19 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
     """
     ClusterizedEq(expr, ispace)
 
-    A SymPy equation carrying its own :class:`IterationSpace`. Suitable for
-    use in a :class:`Cluster`.
+    A SymPy equation with associated :class:`IterationSpace` and
+    :class:`DataSpace`.
 
-    Unlike a :class:`LoweredEq`, a ClusterizedEq is "frozen", meaning that any
-    call to ``xreplace`` will not trigger re-evaluation (e.g., mathematical
-    simplification) of the expression.
+    There are two main differences between a :class:`LoweredEq` and a
+    ClusterizedEq: ::
+
+        * In a ClusterizedEq, the iteration and data spaces are provided and
+          thus simply attached to the object.
+        * A ClusterizedEq is "frozen", meaning that any call to ``xreplace``
+          will not trigger re-evaluation (e.g., mathematical simplification)
+          of the expression.
+
+    These two properties make a ClusterizedEq suitable for :class:`Cluster`s.
     """
 
     def __new__(cls, *args, **kwargs):
