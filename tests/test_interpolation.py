@@ -287,7 +287,7 @@ def test_time_shift(shape):
     nrec = 101
 
     # stencil
-    grid = Grid(shape, extent=(500., 500.))
+    grid = Grid(shape, extent=tuple([500.]*len(shape)))
 
     u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
     eq = [Eq(u.forward, 2*u - u.backward + dt**2*u.laplace)]
@@ -325,9 +325,9 @@ def test_time_shift(shape):
     u.data[:] = 0.
     op.apply(dt=dt, rec=rec3)
 
-    assert(np.allclose(rec.data[:-1, :], rec2.data[1:, :], atol=1e-10))
-    assert(np.allclose(rec.data[1:-1, :], rec3.data[:-2, :], atol=1e-10))
+    assert(np.allclose(rec.data[:-1, :], rec2.data[1:, :], atol=1e-6))
+    assert(np.allclose(rec.data[1:-1, :], rec3.data[:-2, :], atol=1e-6))
 
 
 if __name__ == "__main__":
-    test_time_shift((51, 51))
+    test_time_shift((50, 50, 50))
