@@ -27,11 +27,11 @@ def unit_box(name='a', shape=(11, 11)):
     return a
 
 
-def points(grid, ranges, npoints, name='points'):
+def points(grid, ranges, npoints, name='points', **kwargs):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
-    points = SparseFunction(name=name, grid=grid, npoint=npoints)
+    points = SparseFunction(name=name, grid=grid, npoint=npoints, **kwargs)
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
@@ -131,6 +131,43 @@ def test_inject(shape, coords, result, npoints=19):
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+
+@skipif_yask
+@pytest.mark.parametrize('shape, coords, axis', [
+    ((11, 11), [(.2, .2), (.5, .5)], 0),
+    ((11, 11), [(.2, .2), (.5, .5)], 1),
+    ((11, 11, 11), [(.5, .5), (.3, .3), (.2, .2)], 0),
+    ((11, 11, 11), [(.5, .5), (.3, .3), (.2, .2)], 1),
+    ((11, 11, 11), [(.5, .5), (.3, .3), (.2, .2)], 2)
+])
+def test_inject_fd(shape, coords, axis):
+    """
+    Test injection for a spatial derivative of the point
+    For the x derivative, he result should be
+    point / (h_x/2) at coord_x - .5
+    - point / (h_x/2) at coord_x + .5
+    which with interpolation leads to
+    u[p, y] = point / (h_x/2)
+    u[p+1, y] = -point / (h_x/2)
+    """
+    a = unit_box(shape=shape)
+    a.data[:] = 0.
+    p = points(a.grid, ranges=coords, npoints=1, space_order=1)
+    p.data[:] = 1.0
+
+    derivative = getattr(p, 'd%s' % a.grid.dimensions[axis])
+    expr = p.inject(a, derivative)
+
+    Operator(expr)(a=a)
+
+    # Compute coordinat to indices for a .1 grid spacing
+    indices1 = [slice(int(10*c[0]), int(10*c[0]) + 1, 1) for c in coords]
+    indices1[axis] = slice(int(coords[axis][0]*10) - 1, int(coords[axis][0]*10), 1)
+    indices2 = [slice(int(c[0]*10), int(c[0]*10) + 1, 1) for c in coords]
+    # Check values
+    assert a.data[indices1] == 10.0
+    assert a.data[indices2] == -10.0
 
 
 @skipif_yask
@@ -237,4 +274,4 @@ def test_position(shape):
 
 
 if __name__ == "__main__":
-    test_interpolate_custom((11, 11), [(.05, .9), (.01, .8)])
+    test_inject_fd((11, 11, 11), [(.5, .5), (.3, .3), (.2, .2)], 1)

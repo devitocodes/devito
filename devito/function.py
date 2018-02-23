@@ -437,8 +437,7 @@ class Function(TensorFunction):
             else:
                 raise ValueError("'padding' must be int or %d-tuple of ints" % self.ndim)
             self._padding = padding
-
-            # Dynamically add derivative short-cuts
+            # Initialize derivatives
             self._initialize_derivatives()
 
     def _initialize_derivatives(self):
@@ -644,19 +643,38 @@ class TimeFunction(Function):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(TimeFunction, self).__init__(**kwargs)
+            self.time_dim = kwargs.get('time_dim')
+            self.time_order = kwargs.get('time_order', 1)
+            self.save = type(kwargs.get('save', None) or None)
+            if not isinstance(self.time_order, int):
+                raise ValueError("'time_order' must be int")
 
+            super(TimeFunction, self).__init__(**kwargs)
             # Check we won't allocate too much memory for the system
             available_mem = virtual_memory().available
             if np.dtype(self.dtype).itemsize * self.size > available_mem:
                 warning("Trying to allocate more memory for symbol %s " % self.name +
                         "than available on physical device, this will start swapping")
 
-            self.time_dim = kwargs.get('time_dim')
-            self.time_order = kwargs.get('time_order', 1)
-            self.save = type(kwargs.get('save', None) or None)
-            if not isinstance(self.time_order, int):
-                raise ValueError("'time_order' must be int")
+    def _initialize_derivatives(self):
+        """
+        Dynamically create notational shortcuts for space derivatives.
+        """
+        super(TimeFunction, self)._initialize_derivatives()
+        _t = self.indices[0]
+        if self.time_order < 1:
+            debug("Tmie order is 0, no time derivatives generated")
+            return
+        elif self.time_order > 0:
+            dt = partial(first_derivative, dim=_t, order=self.time_order)
+            setattr(self.__class__, 'dt',
+                    property(dt, 'Return the symbolic expression for '
+                             'the centered first derivative wrt. time'))
+            if self.time_order > 1:
+                dt2 = partial(second_derivative, dim=_t, order=self.time_order)
+                setattr(self.__class__, 'dt2',
+                        property(dt2, 'Return the symbolic expression for '
+                                 'the centered second derivative wrt. time'))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -717,28 +735,6 @@ class TimeFunction(Function):
         _t = self.indices[0]
 
         return self.subs(_t, _t - i * _t.spacing)
-
-    @property
-    def dt(self):
-        """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[0]
-        if self.time_order == 1:
-            # This hack is needed for the first-order diffusion test
-            indices = [_t, _t + _t.spacing]
-        else:
-            width = int(self.time_order / 2)
-            indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
-
-        return self.diff(_t).as_finite_difference(indices)
-
-    @property
-    def dt2(self):
-        """Symbol for the second derivative wrt the t dimension"""
-        _t = self.indices[0]
-        width_t = int(self.time_order / 2)
-        indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
-
-        return self.diff(_t, _t).as_finite_difference(indt)
 
     def argument_values(self, alias=None, **kwargs):
         """
@@ -1157,13 +1153,35 @@ class SparseTimeFunction(SparseFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(SparseTimeFunction, self).__init__(*args, **kwargs)
             self.time_order = kwargs.get('time_order', 1)
 
             nt = kwargs.get('nt')
             if not isinstance(nt, int) and nt > 0:
                 raise ValueError('SparseTimeFunction requires int parameter `nt`')
             self.nt = nt
+            super(SparseTimeFunction, self).__init__(*args, **kwargs)
+
+    def _initialize_derivatives(self):
+        """
+        Dynamically create notational shortcuts for space derivatives.
+        """
+        super(SparseTimeFunction, self)._initialize_derivatives()
+        _t = self.indices[0]
+        if self.time_order < 1:
+            debug("Tmie order is 0, no time derivatives generated")
+            return
+        elif self.time_order > 0:
+            dt = partial(sparse_generic_derivative, deriv_order=1, dim=_t,
+                         fd_order=self.time_order)
+            setattr(self.__class__, 'dt',
+                    property(dt, 'Return the symbolic expression for '
+                             'the centered first derivative wrt. time'))
+            if self.time_order > 1:
+                dt2 = partial(sparse_generic_derivative, deriv_order=2, dim=_t,
+                              fd_order=self.time_order)
+                setattr(self.__class__, 'dt2',
+                        property(dt2, 'Return the symbolic expression for '
+                                 'the centered second derivative wrt. time'))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1179,25 +1197,3 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
-
-    @property
-    def dt(self):
-        """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[0]
-        if self.time_order == 1:
-            # This hack is needed for the first-order diffusion test
-            indices = [_t, _t + _t.spacing]
-        else:
-            width = int(self.time_order / 2)
-            indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
-
-        return self.diff(_t).as_finite_difference(indices)
-
-    @property
-    def dt2(self):
-        """Symbol for the second derivative wrt the t dimension"""
-        _t = self.indices[0]
-        width_t = int(self.time_order / 2)
-        indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
-
-        return self.diff(_t, _t).as_finite_difference(indt)

@@ -172,7 +172,9 @@ def first_derivative(*args, **kwargs):
     side = kwargs.get('side', centered).adjoint(matvec)
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    if side == right:
+    if order == 1:
+        ind = [dim, dim + diff]
+    elif side == right:
         ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
     elif side == left:
