@@ -58,12 +58,12 @@ class LinearInterpolator(GenericInterpolator):
 
         elif self.ndim == 3:
             A = sympy.Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
-                              [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
-                              [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
                               [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
-                              [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
+                              [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
                               [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
+                              [1, x2, y1, z1, x2*y1, x2*z1, y1*z1, x2*y1*z1],
                               [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
+                              [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
                               [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
 
             p = sympy.Matrix([[1],
