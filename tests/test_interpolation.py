@@ -1,9 +1,10 @@
 import numpy as np
+from sympy import Eq
 import pytest
 from conftest import skipif_yask
 
 from devito.cgen_utils import FLOAT
-from devito import Grid, Operator, Function, SparseFunction, Dimension
+from devito import Grid, Operator, Function, SparseFunction, Dimension, TimeFunction
 from examples.seismic import demo_model, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
 
@@ -273,5 +274,60 @@ def test_position(shape):
     assert(np.allclose(rec.data, rec1.data, atol=1e-5))
 
 
+@skipif_yask
+@pytest.mark.parametrize('shape', [(50, 50, 50), (50, 50)])
+def test_time_shift(shape):
+    t0 = 0.0  # Start time
+    tn = 200.  # Final time
+
+    # Derive timestepping from model spacing
+    dt = .1
+    nt = int(1 + (tn-t0) / dt)  # Number of timesteps
+    time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+    nrec = 101
+
+    # stencil
+    grid = Grid(shape, extent=(500., 500.))
+
+    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+    eq = [Eq(u.forward, 2*u - u.backward + dt**2*u.laplace)]
+
+    # Define source geometry (center of domain, just below surface)
+    src = RickerSource(name='src', grid=grid, f0=0.01, time=time_values)
+    src.coordinates.data[0, :] = np.array(grid.shape_domain) * 5.
+
+    # Define receiver geometry (same as source, but spread across x)
+    rec = Receiver(name='rec', grid=grid, ntime=nt, npoint=nrec)
+    rec.coordinates.data[:, 0] = np.linspace(0., 500., num=nrec)
+    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+
+    src_eq = src.inject(field=u.forward, expr=src)
+    rec_eq = rec.interpolate(u)
+    # Usual operator
+    op = Operator(eq + src_eq + rec_eq)
+    op.apply(dt=dt)
+
+    # Shift rec
+    rec2 = Receiver(name='rec', grid=grid, ntime=nt, npoint=nrec)
+    rec2.coordinates.data[:, 0] = np.linspace(0., 500., num=nrec)
+    rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    rec_eq2 = rec2.interpolate(u, p_t=rec2.indices[0]+1)
+    op = Operator(eq + src_eq + rec_eq2)
+    u.data[:] = 0.
+    op.apply(dt=dt, rec=rec2)
+
+    # Shift u
+    rec3 = Receiver(name='rec', grid=grid, ntime=nt, npoint=nrec)
+    rec3.coordinates.data[:, 0] = np.linspace(0., 500., num=nrec)
+    rec3.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    rec_eq3 = rec3.interpolate(u, u_t=u.indices[0] + 1)
+    op = Operator(eq + src_eq + rec_eq3)
+    u.data[:] = 0.
+    op.apply(dt=dt, rec=rec3)
+
+    assert(np.allclose(rec.data[:-1, :], rec2.data[1:, :], atol=1e-10))
+    assert(np.allclose(rec.data[1:-1, :], rec3.data[:-2, :], atol=1e-10))
+
+
 if __name__ == "__main__":
-    test_inject_fd((11, 11, 11), [(.5, .5), (.3, .3), (.2, .2)], 1)
+    test_time_shift((51, 51))

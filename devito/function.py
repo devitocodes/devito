@@ -998,6 +998,7 @@ class SparseFunction(TensorFunction):
                             than an assignment. Defaults to False.
         """
         expr = indexify(expr)
+        lhs = indexify(self)
         offset = (offset, offset, offset)[:self.grid.dim]
 
         # Apply optional time symbol substitutions to expr
@@ -1022,7 +1023,7 @@ class SparseFunction(TensorFunction):
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
         # Apply optional time symbol substitutions to lhs of assignment
-        lhs = self if p_t is None else self.subs(self.indices[0], p_t)
+        lhs = lhs if p_t is None else lhs.subs(self.indices[0], p_t)
 
         rhs = rhs + lhs if cummulative is True else rhs
 
