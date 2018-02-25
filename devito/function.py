@@ -1010,18 +1010,17 @@ class SparseFunction(TensorFunction):
 
         :param alias: (Optional) name under which to store values.
         """
-        key_name = self.name if alias is None else alias.name or self.name
-        key_indices = self.indices if alias is None else alias.indices
-        key_coords = self.coordinates.name if alias is None else alias.coordinates.name
+        key = alias or self
 
-        args = ArgumentMap({key_name: self._data_buffer})
+        args = ArgumentMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key_indices):
+        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
             args.update(i.argument_defaults(size=s+o, alias=k))
 
-        args.update(self.coordinates.argument_defaults(alias=key_coords))
+        args.update(self.coordinates.argument_defaults(alias=key.coordinates.name))
         return args
+
 
     def argument_values(self, alias=None, **kwargs):
         """
@@ -1035,7 +1034,6 @@ class SparseFunction(TensorFunction):
         new = kwargs.get(self.name)
         key = alias or self
 
-        # values = super(SparseFunction, self).argument_values(alias=key, **kwargs)
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
