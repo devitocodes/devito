@@ -1192,7 +1192,7 @@ class SparseTimeFunction(SparseFunction):
             field = field.subs(field.indices[0], u_t)
         if p_t is not None:
             expr = expr.subs(self.indices[0], p_t)
- 
+
         return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, cumulative=False):
