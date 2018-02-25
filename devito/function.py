@@ -663,18 +663,18 @@ class TimeFunction(Function):
         super(TimeFunction, self)._initialize_derivatives()
         _t = self.indices[0]
         if self.time_order < 1:
-            debug("Tmie order is 0, no time derivatives generated")
+            debug("Time order is 0, no time derivatives generated")
             return
-        elif self.time_order > 0:
-            dt = partial(first_derivative, dim=_t, order=self.time_order)
-            setattr(self.__class__, 'dt',
-                    property(dt, 'Return the symbolic expression for '
-                             'the centered first derivative wrt. time'))
-            if self.time_order > 1:
-                dt2 = partial(second_derivative, dim=_t, order=self.time_order)
-                setattr(self.__class__, 'dt2',
-                        property(dt2, 'Return the symbolic expression for '
-                                 'the centered second derivative wrt. time'))
+
+        dt = partial(first_derivative, dim=_t, order=self.time_order)
+        setattr(self.__class__, 'dt',
+                property(dt, 'Return the symbolic expression for '
+                         'the centered first derivative wrt. time'))
+        if self.time_order > 1:
+            dt2 = partial(second_derivative, dim=_t, order=self.time_order)
+            setattr(self.__class__, 'dt2',
+                    property(dt2, 'Return the symbolic expression for '
+                             'the centered second derivative wrt. time'))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -983,29 +983,19 @@ class SparseFunction(TensorFunction):
                                               self.coordinate_indices(offset),
                                               indices[:self.grid.dim])])
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
+    def interpolate(self, expr, offset=0, cumulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
         :param expr: The expression to interpolate.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into
-                    field data in `expr`.
-        :param p_t: (Optional) time index to use for indexing into
-                    the sparse point data.
-        :param cummulative: (Optional) If True, perform an increment rather
+        :param cumulative: (Optional) If True, perform an increment rather
                             than an assignment. Defaults to False.
         """
         expr = indexify(expr)
         lhs = indexify(self)
         offset = (offset, offset, offset)[:self.grid.dim]
-
-        # Apply optional time symbol substitutions to expr
-        if u_t is not None:
-            time = self.grid.time_dim
-            t = self.grid.stepping_dim
-            expr = expr.subs(t, u_t).subs(time, u_t)
 
         variables = list(retrieve_indexed(expr))
         # List of indirection indices for all adjacent grid points
@@ -1022,14 +1012,12 @@ class SparseFunction(TensorFunction):
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases()))
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
-        # Apply optional time symbol substitutions to lhs of assignment
-        lhs = lhs if p_t is None else lhs.subs(self.indices[0], p_t)
 
-        rhs = rhs + lhs if cummulative is True else rhs
+        rhs = rhs + lhs if cumulative is True else rhs
 
         return [Eq(lhs, rhs)]
 
-    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+    def inject(self, field, expr, offset=0):
         """
         Symbol for injection of an expression onto a grid
 
@@ -1037,40 +1025,29 @@ class SparseFunction(TensorFunction):
         :param expr: The expression or list of fd expression to inject.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into `field`.
-        :param p_t: (Optional) time index to use for indexing into `expr`.
         """
         if isinstance(expr, sparse_fd_list):
             inject_src = []
             for expr, shift in expr:
                 offsets = tuple([offset + shift[dim]/dim.spacing
                                 for dim in self.grid.dimensions])
-                inject_src += self._inject_expr(field, expr,
-                                                offset=offsets, u_t=u_t, p_t=p_t)
+                inject_src += self._inject_expr(field, expr, offset=offsets)
             return inject_src
         else:
             offsets = (offset, offset, offset)[:self.grid.dim]
-            return self._inject_expr(field, expr, offset=offsets, u_t=u_t, p_t=p_t)
+            return self._inject_expr(field, expr, offset=offsets)
 
-    def _inject_expr(self, field, expr, offset=(0, 0, 0), u_t=None, p_t=None):
+    def _inject_expr(self, field, expr, offset=(0, 0, 0)):
         """Symbol for injection of an expression onto a grid
 
         :param field: The grid field into which we inject.
         :param expr: The expression to inject.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into `field`.
-        :param p_t: (Optional) time index to use for indexing into `expr`.
         """
         expr = indexify(expr)
         field = indexify(field)
         variables = list(retrieve_indexed(expr)) + [field]
-
-        # Apply optional time symbol substitutions to field and expr
-        if u_t is not None:
-            field = field.subs(field.indices[0], u_t)
-        if p_t is not None:
-            expr = expr.subs(self.indices[0], p_t)
 
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii for ii, idx
@@ -1169,20 +1146,20 @@ class SparseTimeFunction(SparseFunction):
         super(SparseTimeFunction, self)._initialize_derivatives()
         _t = self.indices[0]
         if self.time_order < 1:
-            debug("Tmie order is 0, no time derivatives generated")
+            debug("Time order is 0, no time derivatives generated")
             return
-        elif self.time_order > 0:
-            dt = partial(sparse_generic_derivative, deriv_order=1, dim=_t,
-                         fd_order=self.time_order)
-            setattr(self.__class__, 'dt',
-                    property(dt, 'Return the symbolic expression for '
-                             'the centered first derivative wrt. time'))
-            if self.time_order > 1:
-                dt2 = partial(sparse_generic_derivative, deriv_order=2, dim=_t,
-                              fd_order=self.time_order)
-                setattr(self.__class__, 'dt2',
-                        property(dt2, 'Return the symbolic expression for '
-                                 'the centered second derivative wrt. time'))
+
+        dt = partial(sparse_generic_derivative, deriv_order=1, dim=_t,
+                     fd_order=self.time_order)
+        setattr(self.__class__, 'dt',
+                property(dt, 'Return the symbolic expression for '
+                         'the centered first derivative wrt. time'))
+        if self.time_order > 1:
+            dt2 = partial(sparse_generic_derivative, deriv_order=2, dim=_t,
+                          fd_order=self.time_order)
+            setattr(self.__class__, 'dt2',
+                    property(dt2, 'Return the symbolic expression for '
+                             'the centered second derivative wrt. time'))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1198,3 +1175,46 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+        """
+        Symbol for injection of an expression onto a grid
+
+        :param field: The grid field into which we inject.
+        :param expr: The expression or list of fd expression to inject.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into `field`.
+        :param p_t: (Optional) time index to use for indexing into `expr`.
+        """
+        # Apply optional time symbol substitutions to field and expr
+        if u_t is not None:
+            field = field.subs(field.indices[0], u_t)
+        if p_t is not None:
+            expr = expr.subs(self.indices[0], p_t)
+ 
+        return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
+
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cumulative=False):
+        """Creates a :class:`sympy.Eq` equation for the interpolation
+        of an expression onto this sparse point collection.
+
+        :param expr: The expression to interpolate.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into
+                    field data in `expr`.
+        :param p_t: (Optional) time index to use for indexing into
+                    the sparse point data.
+        :param cumulative: (Optional) If True, perform an increment rather
+                            than an assignment. Defaults to False.
+        """
+        # Apply optional time symbol substitutions to expr
+        if u_t is not None:
+            time = self.grid.time_dim
+            t = self.grid.stepping_dim
+            expr = expr.subs(t, u_t).subs(time, u_t)
+
+        subs = self.subs(self.indices[0], p_t)
+        return super(SparseTimeFunction, subs).interpolate(expr, offset=offset,
+                                                           cumulative=cumulative)

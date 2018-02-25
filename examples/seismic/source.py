@@ -1,8 +1,10 @@
 from devito import Dimension
 from devito.function import SparseTimeFunction
 from devito.logger import error
+from devito.types import _SymbolCache
 
 import numpy as np
+import sympy
 try:
     import matplotlib.pyplot as plt
 except:
@@ -29,24 +31,29 @@ class PointSource(SparseTimeFunction):
 
     def __new__(cls, name, grid, ntime=None, npoint=None, data=None,
                 coordinates=None, **kwargs):
-        p_dim = kwargs.get('dimension', Dimension(name='p_%s' % name))
-        npoint = npoint or coordinates.shape[0]
-        if data is None:
-            if ntime is None:
-                error('Either data or ntime are required to'
-                      'initialise source/receiver objects')
+        options = kwargs.get('options', {})
+        if cls in _SymbolCache:
+            obj = sympy.Function.__new__(cls, name, grid, **options)
+            obj._cached_init()
         else:
-            ntime = ntime or data.shape[0]
+            p_dim = kwargs.get('dimension', Dimension(name='p_%s' % name))
+            npoint = npoint or coordinates.shape[0]
+            if data is None:
+                if ntime is None:
+                    error('Either data or ntime are required to'
+                          'initialise source/receiver objects')
+            else:
+                ntime = ntime or data.shape[0]
 
-        # Create the underlying SparseTimeFunction object
-        obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,
-                                         dimensions=[grid.time_dim, p_dim],
-                                         npoint=npoint, nt=ntime,
-                                         coordinates=coordinates, **kwargs)
+            # Create the underlying SparseTimeFunction object
+            obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,
+                                             dimensions=[grid.time_dim, p_dim],
+                                             npoint=npoint, nt=ntime,
+                                             coordinates=coordinates, **kwargs)
 
-        # If provided, copy initial data into the allocated buffer
-        if data is not None:
-            obj.data[:] = data
+            # If provided, copy initial data into the allocated buffer
+            if data is not None:
+                obj.data[:] = data
         return obj
 
     def __init__(self, *args, **kwargs):
@@ -70,16 +77,21 @@ class WaveletSource(PointSource):
     """
 
     def __new__(cls, *args, **kwargs):
-        time = kwargs.get('time')
-        npoint = kwargs.get('npoint', 1)
-        kwargs['ntime'] = len(time)
-        kwargs['npoint'] = npoint
-        obj = PointSource.__new__(cls, *args, **kwargs)
+        options = kwargs.get('options', {})
+        if cls in _SymbolCache:
+            obj = sympy.Function.__new__(cls, *args, **options)
+            obj._cached_init()
+        else:
+            time = kwargs.get('time')
+            npoint = kwargs.get('npoint', 1)
+            kwargs['ntime'] = len(time)
+            kwargs['npoint'] = npoint
+            obj = PointSource.__new__(cls, *args, **kwargs)
 
-        obj.time = time
-        obj.f0 = kwargs.get('f0')
-        for p in range(npoint):
-            obj.data[:, p] = obj.wavelet(obj.f0, obj.time)
+            obj.time = time
+            obj.f0 = kwargs.get('f0')
+            for p in range(npoint):
+                obj.data[:, p] = obj.wavelet(obj.f0, obj.time)
         return obj
 
     def __init__(self, *args, **kwargs):

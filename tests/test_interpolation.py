@@ -75,7 +75,7 @@ def test_interpolate(shape, coords, npoints=20):
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
 ])
-def test_interpolate_cumm(shape, coords, npoints=20):
+def test_interpolate_cum(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid.
     """
@@ -84,7 +84,7 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     xcoords = p.coordinates.data[:, 0]
 
     p.data[:] = 1.
-    expr = p.interpolate(a, cummulative=True)
+    expr = p.interpolate(a, cumulative=True)
     Operator(expr)(a=a)
 
     assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
@@ -311,7 +311,7 @@ def test_time_shift(shape):
     rec2 = Receiver(name='rec', grid=grid, ntime=nt, npoint=nrec)
     rec2.coordinates.data[:, 0] = np.linspace(0., 500., num=nrec)
     rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
-    rec_eq2 = rec2.interpolate(u, p_t=rec2.indices[0]+1)
+    rec_eq2 = rec2.interpolate(u, p_t=rec2.indices[0]+rec2.indices[0].spacing)
     op = Operator(eq + src_eq + rec_eq2)
     u.data[:] = 0.
     op.apply(dt=dt, rec=rec2)
@@ -320,7 +320,7 @@ def test_time_shift(shape):
     rec3 = Receiver(name='rec', grid=grid, ntime=nt, npoint=nrec)
     rec3.coordinates.data[:, 0] = np.linspace(0., 500., num=nrec)
     rec3.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
-    rec_eq3 = rec3.interpolate(u, u_t=u.indices[0] + 1)
+    rec_eq3 = rec3.interpolate(u, u_t=u.indices[0] + u.indices[0].spacing)
     op = Operator(eq + src_eq + rec_eq3)
     u.data[:] = 0.
     op.apply(dt=dt, rec=rec3)
@@ -330,4 +330,4 @@ def test_time_shift(shape):
 
 
 if __name__ == "__main__":
-    test_time_shift((50, 50, 50))
+    test_time_shift((50, 50))
