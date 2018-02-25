@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 import numpy as np
 import sympy
 
-from devito import Grid, Eq, Operator, TimeFunction
+from devito import Grid, Eq, solve, Operator, TimeFunction
 from devito.logger import log
 
 try:
@@ -133,7 +133,7 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
 
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
-    stencil = sympy.solve(eqn, u.forward)[0]
+    stencil = solve(eqn, u.forward)[0]
     op = Operator(Eq(u.forward, stencil))
 
     # Execute the generated Devito stencil operator
