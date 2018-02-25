@@ -1021,7 +1021,6 @@ class SparseFunction(TensorFunction):
         args.update(self.coordinates.argument_defaults(alias=key.coordinates.name))
         return args
 
-
     def argument_values(self, alias=None, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
