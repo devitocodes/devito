@@ -152,7 +152,7 @@ def pow_to_mul(expr):
         return expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
-        if exp <= 0:
+        if exp <= 0 or not exp.is_integer:
             # Cannot handle powers containing non-integer non-positive exponents
             return expr
         else:
