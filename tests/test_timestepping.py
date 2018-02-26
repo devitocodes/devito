@@ -58,7 +58,7 @@ def test_forward_unroll(a, c, nt=5):
     c.data[0, :] = 1.
     eqn_c = Eq(c.forward, c + 1.)
     eqn_a = Eq(a.forward, c.forward)
-    Operator([eqn_c, eqn_a])(time=nt)
+    Operator([eqn_c, eqn_a])(time=nt-1)
     for i in range(nt):
         assert np.allclose(a.data[i, :], 1. + i, rtol=1.e-12)
 
@@ -69,10 +69,10 @@ def test_forward_backward(a, b, nt=5):
     a.data[0, :] = 1.
     b.data[0, :] = 1.
     eqn_a = Eq(a.forward, a + 1.)
-    Operator(eqn_a)(time=nt)
+    Operator(eqn_a)(time=nt-1)
 
     eqn_b = Eq(b, a + 1.)
-    Operator(eqn_b)(time=nt)
+    Operator(eqn_b)(time=nt-1)
     for i in range(nt):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
@@ -88,8 +88,8 @@ def test_forward_backward_overlapping(a, b, nt=5):
     op_fwd = Operator(Eq(a.forward, a + 1.))
     op_bwd = Operator(Eq(b, a + 1.))
 
-    op_fwd(time=nt)
-    op_bwd(time=nt)
+    op_fwd(time=nt-1)
+    op_bwd(time=nt-1)
     for i in range(nt):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
