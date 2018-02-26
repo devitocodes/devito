@@ -833,7 +833,7 @@ class SparseFunction(TensorFunction):
     @property
     def point_symbols(self):
         """Symbol for coordinate value in each dimension of the point"""
-        return sympy.symbols('px, py, pz')
+        return sympy.symbols('px, py, pz')[:self.grid.dim]
 
     @property
     def point_increments(self):

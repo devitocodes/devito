@@ -14,7 +14,6 @@ class GenericInterpolator(metaclass=ABCMeta):
         self.dimensions = dimensions
         self.ndim = len(dimensions)
         # Make sure we have a coefficient for every point
-        assert(len(self.point_increments) == len(self.coefficients))
 
     @property
     def point_increments(self):
@@ -40,8 +39,9 @@ class LinearInterpolator(GenericInterpolator):
         # Grid indices corresponding to the corners of the cell
         x1, y1, z1, x2, y2, z2 = sympy.symbols('x1, y1, z1, x2, y2, z2')
         # Coordinate values of the sparse point
-        px, py, pz = self.point_symbols
+        
         if self.ndim == 2:
+            px, py = self.point_symbols
             A = sympy.Matrix([[1, x1, y1, x1*y1],
                               [1, x1, y2, x1*y2],
                               [1, x2, y1, x2*y1],
@@ -57,6 +57,7 @@ class LinearInterpolator(GenericInterpolator):
             reference_cell = {x1: 0, y1: 0, x2: x.spacing, y2: y.spacing}
 
         elif self.ndim == 3:
+            px, py, pz = self.point_symbols
             A = sympy.Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
                               [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
                               [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
@@ -85,6 +86,7 @@ class LinearInterpolator(GenericInterpolator):
 
         A = A.subs(reference_cell)
         coeffs = A.inv().T.dot(p)
+        assert(len(self.point_increments) == len(coeffs))
         return coeffs
 
 
@@ -103,4 +105,6 @@ class LanczosInterpolator(GenericInterpolator):
                 vector.append(f.subs(x, dim-i).subs(a, self.r))
             vectors.append(vector)
 
-        return [prod(list(c)) for c in list(crossproduct(*vectors))]
+        coeffs = [prod(list(c)) for c in list(crossproduct(*vectors))]
+        assert(len(self.point_increments) == len(coeffs))
+        return coeffs
