@@ -902,8 +902,8 @@ class SparseFunction(TensorFunction):
         # Grid indices corresponding to the corners of the cell
         x1, y1, z1, x2, y2, z2 = sympy.symbols('x1, y1, z1, x2, y2, z2')
         # Coordinate values of the sparse point
-        px, py, pz = self.point_symbols
         if self.grid.dim == 2:
+            px, py = self.point_symbols
             A = sympy.Matrix([[1, x1, y1, x1*y1],
                               [1, x1, y2, x1*y2],
                               [1, x2, y1, x2*y1],
@@ -919,6 +919,7 @@ class SparseFunction(TensorFunction):
             reference_cell = {x1: 0, y1: 0, x2: x.spacing, y2: y.spacing}
 
         elif self.grid.dim == 3:
+            px, py, pz = self.point_symbols
             A = sympy.Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
                               [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
                               [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
@@ -974,20 +975,19 @@ class SparseFunction(TensorFunction):
 
     def coordinate_indices(self, offset):
         """Symbol for each grid index according to the coordinates"""
-        indices = self.grid.dimensions
+        indices = self.space_dimensions
         return tuple([INT(sympy.Function('floor')((c - o) / i.spacing + FLOAT(s)))
                       for c, o, i, s in zip(self.coordinate_symbols, self.grid.origin,
-                                            indices[:self.grid.dim],
-                                            offset[:self.grid.dim])])
+                                            indices, offset)])
 
     def coordinate_bases(self, offset=(0, 0, 0)):
         """Symbol for the base coordinates of the reference grid point"""
-        indices = self.grid.dimensions
+        indices = self.space_dimensions
         return tuple([FLOAT(c - o - idx * i.spacing)
                       for c, o, idx, i in zip(self.coordinate_symbols,
                                               self.grid.origin,
                                               self.coordinate_indices(offset),
-                                              indices[:self.grid.dim])])
+                                              indices)])
 
     def interpolate(self, expr, offset=0, cumulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
@@ -1036,7 +1036,7 @@ class SparseFunction(TensorFunction):
             inject_src = []
             for expr, shift in expr:
                 offsets = tuple([offset + shift[dim]/dim.spacing
-                                for dim in self.grid.dimensions])
+                                for dim in self.space_dimensions])
                 inject_src += self._inject_expr(field, expr, offset=offsets)
             return inject_src
         else:
