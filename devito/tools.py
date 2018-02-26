@@ -3,15 +3,20 @@ import os
 import ctypes
 import inspect
 from collections import Callable, Iterable, OrderedDict, Hashable
-from functools import partial, wraps
+from functools import partial, wraps, reduce
 from itertools import chain, combinations, product, zip_longest
 from subprocess import DEVNULL, PIPE, Popen, CalledProcessError, check_output
 import cpuinfo
 from distutils import version
+from operator import mul
 
 from devito.parameters import configuration
 
 __all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
+
+
+def prod(iterable):
+    return reduce(mul, iterable, 1)
 
 
 def as_tuple(item, type=None, length=None):
