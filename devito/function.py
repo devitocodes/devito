@@ -437,6 +437,7 @@ class Function(TensorFunction):
             else:
                 raise ValueError("'padding' must be int or %d-tuple of ints" % self.ndim)
             self._padding = padding
+
             # Initialize derivatives
             self._initialize_derivatives()
 
@@ -821,7 +822,7 @@ class SparseFunction(TensorFunction):
         """
         Dynamically create notational shortcuts for space derivatives.
         """
-        for dim in self.grid.dimensions:
+        for dim in self.space_dimensions:
             # First derivative, centred
             dx = partial(sparse_generic_derivative, deriv_order=1, dim=dim,
                          fd_order=self.space_order)
@@ -838,7 +839,7 @@ class SparseFunction(TensorFunction):
                              'the second derivative wrt. the '
                              '%s dimension' % dim.name))
 
-            for dim2 in [d for d in self.grid.dimensions if d != dim]:
+            for dim2 in [d for d in self.space_dimensions if d != dim]:
                 # First cross derivative
                 dxy = partial(sparse_cross_derivative, dims=(dim, dim2),
                               fd_order=self.space_order)
@@ -869,6 +870,11 @@ class SparseFunction(TensorFunction):
             return 0
         else:
             return sum([getattr(self, 'd%s2' % d.name) for d in self.space_dimensions])
+
+    @property
+    def space_dimensions(self):
+        """Tuple of :class:`Dimension`s that define physical space."""
+        return self.grid.dimensions
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -945,7 +951,7 @@ class SparseFunction(TensorFunction):
     @property
     def point_symbols(self):
         """Symbol for coordinate value in each dimension of the point"""
-        return sympy.symbols('px, py, pz')
+        return tuple([sympy.symbols('p%s' % d) for d in self.space_dimensions])
 
     @property
     def point_increments(self):
