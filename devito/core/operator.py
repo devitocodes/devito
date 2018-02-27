@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
+from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
 from devito.tools import flatten
 
@@ -10,6 +11,11 @@ __all__ = ['Operator']
 
 
 class OperatorCore(OperatorRunnable):
+
+    def _specialize_exprs(self, expressions):
+        # Align data accesses to the computational domain
+        expressions = [align_accesses(e) for e in expressions]
+        return super(OperatorCore, self)._specialize_exprs(expressions)
 
     def _autotune(self, args):
         """

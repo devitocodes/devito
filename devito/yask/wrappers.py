@@ -314,7 +314,7 @@ class YaskContext(object):
                 "- domain: %s\n"
                 "- grids: [%s]\n"
                 "- solns: [%s]\n") % (self.name, str(self.space_dimensions),
-                                      ', '.join([i.get_name() for i in list(self.grids)]),
+                                      ', '.join([i for i in list(self.grids)]),
                                       ', '.join([i.name for i in self.solutions]))
 
 
