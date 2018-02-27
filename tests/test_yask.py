@@ -76,7 +76,7 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', grid=grid, space_order=space_order)
         u.data_with_halo[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
-        op(yu4D=u, t=2)
+        op(yu4D=u, t=0)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(u.data[1] == 1.)
@@ -98,7 +98,7 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data_with_halo[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
-        op(yu4D=u, t=12)
+        op(yu4D=u, t=10)
         assert 'run_solution' in str(op)
         assert np.all(u.data[0] == 10.)
         assert np.all(u.data[1] == 11.)
@@ -120,7 +120,7 @@ class TestOperatorSimple(object):
         v = TimeFunction(name='yv4D', grid=grid, space_order=space_order)
         v.data_with_halo[:] = 1.
         op = Operator(Eq(v.forward, v.laplace + 6*v), subs=grid.spacing_map)
-        op(yv4D=v, t=2)
+        op(yv4D=v, t=0)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 6.)
@@ -143,7 +143,7 @@ class TestOperatorSimple(object):
         u.data_with_halo[:] = 1.
         v.data_with_halo[:] = 2.
         op = Operator(Eq(v.forward, u + v))
-        op(yu4D=u, yv4D=v, t=2)
+        op(yu4D=u, yv4D=v, t=0)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 3.)
@@ -179,7 +179,7 @@ class TestOperatorSimple(object):
                Eq(v.indexed[t + 1, 0, 2, z], v.indexed[t + 1, 0, 2, z] + 2.),
                Eq(v.indexed[t + 1, 0, 5, z], v.indexed[t + 1, 0, 5, z] + 2.)]
         op = Operator(eqs)
-        op(yu4D=u, yv4D=v, t=2)
+        op(yu4D=u, yv4D=v, t=0)
         assert 'run_solution' in str(op)
         assert len(retrieve_iteration_tree(op)) == 3
         assert np.all(u.data[0] == 0.)
@@ -223,7 +223,7 @@ class TestOperatorSimple(object):
                Eq(p.indexed[0, 2], 1.), Eq(p.indexed[0, 3], 0.),
                Eq(u.indexed[t + 1, ind(x), ind(y), ind(z)], u.indexed[t, x, y, z])]
         op = Operator(eqs, subs=grid.spacing_map)
-        op(yu4D=u, time=2)
+        op(yu4D=u, time=0)
         assert 'run_solution' not in str(op)
         assert all(np.all(u.data[1, :, :, i] == 3 - i) for i in range(4))
 
@@ -237,7 +237,7 @@ class TestOperatorSimple(object):
         u.data[:] = 2.
         eq = Eq(u.backward, u - 1.)
         op = Operator(eq)
-        op(yu4D=u, t=3)
+        op(yu4D=u, t=2)
         assert 'run_solution' in str(op)
         assert np.all(u.data[2] == 2.)
         assert np.all(u.data[1] == 1.)
@@ -263,7 +263,7 @@ class TestOperatorSimple(object):
         assert 'run_solution' in str(op)
         # No data has been allocated for the temporaries yet
         assert op.yk_soln.grids['r0'].is_storage_allocated() is False
-        op.apply(yu4D=u, yv3D=v, t=2)
+        op.apply(yu4D=u, yv3D=v, t=0)
         # Temporary data has already been released after execution
         assert op.yk_soln.grids['r0'].is_storage_allocated() is False
         assert np.all(v.data == 0.)
@@ -280,7 +280,7 @@ class TestOperatorSimple(object):
         u.data[:] = 0.
         op = Operator([Eq(u.forward, u + c), Eq(p.indexed[0, 0], 1. + c)])
         assert 'run_solution' in str(op)
-        op.apply(yu4D=u, c=c, t=11)
+        op.apply(yu4D=u, c=c, t=9)
         # Check YASK did its job and could read constant grids w/o problems
         assert np.all(u.data[0] == 20.)
         # Check the Constant could be read correctly even in Devito-land, i.e.,
@@ -288,8 +288,9 @@ class TestOperatorSimple(object):
         assert p.data[0][0] == 3.
         # Check re-executing with another constant gives the correct result
         c2 = Constant(name='c', value=5.)
-        op.apply(yu4D=u, c=c2, t=4)
+        op.apply(yu4D=u, c=c2, t=2)
         assert np.all(u.data[0] == 30.)
+        assert np.all(u.data[1] == 35.)
         assert p.data[0][0] == 6.
 
     def test_repeated_op_calls(self):
@@ -302,18 +303,18 @@ class TestOperatorSimple(object):
         u.data[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
         # First run
-        op(t=2)
+        op(t=0)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
         # Nothing should have changed at this point
-        op(t=2, yu4D=u)
+        op(t=0, yu4D=u)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
         # Now try with a different grid
         grid = Grid(shape=(3, 3, 3))
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
-        op(t=2, yu4D=u)
+        op(t=0, yu4D=u)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
 
@@ -335,8 +336,21 @@ class TestOperatorAcoustic(object):
         return 10
 
     @pytest.fixture
-    def model(self, shape, nbpml):
-        return demo_model(spacing=[15., 15., 15.], shape=shape, nbpml=nbpml,
+    def space_order(self):
+        return 4
+
+    @pytest.fixture
+    def time_order(self):
+        return 2
+
+    @pytest.fixture
+    def dtype(self):
+        return np.float64
+
+    @pytest.fixture
+    def model(self, space_order, shape, nbpml, dtype):
+        return demo_model(spacing=[15., 15., 15.], dtype=dtype,
+                          space_order=space_order, shape=shape, nbpml=nbpml,
                           preset='layers-isotropic', ratio=3)
 
     @pytest.fixture
@@ -357,14 +371,6 @@ class TestOperatorAcoustic(object):
         return model.damp
 
     @pytest.fixture
-    def space_order(self):
-        return 4
-
-    @pytest.fixture
-    def time_order(self):
-        return 2
-
-    @pytest.fixture
     def kernel(self):
         return 'OT2'
 
@@ -379,19 +385,20 @@ class TestOperatorAcoustic(object):
         return iso_stencil(u, m, t.spacing, damp, kernel)
 
     @pytest.fixture
-    def src(self, model, time_params):
+    def src(self, model, time_params, dtype):
         time_values = np.linspace(*time_params)  # Discretized time axis
         # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values,
+                           dtype=dtype)
         src.coordinates.data[0, :] = np.array(model.domain_size) * .5
         src.coordinates.data[0, -1] = 30.
         return src
 
     @pytest.fixture
-    def rec(self, model, time_params, src):
+    def rec(self, model, time_params, src, dtype):
         nrec = 130  # Number of receivers
         t0, tn, nt = time_params
-        rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
+        rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec, dtype=dtype)
         rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
         return rec
@@ -422,7 +429,7 @@ class TestOperatorAcoustic(object):
 
         op.apply(u=u, m=m, damp=damp, src=src, dt=dt)
 
-        exp_u = 152.76
+        exp_u = 156.47
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
 
     def test_acoustic_w_src_w_rec(self, model, eqn, m, damp, u, src, rec):
@@ -442,8 +449,8 @@ class TestOperatorAcoustic(object):
 
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.
-        exp_u = 152.76
-        exp_rec = 212.00
+        exp_u = 156.47
+        exp_rec = 211.81
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
         assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
 
