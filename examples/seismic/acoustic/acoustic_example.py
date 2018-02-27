@@ -40,7 +40,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     # Define source geometry (center of domain, just below surface)
     src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time, space_order=1)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 4 * spacing[-1]
+    # src.coordinates.data[0, -1] = model.origin[-1] + 4 * spacing[-1]
 
     # Define receiver geometry (spread across x, just below surface)
     rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
@@ -65,13 +65,6 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
     rec, u, summary = solver.forward(save=full_run, autotune=autotune)
-
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(rec.data, vmin=-1, vmax=1, cmap="seismic")
-    plt.figure()
-    plt.imshow(np.transpose(u.data[1, :, :]), vmin=-1, vmax=1, cmap="seismic")
-    plt.show()
 
     if constant:
         # With  a new m as Constant

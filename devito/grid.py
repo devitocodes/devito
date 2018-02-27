@@ -117,7 +117,10 @@ class Grid(object):
         """
         Map between spacing symbols and their values for each :class:`SpaceDimension`
         """
-        return dict(zip(self.spacing_symbols, self.spacing))
+        orig = dict(zip(as_tuple([o for o in self.origin]),
+                        as_tuple([o.data for o in self.origin])))
+        orig.update(dict(zip(self.spacing_symbols, self.spacing)))
+        return orig
 
     @property
     def shape_domain(self):

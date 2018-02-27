@@ -247,7 +247,7 @@ def sparse_generic_derivative(func, deriv_order, dim, fd_order):
     offsets = lambda x, y: dict([(d, 0) if d != x else (x, y)
                                  for d in spc_dims])
     # Computes fd offsets and cofficients
-    indices = [(dim + i * dim.spacing/2) for i in range(-fd_order, fd_order + 1)]
+    indices = [(dim + i * dim.spacing) for i in range(-fd_order, fd_order + 1)]
     coeffs = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
     coeffs = [c.subs({dim: 0}) for c in coeffs[::-1]]
     indices = [offsets(dim, i.subs({dim: 0})) for i in indices]
@@ -387,7 +387,6 @@ class sparse_fd_list(list):
         """
         Remove 0 coefficient terms and sums common fd offset terms
         """
-        self = [f for f in self if f[0] != 0]
         offsets = self.unique_offset()
         out = []
         for off in offsets:
@@ -395,7 +394,7 @@ class sparse_fd_list(list):
             for v, offs in self:
                 w += v if offs == off else 0
             out += [(w, off)]
-        return sparse_fd_list(out)
+        return sparse_fd_list([f for f in out if f[0] != 0])
 
     def unique_offset(self):
         """

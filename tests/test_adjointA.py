@@ -17,15 +17,15 @@ presets = {
 @skipif_yask
 @pytest.mark.parametrize('mkey, shape, kernel, space_order, nbpml', [
     # 2D tests with varying time and space orders
-    ('layers', (60, 70), 'OT2', 4, 20), ('layers', (60, 70), 'OT2', 8, 20),
-    ('layers', (60, 70), 'OT2', 12, 20), ('layers', (60, 70), 'OT4', 4, 20),
-    ('layers', (60, 70), 'OT4', 8, 20), ('layers', (60, 70), 'OT4', 12, 20),
+    ('layers', (61, 71), 'OT2', 4, 20), ('layers', (61, 71), 'OT2', 8, 20),
+    ('layers', (61, 71), 'OT2', 12, 20), ('layers', (61, 71), 'OT4', 4, 20),
+    ('layers', (61, 71), 'OT4', 8, 20), ('layers', (61, 71), 'OT4', 12, 20),
     # 3D tests with varying time and space orders
-    ('layers', (60, 70, 80), 'OT2', 4, 20), ('layers', (60, 70, 80), 'OT2', 8, 20),
-    ('layers', (60, 70, 80), 'OT2', 12, 20), ('layers', (60, 70, 80), 'OT4', 4, 20),
-    ('layers', (60, 70, 80), 'OT4', 8, 20), ('layers', (60, 70, 80), 'OT4', 12, 20),
+    ('layers', (61, 71, 81), 'OT2', 4, 20), ('layers', (61, 71, 81), 'OT2', 8, 20),
+    ('layers', (61, 71, 81), 'OT2', 12, 20), ('layers', (61, 71, 81), 'OT4', 4, 20),
+    ('layers', (61, 71, 81), 'OT4', 8, 20), ('layers', (61, 71, 81), 'OT4', 12, 20),
     # Constant model in 2D and 3D
-    ('constant', (60, 70), 'OT2', 8, 14), ('constant', (60, 70, 80), 'OT2', 8, 14),
+    ('constant', (61, 71), 'OT2', 8, 14), ('constant', (61, 71, 81), 'OT2', 8, 14),
 ])
 def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     t0 = 0.0  # Start time
@@ -45,7 +45,7 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values,
                        dtype=np.float64)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = 30.
+    src.coordinates.data[0, -1] = 300.
 
     # Define receiver geometry (same as source, but spread across x)
     rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec,
