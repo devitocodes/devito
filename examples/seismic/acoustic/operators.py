@@ -47,7 +47,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     # Add full source if in
     q = -kwargs.get('q', 0)
     if kernel == 'OT4' and q != 0:
-        q = -q.dt2 - q.W_laplacian(weight=1/m)
+        q -= -q.dt2 - q.W_laplacian(weight=1/m)
     eq += q
     # Add dampening field according to the propagation direction
     eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
@@ -84,7 +84,8 @@ def read_rec(rec, field, s, model, kernel):
     if kernel == 'OT2':
         rec_term = rec.interpolate(expr=field, offset=model.nbpml)
     else:
-        rec_term = rec.interpolate(expr=field.dt2 + model.m * field.laplace,
+        field_scaled = sum([field / d.spacing**2 for d in field.space_dimensions])
+        rec_term = rec.interpolate(expr=field+s**2/12*(field.dt2-2/model.m*field_scaled),
                                    offset=model.nbpml)
     return rec_term
 

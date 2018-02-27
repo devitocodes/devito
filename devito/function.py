@@ -472,7 +472,7 @@ class Function(TensorFunction):
 
             # Second derivative
             dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
-                          fd_order=int(self.space_order / 2))
+                          fd_order=self.space_order)
             setattr(self.__class__, 'd%s2' % dim.name,
                     property(dx2, 'Return the symbolic expression for '
                              'the second derivative wrt. the '
@@ -480,7 +480,7 @@ class Function(TensorFunction):
 
             # Fourth derivative
             dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
-                          fd_order=max(int(self.space_order / 2), 2))
+                          fd_order=max(self.space_order, 4))
             setattr(self.__class__, 'd%s4' % dim.name,
                     property(dx4, 'Return the symbolic expression for '
                              'the fourth derivative wrt. the '
@@ -535,8 +535,8 @@ class Function(TensorFunction):
         if self.space_order < 2:
             return 0
         else:
-            return sum([eneric_derivative(self * weight, deriv_order=2,
-                                          fd_order=self.space_order, dim=d)
+            return sum([generic_derivative(self * weight, deriv_order=2,
+                                           fd_order=self.space_order, dim=d)
                         for d in self.space_dimensions])
 
     @classmethod
