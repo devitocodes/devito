@@ -4,7 +4,7 @@ from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup, Any,
                                detect_accesses, detect_oobs, force_directions, detect_io,
-                               build_intervals, detect_flow_directions, align_accesses)
+                               build_intervals, detect_flow_directions)
 from devito.symbolics import FrozenExpr, dimension_sort
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
@@ -49,7 +49,7 @@ class LoweredEq(Eq, IREq):
 
     """
     LoweredEq(expr)
-    LoweredEq(expr, ispace, dspace)
+    LoweredEq(expr, ispace, dspace, reads, writes)
     LoweredEq(lhs, rhs, stamp=LoweredEq)
 
     A SymPy equation with associated :class:`IterationSpace` and
@@ -71,18 +71,18 @@ class LoweredEq(Eq, IREq):
             expr = Eq.__new__(cls, *args, evaluate=False)
             assert isinstance(stamp, Eq)
             expr.is_Increment = stamp.is_Increment
-            expr._ispace = stamp.ispace
-            expr._dspace = stamp.dspace
+            expr._ispace, expr._dspace = stamp.ispace, stamp.dspace
+            expr.reads, expr.writes = stamp.reads, stamp.writes
             return expr
-        elif len(args) == 3:
+        elif len(args) == 5:
             # origin: LoweredEq(expr, ispace, space)
-            input_expr, ispace, dspace = args
+            input_expr, ispace, dspace, reads, writes = args
             assert isinstance(ispace, IterationSpace)
             assert isinstance(dspace, DataSpace)
             expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
             expr.is_Increment = input_expr.is_Increment
-            expr._dspace = dspace
-            expr._ispace = ispace
+            expr._ispace, expr._dspace = ispace, dspace
+            expr.reads, expr.writes = reads, writes
             return expr
         else:
             raise ValueError("Cannot construct LoweredEq from args=%s "
@@ -98,9 +98,6 @@ class LoweredEq(Eq, IREq):
                       for i in ordering if i.is_Space}
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
-
-        # Align data accesses to the computational domain
-        expr = align_accesses(expr)
 
         # Analyze data accesses
         mapper = detect_accesses(expr)

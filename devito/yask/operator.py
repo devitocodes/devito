@@ -8,6 +8,7 @@ from devito.cgen_utils import ccode
 from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
 from devito.logger import yask as log, yask_warning as warning
+from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Element, List, PointerCast, MetaCall, IsPerfectIteration,
                            Transformer, filter_iterations, retrieve_iteration_tree)
 from devito.operator import OperatorRunnable
@@ -40,6 +41,16 @@ class Operator(OperatorRunnable):
         # below) because Operator-specific shared object will be added to the
         # list of linked libraries
         self._compiler = configuration.yask['compiler'].copy()
+
+    def _specialize_exprs(self, expressions):
+        expressions = super(Operator, self)._specialize_exprs(expressions)
+        # No matter whether offloading will occur or not, all YASK grids accept
+        # negative indices when using the get/set_element_* methods (up to the
+        # padding extent), so the OOB-relative data space should be adjusted
+        return [LoweredEq(e, e.ispace,
+                          e.dspace.zero([d for d in e.dimensions if d.is_Space]),
+                          e.reads, e.writes)
+                for e in expressions]
 
     def _specialize_iet(self, nodes):
         """Transform the Iteration/Expression tree to offload the computation of
@@ -83,6 +94,7 @@ class Operator(OperatorRunnable):
                 log("Solution '%s' contains %d grid(s) and %d equation(s)." %
                     (yc_soln.get_name(), yc_soln.get_num_grids(),
                      yc_soln.get_num_equations()))
+
             except:
                 log("Unable to offload a candidate tree.")
         else:

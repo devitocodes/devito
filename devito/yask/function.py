@@ -69,6 +69,7 @@ class Function(function.Function):
             self._data.release_storage()
 
     @property
+    @_allocate_memory
     def _data_buffer(self):
         ctype = numpy_to_ctypes(self.dtype)
         cpointer = ctypes.cast(int(self._data.grid.get_raw_storage_buffer()),
@@ -119,6 +120,11 @@ class Function(function.Function):
     def data_with_halo(self):
         return Data(self._data.grid, self.shape_with_halo, self.indices, self.dtype,
                     offset=self._offset_halo.left)
+
+    @cached_property
+    @_allocate_memory
+    def data_allocated(self):
+        return Data(self._data.grid, self.shape_allocated, self.indices, self.dtype)
 
     def initialize(self):
         raise NotImplementedError
