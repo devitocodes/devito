@@ -238,8 +238,13 @@ def sparse_generic_derivative(func, deriv_order, dim, fd_order):
     These derivatives are to be used in combination with 'inject'.
     """
     # Check number of dimension and which dimension to set offset to
+    if hasattr(func, 'space_dimensions'):
+        spc_dims = func.space_dimensions
+    else:
+        spc_dims = [f.space_dimensions for f in func.args
+                    if hasattr(f, 'space_dimensions')][0]
     offsets = lambda x, y: dict([(d, 0) if d != x else (x, y)
-                                 for d in func.space_dimensions])
+                                 for d in spc_dims])
     # Computes fd offsets and cofficients
     indices = [(dim + i * dim.spacing/2) for i in range(-fd_order, fd_order + 1)]
     coeffs = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
@@ -264,7 +269,13 @@ def sparse_cross_derivative(func, dims, fd_order):
        to differentiate, eg. `x`, `y`, `z`.
     :returns: The cross derivative
     """
-    offsets = lambda x, y: dict([(d, 0) for d in func.space_dimensions if d not in x] +
+    # Check number of dimension and which dimension to set offset to
+    if hasattr(func, 'space_dimensions'):
+        spc_dims = func.space_dimensions
+    else:
+        spc_dims = [f.space_dimensions for f in func.args
+                    if hasattr(f, 'space_dimensions')][0]
+    offsets = lambda x, y: dict([(d, 0) for d in spc_dims if d not in x] +
                                 [(xx, yy) for xx, yy in zip(x, y)])
     # First dimension
     indices1 = [(dims[0] + i * dims[0].spacing/2) for i in range(-fd_order, fd_order + 1)]
@@ -295,8 +306,34 @@ class sparse_fd_list(list):
     def space_dimensions(self):
         return tuple(self[0][1].keys())
 
-    def __mul__(self, constant):
-        return sparse_fd_list([(i[0] * constant, i[1]) for i in self])
+    def __add__(self, other):
+        if isinstance(other, sparse_fd_list):
+            return sparse_fd_list(super(sparse_fd_list, self).__add__(other))
+        else:
+            default_offset = dict((k, 0) for k in self[0][1].keys())
+            new = sparse_fd_list([(o, default_offset) for o in other.args])
+            return sparse_fd_list(super(sparse_fd_list, self).__add__(new))
+
+    def __radd__(self, other):
+        if other == 0:
+            return self
+        elif isinstance(other, sparse_fd_list):
+            return sparse_fd_list(super(sparse_fd_list, self).__add__(other))
+        else:
+            default_offset = dict((k, 0) for k in self[0][1].keys())
+            new = sparse_fd_list([(o, default_offset) for o in other.args])
+            return sparse_fd_list(super(sparse_fd_list, self).__add__(new))
+
+    def __iadd__(self, other):
+        if isinstance(other, sparse_fd_list):
+            return sparse_fd_list(super(sparse_fd_list, self).__iadd__(other))
+        else:
+            default_offset = dict((k, 0) for k in self[0][1].keys())
+            new = sparse_fd_list([(o, default_offset) for o in other.args])
+            return sparse_fd_list(super(sparse_fd_list, self).__iadd__(new))
+
+    def __mul__(self, other_list):
+        return sparse_fd_list([(i[0] * other_list, i[1]) for i in self])
 
     def __rmul__(self, constant):
         return sparse_fd_list([(i[0] * constant, i[1]) for i in self])

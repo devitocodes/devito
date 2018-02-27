@@ -527,6 +527,18 @@ class Function(TensorFunction):
         else:
             return sum([getattr(self, 'd%s2' % d.name) for d in self.space_dimensions])
 
+    def W_laplacian(self, weight=1):
+        """
+        Weigthted Laplacian of a function. Sum of the second oreder spatial derivatives
+        Returns 0 if self.space_order < 2
+        """
+        if self.space_order < 2:
+            return 0
+        else:
+            return sum([eneric_derivative(self * weight, deriv_order=2,
+                                          fd_order=self.space_order, dim=d)
+                        for d in self.space_dimensions])
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
@@ -871,6 +883,18 @@ class SparseFunction(TensorFunction):
         else:
             return sum([getattr(self, 'd%s2' % d.name) for d in self.space_dimensions])
 
+    def W_laplacian(self, weight=1):
+        """
+        Weigthted Laplacian of a function. Sum of the second oreder spatial derivatives
+        Returns 0 if self.space_order < 2
+        """
+        if self.space_order < 2:
+            return 0
+        else:
+            return sum([sparse_generic_derivative(self * weight, deriv_order=2,
+                                                  fd_order=self.space_order, dim=d)
+                        for d in self.space_dimensions])
+
     @property
     def space_dimensions(self):
         """Tuple of :class:`Dimension`s that define physical space."""
@@ -1155,13 +1179,13 @@ class SparseTimeFunction(SparseFunction):
             debug("Time order is 0, no time derivatives generated")
             return
 
-        dt = partial(sparse_generic_derivative, deriv_order=1, dim=_t,
+        dt = partial(generic_derivative, deriv_order=1, dim=_t,
                      fd_order=self.time_order)
         setattr(self.__class__, 'dt',
                 property(dt, 'Return the symbolic expression for '
                          'the centered first derivative wrt. time'))
         if self.time_order > 1:
-            dt2 = partial(sparse_generic_derivative, deriv_order=2, dim=_t,
+            dt2 = partial(generic_derivative, deriv_order=2, dim=_t,
                           fd_order=self.time_order)
             setattr(self.__class__, 'dt2',
                     property(dt2, 'Return the symbolic expression for '

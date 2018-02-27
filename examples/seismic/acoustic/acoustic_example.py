@@ -66,6 +66,13 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Forward")
     rec, u, summary = solver.forward(save=full_run, autotune=autotune)
 
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.imshow(rec.data, vmin=-1, vmax=1, cmap="seismic")
+    plt.figure()
+    plt.imshow(np.transpose(u.data[1, :, :]), vmin=-1, vmax=1, cmap="seismic")
+    plt.show()
+
     if constant:
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
