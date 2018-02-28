@@ -3,13 +3,15 @@ import weakref
 import abc
 import gc
 
-import numpy as np
-import sympy
+from collections import namedtuple
 from operator import mul
 from functools import reduce
 
+import numpy as np
+import sympy
+
 from devito.parameters import configuration
-from devito.tools import single_or
+from devito.tools import EnrichedTuple, single_or
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -53,7 +55,6 @@ class Basic(object):
 
     # Symbolic objects created internally by Devito
     is_Symbol = False
-    is_SymbolicData = False
     is_Array = False
 
     # Created by the user
@@ -62,7 +63,6 @@ class Basic(object):
     is_Dimension = False
     is_Constant = False
     # Tensor symbolic objects created by the user
-    is_SymbolicFunction = False
     is_TensorFunction = False
     is_Function = False
     is_TimeFunction = False
@@ -151,6 +151,8 @@ class AbstractSymbol(sympy.Symbol, Basic):
         --------------------
         |                  |
      Symbol            Constant
+        |
+     Scalar
 
     There are three relevant :class:`AbstractSymbol` sub-types: ::
 
@@ -232,6 +234,29 @@ class Symbol(AbstractCachedSymbol):
         return self
 
 
+class Scalar(Symbol):
+    """Symbolic object representing a scalar.
+
+    :param name: Name of the symbol
+    :param dtype: Data type of the scalar
+    """
+
+    is_Scalar = True
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.dtype = kwargs.get('dtype', np.float32)
+
+    @property
+    def _mem_stack(self):
+        """Return True if the associated data should be allocated on the stack
+        in a C module, False otherwise."""
+        return True
+
+    def update(self, dtype=None, **kwargs):
+        self.dtype = dtype or self.dtype
+
+
 class AbstractFunction(sympy.Function, Basic):
     """
     Base class for tensor symbols, only cached by SymPy. It inherits from and
@@ -245,9 +270,7 @@ class AbstractFunction(sympy.Function, Basic):
                                  |
                -------------------------------------
                |                                   |
-          SymbolicData                      SymbolicFunction
-               |                                   |
-             Array                           TensorFunction
+             Array                          TensorFunction
                                                    |
                                      ------------------------------
                                      |                            |
@@ -257,8 +280,7 @@ class AbstractFunction(sympy.Function, Basic):
 
     There are five relevant :class:`AbstractFunction` sub-types: ::
 
-        * Array: Like any :class:`SymbolicData`, an array does not carry data.
-                 Usually, it is only created internally by Devito (e.g., by the DSE).
+        * Array: A function that does not carry data. Usually created by the DSE.
         * Function: A space-varying discrete function, which carries user data.
         * TimeFunction: A time- and space-varying discrete function, which carries
                         user data.
@@ -329,6 +351,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return self._indices
 
     @property
+    def dimensions(self):
+        """Tuple of :class:`Dimension`s representing the function indices."""
+        return self.indices
+
+    @property
     def shape(self):
         """Return the shape of the function."""
         return self._shape
@@ -345,7 +372,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         halo, and domain regions. While halo and padding are known quantities
         (integers), the domain size is represented by a symbol.
         """
-        return tuple(i.symbolic_size for i in self.indices)
+        halo_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_halo]
+        padding_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_padding]
+        domain_sizes = [i.symbolic_size for i in self.indices]
+        return tuple(sympy.Add(i, j, k, evaluate=False)
+                     for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
 
     def indexify(self, indices=None):
         """Create a :class:`sympy.Indexed` object from the current object."""
@@ -387,56 +418,86 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """
         return reduce(mul, self.shape)
 
+    @property
+    def _offset_domain(self):
+        """
+        The number of grid points between the first (last) allocated element
+        (possibly in the halo/padding region) and the first (last) domain element,
+        for each dimension.
+        """
+        left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
+        right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
 
-class SymbolicData(AbstractCachedFunction):
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
 
-    """
-    A symbolic function object, created and managed directly by Devito.
-
-    Unlike :class:`SymbolicFunction` objects, the state of a SymbolicData
-    is mutable.
-    """
-
-    is_SymbolicData = True
-
-    def __new__(cls, *args, **kwargs):
-        kwargs.update({'options': {'evaluate': False}})
-        return AbstractCachedFunction.__new__(cls, *args, **kwargs)
-
-    def update(self):
-        return
-
-
-class Scalar(Symbol):
-    """Symbolic object representing a scalar.
-
-    :param name: Name of the symbol
-    :param dtype: Data type of the scalar
-    """
-
-    is_Scalar = True
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.dtype = kwargs.get('dtype', np.float32)
+        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
     @property
-    def _mem_stack(self):
-        """Return True if the associated data should be allocated on the stack
-        in a C module, False otherwise."""
-        return True
+    def _offset_halo(self):
+        """
+        The number of grid points between the first (last) allocated element
+        (possibly in the halo/padding region) and the first (last) halo element,
+        for each dimension.
+        """
+        left = self._extent_padding.left
+        right = self._extent_padding.right
 
-    def update(self, dtype=None, **kwargs):
-        self.dtype = dtype or self.dtype
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in self._padding)
+
+        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
+
+    @property
+    def _extent_halo(self):
+        """
+        The number of grid points in the halo region.
+        """
+        left = tuple(zip(*self._halo))[0]
+        right = tuple(zip(*self._halo))[1]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in self._halo)
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @property
+    def _extent_padding(self):
+        """
+        The number of grid points in the padding region.
+        """
+        left = tuple(zip(*self._padding))[0]
+        right = tuple(zip(*self._padding))[1]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in self._padding)
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @property
+    def _mask_domain(self):
+        """A mask to access the domain region of the allocated data."""
+        return tuple(slice(i, -j) if j != 0 else slice(i, None)
+                     for i, j in self._offset_domain)
+
+    @property
+    def _mask_with_halo(self):
+        """A mask to access the domain+halo region of the allocated data."""
+        return tuple(slice(i, -j) if j != 0 else slice(i, None)
+                     for i, j in self._offset_halo)
 
 
-class Array(SymbolicData):
-    """Symbolic object representing a tensor.
+class Array(AbstractCachedFunction):
+    """A symbolic function object, created and managed directly by Devito..
 
-    :param name: Name of the symbol
-    :param dtype: Data type of the scalar
-    :param shape: The shape of the tensor
-    :param dimensions: The symbolic dimensions of the tensor.
+    :param name: Name of the object.
+    :param dtype: Data type of the object.
+    :param shape: The shape of the object.
+    :param dimensions: The symbolic dimensions of the object.
+    :param halo: The halo region of the object, expressed as an iterable
+                 ``[(dim1_left_halo, dim1_right_halo), (dim2_left_halo, ...)]``
+    :param padding: The padding region of the object, expressed as an iterable
+                    ``[(dim1_left_pad, dim1_right_pad), (dim2_left_pad, ...)]``
     :param external: Pass True if there is no need to allocate storage
     :param onstack: Pass True to enforce allocation on the stack
     :param onheap: Pass True to enforce allocation on the heap
@@ -445,9 +506,16 @@ class Array(SymbolicData):
     is_Array = True
     is_Tensor = True
 
+    def __new__(cls, *args, **kwargs):
+        kwargs.update({'options': {'evaluate': False}})
+        return AbstractCachedFunction.__new__(cls, *args, **kwargs)
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.dtype = kwargs.get('dtype', np.float32)
+
+            self._halo = kwargs.get('halo', tuple((0, 0) for i in range(self.ndim)))
+            self._padding = kwargs.get('padding', tuple((0, 0) for i in range(self.ndim)))
 
             self._external = bool(kwargs.get('external', False))
             self._onstack = bool(kwargs.get('onstack', False))
@@ -476,54 +544,19 @@ class Array(SymbolicData):
     def _mem_heap(self):
         return self._onheap
 
-    def update(self, dtype=None, shape=None, dimensions=None, onstack=None,
-               onheap=None, external=None):
+    def update(self, dtype=None, shape=None, dimensions=None, halo=None, padding=None,
+               onstack=None, onheap=None, external=None):
         self.dtype = dtype or self.dtype
         self._shape = shape or self.shape
         self._indices = dimensions or self.indices
+        self._halo = halo or self._halo
+        self._padding = padding or self._padding
 
         if any(i is not None for i in [external, onstack, onheap]):
             self._external = bool(external)
             self._onstack = bool(onstack)
             self._onheap = bool(onheap)
             assert single_or([self._external, self._onstack, self._onheap])
-
-
-class SymbolicFunction(AbstractCachedFunction):
-    """A symbolic object associated with data.
-
-    Unlike :class:`SymbolicData` objects, the structure of a SymbolicFunction
-    is immutable (e.g., shape, dtype, ...). Obviously, the object value (``data``)
-    may be altered, either directly by the user or by an :class:`Operator`.
-    """
-
-    is_SymbolicFunction = True
-
-    @property
-    def _data_buffer(self):
-        """Reference to the actual data. This is *not* a view of the data.
-        This method is for internal use only."""
-        return self.data_allocated
-
-    @abc.abstractproperty
-    def data(self):
-        """The domain data values."""
-        return
-
-    @abc.abstractproperty
-    def data_domain(self):
-        """The domain data values."""
-        return
-
-    @abc.abstractproperty
-    def data_with_halo(self):
-        """The domain+halo data values."""
-        return
-
-    @abc.abstractproperty
-    def data_allocated(self):
-        """The domain+halo+padding data values."""
-        return
 
 
 # Objects belonging to the Devito API not involving data, such as data structures

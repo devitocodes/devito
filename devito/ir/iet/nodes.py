@@ -503,8 +503,8 @@ class Callable(Node):
     :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
                  the body of the function.
     :param retval: The type of the value returned by the function.
-    :param parameters: An iterable of :class:`SymbolicData` objects in input to the
-                       function, or ``None`` if the function takes no parameter.
+    :param parameters: An iterable of :class:`AbstractFunction`s in input to the
+                       callable, or ``None`` if the function takes no parameter.
     :param prefix: An iterable of qualifiers to prepend to the function declaration.
                    The default value is ('static', 'inline').
     """

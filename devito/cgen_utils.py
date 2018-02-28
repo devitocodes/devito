@@ -28,7 +28,7 @@ class Allocator(object):
     def push_heap(self, obj):
         """
         Generate cgen objects to declare, allocate memory, and free memory for
-        ``obj``, of type :class:`SymbolicData`.
+        ``obj``, of type :class:`Array`.
         """
         if obj in self.heap:
             return
