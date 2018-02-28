@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from functools import partial
 
 import sympy
@@ -17,8 +17,8 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, error, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import SymbolicFunction, AbstractCachedSymbol
-from devito.tools import EnrichedTuple, ReducerMap
+from devito.types import AbstractCachedFunction, AbstractCachedSymbol
+from devito.tools import ReducerMap
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction']
@@ -93,7 +93,7 @@ class Constant(AbstractCachedSymbol):
             pass
 
 
-class TensorFunction(SymbolicFunction):
+class TensorFunction(AbstractCachedFunction):
 
     """
     Utility class to encapsulate all symbolic types that represent
@@ -144,72 +144,10 @@ class TensorFunction(SymbolicFunction):
         return wrapper
 
     @property
-    def _offset_domain(self):
-        """
-        The number of grid points between the first (last) allocated element
-        (possibly in the halo/padding region) and the first (last) domain element,
-        for each dimension.
-        """
-        left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
-        right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
-
-        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
-
-    @property
-    def _offset_halo(self):
-        """
-        The number of grid points between the first (last) allocated element
-        (possibly in the halo/padding region) and the first (last) halo element,
-        for each dimension.
-        """
-        left = self._extent_padding.left
-        right = self._extent_padding.right
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in self._padding)
-
-        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
-
-    @property
-    def _extent_halo(self):
-        """
-        The number of grid points in the halo region.
-        """
-        left = tuple(zip(*self._halo))[0]
-        right = tuple(zip(*self._halo))[1]
-
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in self._halo)
-
-        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
-
-    @property
-    def _extent_padding(self):
-        """
-        The number of grid points in the padding region.
-        """
-        left = tuple(zip(*self._padding))[0]
-        right = tuple(zip(*self._padding))[1]
-
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in self._padding)
-
-        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
-
-    @property
-    def _mask_domain(self):
-        """A mask to access the domain region of the allocated data."""
-        return tuple(slice(i, -j) if j != 0 else slice(i, None)
-                     for i, j in self._offset_domain)
-
-    @property
-    def _mask_with_halo(self):
-        """A mask to access the domain+halo region of the allocated data."""
-        return tuple(slice(i, -j) if j != 0 else slice(i, None)
-                     for i, j in self._offset_halo)
+    def _data_buffer(self):
+        """Reference to the actual data. This is *not* a view of the data.
+        This method is for internal use only."""
+        return self.data_allocated
 
     @property
     def _mem_external(self):
@@ -298,11 +236,6 @@ class TensorFunction(SymbolicFunction):
         return self._data
 
     @property
-    def dimensions(self):
-        """Tuple of :class:`Dimension`s representing the function indices."""
-        return self.indices
-
-    @property
     def space_dimensions(self):
         """Tuple of :class:`Dimension`s that define physical space."""
         return tuple(d for d in self.indices if d.is_Space)
@@ -320,18 +253,9 @@ class TensorFunction(SymbolicFunction):
               known quantities (integers), the domain size is represented by a symbol.
             * the shifting induced by the ``staggered`` mask
         """
-        # Add halo and padding
-        halo_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_halo]
-        padding_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_padding]
-        domain_sizes = [i.symbolic_size for i in self.indices]
-        shape = tuple(sympy.Add(i, j, k, evaluate=False)
-                      for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
-
-        # Add `staggered` mask
-        shape = tuple(sympy.Add(i, -j, evaluate=False)
-                      for i, j in zip(shape, self.staggered))
-
-        return shape
+        symbolic_shape = super(TensorFunction, self).symbolic_shape
+        return tuple(sympy.Add(i, -j, evaluate=False)
+                     for i, j in zip(symbolic_shape, self.staggered))
 
     def _arg_defaults(self, alias=None):
         """

@@ -124,7 +124,7 @@ def is_local(array, source, sink, context):
                 written_once = False
                 break
             reads = [j.base.function for j in i.reads]
-            if any(j.is_SymbolicFunction or j.is_Scalar for j in reads):
+            if any(j.is_TensorFunction or j.is_Scalar for j in reads):
                 # Can't guarantee its value only depends on local data
                 written_once = False
                 break
