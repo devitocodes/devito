@@ -21,6 +21,7 @@ from devito.ir.iet import (Block, Expression, Iteration, List,
                            FindSymbols, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree, filter_iterations)
 from devito.logger import dle_warning
+from devito.symbolics import as_symbol
 from devito.tools import as_tuple, grouper
 
 
@@ -156,29 +157,25 @@ class DevitoRewriter(BasicRewriter):
 
                 # Build Iteration over blocks
                 dim = blocked.setdefault(i, Dimension(name=name))
-                block_size = dim.symbolic_size
-                iter_size = i.dim.symbolic_extent
-                start = i.limits[0] + i.offsets[0]
-                finish = i.dim.symbolic_end + i.offsets[1]
-                innersize = iter_size + (-i.offsets[0] + i.offsets[1])
-                finish = finish - (innersize % block_size)
-                inter_block = Iteration([], dim, [start, finish, block_size],
-                                        properties=PARALLEL)
+                bsize = dim.symbolic_size
+                bstart = i.limits[0]
+                binnersize = i.dim.symbolic_extent + (i.offsets[1] - i.offsets[0])
+                bfinish = i.dim.symbolic_end - (binnersize % bsize)
+                inter_block = Iteration([], dim, [bstart, bfinish, bsize],
+                                        offsets=i.offsets, properties=PARALLEL)
                 inter_blocks.append(inter_block)
 
                 # Build Iteration within a block
-                start = inter_block.dim
-                finish = start + block_size
-                intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None,
+                limits = (as_symbol(dim), as_symbol(dim) + bsize, 1)
+                intra_block = i._rebuild([], limits=limits, offsets=(0, 0),
                                          properties=i.properties + (TAG, ELEMENTAL))
                 intra_blocks.append(intra_block)
 
                 # Build unitary-increment Iteration over the 'leftover' region.
                 # This will be used for remainder loops, executed when any
                 # dimension size is not a multiple of the block size.
-                start = inter_block.limits[1]
-                finish = i.dim.symbolic_end + i.offsets[1]
-                remainder = i._rebuild([], limits=[start, finish, 1], offsets=None)
+                remainder = i._rebuild([], limits=[bfinish, i.dim.symbolic_end, 1],
+                                       offsets=(i.offsets[1], i.offsets[1]))
                 remainders.append(remainder)
 
             # Build blocked Iteration nest

@@ -432,6 +432,13 @@ class Iteration(Node):
         """
         return self.bounds_symbolic[1]
 
+    @property
+    def incr_symbolic(self):
+        """
+        Return the symbolic extent of the Iteration.
+        """
+        return self.limits[2]
+
     def bounds(self, start=None, finish=None):
         """Return the start and end points of the Iteration if the limits are
         available (either statically known or provided through ``start``/
@@ -709,6 +716,11 @@ class UnboundedIndex(object):
         self.step = index + 1 if step is None else step
         self.dim = dim
         self.expr = expr
+
+        if isinstance(self.start, int):
+            self.start = as_symbol(self.start)
+        if isinstance(self.step, int):
+            self.step = as_symbol(self.step)
 
     @property
     def free_symbols(self):
