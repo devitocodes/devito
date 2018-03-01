@@ -1238,3 +1238,77 @@ class TestForeign(object):
         args['a'] = array
         op.cfunction(*list(args.values()))
         assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
+
+
+@skipif_yask
+class TestLoopOrder(object):
+    #
+    # Stencil uses values at new timestep as well as those at previous ones
+    # This forces an evaluation order onto x.
+    # Weights are:
+    #
+    #        x=0     x=1     x=2     x=3
+    # t=0     2    ---3
+    #         v   /
+    # t=1     o--+----4
+    #
+    # Flow dependency should traverse x in the negative direction
+    #
+    #        x=2     x=3     x=4     x=5      x=6
+    # t=0             0   --- 0     -- 1    -- 0
+    #                 v  /    v    /   v   /
+    # t=1            44 -+--- 11 -+--- 2--+ -- 0
+    #
+    #
+
+    @classmethod
+    def setup_class(cls):
+        clear_cache()
+
+    def test_flowdir_domain(self):
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        u = TimeFunction(name='u', grid=grid, save=2, time_order=1, space_order=0)
+        step = Eq(u.forward, 2*u
+                  + 3*u.subs(x, x+x.spacing)
+                  + 4*u.forward.subs(x, x+x.spacing))
+        op = Operator(step)
+
+        u.data[:] = 0.0
+        u.data[0, 5, 5] = 1.0
+
+        op.apply(time_e=2)
+        assert u.data[1, 5, 5] == 2
+        assert u.data[1, 4, 5] == 11
+        assert u.data[1, 3, 5] == 44
+        assert u.data[1, 2, 5] == 4*44
+        assert u.data[1, 1, 5] == 4*4*44
+        assert u.data[1, 0, 5] == 4*4*4*44
+        assert np.all(u.data[1, 6:, :] == 0)
+        assert np.all(u.data[1, :, 0:5] == 0)
+        assert np.all(u.data[1, :, 6:] == 0)
+
+    def test_flowdir_interior(self):
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        u = TimeFunction(name='u', grid=grid, save=10, time_order=1, space_order=0)
+        step = Eq(u.forward, 2*u
+                  + 3*u.subs(x, x+x.spacing)
+                  + 4*u.forward.subs(x, x+x.spacing),
+                  region=INTERIOR)
+        op = Operator(step)
+
+        u.data[0, 5, 5] = 1.0
+        op.apply(time_e=2)
+        assert u.data[1, 5, 5] == 2
+        assert u.data[1, 4, 5] == 11
+        assert u.data[1, 3, 5] == 44
+        assert u.data[1, 2, 5] == 4*44
+        assert u.data[1, 1, 5] == 4*4*44
+
+        # This point isn't updated because of the INTERIOR selection
+        # assert u.data[1, 0, 5] == 4*4*4*44
+
+        assert np.all(u.data[1, 6:, :] == 0)
+        assert np.all(u.data[1, :, 0:5] == 0)
+        assert np.all(u.data[1, :, 6:] == 0)
