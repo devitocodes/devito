@@ -150,17 +150,17 @@ def optimize_unfolded_tree(unfolded, root):
 
         # "Shrink" the iteration space
         for t1, t2 in zip(tree, root):
-            start, end, incr = t1.args['limits']
             index = Symbol('%ss%d' % (t1.index, i))
-
-            t1_uindex = (UnboundedIndex(index, start),)
-            t2_uindex = (UnboundedIndex(index, -start),)
-
-            modified_tree.append(t1._rebuild(limits=[0, end-start, incr],
-                                             uindices=t1.uindices + t1_uindex))
-            modified_root.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
-
             mapper[t1.dim] = index
+
+            t1_uindex = (UnboundedIndex(index, t1.start_symbolic),)
+            t2_uindex = (UnboundedIndex(index, -t1.start_symbolic),)
+
+            limits = (0, t1.extent_symbolic, t1.incr_symbolic)
+            modified_tree.append(t1._rebuild(limits=limits, offsets=None,
+                                             uindices=t1.uindices + t1_uindex))
+
+            modified_root.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
 
         # Temporary arrays can now be moved onto the stack
         exprs = FindNodes(Expression).visit(modified_tree[-1])
@@ -234,12 +234,13 @@ class IterationFold(Iteration):
 
         # Construct the folds
         args.pop('nodes')
-        args.pop('offsets')
+        ofs = args.pop('offsets')
         try:
             start, end, incr = args.pop('limits')
         except TypeError:
             start, end, incr = self.limits
-        folds = tuple(Iteration(nodes, limits=[start-ofs[0], end-ofs[1], incr], **args)
-                      for ofs, nodes in self.folds)
+        folds = tuple(Iteration(nodes, limits=(start, end, incr),
+                                offsets=tuple(i-j for i, j in zip(ofs, shift)), **args)
+                      for shift, nodes in self.folds)
 
         return folds + as_tuple(root)
