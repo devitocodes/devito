@@ -119,7 +119,7 @@ class Dimension(AbstractSymbol):
         """
         inferred = {}
 
-        if interval is None:
+        if not interval:
             return inferred
 
         if self.min_name in args:
@@ -310,6 +310,21 @@ class ConditionalDimension(DerivedDimension):
 
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.factor, self.condition)
+
+    def _arg_defaults(self, start=None, size=None, **kwargs):
+        """
+        A :class:`ConditionalDimension` neither knows its size nor its
+        iteration start and end points. So there are no defaults to be
+        provided.
+        """
+        return {}
+
+    def _arg_check(self, args, size, interval):
+        """
+        A :class:`ConditionalDimension` provides no arguments, so there's
+        no check to be performed.
+        """
+        return
 
 
 class SteppingDimension(DerivedDimension):
