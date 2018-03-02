@@ -127,9 +127,10 @@ def detect_flow_directions(exprs):
             if not dimensions:
                 continue
             for d in dimensions:
-                rootd = d
-                while rootd.is_Sub:
-                    rootd = rootd.parent
+                if d.is_Sub:
+                    rootd = d.parent
+                else:
+                    rootd = d
 
                 try:
                     if w.distance(r, rootd) > 0:
