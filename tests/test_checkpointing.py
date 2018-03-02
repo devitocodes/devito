@@ -26,7 +26,7 @@ def test_segmented_incremment():
     op = Operator(Eq(fi[t, x, y], fi[t-1, x, y] + 1.))
 
     # Reference solution with a single invocation, up to timestep 21 (included)
-    # IOW, run for 20 timesteps in total (time_s=1 is implicit)
+    # IOW, run for 20 timesteps in total (time_m=1 is implicit)
     f_ref = TimeFunction(name='f', grid=grid, time_order=1)
     op(f=f_ref, time=21)
     assert (f_ref.data[20] == 20.).all()
@@ -35,7 +35,7 @@ def test_segmented_incremment():
     # Now run with 5 invocations of 4 timesteps each (again, 20 timesteps in total)
     nsteps = 4
     for i in range(5):
-        op(f=f, time_s=1+i*nsteps, time_e=1+(i+1)*nsteps)
+        op(f=f, time_m=1+i*nsteps, time_M=1+(i+1)*nsteps)
     assert (f.data[20] == 20.).all()
     assert (f.data[21] == 21.).all()
 
@@ -72,7 +72,7 @@ def test_segmented_fibonacci():
     nsteps = 5
     f.data[:] = 1.
     for i in range(2):
-        op(f=f, time_s=2+i*nsteps, time_e=2+(i+1)*nsteps)
+        op(f=f, time_m=2+i*nsteps, time_M=2+(i+1)*nsteps)
     assert (f.data[11] == fib(12)).all()
     assert (f.data[12] == fib(13)).all()
 
@@ -105,7 +105,7 @@ def test_segmented_averaging():
     nsteps = 5
     f.data_allocated[:] = 1.
     for i in range(4):
-        op(f=f, time=1, x_s=i*nsteps, x_e=(i+1)*nsteps-1)
+        op(f=f, time=1, x_m=i*nsteps, x_M=(i+1)*nsteps-1)
     assert (f_ref.data[1, :] == 2.).all()
     assert (f_ref.data_allocated[1, 0] == 1.).all()
     assert (f_ref.data_allocated[1, -1] == 1.).all()
