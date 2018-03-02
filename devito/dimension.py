@@ -54,14 +54,14 @@ class Dimension(AbstractSymbol):
         """
         The symbol defining the iteration start for this dimension.
         """
-        return Scalar(name=self.start_name, dtype=np.int32)
+        return Scalar(name=self.min_name, dtype=np.int32)
 
     @cached_property
     def symbolic_end(self):
         """
         The symbol defining the iteration end for this dimension.
         """
-        return Scalar(name=self.end_name, dtype=np.int32)
+        return Scalar(name=self.max_name, dtype=np.int32)
 
     @property
     def symbolic_extent(self):
@@ -78,12 +78,12 @@ class Dimension(AbstractSymbol):
         return "%s_size" % self.name
 
     @property
-    def start_name(self):
-        return "%s_s" % self.name
+    def min_name(self):
+        return "%s_m" % self.name
 
     @property
-    def end_name(self):
-        return "%s_e" % self.name
+    def max_name(self):
+        return "%s_M" % self.name
 
     @property
     def spacing(self):
@@ -106,7 +106,7 @@ class Dimension(AbstractSymbol):
         :param alias: (Optional) name under which to store values.
         """
         dim = alias or self
-        return {dim.start_name: start or 0, dim.end_name: size, dim.size_name: size}
+        return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
 
     def _arg_infers(self, args, interval):
         """
@@ -122,11 +122,11 @@ class Dimension(AbstractSymbol):
         if interval is None:
             return inferred
 
-        if self.start_name in args:
-            inferred[self.start_name] = args[self.start_name] - min(interval.lower, 0)
+        if self.min_name in args:
+            inferred[self.min_name] = args[self.min_name] - min(interval.lower, 0)
 
-        if self.end_name in args:
-            inferred[self.end_name] = args[self.end_name] - (1 + max(interval.upper, 0))
+        if self.max_name in args:
+            inferred[self.max_name] = args[self.max_name] - (1 + max(interval.upper, 0))
 
         return inferred
 
@@ -138,15 +138,15 @@ class Dimension(AbstractSymbol):
         """
         values = {}
 
-        if self.start_name in kwargs:
-            values[self.start_name] = kwargs.pop(self.start_name)
+        if self.min_name in kwargs:
+            values[self.min_name] = kwargs.pop(self.min_name)
 
-        if self.end_name in kwargs:
-            values[self.end_name] = kwargs.pop(self.end_name)
+        if self.max_name in kwargs:
+            values[self.max_name] = kwargs.pop(self.max_name)
 
         # Let the dimension name be an alias for `dim_e`
         if self.name in kwargs:
-            values[self.end_name] = kwargs.pop(self.name)
+            values[self.max_name] = kwargs.pop(self.name)
 
         return values
 
@@ -155,17 +155,17 @@ class Dimension(AbstractSymbol):
         :raises InvalidArgument: If any of the ``self``-related runtime arguments
                                  in ``args`` will cause an out-of-bounds access.
         """
-        if self.start_name not in args:
-            raise InvalidArgument("No runtime value for %s" % self.start_name)
-        if interval.is_Defined and args[self.start_name] + interval.lower < 0:
-            raise InvalidArgument("OOB detected due to %s=%d" % (self.start_name,
-                                                                 args[self.start_name]))
+        if self.min_name not in args:
+            raise InvalidArgument("No runtime value for %s" % self.min_name)
+        if interval.is_Defined and args[self.min_name] + interval.lower < 0:
+            raise InvalidArgument("OOB detected due to %s=%d" % (self.min_name,
+                                                                 args[self.min_name]))
 
-        if self.end_name not in args:
-            raise InvalidArgument("No runtime value for %s" % self.end_name)
-        if interval.is_Defined and args[self.end_name] + interval.upper >= size:
-            raise InvalidArgument("OOB detected due to %s=%d" % (self.end_name,
-                                                                 args[self.end_name]))
+        if self.max_name not in args:
+            raise InvalidArgument("No runtime value for %s" % self.max_name)
+        if interval.is_Defined and args[self.max_name] + interval.upper >= size:
+            raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
+                                                                 args[self.max_name]))
 
 
 class SpaceDimension(Dimension):
@@ -264,11 +264,11 @@ class SubDimension(DerivedDimension):
     def _arg_infers(self, args, interval):
         inferred = {}
 
-        if self.parent.start_name in args:
-            inferred[self.start_name] = args[self.parent.start_name] + self.lower
+        if self.parent.min_name in args:
+            inferred[self.min_name] = args[self.parent.min_name] + self.lower
 
-        if self.parent.end_name in args:
-            inferred[self.end_name] = args[self.parent.end_name] + self.upper
+        if self.parent.max_name in args:
+            inferred[self.max_name] = args[self.parent.max_name] + self.upper
 
         if self.parent.size_name in args:
             inferred[self.size_name] = args[self.parent.size_name] -\
@@ -363,7 +363,7 @@ class SteppingDimension(DerivedDimension):
         A :class:`SteppingDimension` neither knows its size nor its
         iteration end point. So all we can provide is a starting point.
         """
-        return {self.parent.start_name: start}
+        return {self.parent.min_name: start}
 
     def _arg_values(self, **kwargs):
         """
@@ -373,15 +373,15 @@ class SteppingDimension(DerivedDimension):
         """
         values = self.parent._arg_values(**kwargs)
 
-        if self.start_name in kwargs:
-            values[self.parent.start_name] = kwargs.pop(self.start_name)
+        if self.min_name in kwargs:
+            values[self.parent.min_name] = kwargs.pop(self.min_name)
 
-        if self.end_name in kwargs:
-            values[self.parent.end_name] = kwargs.pop(self.end_name)
+        if self.max_name in kwargs:
+            values[self.parent.max_name] = kwargs.pop(self.max_name)
 
         # Let the dimension name be an alias for `dim_e`
         if self.name in kwargs:
-            values[self.parent.end_name] = kwargs.pop(self.name)
+            values[self.parent.max_name] = kwargs.pop(self.name)
 
         return values
 

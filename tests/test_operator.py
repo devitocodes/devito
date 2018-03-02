@@ -55,9 +55,9 @@ class TestCodeGen(object):
         assert op.parameters[1].is_Scalar
         assert op.parameters[2].name == 'timers'
         assert op.parameters[2].is_Object
-        assert op.parameters[3].name == 'x_e'
+        assert op.parameters[3].name == 'x_M'
         assert op.parameters[3].is_Scalar
-        assert op.parameters[4].name == 'x_s'
+        assert op.parameters[4].name == 'x_m'
         assert op.parameters[4].is_Scalar
         assert 'a_dense[x + 1] = 2.0F*constant + a_dense[x + 1]' in str(op)
 
@@ -389,15 +389,15 @@ class TestArguments(object):
         op = Operator(Eq(g, g + f))
 
         expected = {
-            'x_size': 5, 'x_s': 0, 'x_e': 4,
-            'y_size': 6, 'y_s': 0, 'y_e': 5,
-            'z_size': 7, 'z_s': 0, 'z_e': 6,
+            'x_size': 5, 'x_m': 0, 'x_M': 4,
+            'y_size': 6, 'y_m': 0, 'y_M': 5,
+            'z_size': 7, 'z_m': 0, 'z_M': 6,
             'f': f.data_allocated, 'g': g.data_allocated,
         }
         self.verify_arguments(op.arguments(time=4), expected)
-        exp_parameters = ['f', 'g', 'x_s', 'x_e', 'x_size', 'y_s',
-                          'y_e', 'y_size', 'z_s', 'z_e', 'z_size',
-                          'time_s', 'time_e']
+        exp_parameters = ['f', 'g', 'x_m', 'x_M', 'x_size', 'y_m',
+                          'y_M', 'y_size', 'z_m', 'z_M', 'z_size',
+                          'time_m', 'time_M']
         self.verify_parameters(op.parameters, exp_parameters)
 
     def test_default_sparse_functions(self):
@@ -415,9 +415,9 @@ class TestArguments(object):
         expected = {
             's': s.data, 's_coords': s.coordinates.data,
             # Default dimensions of the sparse data
-            'p_s_size': 3, 'p_s_s': 0, 'p_s_e': 2,
-            'd_size': 3, 'd_s': 0, 'd_e': 2,
-            'time_size': 4, 'time_s': 0, 'time_e': 3,
+            'p_s_size': 3, 'p_s_m': 0, 'p_s_M': 2,
+            'd_size': 3, 'd_m': 0, 'd_M': 2,
+            'time_size': 4, 'time_m': 0, 'time_M': 3,
         }
         self.verify_arguments(op.arguments(), expected)
 
@@ -441,9 +441,9 @@ class TestArguments(object):
         args = {'x': 3, 'y': 4, 'z': 5}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_s': 0, 'x_e': 3,
-            'y_size': 6, 'y_s': 0, 'y_e': 4,
-            'z_size': 7, 'z_s': 0, 'z_e': 5,
+            'x_size': 5, 'x_m': 0, 'x_M': 3,
+            'y_size': 6, 'y_m': 0, 'y_M': 4,
+            'z_size': 7, 'z_m': 0, 'z_M': 5,
             'g': g.data_allocated
         }
         self.verify_arguments(arguments, expected)
@@ -462,12 +462,12 @@ class TestArguments(object):
         g = Function(name='g', grid=grid)
 
         op = Operator(Eq(g, 1.))
-        args = {'x_s': 1, 'x_e': 3, 'y_s': 2, 'y_e': 4, 'z_s': 3, 'z_e': 5}
+        args = {'x_m': 1, 'x_M': 3, 'y_m': 2, 'y_M': 4, 'z_m': 3, 'z_M': 5}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_s': 1, 'x_e': 3,
-            'y_size': 6, 'y_s': 2, 'y_e': 4,
-            'z_size': 7, 'z_s': 3, 'z_e': 5,
+            'x_size': 5, 'x_m': 1, 'x_M': 3,
+            'y_size': 6, 'y_m': 2, 'y_M': 4,
+            'z_size': 7, 'z_m': 3, 'z_M': 5,
             'g': g.data_allocated
         }
         self.verify_arguments(arguments, expected)
@@ -491,14 +491,14 @@ class TestArguments(object):
         # TODO: Currently we require the `time` subrange to be set
         # explicitly. Ideally `t` would directly alias with `time`,
         # but this seems broken currently.
-        args = {'x_s': 1, 'x_e': 3, 'y_s': 2, 'y_e': 4,
-                'z_s': 3, 'z_e': 5, 't_s': 1, 't_e': 4}
+        args = {'x_m': 1, 'x_M': 3, 'y_m': 2, 'y_M': 4,
+                'z_m': 3, 'z_M': 5, 't_m': 1, 't_M': 4}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_s': 1, 'x_e': 3,
-            'y_size': 6, 'y_s': 2, 'y_e': 4,
-            'z_size': 7, 'z_s': 3, 'z_e': 5,
-            'time_s': 1, 'time_e': 4,
+            'x_size': 5, 'x_m': 1, 'x_M': 3,
+            'y_size': 6, 'y_m': 2, 'y_M': 4,
+            'z_size': 7, 'z_m': 3, 'z_M': 5,
+            'time_m': 1, 'time_M': 4,
             'f': f.data_allocated
         }
         self.verify_arguments(arguments, expected)
@@ -552,25 +552,25 @@ class TestArguments(object):
 
         # Run with default value
         a.data[:] = 1.
-        op(time_s=0, time=1)
+        op(time_m=0, time=1)
         assert (a.data[:] == 4.).all()
 
         # Override with symbol (different name)
         a1 = TimeFunction(name='a1', grid=grid, save=2)
         a1.data[:] = 2.
-        op(time_s=0, time=1, a=a1)
+        op(time_m=0, time=1, a=a1)
         assert (a1.data[:] == 5.).all()
 
         # Override with symbol (same name as original)
         a2 = TimeFunction(name='a', grid=grid, save=2)
         a2.data[:] = 3.
-        op(time_s=0, time=1, a=a2)
+        op(time_m=0, time=1, a=a2)
         assert (a2.data[:] == 6.).all()
 
         # Override with user-allocated numpy data
         a3 = np.zeros_like(a.data_allocated)
         a3[:] = 4.
-        op(time_s=0, time=1, a=a3)
+        op(time_m=0, time=1, a=a3)
         assert (a3[[slice(i.left, -i.right) for i in a._offset_domain]] == 7.).all()
 
     def test_dimension_size_infer(self, nt=100):
@@ -582,8 +582,8 @@ class TestArguments(object):
 
         time = b.indices[0]
         op_arguments = op.arguments()
-        assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt-1)
+        assert(op_arguments[time.min_name] == 0)
+        assert(op_arguments[time.max_name] == nt-1)
 
     def test_dimension_offset_adjust(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
@@ -597,8 +597,8 @@ class TestArguments(object):
                  + b.indexed[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
         op_arguments = op.arguments(time=nt-10)
-        assert(op_arguments[time.start_name] == 1)
-        assert(op_arguments[time.end_name] == nt - 10)
+        assert(op_arguments[time.min_name] == 1)
+        assert(op_arguments[time.max_name] == nt - 10)
 
     def test_dimension_size_override(self):
         """Test explicit overrides for the leading time dimension"""
@@ -681,25 +681,25 @@ class TestArguments(object):
         # Simple case, same as that tested above.
         # Repeated here for clarity of further tests.
         op_arguments = op.arguments()
-        assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt-1)
+        assert(op_arguments[time.min_name] == 0)
+        assert(op_arguments[time.max_name] == nt-1)
 
         # Providing a tensor argument should infer the dimension size from its shape
         b1 = TimeFunction(name='b1', grid=grid, save=nt+1)
         op_arguments = op.arguments(b=b1)
-        assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt)
+        assert(op_arguments[time.min_name] == 0)
+        assert(op_arguments[time.max_name] == nt)
 
         # Providing a dimension size explicitly should override the automatically inferred
         op_arguments = op.arguments(b=b1, time=nt - 1)
-        assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt - 1)
+        assert(op_arguments[time.min_name] == 0)
+        assert(op_arguments[time.max_name] == nt - 1)
 
         # Providing a scalar argument explicitly should override the automatically
         # inferred
-        op_arguments = op.arguments(b=b1, time_e=nt - 2)
-        assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt - 2)
+        op_arguments = op.arguments(b=b1, time_M=nt - 2)
+        assert(op_arguments[time.min_name] == 0)
+        assert(op_arguments[time.max_name] == nt - 2)
 
     def test_derive_constant_value(self):
         """Ensure that values for :class:`Constant` symbols are derived correctly."""
@@ -776,7 +776,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = i_s; i <= i_e; i += 1)
+  for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
@@ -793,9 +793,9 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = i_s; i <= i_e; i += 1)
+  for (int i = i_m; i <= i_M; i += 1)
   {
-    for (int j = j_s; j <= j_e; j += 1)
+    for (int j = j_m; j <= j_M; j += 1)
     {
       float s0 = c[i][j];
       c[i][j] = s0*c[i][j];
@@ -816,10 +816,10 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = i_s; i <= i_e; i += 1)
+  for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = 0.0F;
-    for (int j = j_s; j <= j_e; j += 1)
+    for (int j = j_m; j <= j_M; j += 1)
     {
       c[i][j] = a[i]*c[i][j];
     }
@@ -839,7 +839,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = i_s; i <= i_e; i += 1)
+  for (int i = i_m; i <= i_M; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
@@ -857,15 +857,15 @@ class TestDeclarator(object):
   float c_stack[i_size][j_size] __attribute__((aligned(64)));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int k = k_s; k <= k_e; k += 1)
+  for (int k = k_m; k <= k_M; k += 1)
   {
-    for (int s = s_s; s <= s_e; s += 1)
+    for (int s = s_m; s <= s_M; s += 1)
     {
-      for (int q = q_s; q <= q_e; q += 1)
+      for (int q = q_m; q <= q_M; q += 1)
       {
-        for (int i = i_s; i <= i_e; i += 1)
+        for (int i = i_m; i <= i_M; i += 1)
         {
-          for (int j = j_s; j <= j_e; j += 1)
+          for (int j = j_m; j <= j_M; j += 1)
           {
             c_stack[i][j] = 1.0F*e[k][s][q][i][j];
           }
@@ -1179,7 +1179,7 @@ class TestRegions(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
 
-        op.apply(time_e=1)
+        op.apply(time_M=1)
         assert np.all(u.data[1, 0, :, :] == 1)
         assert np.all(u.data[1, -1, :, :] == 1)
         assert np.all(u.data[1, :, 0, :] == 1)
