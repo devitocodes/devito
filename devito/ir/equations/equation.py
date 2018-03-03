@@ -25,6 +25,22 @@ class IREq(object):
         return self.lhs.is_Indexed
 
     @property
+    def ispace(self):
+        return self._ispace
+
+    @property
+    def dspace(self):
+        return self._dspace
+
+    @property
+    def dimensions(self):
+        # Note: some dimensions may be in the iteration space but not in the
+        # data space (e.g., a DerivedDimension); likewise, some dimensions may
+        # be in the data space but not in the iteration space (e.g., when a
+        # function is indexed with integers only)
+        return set(self.dspace.dimensions) | set(self.ispace.dimensions)
+
+    @property
     def directions(self):
         return self.ispace.directions
 
@@ -33,25 +49,40 @@ class LoweredEq(Eq, IREq):
 
     """
     LoweredEq(expr)
+    LoweredEq(expr, ispace, dspace)
+    LoweredEq(lhs, rhs, stamp=LoweredEq)
 
     A SymPy equation with associated :class:`IterationSpace` and
     :class:`DataSpace`.
+
+    When created as ``LoweredEq(expr)``, the iteration and data spaces are
+    automatically derived from analysis of ``expr``.
     """
 
     def __new__(cls, *args, **kwargs):
-        # Parse input
         if len(args) == 1:
+            # origin: LoweredEq(expr)
             expr = input_expr = args[0]
             assert type(expr) != LoweredEq
             assert isinstance(expr, Eq)
         elif len(args) == 2:
-            # Reconstructing from existing Eq. E.g., we end up here after xreplace
+            # origin: LoweredEq(lhs, rhs, stamp=...)
             stamp = kwargs.pop('stamp')
             expr = Eq.__new__(cls, *args, evaluate=False)
             assert isinstance(stamp, Eq)
             expr.is_Increment = stamp.is_Increment
-            expr.ispace = stamp.ispace
-            expr.dspace = stamp.dspace
+            expr._ispace = stamp.ispace
+            expr._dspace = stamp.dspace
+            return expr
+        elif len(args) == 3:
+            # origin: LoweredEq(expr, ispace, space)
+            input_expr, ispace, dspace = args
+            assert isinstance(ispace, IterationSpace)
+            assert isinstance(dspace, DataSpace)
+            expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
+            expr.is_Increment = input_expr.is_Increment
+            expr._dspace = dspace
+            expr._ispace = ispace
             return expr
         else:
             raise ValueError("Cannot construct LoweredEq from args=%s "
@@ -92,9 +123,8 @@ class LoweredEq(Eq, IREq):
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
-        expr.dspace = dspace
-        expr.ispace = ispace
-        expr.dimensions = ordering
+        expr._dspace = dspace
+        expr._ispace = ispace
         expr.reads, expr.writes = detect_io(expr)
 
         return expr
@@ -109,7 +139,8 @@ class LoweredEq(Eq, IREq):
 class ClusterizedEq(Eq, IREq, FrozenExpr):
 
     """
-    ClusterizedEq(expr, ispace)
+    ClusterizedEq(expr, ispace, dspace)
+    ClusterizedEq(lhs, rhs, ispace=IterationSpace, dspace=DataSpace)
 
     A SymPy equation with associated :class:`IterationSpace` and
     :class:`DataSpace`.
@@ -117,34 +148,35 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
     There are two main differences between a :class:`LoweredEq` and a
     ClusterizedEq: ::
 
-        * In a ClusterizedEq, the iteration and data spaces are provided and
-          thus simply attached to the object.
+        * In a ClusterizedEq, the iteration and data spaces must *always*
+          be provided by the caller.
         * A ClusterizedEq is "frozen", meaning that any call to ``xreplace``
           will not trigger re-evaluation (e.g., mathematical simplification)
           of the expression.
 
-    These two properties make a ClusterizedEq suitable for :class:`Cluster`s.
+    These two properties make a ClusterizedEq suitable for use in a
+    :class:`Cluster`.
     """
 
     def __new__(cls, *args, **kwargs):
         if len(args) == 3:
-            # ClusterizedEq created from ClusterizedEq(...)
+            # origin: ClusterizedEq(expr, ispace, dspace)
             input_expr, ispace, dspace = args
             assert isinstance(ispace, IterationSpace)
             assert isinstance(dspace, DataSpace)
             expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
             expr.is_Increment = input_expr.is_Increment
-            expr.dspace = dspace
-            expr.ispace = ispace
+            expr._dspace = dspace
+            expr._ispace = ispace
         else:
-            # ClusterizedEq created via .func(...)
+            # origin: ClusterizedEq(lhs, rhs, ispace=..., dspace=...)
             assert len(args) == 2
             expr = Eq.__new__(cls, *args, evaluate=False)
             expr.is_Increment = kwargs.get('is_Increment', False)
-            expr.dspace = kwargs['dspace']
-            expr.ispace = kwargs['ispace']
+            expr._dspace = kwargs['dspace']
+            expr._ispace = kwargs['ispace']
         return expr
 
     def func(self, *args, **kwargs):
-        return super(ClusterizedEq, self).func(*args, dspace=self.dspace,
-                                               ispace=self.ispace)
+        return super(ClusterizedEq, self).func(*args, dspace=self._dspace,
+                                               ispace=self._ispace)
