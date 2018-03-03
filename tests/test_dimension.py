@@ -25,7 +25,7 @@ def test_conditional_basic():
 
     eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2 + 1.), Eq(usave, u)]
     op = Operator(eqns)
-    op.apply(t=nt)
+    op.apply(t_M=nt-2)
     assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
     assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
     assert np.all([np.allclose(usave.data[i], i*factor)
@@ -53,7 +53,7 @@ def test_conditional_as_expr():
     eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2 + 1.),
             Eq(usave, time_subsampled * u)]
     op = Operator(eqns)
-    op.apply(t=nt)
+    op.apply(t=nt-2)
     assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
     assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
     assert np.all([np.allclose(usave.data[i], i*factor*i)
@@ -84,7 +84,7 @@ def test_conditional_shifted():
     op = Operator(eqns)
 
     # Starting at time_m=10, so time_subsampled - t_sub_shift is in range
-    op.apply(time_m=10, time_M=nt, t_sub_shift=3)
+    op.apply(time_m=10, time_M=nt-2, t_sub_shift=3)
     assert np.all(np.allclose(u.data[0], 8))
     assert np.all([np.allclose(u2.data[i], i - 10) for i in range(10, nt)])
     assert np.all([np.allclose(usave.data[i], 2+i*factor) for i in range(2)])
