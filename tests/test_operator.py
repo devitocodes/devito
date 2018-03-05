@@ -1187,23 +1187,25 @@ class TestLoopScheduler(object):
         assert trees[0][-1].nodes[1].write == u2
 
     def test_flowdir_domain(self):
-        #
-        # Stencil uses values at new timestep as well as those at previous ones
-        # This forces an evaluation order onto x.
-        # Weights are:
-        #
-        #        x=0     x=1     x=2     x=3
-        # t=n     2    ---3
-        #         v   /
-        # t=n+1   o--+----4
-        #
-        # Flow dependency should traverse x in the negative direction
-        #
-        #        x=2     x=3     x=4     x=5      x=6
-        # t=0             0   --- 0     -- 1    -- 0
-        #                 v  /    v    /   v   /
-        # t=1            44 -+--- 11 -+--- 2--+ -- 0
-        #
+        """
+        Test detection of spatial flow directions inside a time loop.
+
+        Stencil uses values at new timestep as well as those at previous ones
+        This forces an evaluation order onto x.
+        Weights are:
+
+               x=0     x=1     x=2     x=3
+        t=n     2    ---3
+                v   /
+        t=n+1   o--+----4
+
+        Flow dependency should traverse x in the negative direction
+
+               x=2     x=3     x=4     x=5      x=6
+        t=0             0   --- 0     -- 1    -- 0
+                        v  /    v    /   v   /
+        t=1            44 -+--- 11 -+--- 2--+ -- 0
+        """
         grid = Grid(shape=(10, 10))
         x, y = grid.dimensions
         u = TimeFunction(name='u', grid=grid, save=2, time_order=1, space_order=0)
@@ -1257,23 +1259,26 @@ class TestRegions(object):
         assert np.all(u.data[1, 1:3, 1:3, 1:3] == 3)
 
     def test_flowdir_interior(self):
-        #
-        # Stencil uses values at new timestep as well as those at previous ones
-        # This forces an evaluation order onto x.
-        # Weights are:
-        #
-        #        x=0     x=1     x=2     x=3
-        # t=N    2    ---3
-        #        v   /
-        # t=N+1  o--+----4
-        #
-        # Flow dependency should traverse x in the negative direction
-        #
-        #        x=2     x=3     x=4     x=5      x=6
-        # t=0             0   --- 0     -- 1    -- 0
-        #                 v  /    v    /   v   /
-        # t=1            44 -+--- 11 -+--- 2--+ -- 0
-        #
+        """
+        Test detection of flow directions when using SubDimensions.
+
+        Stencil uses values at new timestep as well as those at previous ones
+        This forces an evaluation order onto x.
+        Weights are:
+
+               x=0     x=1     x=2     x=3
+         t=N    2    ---3
+                v   /
+         t=N+1  o--+----4
+
+        Flow dependency should traverse x in the negative direction
+
+               x=2     x=3     x=4     x=5      x=6
+        t=0             0   --- 0     -- 1    -- 0
+                        v  /    v    /   v   /
+        t=1            44 -+--- 11 -+--- 2--+ -- 0
+        """
+
         grid = Grid(shape=(10, 10))
         x, y = grid.dimensions
         u = TimeFunction(name='u', grid=grid, save=10, time_order=1, space_order=0)
@@ -1292,7 +1297,7 @@ class TestRegions(object):
         assert u.data[1, 1, 5] == 4*4*44
 
         # This point isn't updated because of the INTERIOR selection
-        # assert u.data[1, 0, 5] == 4*4*4*44
+        assert u.data[1, 0, 5] == 0
 
         assert np.all(u.data[1, 6:, :] == 0)
         assert np.all(u.data[1, :, 0:5] == 0)
