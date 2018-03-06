@@ -477,7 +477,11 @@ class Dependence(object):
     def is_carried(self, dim=None):
         """Return True if a dimension-carried dependence, False otherwise."""
         try:
-            return (self.distance > 0) if dim is None else self.cause == dim
+            if dim is None:
+                return self.distance > 0
+            else:
+                testdim = dim.parent if dim.is_Sub else dim
+                return self.cause == testdim
         except TypeError:
             # Conservatively assume this is a carried dependence
             return True
@@ -488,7 +492,8 @@ class Dependence(object):
             if dim is None or self.source.is_irregular or self.sink.is_irregular:
                 return self.distance == 0
             else:
-                return self.cause != dim
+                testdim = dim.parent if dim.is_Sub else dim
+                return self.cause != testdim
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False
