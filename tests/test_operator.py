@@ -193,6 +193,16 @@ class TestArithmetic(object):
         op.apply(a=a, truc=Constant(name='truc2', value=3.))
         assert(np.allclose(a.data, 12.))
 
+    def test_incs_same_lhs(self):
+        """Test point-wise arithmetic with multiple increments expressed
+        as different equations."""
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid, space_order=0)
+        op = Operator([Eq(u, u+1.0), Eq(u, u+2.0)])
+        u.data[:] = 0.0
+        op.apply()
+        assert np.all(u.data[:] == 3)
+
 
 @skipif_yask
 class TestAllocation(object):
