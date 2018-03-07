@@ -128,15 +128,15 @@ def detect_flow_directions(exprs):
                 continue
             for d in dimensions:
                 if d.is_Sub:
-                    rootd = d.parent
+                    testdim = d.parent
                 else:
-                    rootd = d
+                    testdim = d
 
                 try:
-                    if w.distance(r, rootd) > 0:
+                    if w.distance(r, testdim) > 0:
                         mapper[d].add(Forward)
                         break
-                    elif w.distance(r, rootd) < 0:
+                    elif w.distance(r, testdim) < 0:
                         mapper[d].add(Backward)
                         break
                     else:
