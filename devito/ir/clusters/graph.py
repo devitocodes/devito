@@ -5,7 +5,7 @@ from cached_property import cached_property
 
 from devito.dimension import Dimension
 from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminals,
-                              q_inc, q_indirect, q_timedimension)
+                              convert_to_SSA, q_inc, q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
 
 __all__ = ['FlowGraph']
@@ -90,10 +90,10 @@ class FlowGraph(OrderedDict):
     """
 
     def __init__(self, exprs, **kwargs):
-        # Check input legality
+        # Always convert to SSA
+        exprs = convert_to_SSA(exprs)
         mapper = OrderedDict([(i.lhs, i) for i in exprs])
-        if len(set(mapper)) != len(mapper):
-            raise ValueError("Found redundant node, cannot build a FlowGraph.")
+        assert len(set(mapper)) == len(exprs), "not SSA Cluster?"
 
         # Construct the Nodes, tracking reads and readby
         tensor_map = DefaultOrderedDict(list)
@@ -182,25 +182,30 @@ class FlowGraph(OrderedDict):
         if any(q_timedimension(i) for i in expr.free_symbols):
             return False
 
-        queue = [expr.rhs] if expr.is_Equality else [expr]
+        queue = [expr.rhs if expr.is_Equality else expr]
+        seen = set()
         while queue:
             item = queue.pop()
-            temporaries = []
+            temporaries = set()
             for i in retrieve_terminals(item):
-                if any(isinstance(j, Dimension) and j.is_Time for j in i.free_symbols):
+                if i in seen:
+                    # Already inspected, nothing more can be inferred
+                    continue
+                elif any(isinstance(j, Dimension) and j.is_Time for j in i.free_symbols):
                     # Definitely not time-invariant
                     return False
-                if i in self:
+                elif i in self:
                     # Go on with the search
-                    temporaries.append(i)
+                    temporaries.add(i)
                 elif isinstance(i, Dimension):
                     # Go on with the search, as /i/ is not a time dimension
-                    continue
+                    pass
                 elif not i.base.function.is_SymbolicFunction:
                     # It didn't come from the outside and it's not in self, so
                     # cannot determine if time-invariant; assume time-varying
                     return False
-            queue.extend([self[i].rhs for i in temporaries if self[i].rhs != item])
+                seen.add(i)
+            queue.extend([self[i].rhs for i in temporaries])
         return True
 
     def is_index(self, key):

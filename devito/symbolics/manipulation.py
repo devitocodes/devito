@@ -7,9 +7,10 @@ from devito.symbolics.extended_sympy import Add, Mul, Eq
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
+from devito.types import Symbol as dSymbol
 
 __all__ = ['freeze_expression', 'xreplace_constrained', 'xreplace_indices',
-           'pow_to_mul', 'as_symbol', 'indexify']
+           'pow_to_mul', 'as_symbol', 'indexify', 'convert_to_SSA']
 
 
 def freeze_expression(expr):
@@ -197,3 +198,31 @@ def indexify(expr):
         except AttributeError:
             pass
     return expr.xreplace(mapper)
+
+
+def convert_to_SSA(exprs):
+    """
+    Convert an iterable of :class:`Eq`s into Static Single Assignment form.
+    """
+    # Identify recurring LHSs
+    seen = {}
+    for i, e in enumerate(exprs):
+        seen.setdefault(e.lhs, []).append(i)
+    # Optimization: don't waste time reconstructing stuff if already in SSA form
+    if all(len(i) == 1 for i in seen.values()):
+        return exprs
+    # Do the SSA conversion
+    c = 0
+    mapper = {}
+    processed = []
+    for i, e in enumerate(exprs):
+        where = seen[e.lhs]
+        if len(where) > 1 and where[-1] != i:
+            # LHS needs SSA form
+            ssa_lhs = dSymbol(name='ssa_t%d' % c, dtype=e.lhs.base.function.dtype)
+            processed.append(e.func(ssa_lhs, e.rhs.xreplace(mapper)))
+            mapper[e.lhs] = ssa_lhs
+            c += 1
+        else:
+            processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
+    return processed
