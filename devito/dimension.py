@@ -7,7 +7,7 @@ from devito.logger import warning
 from devito.types import AbstractSymbol, Scalar, Symbol
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'SteppingDimension', 'SubDimension', 'ConditionalDimension']
+           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
 
 
 class Dimension(AbstractSymbol):
