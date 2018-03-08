@@ -328,7 +328,7 @@ class TestArguments(object):
                           'time_s', 'time_e']
         self.verify_parameters(op.parameters, exp_parameters)
 
-    def test_default_composite_functions(self):
+    def test_default_sparse_functions(self):
         """
         Test the default argument derivation for composite functions.
         """
@@ -544,7 +544,12 @@ class TestArguments(object):
         op(a=a, time=5)
         assert(np.allclose(a.data[0], 4.))
 
-    def test_override_composite_data(self):
+    def test_override_sparse_data_fix_dim(self):
+        """
+        Ensure the arguments are derived correctly for an input SparseFunction.
+        The dimensions are forced to be the same in this case to verify
+        the aliasing on the SparseFunction name.
+        """
         grid = Grid(shape=(10, 10))
         original_coords = (1., 1.)
         new_coords = (2., 2.)
@@ -553,7 +558,30 @@ class TestArguments(object):
         time = u.indices[0]
         src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim],
                                   npoint=1, nt=10, coordinates=original_coords)
-        src2 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+        src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=[time, p_dim],
+                                  npoint=1, nt=10, coordinates=new_coords)
+        op = Operator(src1.inject(u, src1))
+
+        # Move the source from the location where the setup put it so we can test
+        # whether the override picks up the original coordinates or the changed ones
+
+        args = op.arguments(src1=src2, t=0)
+        arg_name = src1.name + "_coords"
+        assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
+
+    def test_override_sparse_data_default_dim(self):
+        """
+        Ensure the arguments are derived correctly for an input SparseFunction.
+        The dimensions are the defaults (name dependant 'p_name') in this case to verify
+        the aliasing on the SparseFunction coordinates and dimensions.
+        """
+        grid = Grid(shape=(10, 10))
+        original_coords = (1., 1.)
+        new_coords = (2., 2.)
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        src1 = SparseTimeFunction(name='src1', grid=grid,
+                                  npoint=1, nt=10, coordinates=original_coords)
+        src2 = SparseTimeFunction(name='src2', grid=grid,
                                   npoint=1, nt=10, coordinates=new_coords)
         op = Operator(src1.inject(u, src1))
 
