@@ -306,12 +306,12 @@ class TensorFunction(SymbolicFunction):
 
         :param alias: (Optional) name under which to store values.
         """
-        key = alias or self.name
-        args = ArgumentMap({key: self._data_buffer})
+        key = alias or self
+        args = ArgumentMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o in zip(self.indices, self.shape, self.staggered):
-            args.update(i.argument_defaults(size=s+o))
+        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
+            args.update(i.argument_defaults(size=s+o, alias=k))
 
         return args
 
@@ -323,7 +323,7 @@ class TensorFunction(SymbolicFunction):
         :param alias: (Optional) name under which to store values.
         """
         values = {}
-        key = alias or self.name
+        key = alias or self
 
         # Add value override for own data if it is provided
         if self.name in kwargs:
@@ -333,11 +333,11 @@ class TensorFunction(SymbolicFunction):
                                  "dimensions %s" % (self.indices, ))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
-                values[key] = new._data_buffer
+                values[key.name] = new._data_buffer
                 values.update(new.argument_defaults(alias=key).reduce_all())
             else:
                 # We've been provided a pure-data replacement (array)
-                values[key] = new
+                values[key.name] = new
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
                     values.update(i.argument_defaults(size=s+o))
@@ -1011,14 +1011,9 @@ class SparseFunction(TensorFunction):
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
+        args = super(SparseFunction, self).argument_defaults(alias=alias)
+        args.update(self.coordinates.argument_defaults(alias=key.coordinates))
 
-        args = ArgumentMap({key.name: self._data_buffer})
-
-        # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
-            args.update(i.argument_defaults(size=s+o, alias=k))
-
-        args.update(self.coordinates.argument_defaults(alias=key.coordinates.name))
         return args
 
     def argument_values(self, alias=None, **kwargs):
