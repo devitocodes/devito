@@ -104,6 +104,7 @@ script:
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/gradient_example.py; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/tti/tti_example.py -a; fi
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/checkpointing/checkpointing_example.py; fi
 
