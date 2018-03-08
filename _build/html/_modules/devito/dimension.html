@@ -256,13 +256,15 @@
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">,)</span>
 
-<div class="viewcode-block" id="Dimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="Dimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of default argument values defined by this symbol.</span>
 
 <span class="sd">        :param size: Optional, known size as provided by data-carrying symbols</span>
-<span class="sd">        &quot;&quot;&quot;</span></div>
-        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
+</div>
+        <span class="k">return</span> <span class="p">{</span><span class="n">dim</span><span class="o">.</span><span class="n">start_name</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">end_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
 
 <div class="viewcode-block" id="Dimension.argument_values"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -378,7 +380,7 @@
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">)</span>
 
-<div class="viewcode-block" id="SubDimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_defaults</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_defaults</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of default argument values defined by this symbol.</span>
 
@@ -472,7 +474,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span>
 
-<div class="viewcode-block" id="SteppingDimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="SteppingDimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of default argument values defined by this symbol.</span>
 

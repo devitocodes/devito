@@ -467,12 +467,12 @@
 
 <span class="sd">        :param alias: (Optional) name under which to store values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="n">ArgumentMap</span><span class="p">({</span><span class="n">key</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_buffer</span><span class="p">})</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">ArgumentMap</span><span class="p">({</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_buffer</span><span class="p">})</span>
 
         <span class="c1"># Collect default dimension arguments from all indices</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">):</span>
-            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">,</span> <span class="n">key</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="n">k</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">args</span>
 
@@ -484,7 +484,7 @@
 <span class="sd">        :param alias: (Optional) name under which to store values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
 
         <span class="c1"># Add value override for own data if it is provided</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
@@ -494,11 +494,11 @@
                                  <span class="s2">&quot;dimensions </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="p">))</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">TensorFunction</span><span class="p">):</span>
                 <span class="c1"># Set new values and re-derive defaults</span>
-                <span class="n">values</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">_data_buffer</span>
+                <span class="n">values</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">_data_buffer</span>
                 <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">())</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># We&#39;ve been provided a pure-data replacement (array)</span>
-                <span class="n">values</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span>
+                <span class="n">values</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span>
                 <span class="c1"># Add value overrides for all associated dimensions</span>
                 <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">new</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">):</span>
                     <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="p">))</span>
@@ -1171,8 +1171,10 @@
 
 <span class="sd">        :param alias: (Optional) name under which to store values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
         <span class="n">args</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">SparseFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">)</span>
-        <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">())</span></div>
+        <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="o">.</span><span class="n">coordinates</span><span class="p">))</span>
+</div>
         <span class="k">return</span> <span class="n">args</span>
 
 <div class="viewcode-block" id="SparseFunction.argument_values"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -1185,18 +1187,16 @@
         <span class="c1"># Take a copy of the replacement before super pops it from kwargs</span>
 
         <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
-
-        <span class="n">values</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">SparseFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
 
         <span class="k">if</span> <span class="n">new</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">SparseFunction</span><span class="p">):</span>
             <span class="c1"># If we&#39;ve been replaced with a SparseFunction,</span>
             <span class="c1"># we need to re-derive defaults and values...</span>
-            <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">())</span>
-            <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">argument_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># ..., but if not, we simply need to recurse over children.</span>
-            <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span></div></div>
+            <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</div></div>
         <span class="k">return</span> <span class="n">values</span>
 
 
