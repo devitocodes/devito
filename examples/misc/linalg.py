@@ -3,7 +3,8 @@ import click
 from devito import Eq, Operator, Function, dimensions, info
 from devito.tools import as_tuple
 
-__all__ = ['mat_vec', 'transpose', 'transpose_mat_vec', 'mat_mat', 'mat_mat_sum']
+__all__ = ['mat_vec', 'transpose', 'transpose_mat_vec', 'mat_mat', 'mat_mat_sum',
+           'chain_contractions']
 
 
 @click.group(chain=True)
@@ -93,6 +94,20 @@ def cli_mat_mat_sum(mat_shape, optimize, **kwargs):
     mat_mat_sum(A, B, C, D, optimize)
 
 
+@linalg.command(name='chain-contractions')
+@option_basic
+def cli_chain_contractions(mat_shape, optimize, **kwargs):
+    """``AB + AC = D, DE = F``."""
+    i, j, k, l = dimensions('i j k l')
+    A = Function(name='A', shape=mat_shape, dimensions=(i, j))
+    B = Function(name='B', shape=mat_shape, dimensions=(j, k))
+    C = Function(name='C', shape=mat_shape, dimensions=(j, k))
+    D = Function(name='D', shape=mat_shape, dimensions=(i, k))
+    E = Function(name='E', shape=mat_shape, dimensions=(k, l))
+    F = Function(name='F', shape=mat_shape, dimensions=(i, l))
+    chain_contractions(A, B, C, D, E, F, optimize)
+
+
 def mat_vec(A, x, b, optimize):
     """``Ax = b``."""
     op = Operator(Eq(b, A*x), dle=optimize)
@@ -128,6 +143,13 @@ def mat_mat_sum(A, B, C, D, optimize):
     op = Operator(Eq(D, A*B + A*C), dle=optimize)
     op.apply()
     info('Executed `AB + AC = D`')
+
+
+def chain_contractions(A, B, C, D, E, F, optimize):
+    """``AB + AC = D, DE = F``."""
+    op = Operator([Eq(D, A*B + A*C), Eq(F, D*E)], dle=optimize)
+    op.apply()
+    info('Executed `AB + AC = D, DE = F`')
 
 
 if __name__ == "__main__":
