@@ -6,8 +6,8 @@ from devito.exceptions import InvalidArgument
 from devito.logger import warning
 from devito.types import AbstractSymbol, Scalar, Symbol
 
-__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension',
-           'SubDimension', 'ConditionalDimension', 'dimensions']
+__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
+           'SteppingDimension', 'SubDimension', 'ConditionalDimension']
 
 
 class Dimension(AbstractSymbol):
@@ -16,6 +16,7 @@ class Dimension(AbstractSymbol):
     is_Space = False
     is_Time = False
 
+    is_Default = False
     is_Derived = False
     is_NonlinearDerived = False
     is_Sub = False
@@ -228,6 +229,20 @@ class TimeDimension(Dimension):
     :param name: Name of the dimension symbol.
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
+
+
+class DefaultDimension(Dimension):
+    is_Default = True
+
+    def __new__(cls, name, **kwargs):
+        newobj = sympy.Symbol.__new__(cls, name)
+        newobj._spacing = kwargs.get('spacing', Scalar(name='h_%s' % name))
+        newobj.default_value = kwargs.get('default_value', None)
+        return newobj
+
+    def argument_defaults(self, size=None):
+        value = self.default_value
+        return {self.start_name: 0, self.end_name: value, self.size_name: value}
 
 
 class DerivedDimension(Dimension):
@@ -480,7 +495,6 @@ class LoweredDimension(Dimension):
 def dimensions(names):
     """
     Shortcut for: ::
-
         dimensions('i j k') -> [Dimension('i'), Dimension('j'), Dimension('k')]
     """
     assert type(names) == str

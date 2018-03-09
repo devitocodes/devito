@@ -1,9 +1,11 @@
 import numpy as np
 import pytest
 from conftest import skipif_yask
+from math import sin, floor
 
 from devito.cgen_utils import FLOAT
 from devito import Grid, Operator, Function, SparseFunction, Dimension
+from devito.function import PrecomputedSparseFunction
 from examples.seismic import demo_model, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
 
@@ -48,6 +50,48 @@ def custom_points(grid, ranges, npoints, name='points'):
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
+
+
+def precompute_linear_interpolation(points, grid, origin):
+    gridpoints = [tuple(floor((point[i]-origin[i])/grid.spacing[i])
+                        for i in range(len(point))) for point in points]
+
+    coefficients = np.zeros((len(points), 2, 2))
+    for i, point in enumerate(points):
+        for d in range(grid.dim):
+            coefficients[i, d, 0] = ((gridpoints[i][d] + 1)*grid.spacing[d] -
+                                     point[d])/grid.spacing[d]
+            coefficients[i, d, 1] = (point[d]-gridpoints[i][d]*grid.spacing[d])\
+                / grid.spacing[d]
+    return gridpoints, coefficients
+
+
+def test_precomputed_interpolation():
+    shape = (101, 101)
+    points = [(.05, .9), (.01, .8), (0.07, 0.84)]
+    origin = (0, 0)
+
+    grid = Grid(shape=shape, origin=origin)
+    r = 2  # Constant for linear interpolation
+    #  because we interpolate across 2 neighbouring points in each dimension
+
+    def init(data):
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                data[i, j] = sin(grid.spacing[0]*i) + sin(grid.spacing[1]*j)
+        return data
+
+    m = Function(name='m', grid=grid, initializer=init)
+
+    gridpoints, coefficients = precompute_linear_interpolation(points, grid, origin)
+
+    sf = PrecomputedSparseFunction(name='s', grid=grid, r=r, npoint=len(points),
+                                   gridpoints=gridpoints, coefficients=coefficients)
+    eqn = sf.interpolate(m)
+    op = Operator(eqn)
+    op()
+    expected_values = [sin(point[0]) + sin(point[1]) for point in points]
+    assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
 
 
 @skipif_yask
