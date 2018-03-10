@@ -3,7 +3,7 @@ import click
 from devito import Eq, Operator, Function, dimensions, info
 from devito.tools import as_tuple
 
-__all__ = ['mat_vec', 'transpose', 'transpose_mat_vec', 'mat_mat', 'mat_mat_sum',
+__all__ = ['mat_vec', 'transpose_mat_vec', 'mat_mat', 'mat_mat_sum',
            'chain_contractions']
 
 
@@ -49,15 +49,6 @@ def cli_mat_vec(mat_shape, vec_shape, optimize, **kwargs):
     x = Function(name='x', shape=vec_shape, dimensions=(j,))
     b = Function(name='b', shape=vec_shape, dimensions=(i,))
     mat_vec(A, x, b, optimize)
-
-
-@linalg.command(name='transpose')
-@option_basic
-def cli_transpose(mat_shape, optimize, **kwargs):
-    """``A -> A^T``."""
-    i, j = dimensions('i j')
-    A = Function(name='A', shape=mat_shape, dimensions=(i, j))
-    transpose(A, optimize)
 
 
 @linalg.command(name='transpose-mat-vec')
@@ -115,18 +106,10 @@ def mat_vec(A, x, b, optimize):
     info('Executed `Ax = b`')
 
 
-def transpose(A, optimize):
-    """``A -> A^T``."""
-    i, j = A.indices
-    op = Operator(Eq(A, A.indexed[j, i]), dle=optimize)
-    op.apply()
-    info('Executed `A -> A^T`')
-
-
 def transpose_mat_vec(A, x, b, optimize):
     """``A -> A^T, A^Tx = b``."""
     i, j = A.indices
-    op = Operator([Eq(A, A.indexed[j, i]), Eq(b, A*x)], dle=optimize)
+    op = Operator([Eq(b, A.indexed[j, i]*x)], dle=optimize)
     op.apply()
     info('Executed `A^Tx = b`')
 
