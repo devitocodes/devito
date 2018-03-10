@@ -3,13 +3,13 @@ from __future__ import absolute_import
 from functools import reduce
 from operator import mul
 
-from sympy import finite_diff_weights
+from sympy import finite_diff_weights, Function
 
 from devito.logger import error
-
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative',
-           'left', 'right', 'centered']
+           'sparse_cross_derivative', 'sparse_generic_derivative',
+           'left', 'right', 'centered', 'sparse_fd_list']
 
 
 class Transpose(object):
@@ -172,7 +172,9 @@ def first_derivative(*args, **kwargs):
     side = kwargs.get('side', centered).adjoint(matvec)
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    if side == right:
+    if order == 1:
+        ind = [dim, dim - diff] if side == left else [dim, dim + diff]
+    elif side == right:
         ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
     elif side == left:
@@ -207,7 +209,8 @@ def generic_derivative(function, deriv_order, dim, fd_order):
     """
 
     deriv = function.diff(*(tuple(dim for _ in range(deriv_order))))
-    indices = [(dim + i * dim.spacing) for i in range(-fd_order, fd_order + 1)]
+    width = int(fd_order/2)
+    indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
     return deriv.as_finite_difference(indices)
 
 
@@ -221,3 +224,196 @@ def second_cross_derivative(function, dims, order):
     """
     first = second_derivative(function, dim=dims[0], width=order)
     return second_derivative(first, dim=dims[1], order=order)
+
+
+def sparse_generic_derivative(func, deriv_order, dim, fd_order):
+    """
+    First order spatial derivative of a SparseFunction. Consitent with Dipole sources
+    in geopphysics, the finite-differences are computed on 2 times finer grid (h_x/2).
+    This does not return a finite-difference
+    expression but a list of (weight, offset) to construct the interpolation at
+    the finite-difference locations.
+    e.g, for space_order = 1 it returns in 3D
+    [(1/h_x, (-h_x/2, 0, 0) ), (0, (0, 0, 0)), (-1/h_x, (h_x/2, 0, 0))]
+
+    These derivatives are to be used in combination with 'inject'.
+    """
+    # Check number of dimension and which dimension to set offset to
+    if hasattr(func, 'space_dimensions'):
+        spc_dims = func.space_dimensions
+    else:
+        spc_dims = [f.space_dimensions for f in func.args
+                    if hasattr(f, 'space_dimensions')][0]
+    offsets = lambda x, y: dict([(d, 0) if d != x else (x, y)
+                                 for d in spc_dims])
+    # Computes fd offsets and cofficients
+    indices = [(dim + i * dim.spacing) for i in range(-fd_order, fd_order + 1)]
+    coeffs = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
+    coeffs = [c.subs({dim: 0}) for c in coeffs[::-1]]
+    indices = [offsets(dim, i.subs({dim: 0})) for i in indices]
+    # Build fd List
+    if isinstance(func, sparse_fd_list):
+        fd = [(w*f[0], sum_dict(pos, f[1])) for w, pos in zip(coeffs, indices)
+              for f in func]
+    else:
+        fd = sparse_fd_list([(w*func, pos) for w, pos in zip(coeffs, indices)])
+    return fd.simplify()
+
+
+def sparse_cross_derivative(func, dims, fd_order):
+    """
+    Derives cross derivative for a product of given sparse functions. This does not
+    return a finite-difference expression but a list of (weight, offset) to construct
+    the interpolation at the finite-difference locations.
+
+    :param dims: 2-tuple of symbols defining the dimension wrt. which
+       to differentiate, eg. `x`, `y`, `z`.
+    :returns: The cross derivative
+    """
+    # Check number of dimension and which dimension to set offset to
+    if hasattr(func, 'space_dimensions'):
+        spc_dims = func.space_dimensions
+    else:
+        spc_dims = [f.space_dimensions for f in func.args
+                    if hasattr(f, 'space_dimensions')][0]
+
+    offsets = lambda x, y: dict([(d, 0) for d in spc_dims if d not in x] +
+                                [(xx, yy) for xx, yy in zip(x, y)])
+    # First dimension
+    indices1 = [(dims[0] + i * dims[0].spacing/2) for i in range(-fd_order, fd_order + 1)]
+    coeffs1 = finite_diff_weights(1, indices1, dims[0])[-1][-1]
+    coeffs1 = [c.subs({dims[0]: 0}) for c in coeffs1[::-1]]
+    indices1 = [i.subs({dims[0]: 0}) for i in indices1]
+    # Second dimension
+    indices2 = [(dims[1] + i * dims[1].spacing/2) for i in range(-fd_order, fd_order + 1)]
+    coeffs2 = finite_diff_weights(1, indices2, dims[1])[-1][-1]
+    coeffs2 = [c.subs({dims[1]: 0}) for c in coeffs2[::-1]]
+    indices2 = [i.subs({dims[1]: 0}) for i in indices2]
+    if isinstance(func, sparse_fd_list):
+        cross = [(w1*w2*f[0], sum_dict(f[1], offsets(dims, (h1, h2))))
+                 for (w2, h2) in zip(coeffs2, indices2)
+                 for (w1, h1) in zip(coeffs1, indices1) for f in func]
+    else:
+        cross = [[(w1*w2*func, offsets(dims, (h1, h2)))
+                 for (w2, h2) in zip(coeffs2, indices2)]
+                 for (w1, h1) in zip(coeffs1, indices1)]
+    return sparse_fd_list(cross).simplify()
+
+
+class sparse_fd_list(list):
+    """
+    A list of tuples (weight, position) for sparse finite differences
+    """
+    @property
+    def space_dimensions(self):
+        return tuple(self[0][1].keys())
+
+    def __add__(self, other):
+        """
+        Overload addition of two fd list or addition with a constant
+        The constant is either a symbolic expression or function
+        """
+        if isinstance(other, sparse_fd_list):
+            return sparse_fd_list(super(sparse_fd_list, self).__add__(other)).simplify()
+        else:
+            default_offset = dict((k, 0) for k in self[0][1].keys())
+            if isinstance(other, Function):
+                new = sparse_fd_list([(other, default_offset)])
+            else:
+                new = sparse_fd_list([(o, default_offset) for o in other.args])
+            return sparse_fd_list(super(sparse_fd_list, self).__add__(new)).simplify()
+
+    def __radd__(self, other):
+        """
+        Overload addition of two fd list or addition with a constant
+        The constant is either a symbolic expression or function
+        """
+        if other == 0:
+            return self
+        elif isinstance(other, sparse_fd_list):
+            return sparse_fd_list(super(sparse_fd_list, self).__add__(other)).simplify()
+        else:
+            default_offset = dict((k, 0) for k in self[0][1].keys())
+            if isinstance(other, Function):
+                new = sparse_fd_list([(other, default_offset)])
+            else:
+                new = sparse_fd_list([(o, default_offset) for o in other.args])
+            return sparse_fd_list(super(sparse_fd_list, self).__add__(new)).simplify()
+
+    def __iadd__(self, other):
+        """
+        Overload addition of two fd list or addition with a constant
+        The constant is either a symbolic expression or function
+        """
+        if isinstance(other, sparse_fd_list):
+            return sparse_fd_list(super(sparse_fd_list, self).__iadd__(other)).simplify()
+        else:
+            default_offset = dict((k, 0) for k in self[0][1].keys())
+            if isinstance(other, Function):
+                new = sparse_fd_list([(other, default_offset)])
+            else:
+                new = sparse_fd_list([(o, default_offset) for o in other.args])
+            return sparse_fd_list(super(sparse_fd_list, self).__iadd__(new)).simplify()
+
+    def __mul__(self, other_list):
+        """
+        Overload of the multiplication by a constant. FD offsets stay unchanged and
+        weights are multiplied by the constant (symbolic or value)
+        """
+        return sparse_fd_list([(i[0] * other_list, i[1]) for i in self]).simplify()
+
+    def __rmul__(self, constant):
+        """
+        Overload of the multiplication by a constant. FD offsets stay unchanged and
+        weights are multiplied by the constant (symbolic or value)
+        """
+        return sparse_fd_list([(i[0] * constant, i[1]) for i in self]).simplify()
+
+    def __floordiv__(self, constant):
+        """
+        Overload of the division by a constant. FD offsets stay unchanged and
+        weights are divided by the constant (symbolic or value)
+        """
+        return sparse_fd_list([(i[0] / constant, i[1]) for i in self]).simplify()
+
+    def __truediv__(self, constant):
+        """
+        Overload of the division by a constant. FD offsets stay unchanged and
+        weights are divided by the constant (symbolic or value)
+        """
+        return sparse_fd_list([(i[0] / constant, i[1]) for i in self]).simplify()
+
+    def simplify(self):
+        """
+        Remove 0 coefficient terms and sums common fd offset terms
+        """
+        offsets = self.unique_offset()
+        out = []
+        for off in offsets:
+            w = 0
+            for v, offs in self:
+                w += v if offs == off else 0
+            out += [(w, off)]
+        return sparse_fd_list([f for f in out if f[0] != 0])
+
+    def unique_offset(self):
+        """
+        Utility funstion that returns the list of unique FD offset for factorization
+        """
+        unique = []
+        for _, off in self:
+            if off not in unique:
+                unique.append(off)
+        return unique
+
+
+def sum_dict(d1, d2):
+    """
+    Sum two dictionaries with overlaping or common keys
+    """
+    d3 = dict()
+    for k, v in d1.items():
+        d3[k] = v
+    for k, v in d2.items():
+        d3[k] += v
+    return d3

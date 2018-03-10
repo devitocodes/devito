@@ -38,9 +38,9 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     time = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time, space_order=1)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    # src.coordinates.data[0, -1] = model.origin[-1] + 4 * spacing[-1]
 
     # Define receiver geometry (spread across x, just below surface)
     rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
