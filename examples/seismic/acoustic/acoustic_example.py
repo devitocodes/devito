@@ -64,6 +64,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
+    # Define receiver geometry (spread across x, just below surface)
     rec, u, summary = solver.forward(save=full_run, autotune=autotune)
 
     if constant:
