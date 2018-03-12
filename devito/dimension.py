@@ -5,7 +5,7 @@ from cached_property import cached_property
 from devito.types import AbstractSymbol, Scalar, Symbol
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension',
-           'SubDimension', 'ConditionalDimension']
+           'SubDimension', 'ConditionalDimension', 'dimensions']
 
 
 class Dimension(AbstractSymbol):
@@ -369,3 +369,13 @@ class LoweredDimension(Dimension):
 
     def _hashable_content(self):
         return Symbol._hashable_content(self) + (self.origin,)
+
+
+def dimensions(names):
+    """
+    Shortcut for: ::
+
+        dimensions('i j k') -> [Dimension('i'), Dimension('j'), Dimension('k')]
+    """
+    assert type(names) == str
+    return tuple(Dimension(i) for i in names.split())
