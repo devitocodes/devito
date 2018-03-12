@@ -17,6 +17,7 @@
 ./_build/doctrees/environment.pickle
 ./_build/doctrees/examples.cfd.doctree
 ./_build/doctrees/examples.doctree
+./_build/doctrees/examples.misc.doctree
 ./_build/doctrees/examples.seismic.acoustic.doctree
 ./_build/doctrees/examples.seismic.doctree
 ./_build/doctrees/examples.seismic.tti.doctree
@@ -81,6 +82,7 @@
 ./_build/html/_modules/devito/types.html
 ./_build/html/_modules/examples/cfd/example_diffusion.html
 ./_build/html/_modules/examples/cfd/tools.html
+./_build/html/_modules/examples/misc/linalg.html
 ./_build/html/_modules/examples/seismic/acoustic/acoustic_example.html
 ./_build/html/_modules/examples/seismic/acoustic/gradient_example.html
 ./_build/html/_modules/examples/seismic/acoustic/operators.html
@@ -110,6 +112,7 @@
 ./_build/html/_sources/devito.symbolics.rst.txt
 ./_build/html/_sources/download.rst.txt
 ./_build/html/_sources/examples.cfd.rst.txt
+./_build/html/_sources/examples.misc.rst.txt
 ./_build/html/_sources/examples.rst.txt
 ./_build/html/_sources/examples.seismic.acoustic.rst.txt
 ./_build/html/_sources/examples.seismic.rst.txt
@@ -169,6 +172,7 @@
 ./_build/html/download.html
 ./_build/html/examples.cfd.html
 ./_build/html/examples.html
+./_build/html/examples.misc.html
 ./_build/html/examples.seismic.acoustic.html
 ./_build/html/examples.seismic.html
 ./_build/html/examples.seismic.tti.html
@@ -197,6 +201,7 @@
 ./devito.symbolics.rst
 ./download.rst
 ./examples.cfd.rst
+./examples.misc.rst
 ./examples.rst
 ./examples.seismic.acoustic.rst
 ./examples.seismic.rst

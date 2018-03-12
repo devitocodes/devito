@@ -1,0 +1,366 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>examples.misc.linalg &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>examples.misc.linalg</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for examples.misc.linalg</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">click</span>
+
+<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Operator</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">info</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mat_vec&#39;</span><span class="p">,</span> <span class="s1">&#39;transpose_mat_vec&#39;</span><span class="p">,</span> <span class="s1">&#39;mat_mat&#39;</span><span class="p">,</span> <span class="s1">&#39;mat_mat_sum&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;chain_contractions&#39;</span><span class="p">]</span>
+
+
+<span class="nd">@click</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="n">chain</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">linalg</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A set of kernels performing basic (BLAS-like) linear algebra operations.</span>
+
+<span class="sd">    Upper-case letters ``A, B, C, ...`` are for matrices; lower-case letters</span>
+<span class="sd">    ``x, y, ...`` are for vectors.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+
+<span class="k">def</span> <span class="nf">option_basic</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">callback_shape</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">callback_opts</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="s1">&#39;blocking,simd,openmp&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;blockalways&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;blockinner&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;noop&#39;</span>
+
+    <span class="n">options</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-ms&#39;</span><span class="p">,</span> <span class="s1">&#39;--mat-shape&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Matrix shape&#39;</span><span class="p">),</span>
+        <span class="n">click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-vs&#39;</span><span class="p">,</span> <span class="s1">&#39;--vec-shape&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Vector shape&#39;</span><span class="p">,</span>
+                     <span class="n">callback</span><span class="o">=</span><span class="n">callback_shape</span><span class="p">),</span>
+        <span class="n">click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="s1">&#39;--optimize&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">is_flag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                     <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Generate optimized code&#39;</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">callback_opts</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">options</span><span class="p">):</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">option</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span>
+
+
+<span class="nd">@linalg</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;mat-vec&#39;</span><span class="p">)</span>
+<span class="nd">@option_basic</span>
+<span class="k">def</span> <span class="nf">cli_mat_vec</span><span class="p">(</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">vec_shape</span><span class="p">,</span> <span class="n">optimize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``Ax = b``.&quot;&quot;&quot;</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">=</span> <span class="n">dimensions</span><span class="p">(</span><span class="s1">&#39;i j&#39;</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">vec_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">j</span><span class="p">,))</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">vec_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,))</span>
+    <span class="n">mat_vec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">optimize</span><span class="p">)</span>
+
+
+<span class="nd">@linalg</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;transpose-mat-vec&#39;</span><span class="p">)</span>
+<span class="nd">@option_basic</span>
+<span class="k">def</span> <span class="nf">cli_transpose_mat_vec</span><span class="p">(</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">vec_shape</span><span class="p">,</span> <span class="n">optimize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``A -&gt; A^T, A^Tx = b``.&quot;&quot;&quot;</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">=</span> <span class="n">dimensions</span><span class="p">(</span><span class="s1">&#39;i j&#39;</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">vec_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">j</span><span class="p">,))</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">vec_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,))</span>
+    <span class="n">transpose_mat_vec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">optimize</span><span class="p">)</span>
+
+
+<span class="nd">@linalg</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;mat-mat&#39;</span><span class="p">)</span>
+<span class="nd">@option_basic</span>
+<span class="k">def</span> <span class="nf">cli_mat_mat</span><span class="p">(</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">optimize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``AB = C``.&quot;&quot;&quot;</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="n">dimensions</span><span class="p">(</span><span class="s1">&#39;i j k&#39;</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="n">mat_mat</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">optimize</span><span class="p">)</span>
+
+
+<span class="nd">@linalg</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;mat-mat-sum&#39;</span><span class="p">)</span>
+<span class="nd">@option_basic</span>
+<span class="k">def</span> <span class="nf">cli_mat_mat_sum</span><span class="p">(</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">optimize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``AB + AC = D``.&quot;&quot;&quot;</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="n">dimensions</span><span class="p">(</span><span class="s1">&#39;i j k&#39;</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="n">D</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="n">mat_mat_sum</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">optimize</span><span class="p">)</span>
+
+
+<span class="nd">@linalg</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;chain-contractions&#39;</span><span class="p">)</span>
+<span class="nd">@option_basic</span>
+<span class="k">def</span> <span class="nf">cli_chain_contractions</span><span class="p">(</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">optimize</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``AB + AC = D, DE = F``.&quot;&quot;&quot;</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">l</span> <span class="o">=</span> <span class="n">dimensions</span><span class="p">(</span><span class="s1">&#39;i j k l&#39;</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="n">D</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;E&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">l</span><span class="p">))</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;F&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">mat_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">l</span><span class="p">))</span>
+    <span class="n">chain_contractions</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">E</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">optimize</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="mat_vec"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.mat_vec">[docs]</a><span class="k">def</span> <span class="nf">mat_vec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``Ax = b``.&quot;&quot;&quot;</span>
+    <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">x</span><span class="p">),</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `Ax = b`&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="transpose_mat_vec"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.transpose_mat_vec">[docs]</a><span class="k">def</span> <span class="nf">transpose_mat_vec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``A -&gt; A^T, A^Tx = b``.&quot;&quot;&quot;</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">indices</span>
+    <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">A</span><span class="o">.</span><span class="n">indexed</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">x</span><span class="p">)],</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `A^Tx = b`&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="mat_mat"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.mat_mat">[docs]</a><span class="k">def</span> <span class="nf">mat_mat</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``AB = C``.&quot;&quot;&quot;</span>
+    <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">B</span><span class="p">),</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB = C`&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="mat_mat_sum"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.mat_mat_sum">[docs]</a><span class="k">def</span> <span class="nf">mat_mat_sum</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``AB + AC = D``.&quot;&quot;&quot;</span>
+    <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">D</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">B</span> <span class="o">+</span> <span class="n">A</span><span class="o">*</span><span class="n">C</span><span class="p">),</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB + AC = D`&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="chain_contractions"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.chain_contractions">[docs]</a><span class="k">def</span> <span class="nf">chain_contractions</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">E</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``AB + AC = D, DE = F``.&quot;&quot;&quot;</span>
+    <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">D</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">B</span> <span class="o">+</span> <span class="n">A</span><span class="o">*</span><span class="n">C</span><span class="p">),</span> <span class="n">Eq</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">D</span><span class="o">*</span><span class="n">E</span><span class="p">)],</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB + AC = D, DE = F`&#39;</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">linalg</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
