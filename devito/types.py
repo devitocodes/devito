@@ -56,6 +56,8 @@ class Basic(object):
     is_SymbolicData = False
     is_Array = False
 
+    # Created by the user
+    is_Input = False
     # Scalar symbolic objects created by the user
     is_Dimension = False
     is_Constant = False
