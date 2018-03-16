@@ -168,9 +168,10 @@
 <span class="kn">from</span> <span class="nn">devito.symbolics.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_functions</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Symbol</span> <span class="k">as</span> <span class="n">dSymbol</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;freeze_expression&#39;</span><span class="p">,</span> <span class="s1">&#39;xreplace_constrained&#39;</span><span class="p">,</span> <span class="s1">&#39;xreplace_indices&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;pow_to_mul&#39;</span><span class="p">,</span> <span class="s1">&#39;as_symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;indexify&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;pow_to_mul&#39;</span><span class="p">,</span> <span class="s1">&#39;as_symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;indexify&#39;</span><span class="p">,</span> <span class="s1">&#39;convert_to_SSA&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="freeze_expression"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.freeze_expression">[docs]</a><span class="k">def</span> <span class="nf">freeze_expression</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -358,6 +359,34 @@
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
             <span class="k">pass</span></div>
     <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="convert_to_SSA"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.convert_to_SSA">[docs]</a><span class="k">def</span> <span class="nf">convert_to_SSA</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert an iterable of :class:`Eq`s into Static Single Assignment form.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Identify recurring LHSs</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="c1"># Optimization: don&#39;t waste time reconstructing stuff if already in SSA form</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">seen</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+        <span class="k">return</span> <span class="n">exprs</span>
+    <span class="c1"># Do the SSA conversion</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+        <span class="n">where</span> <span class="o">=</span> <span class="n">seen</span><span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">where</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">where</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">i</span><span class="p">:</span>
+            <span class="c1"># LHS needs SSA form</span>
+            <span class="n">ssa_lhs</span> <span class="o">=</span> <span class="n">dSymbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ssa_t</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">c</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">ssa_lhs</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)))</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">ssa_lhs</span>
+            <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)))</span></div>
+    <span class="k">return</span> <span class="n">processed</span>
 </pre></div>
 
            </div>

@@ -166,7 +166,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span><span class="p">,</span>
-                              <span class="n">q_inc</span><span class="p">,</span> <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span><span class="p">)</span>
+                              <span class="n">convert_to_SSA</span><span class="p">,</span> <span class="n">q_inc</span><span class="p">,</span> <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FlowGraph&#39;</span><span class="p">]</span>
@@ -251,10 +251,10 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="c1"># Check input legality</span>
+        <span class="c1"># Always convert to SSA</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">convert_to_SSA</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
         <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Found redundant node, cannot build a FlowGraph.&quot;</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">exprs</span><span class="p">),</span> <span class="s2">&quot;not SSA Cluster?&quot;</span>
 
         <span class="c1"># Construct the Nodes, tracking reads and readby</span>
         <span class="n">tensor_map</span> <span class="o">=</span> <span class="n">DefaultOrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
@@ -343,25 +343,30 @@
         <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">q_timedimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">):</span>
             <span class="k">return</span> <span class="kc">False</span>
 
-        <span class="n">queue</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">]</span> <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span> <span class="k">else</span> <span class="p">[</span><span class="n">expr</span><span class="p">]</span>
+        <span class="n">queue</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span> <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span> <span class="k">else</span> <span class="n">expr</span><span class="p">]</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
         <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
             <span class="n">item</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-            <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">temporaries</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
-                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">j</span><span class="o">.</span><span class="n">is_Time</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                    <span class="c1"># Already inspected, nothing more can be inferred</span>
+                    <span class="k">continue</span>
+                <span class="k">elif</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">j</span><span class="o">.</span><span class="n">is_Time</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">):</span>
                     <span class="c1"># Definitely not time-invariant</span>
                     <span class="k">return</span> <span class="kc">False</span>
-                <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+                <span class="k">elif</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
                     <span class="c1"># Go on with the search</span>
-                    <span class="n">temporaries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                    <span class="n">temporaries</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                     <span class="c1"># Go on with the search, as /i/ is not a time dimension</span>
-                    <span class="k">continue</span>
+                    <span class="k">pass</span>
                 <span class="k">elif</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_SymbolicFunction</span><span class="p">:</span>
                     <span class="c1"># It didn&#39;t come from the outside and it&#39;s not in self, so</span>
                     <span class="c1"># cannot determine if time-invariant; assume time-varying</span>
                     <span class="k">return</span> <span class="kc">False</span>
-            <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">temporaries</span> <span class="k">if</span> <span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="o">!=</span> <span class="n">item</span><span class="p">])</span></div>
+                <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">temporaries</span><span class="p">])</span></div>
         <span class="k">return</span> <span class="kc">True</span>
 
 <div class="viewcode-block" id="FlowGraph.is_index"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.is_index">[docs]</a>    <span class="k">def</span> <span class="nf">is_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
