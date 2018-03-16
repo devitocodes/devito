@@ -5,6 +5,7 @@ import inspect
 from collections import Callable, Iterable, OrderedDict, Hashable
 from functools import partial, wraps
 from itertools import chain, combinations, product, zip_longest
+from operator import attrgetter
 from subprocess import DEVNULL, PIPE, Popen, CalledProcessError, check_output
 import cpuinfo
 from distutils import version
@@ -105,7 +106,10 @@ def filter_ordered(elements, key=None):
 
 
 def filter_sorted(elements, key=None):
-    """Filter elements in a list and sort them by key"""
+    """Filter elements in a list and sort them by key. The default key is
+    ``operator.attrgetter('name')``."""
+    if key is None:
+        key = attrgetter('name')
     return sorted(filter_ordered(elements, key=key), key=key)
 
 
