@@ -177,6 +177,33 @@ class TestArithmetic(object):
         Operator(eqn)(a=fa)
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
+    def test_indexed_w_indirections(self):
+        """Test point-wise arithmetic with indirectly indexed :class:`Function`s."""
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+
+        p_poke = Dimension('p_src')
+        d = Dimension('d')
+
+        npoke = 1
+
+        u = Function(name='u', grid=grid, space_order=0)
+        coordinates = Function(name='coordinates', dimensions=(p_poke, d),
+                               shape=(npoke, grid.dim), space_order=0, dtype=np.int32)
+        coordinates.data[0, 0] = 4
+        coordinates.data[0, 1] = 3
+
+        poke_eq = Eq(u.indexed[coordinates.indexed[p_poke, 0],
+                               coordinates.indexed[p_poke, 1]], 1.0)
+        op = Operator(poke_eq)
+        op.apply(p_src_e=2)
+
+        ix, iy = np.where(u.data == 1.)
+        assert len(ix) == len(iy) == 1
+        assert ix[0] == 4 and iy[0] == 3
+        assert np.all(u.data[0:3] == 0.) and np.all(u.data[5:] == 0.)
+        assert np.all(u.data[:, 0:3] == 0.) and np.all(u.data[:, 5:] == 0.)
+
     def test_constant_time_dense(self):
         """Test arithmetic between different data objects, namely Constant
         and Function."""
