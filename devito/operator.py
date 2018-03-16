@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 from collections import OrderedDict
-from operator import attrgetter
 
 import ctypes
 import numpy as np
@@ -13,7 +12,6 @@ from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.function import Constant
 from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
@@ -21,8 +19,7 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
                            ArrayCast, PointerCast, derive_parameters)
 from devito.parameters import configuration
 from devito.profiling import create_profile
-from devito.symbolics import retrieve_terminals
-from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
+from devito.tools import as_tuple, flatten, filter_sorted, numpy_to_ctypes
 from devito.types import Object
 
 
@@ -75,7 +72,9 @@ class Operator(Callable):
         # Expression lowering and analysis
         expressions = [LoweredEq(e, subs=subs) for e in expressions]
         self.dtype = retrieve_dtype(expressions)
-        self.input, self.output, self.dimensions = retrieve_symbols(expressions)
+        self.input = filter_sorted(flatten(e.reads for e in expressions))
+        self.output = filter_sorted(flatten(e.writes for e in expressions))
+        self.dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
 
         # Group expressions based on their iteration space and data dependences,
         # and apply the Devito Symbolic Engine (DSE) for flop optimization
@@ -298,41 +297,6 @@ def retrieve_dtype(expressions):
     if len(lhss) != 1:
         raise RuntimeError("Expression types mismatch.")
     return lhss.pop()
-
-
-def retrieve_symbols(expressions):
-    """
-    Return the :class:`Function` and :class:`Dimension` objects appearing
-    in ``expressions``.
-    """
-    terms = flatten(retrieve_terminals(i) for i in expressions)
-
-    input = []
-    for i in terms:
-        try:
-            function = i.base.function
-        except AttributeError:
-            continue
-        if function.is_Constant or function.is_TensorFunction:
-            input.append(function)
-            for j in i.indices:
-                input.extend([k for k in j.free_symbols if isinstance(k, Constant)])
-    input = filter_sorted(input, key=attrgetter('name'))
-
-    output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
-    output = filter_sorted(output, key=attrgetter('name'))
-
-    indexeds = [i for i in terms if i.is_Indexed]
-    dimensions = []
-    for indexed in indexeds:
-        for i in indexed.indices:
-            dimensions.extend([k for k in i.free_symbols
-                               if isinstance(k, Dimension)])
-        dimensions.extend(list(indexed.base.function.indices))
-    dimensions.extend([d.parent for d in dimensions if d.is_Stepping])
-    dimensions = filter_sorted(dimensions, key=attrgetter('name'))
-
-    return input, output, dimensions
 
 
 # Misc helpers

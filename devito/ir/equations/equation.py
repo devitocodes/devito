@@ -2,7 +2,8 @@ from sympy import Eq
 
 from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
-from devito.ir.support import IterationSpace, Any, compute_intervals, compute_directions
+from devito.ir.support import (IterationSpace, Any, compute_intervals,
+                               compute_directions, detect_io)
 from devito.symbolics import FrozenExpr, dimension_sort, indexify
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
@@ -21,10 +22,6 @@ class IREq(object):
     @property
     def is_Tensor(self):
         return self.lhs.is_Indexed
-
-    @property
-    def dimensions(self):
-        return self.ispace.dimensions
 
 
 class LoweredEq(Eq, IREq):
@@ -90,6 +87,8 @@ class LoweredEq(Eq, IREq):
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
         expr.ispace = ispace
+        expr.dimensions = ordering
+        expr.reads, expr.writes = detect_io(expr)
 
         return expr
 
