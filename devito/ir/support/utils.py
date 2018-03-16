@@ -86,16 +86,9 @@ def detect_flow_directions(exprs):
     mapper.update({d: {Any} for d in flatten(i.aindices for i in reads + writes)
                    if d is not None and d not in mapper})
 
-    # Add in stepping dimensions (just in case they haven't been detected yet)
-    # note: stepping dimensions may force a direction on the parent
-    assert all(v == {Any} or mapper.get(k.parent, v) in [v, {Any}]
-               for k, v in mapper.items() if k.is_Stepping)
+    # Add in derived-dimensions parents, in case they haven't been detected yet
     mapper.update({k.parent: set(v) for k, v in mapper.items()
-                   if k.is_Stepping and mapper.get(k.parent) == {Any}})
-
-    # Add in derived dimensions parents
-    mapper.update({k.parent: set(v) for k, v in mapper.items()
-                   if k.is_Derived and k.parent not in mapper})
+                   if k.is_Derived and mapper.get(k.parent, {Any}) == {Any}})
 
     return mapper
 
