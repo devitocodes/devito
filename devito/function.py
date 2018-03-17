@@ -1035,7 +1035,7 @@ class SparseFunction(TensorFunction):
         else:
             # ..., but if not, we simply need to recurse over children.
             values = self.coordinates.argument_values(alias=key, **kwargs)
-            values[key.name] = new
+            values[key.name] = self._data_buffer if new is None else new
 
         return values
 
