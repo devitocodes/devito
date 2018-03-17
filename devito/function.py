@@ -1027,15 +1027,17 @@ class SparseFunction(TensorFunction):
 
         new = kwargs.get(self.name)
         key = alias or self
-
+        values = {}
+        
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
             values = new.argument_defaults(alias=key).reduce_all()
+            values.update(new.coordinates.argument_values(alias=key.coordinates, **kwargs))
         else:
             # ..., but if not, we simply need to recurse over children.
+            values[key.name] = key._data_buffer if new is None else new
             values = self.coordinates.argument_values(alias=key, **kwargs)
-            values[key.name] = self._data_buffer if new is None else new
 
         return values
 
