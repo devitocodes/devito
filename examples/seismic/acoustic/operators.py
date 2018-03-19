@@ -70,8 +70,10 @@ def ForwardOperator(model, source, receiver, space_order=4,
                      save=source.nt if save else None,
                      time_order=2, space_order=space_order)
     src = PointSource(name='src', grid=model.grid, ntime=source.nt,
+                      t0=source.t0, dt=source.dt,
                       npoint=source.npoint)
     rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
+                   t0=receiver.t0, dt=receiver.dt,
                    npoint=receiver.npoint)
 
     s = model.grid.stepping_dim.spacing
@@ -143,7 +145,8 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
                      else None, time_order=2, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
-    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
+    rec = Receiver(name='rec', grid=model.grid, 
+                   t0=receiver.t0, dt=receiver.dt, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
     s = model.grid.stepping_dim.spacing

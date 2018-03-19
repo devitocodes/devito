@@ -88,6 +88,7 @@ class AcousticWaveSolver(object):
         # Create a new receiver object to store the result
         if rec is None:
             rec = Receiver(name='rec', grid=self.model.grid,
+                           t0=src.t0, dt=src.dt,
                            ntime=self.receiver.nt,
                            coordinates=self.receiver.coordinates.data)
 
