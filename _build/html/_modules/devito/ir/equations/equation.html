@@ -163,7 +163,8 @@
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">SubDimension</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">DOMAIN</span><span class="p">,</span> <span class="n">INTERIOR</span>
-<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">IterationSpace</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">compute_intervals</span><span class="p">,</span> <span class="n">compute_directions</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="p">(</span><span class="n">IterationSpace</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">compute_intervals</span><span class="p">,</span>
+                               <span class="n">compute_directions</span><span class="p">,</span> <span class="n">detect_io</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">FrozenExpr</span><span class="p">,</span> <span class="n">dimension_sort</span><span class="p">,</span> <span class="n">indexify</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;LoweredEq&#39;</span><span class="p">,</span> <span class="s1">&#39;ClusterizedEq&#39;</span><span class="p">,</span> <span class="s1">&#39;IREq&#39;</span><span class="p">]</span>
@@ -180,12 +181,8 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Symbol</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_Tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">is_Tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">dimensions</span>
 
 
 <div class="viewcode-block" id="LoweredEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.LoweredEq">[docs]</a><span class="k">class</span> <span class="nc">LoweredEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">IREq</span><span class="p">):</span>
@@ -251,6 +248,8 @@
         <span class="n">expr</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">LoweredEq</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="s1">&#39;is_Increment&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="n">expr</span><span class="o">.</span><span class="n">ispace</span> <span class="o">=</span> <span class="n">ispace</span>
+        <span class="n">expr</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">ordering</span>
+        <span class="n">expr</span><span class="o">.</span><span class="n">reads</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">writes</span> <span class="o">=</span> <span class="n">detect_io</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">expr</span>
 

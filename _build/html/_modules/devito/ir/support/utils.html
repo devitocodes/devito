@@ -166,23 +166,19 @@
 <span class="kn">from</span> <span class="nn">devito.ir.support.basic</span> <span class="k">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">Scope</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support.space</span> <span class="k">import</span> <span class="n">Interval</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Any</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_sorted</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;compute_intervals&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_flow_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;compute_directions&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;force_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;group_expressions&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;force_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;group_expressions&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_io&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="compute_intervals"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.compute_intervals">[docs]</a><span class="k">def</span> <span class="nf">compute_intervals</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Return an iterable of :class:`Interval`s representing the data items</span>
 <span class="sd">    accessed by the :class:`sympy.Eq` ``expr``.&quot;&quot;&quot;</span>
-    <span class="c1"># Deep retrieval of indexed objects in /expr/</span>
-    <span class="n">indexeds</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
-    <span class="n">indexeds</span> <span class="o">+=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">)</span>
-
     <span class="c1"># Detect the indexeds&#39; offsets along each dimension</span>
     <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                 <span class="n">stencil</span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
@@ -229,6 +225,8 @@
             <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="n">w</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
                 <span class="k">continue</span>
             <span class="n">dimensions</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">w</span><span class="o">.</span><span class="n">aindices</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">dimensions</span><span class="p">:</span>
+                <span class="k">continue</span>
             <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">w</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
@@ -251,16 +249,9 @@
     <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">d</span><span class="p">:</span> <span class="p">{</span><span class="n">Any</span><span class="p">}</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">aindices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">reads</span> <span class="o">+</span> <span class="n">writes</span><span class="p">)</span>
                    <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">})</span>
 
-    <span class="c1"># Add in stepping dimensions (just in case they haven&#39;t been detected yet)</span>
-    <span class="c1"># note: stepping dimensions may force a direction on the parent</span>
-    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">v</span> <span class="o">==</span> <span class="p">{</span><span class="n">Any</span><span class="p">}</span> <span class="ow">or</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="n">v</span><span class="p">,</span> <span class="p">{</span><span class="n">Any</span><span class="p">}]</span>
-               <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">)</span>
+    <span class="c1"># Add in derived-dimensions parents, in case they haven&#39;t been detected yet</span>
     <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-                   <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="ow">and</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="n">Any</span><span class="p">}})</span>
-
-    <span class="c1"># Add in derived dimensions parents</span>
-    <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-                   <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Derived</span> <span class="ow">and</span> <span class="n">k</span><span class="o">.</span><span class="n">parent</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">})</span>
+                   <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Derived</span> <span class="ow">and</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">{</span><span class="n">Any</span><span class="p">})</span> <span class="o">==</span> <span class="p">{</span><span class="n">Any</span><span class="p">}})</span>
 </div>
     <span class="k">return</span> <span class="n">mapper</span>
 
@@ -352,6 +343,46 @@
     <span class="k">assert</span> <span class="nb">max</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span>
 </div>
     <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="detect_io"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_io">[docs]</a><span class="k">def</span> <span class="nf">detect_io</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">relax</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;``{exprs} -&gt; ({reads}, {writes})</span>
+
+<span class="sd">    :param exprs: The expressions inspected.</span>
+<span class="sd">    :param relax: (Optional) if False, as by default, collect only</span>
+<span class="sd">                  :class:`Constant`s and :class:`Function`s. Otherwise,</span>
+<span class="sd">                  collect any :class:`Basic`s.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">exprs</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">relax</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+        <span class="n">rule</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Input</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rule</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Scalar</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Tensor</span>
+
+    <span class="n">reads</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">):</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">candidates</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">})</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">rule</span><span class="p">(</span><span class="n">j</span><span class="p">):</span>
+                    <span class="n">reads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+    <span class="n">writes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">rule</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+            <span class="n">writes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+</div>
+    <span class="k">return</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">reads</span><span class="p">),</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span>
 </pre></div>
 
            </div>

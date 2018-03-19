@@ -846,6 +846,26 @@ for a given dimension in order to have a flow dependence), the function
 </div>
 </dd></dl>
 
+<dl class="function">
+<dt id="devito.ir.support.utils.detect_io">
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">detect_io</code><span class="sig-paren">(</span><em>exprs</em>, <em>relax=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#detect_io"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.detect_io" title="Permalink to this definition">¶</a></dt>
+<dd><p><a href="#id25"><span class="problematic" id="id26">``</span></a>{exprs} -&gt; ({reads}, {writes})</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>exprs</strong> – The expressions inspected.</li>
+<li><strong>relax</strong> – (Optional) if False, as by default, collect only
+:class:<a href="#id27"><span class="problematic" id="id28">`</span></a>Constant`s and :class:<a href="#id29"><span class="problematic" id="id30">`</span></a>Function`s. Otherwise,
+collect any :class:<a href="#id31"><span class="problematic" id="id32">`</span></a>Basic`s.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.ir.support">
 <span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.ir.support" title="Permalink to this headline">¶</a></h2>
