@@ -11,7 +11,7 @@ from conftest import EVAL
 
 from devito.dle import transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import Grid, Function, TimeFunction, Eq, Operator
+from devito import Grid, Function, TimeFunction, Eq, Operator, DOMAIN, INTERIOR
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
                            Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)
@@ -411,6 +411,26 @@ def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
         else:
             for k in pragmas:
                 assert 'omp for' not in k.value
+
+
+@skipif_yask
+@pytest.mark.parametrize('region', [DOMAIN, INTERIOR])
+def test_loops_ompized_regions(region):
+    """Tests generation of OpenMP pragmas when constraining equations to
+    prescribed regions."""
+    grid = Grid(shape=(20, 20))
+    x, y = grid.dimensions
+    t = grid.time_dim
+
+    u = TimeFunction(name='u', grid=grid, save=10, time_order=1)
+
+    # Note: there is a carried dependence in both /t/ and /x/
+    eqn = Eq(u.indexed[t+1, x, y], u.indexed[t+1, x-1, y] + u.indexed[t, x, y],
+             region=region)
+    op = Operator(eqn, dle='openmp')
+    iterations = FindNodes(Iteration).visit(op)
+    assert iterations[0].pragmas == iterations[1].pragmas == ()
+    assert 'omp for' in iterations[2].pragmas[0].value
 
 
 @skipif_yask
