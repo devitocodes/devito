@@ -64,6 +64,8 @@ def detect_flow_directions(exprs):
             if r.name != w.name:
                 continue
             dimensions = [d for d in w.aindices if d is not None]
+            if not dimensions:
+                continue
             for d in dimensions:
                 try:
                     if w.distance(r, d) > 0:
