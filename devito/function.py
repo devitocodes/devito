@@ -37,6 +37,7 @@ class Constant(AbstractCachedSymbol):
         symbolic function.
     """
 
+    is_Input = True
     is_Constant = True
     is_Scalar = True
 
@@ -89,6 +90,7 @@ class TensorFunction(SymbolicFunction):
         :class:`SparseFunction` (or their subclasses) instead.
     """
 
+    is_Input = True
     is_TensorFunction = True
     is_Tensor = True
 

@@ -14,9 +14,9 @@ from devito.cgen_utils import ccode
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
                            tagger, ntags)
-from devito.ir.support import Forward
+from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
-from devito.symbolics import as_symbol, retrieve_terminals
+from devito.symbolics import as_symbol
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 import devito.types as types
 
@@ -209,13 +209,9 @@ class Expression(Node):
         self.expr = expr
         self.dtype = dtype
 
-        # Traverse /expression/ to determine meta information
-        # Note: at this point, expressions have already been indexified
-        self.reads = [i for i in retrieve_terminals(self.expr.rhs)
-                      if isinstance(i, (types.Indexed, types.Symbol))]
-        self.reads = filter_ordered(self.reads)
-        # Filter collected dimensions and functions
-        self.dimensions = flatten(i.indices for i in self.functions)
+        self._functions = tuple(filter_ordered(flatten(detect_io(expr, relax=True))))
+
+        self.dimensions = flatten(i.indices for i in self.functions if i.is_Indexed)
         self.dimensions = filter_ordered(self.dimensions)
 
     def __repr__(self):
@@ -239,8 +235,7 @@ class Expression(Node):
 
     @property
     def functions(self):
-        functions = [self.write] + [i.base.function for i in self.reads]
-        return tuple(filter_ordered(functions))
+        return self._functions
 
     @property
     def defines(self):
@@ -329,7 +324,7 @@ class Iteration(Node):
         # Track this Iteration's properties, pragmas and unbounded indices
         properties = as_tuple(properties)
         assert (i in IterationProperty._KNOWN for i in properties)
-        self.properties = as_tuple(filter_sorted(properties, key=lambda i: i.name))
+        self.properties = as_tuple(filter_sorted(properties))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
         assert all(isinstance(i, UnboundedIndex) for i in self.uindices)

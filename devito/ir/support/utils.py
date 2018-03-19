@@ -5,23 +5,19 @@ from devito.dimension import Dimension
 from devito.ir.support.basic import Access, Scope
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
-from devito.symbolics import retrieve_indexed
-from devito.tools import as_tuple, flatten
+from devito.symbolics import retrieve_indexed, retrieve_terminals
+from devito.tools import as_tuple, flatten, filter_sorted
 
 __all__ = ['compute_intervals', 'detect_flow_directions', 'compute_directions',
-           'force_directions', 'group_expressions']
+           'force_directions', 'group_expressions', 'detect_io']
 
 
 def compute_intervals(expr):
     """Return an iterable of :class:`Interval`s representing the data items
     accessed by the :class:`sympy.Eq` ``expr``."""
-    # Deep retrieval of indexed objects in /expr/
-    indexeds = retrieve_indexed(expr, mode='all')
-    indexeds += flatten([retrieve_indexed(i) for i in e.indices] for e in indexeds)
-
     # Detect the indexeds' offsets along each dimension
     stencil = Stencil()
-    for e in indexeds:
+    for e in retrieve_indexed(expr, mode='all', deep=True):
         for a in e.indices:
             if isinstance(a, Dimension):
                 stencil[a].update([0])
@@ -68,6 +64,8 @@ def detect_flow_directions(exprs):
             if r.name != w.name:
                 continue
             dimensions = [d for d in w.aindices if d is not None]
+            if not dimensions:
+                continue
             for d in dimensions:
                 try:
                     if w.distance(r, d) > 0:
@@ -90,16 +88,9 @@ def detect_flow_directions(exprs):
     mapper.update({d: {Any} for d in flatten(i.aindices for i in reads + writes)
                    if d is not None and d not in mapper})
 
-    # Add in stepping dimensions (just in case they haven't been detected yet)
-    # note: stepping dimensions may force a direction on the parent
-    assert all(v == {Any} or mapper.get(k.parent, v) in [v, {Any}]
-               for k, v in mapper.items() if k.is_Stepping)
+    # Add in derived-dimensions parents, in case they haven't been detected yet
     mapper.update({k.parent: set(v) for k, v in mapper.items()
-                   if k.is_Stepping and mapper.get(k.parent) == {Any}})
-
-    # Add in derived dimensions parents
-    mapper.update({k.parent: set(v) for k, v in mapper.items()
-                   if k.is_Derived and k.parent not in mapper})
+                   if k.is_Derived and mapper.get(k.parent, {Any}) == {Any}})
 
     return mapper
 
@@ -191,3 +182,43 @@ def group_expressions(exprs):
     assert max(mapper.values()) == len(groups)
 
     return tuple(groups)
+
+
+def detect_io(exprs, relax=False):
+    """``{exprs} -> ({reads}, {writes})
+
+    :param exprs: The expressions inspected.
+    :param relax: (Optional) if False, as by default, collect only
+                  :class:`Constant`s and :class:`Function`s. Otherwise,
+                  collect any :class:`Basic`s.
+    """
+    exprs = as_tuple(exprs)
+    if relax is False:
+        rule = lambda i: i.is_Input
+    else:
+        rule = lambda i: i.is_Scalar or i.is_Tensor
+
+    reads = []
+    for i in flatten(retrieve_terminals(i, deep=True) for i in exprs):
+        candidates = i.free_symbols
+        try:
+            candidates.update({i.base.function})
+        except AttributeError:
+            pass
+        for j in candidates:
+            try:
+                if rule(j):
+                    reads.append(j)
+            except AttributeError:
+                pass
+
+    writes = []
+    for i in exprs:
+        try:
+            f = i.lhs.base.function
+        except AttributeError:
+            continue
+        if rule(f):
+            writes.append(f)
+
+    return filter_sorted(reads), filter_sorted(writes)
