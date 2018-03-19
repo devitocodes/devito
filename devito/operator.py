@@ -132,7 +132,7 @@ class Operator(Callable):
 
         # Handle dimensions (first adjust data-carriers-induced defaults, then overrides)
         for p in self.dimensions:
-            args.update(p._arg_infers(args, self._dspace[p]))
+            args.update(p._arg_infers(args, self._dspace[p], **kwargs))
         for p in self.dimensions:
             args.update(p._arg_values(**kwargs))
 

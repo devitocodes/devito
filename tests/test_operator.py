@@ -761,6 +761,34 @@ class TestArguments(object):
         assert (a.data[3:7, :] >= 2.).all()
         assert (a.data[8:, :] == 1.).all()
 
+    def test_argument_extent(self):
+        """Tests capability of executing exactly N iterations."""
+        grid = Grid(shape=(8,))
+        a = Function(name='a', grid=grid)
+        a.data[:] = 0.
+
+        # Basic (default) behaviour
+        op = Operator(Eq(a, a + 1))
+        op()
+        assert np.all(a.data == 1.)
+
+        # Now with min/max but no extent
+        op(x_m=1, x_M=6)
+        assert a.data[0] == 1. and a.data[-1] == 1.
+        assert np.all(a.data[1:7] == 2.)
+
+        # Now with min, extent and NO max
+        op(x_m=1, x_n=6)
+        assert a.data[0] == 1. and a.data[-1] == 1.
+        assert np.all(a.data[1:7] == 3.)
+
+        # Now with only extent (will start at x_m=0)
+        op(x_n=6)
+        assert a.data[0] == 2.
+        assert np.all(a.data[1:-2] == 4.)
+        assert a.data[-1] == 1.
+        assert a.data[-2] == 3.
+
 
 @skipif_yask
 class TestDeclarator(object):
