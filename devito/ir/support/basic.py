@@ -480,8 +480,7 @@ class Dependence(object):
             if dim is None:
                 return self.distance > 0
             else:
-                testdim = dim.parent if dim.is_Sub else dim
-                return self.cause == testdim
+                return any(i == self.cause for i in dim._defines)
         except TypeError:
             # Conservatively assume this is a carried dependence
             return True
@@ -492,8 +491,7 @@ class Dependence(object):
             if dim is None or self.source.is_irregular or self.sink.is_irregular:
                 return self.distance == 0
             else:
-                testdim = dim.parent if dim.is_Sub else dim
-                return self.cause != testdim
+                return all(i != self.cause for i in dim._defines)
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False
