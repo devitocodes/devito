@@ -1,3 +1,5 @@
+from scipy import signal
+
 from devito import Dimension
 from devito.function import SparseTimeFunction
 from devito.logger import error
@@ -8,8 +10,11 @@ try:
 except:
     plt = None
 
-__all__ = ['PointSource', 'Receiver', 'Shot', 'RickerSource', 'GaborSource']
+__all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
+           'RickerSource', 'GaborSource']
 
+
+import sys, traceback
 
 class PointSource(SparseTimeFunction):
     """Symbolic data object for a set of sparse point sources
@@ -17,6 +22,8 @@ class PointSource(SparseTimeFunction):
     :param name: Name of the symbol representing this source
     :param grid: :class:`Grid` object defining the computational domain.
     :param coordinates: Point coordinates for this source
+    :param t0: Time origin for the data
+    :param dt: Time interval between data points in ms
     :param data: (Optional) Data values to initialise point data
     :param ntime: (Optional) Number of timesteps for which to allocate data
     :param npoint: (Optional) Number of sparse points represented by this source
@@ -27,7 +34,7 @@ class PointSource(SparseTimeFunction):
     initialised `data` array need to be provided.
     """
 
-    def __new__(cls, name, grid, ntime=None, npoint=None, data=None,
+    def __new__(cls, name, grid, t0=None, dt=None, ntime=None, time=None, npoint=None, data=None,
                 coordinates=None, **kwargs):
         p_dim = kwargs.get('dimension', Dimension(name='p_%s' % name))
         npoint = npoint or coordinates.shape[0]
@@ -47,12 +54,45 @@ class PointSource(SparseTimeFunction):
         # If provided, copy initial data into the allocated buffer
         if data is not None:
             obj.data[:] = data
+
+        # Set the origin and interval in the time axis
+        if time is None:
+            if dt is None or t0 is None:
+                error('Either time or t0 and dt are required to'
+                      'initialise source/receiver objects')
+            else:
+                obj.t0 = t0
+                obj.dt = dt
+        else:
+            obj.t0 = time[0]
+            obj.dt = time[1]-time[0]
+
         return obj
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(PointSource, self).__init__(*args, **kwargs)
 
+    def resample(self, dt, window=None):
+        t0 = self.t0
+        tn = self.t0+(self.data.shape[0])*self.dt
+
+        # The new number of sample points and roundoff adjusted dt
+        nt = int(round((tn-t0)/dt))
+
+        dt = (tn-t0)/nt
+
+        # Create resampled data.
+        data = np.zeros((nt, self.data.shape[1]))
+        for i in range(self.data.shape[1]):
+            data[:, i] = signal.resample(self.data[:, i], nt, window=window)
+
+        # Return new object
+        return PointSource(self.name, self.grid, self.t0, dt, data=data,
+                           coordinates=self.coordinates.data)
+
+    def time(self):
+        return np.linspace(self.t0, self.t0+self.data.shape[0]*self.dt, self.data.shape[0])
 
 Receiver = PointSource
 Shot = PointSource
@@ -72,7 +112,10 @@ class WaveletSource(PointSource):
     def __new__(cls, *args, **kwargs):
         time = kwargs.get('time')
         npoint = kwargs.get('npoint', 1)
-        kwargs['ntime'] = len(time)
+        if not time is None:
+            kwargs['t0'] = time[0]
+            kwargs['dt'] = time[1]-time[0]
+            kwargs['ntime'] = len(time)
         kwargs['npoint'] = npoint
         obj = PointSource.__new__(cls, *args, **kwargs)
 
