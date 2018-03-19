@@ -3,6 +3,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.exceptions import InvalidArgument
+from devito.logger import warning
 from devito.types import AbstractSymbol, Scalar, Symbol
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension',
@@ -78,6 +79,10 @@ class Dimension(AbstractSymbol):
         return "%s_size" % self.name
 
     @property
+    def ext_name(self):
+        return "%s_n" % self.name
+
+    @property
     def min_name(self):
         return "%s_m" % self.name
 
@@ -108,27 +113,39 @@ class Dimension(AbstractSymbol):
         dim = alias or self
         return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
 
-    def _arg_infers(self, args, interval):
+    def _arg_infers(self, args, interval, **kwargs):
         """
-        Returns a map of "better" default argument values, reading this symbols'
+        Returns a map of "better" default argument values, reading this symbol's
         argument values in ``args`` and adjusting them based on the provided
         :class:`Interval` ``interval``.
 
         :param args: Dictionary of known argument values.
         :param interval: A :class:`Interval` for ``self``.
+        :param kwargs: Dictionary of user-provided argument overrides.
         """
-        inferred = {}
+        infs = {}
 
         if not interval:
-            return inferred
+            return infs
 
         if self.min_name in args:
-            inferred[self.min_name] = args[self.min_name] - min(interval.lower, 0)
+            infs[self.min_name] = args[self.min_name] - min(interval.lower, 0)
 
         if self.max_name in args:
-            inferred[self.max_name] = args[self.max_name] - (1 + max(interval.upper, 0))
+            infs[self.max_name] = args[self.max_name] - (1 + max(interval.upper, 0))
 
-        return inferred
+        if self.ext_name in kwargs:
+            if self.max_name in kwargs:
+                warning("Ignoring `%s=%d` as `%s` takes priority" %
+                        (self.ext_name, kwargs[self.ext_name], self.max_name))
+            try:
+                base = kwargs.get(self.min_name, infs[self.min_name])
+            except KeyError:
+                raise InvalidArgument("`%s` must be known to use `%s`" %
+                                      (self.min_name, self.ext_name))
+            infs[self.max_name] = base + kwargs[self.ext_name] - 1
+
+        return infs
 
     def _arg_values(self, **kwargs):
         """
@@ -261,20 +278,20 @@ class SubDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.lower, self.upper)
 
-    def _arg_infers(self, args, interval):
-        inferred = {}
+    def _arg_infers(self, args, interval, **kwargs):
+        infs = {}
 
         if self.parent.min_name in args:
-            inferred[self.min_name] = args[self.parent.min_name] + self.lower
+            infs[self.min_name] = args[self.parent.min_name] + self.lower
 
         if self.parent.max_name in args:
-            inferred[self.max_name] = args[self.parent.max_name] + self.upper
+            infs[self.max_name] = args[self.parent.max_name] + self.upper
 
         if self.parent.size_name in args:
-            inferred[self.size_name] = args[self.parent.size_name] -\
+            infs[self.size_name] = args[self.parent.size_name] -\
                 (self.lower + self.upper)
 
-        return inferred
+        return infs
 
 
 class ConditionalDimension(DerivedDimension):
