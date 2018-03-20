@@ -438,8 +438,9 @@ class IterationSpace(Space):
         sub_iterators = {}
         for i in others:
             for k, v in i.sub_iterators.items():
-                ret = sub_iterators.setdefault(k, v)
-                for se in v:
+                cv = [j.copy() for j in v]
+                ret = sub_iterators.setdefault(k, cv)
+                for se in cv:
                     ofs = dict(ret).get(se.dim)
                     if ofs is None:
                         ret.append(se)

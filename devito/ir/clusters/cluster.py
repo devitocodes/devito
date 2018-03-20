@@ -3,7 +3,7 @@ from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.clusters.graph import FlowGraph
-from devito.ir.support import DataSpace
+from devito.ir.support import DataSpace, IterationSpace
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -75,7 +75,7 @@ class PartialCluster(object):
 
     @ispace.setter
     def ispace(self, val):
-        raise AttributeError
+        self._ispace = val
 
     @dspace.setter
     def dspace(self, val):
@@ -89,6 +89,7 @@ class PartialCluster(object):
         assert self.ispace.is_compatible(other.ispace)
         self.exprs.extend([i for i in other.exprs if i not in self.exprs])
         self.dspace = DataSpace.merge(self.dspace, other.dspace)
+        self.ispace = IterationSpace.merge(self.ispace, other.ispace)
 
 
 class Cluster(PartialCluster):
@@ -125,6 +126,14 @@ class Cluster(PartialCluster):
 
     @PartialCluster.exprs.setter
     def exprs(self, val):
+        raise AttributeError
+
+    @PartialCluster.ispace.setter
+    def ispace(self, val):
+        raise AttributeError
+
+    @PartialCluster.dspace.setter
+    def dspace(self, val):
         raise AttributeError
 
     def squash(self, other):
