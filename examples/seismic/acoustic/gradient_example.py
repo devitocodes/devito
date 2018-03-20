@@ -119,7 +119,7 @@ class GradientExample(object):
         F0 = self._objective_function_value(rec.data)
 
         # <J^T \delta d, dm>
-        G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
+        G = np.dot(gradient.reshape(-1), dm.reshape(-1))
         # FWI Gradient test
         H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
         error1 = np.zeros(7)
