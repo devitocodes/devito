@@ -420,6 +420,33 @@ class IterationSpace(Space):
         return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
                      self.directions))
 
+    @classmethod
+    def merge(cls, *others):
+        if not others:
+            return IterationSpace(IntervalGroup())
+        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
+        directions = {}
+        for i in others:
+            for k, v in i.directions.items():
+                if directions.get(k, Any) in (Any, v):
+                    # No direction yet, or Any, or simply identical to /v/
+                    directions[k] = v
+                elif v is not Any:
+                    # Clash detected
+                    raise ValueError("Cannot merge `IterationSpace`s with "
+                                     "incompatible directions")
+        sub_iterators = {}
+        for i in others:
+            for k, v in i.sub_iterators.items():
+                ret = sub_iterators.setdefault(k, v)
+                for se in v:
+                    ofs = dict(ret).get(se.dim)
+                    if ofs is None:
+                        ret.append(se)
+                    else:
+                        ofs.update(se.ofs)
+        return IterationSpace(intervals, sub_iterators, directions)
+
     def is_compatible(self, other):
         """A relaxed version of ``__eq__``, in which only non-derived dimensions
         are compared for equality."""
