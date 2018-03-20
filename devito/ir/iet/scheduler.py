@@ -8,6 +8,7 @@ from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List
                            Conditional, UnboundedIndex, MetaCall, MapExpressions,
                            Transformer, NestedTransformer, SubstituteExpression,
                            iet_analyze, filter_iterations, retrieve_iteration_tree)
+from devito.ir.support import IterationSpace
 from devito.tools import filter_ordered, flatten
 from devito.types import Scalar
 
@@ -45,84 +46,94 @@ def iet_make(clusters, dtype):
     :param clusters: The iterable :class:`Cluster`s for which the IET is built.
     :param dtype: The data type of the scalar expressions.
     """
+    # {Iteration -> [c0, c1, ...]}, shared clusters
+    shared = {}
+    # The constructed IET
     processed = []
+    # {Interval -> Iteration}, carried from preceding cluster
     schedule = OrderedDict()
+
+    # Build IET
     for cluster in clusters:
-        if not cluster.ispace.empty:
-            root = None
-            intervals = cluster.ispace.intervals
-
-            # Can I reuse any of the previously scheduled Iterations ?
-            index = 0
-            for i0, i1 in zip(intervals, list(schedule)):
-                if i0 != i1 or i0.dim in cluster.atomics:
-                    break
-                root = schedule[i1]
-                index += 1
-            needed = intervals[index:]
-
-            # Build Expressions
-            body = [Expression(e, np.int32 if cluster.trace.is_index(e.lhs) else dtype)
-                    for e in cluster.exprs]
-            if not needed:
-                body = List(body=body)
-
-            # Build Iterations
-            scheduling = []
-            for i in reversed(needed):
-                # Prepare any necessary unbounded index
-                uindices = []
-                for j, offs in cluster.ispace.sub_iterators.get(i.dim, []):
-                    modulo = len(offs)
-                    for n, o in enumerate(filter_ordered(offs)):
-                        name = "%s%d" % (j.name, n)
-                        vname = Scalar(name=name, dtype=np.int32)
-                        value = (i.dim + o) % modulo
-                        uindices.append(UnboundedIndex(vname, value, value, j, j + o))
-
-                # Retrieve the iteration direction
-                direction = cluster.ispace.directions[i.dim]
-
-                # Update IET and scheduling
-                if i.dim in cluster.guards:
-                    # Must wrap within an if-then scope
-                    body = Conditional(cluster.guards[i.dim], body)
-                    iteration = Iteration(body, i.dim, i.dim.limits, offsets=i.limits,
-                                          direction=direction, uindices=uindices)
-                    # Adding (None, None) ensures that nested iterations won't
-                    # be reused by the next cluster
-                    scheduling.extend([(None, None), (i, iteration)])
-                else:
-                    iteration = Iteration(body, i.dim, i.dim.limits, offsets=i.limits,
-                                          direction=direction, uindices=uindices)
-                    scheduling.append((i, iteration))
-
-                # Prepare for next dimension
-                body = iteration
-
-            # If /needed/ is != [], root.dim might be a guarded dimension for /cluster/
-            if root is not None and root.dim in cluster.guards:
-                body = Conditional(cluster.guards[root.dim], body)
-
-            # Update the current schedule
-            scheduling = OrderedDict(reversed(scheduling))
-            if root is None:
-                processed.append(body)
-                schedule = scheduling
-            else:
-                nodes = list(root.nodes) + [body]
-                mapper = {root: root._rebuild(nodes, **root.args_frozen)}
-                transformer = Transformer(mapper)
-                processed = list(transformer.visit(processed))
-                schedule = OrderedDict(list(schedule.items())[:index] +
-                                       list(scheduling.items()))
-                for k, v in list(schedule.items()):
-                    schedule[k] = transformer.rebuilt.get(v, v)
-        else:
+        if cluster.ispace.empty:
             # No Iterations are needed
             processed.extend([Expression(e, dtype) for e in cluster.exprs])
+            continue
 
-    return List(body=processed)
+        root = None
+        intervals = cluster.ispace.intervals
+
+        # Can I reuse any of the previously scheduled Iterations ?
+        index = 0
+        for i0, i1 in zip(intervals, list(schedule)):
+            if i0 != i1 or i0.dim in cluster.atomics:
+                break
+            root = schedule[i1]
+            index += 1
+        needed = intervals[index:]
+
+        # Build Expressions
+        body = [Expression(e, np.int32 if cluster.trace.is_index(e.lhs) else dtype)
+                for e in cluster.exprs]
+        if not needed:
+            body = List(body=body)
+
+        # Build Iterations
+        scheduling = []
+        for i in reversed(needed):
+            # Retrieve the iteration direction
+            direction = cluster.ispace.directions[i.dim]
+
+            # Update IET and scheduling
+            if i.dim in cluster.guards:
+                # Must wrap within an if-then scope
+                body = Conditional(cluster.guards[i.dim], body)
+                # Adding (None, None) ensures that nested iterations won't
+                # be reused by the next cluster
+                scheduling.insert(0, (None, None))
+            iteration = Iteration(body, i.dim, i.dim.limits, offsets=i.limits,
+                                  direction=direction)
+            scheduling.insert(0, (i, iteration))
+
+            # Prepare for next dimension
+            body = iteration
+
+        # If /needed/ is != [], root.dim might be a guarded dimension for /cluster/
+        if root is not None and root.dim in cluster.guards:
+            body = Conditional(cluster.guards[root.dim], body)
+
+        # Update the current schedule
+        if root is None:
+            processed.append(body)
+        else:
+            nodes = list(root.nodes) + [body]
+            transf = Transformer({root: root._rebuild(nodes, **root.args_frozen)})
+            processed = list(transf.visit(processed))
+            scheduling = list(schedule.items())[:index] + list(scheduling)
+            scheduling = [(k, transf.rebuilt.get(v, v)) for k, v in scheduling]
+            shared = {transf.rebuilt.get(k, k): v for k, v in shared.items()}
+        schedule = OrderedDict(scheduling)
+
+        # Record that /cluster/ was used to build the iterations in /schedule/
+        shared.update({i: shared.get(i, []) + [cluster] for i in schedule.values() if i})
+    iet = List(body=processed)
+
+    # Add in unbounded indices, if needed
+    mapper = {}
+    for k, v in shared.items():
+        uindices = []
+        ispace = IterationSpace.merge(*[i.ispace for i in v])
+        for j, offs in ispace.sub_iterators.get(k.dim, []):
+            modulo = len(offs)
+            for n, o in enumerate(filter_ordered(offs)):
+                name = "%s%d" % (j.name, n)
+                vname = Scalar(name=name, dtype=np.int32)
+                value = (k.dim + o) % modulo
+                uindices.append(UnboundedIndex(vname, value, value, j, j + o))
+        mapper[k] = k._rebuild(uindices=uindices)
+    iet = NestedTransformer(mapper).visit(iet)
+
+    return iet
 
 
 def iet_insert_C_decls(iet, func_table):
