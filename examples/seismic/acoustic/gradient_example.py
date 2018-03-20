@@ -17,7 +17,8 @@ class GradientExample(object):
 
     @cached_property
     def dt(self):
-        return self.model.critical_dt * (1.73 if self.kernel == 'OT4' else 1.0)
+        v = self.model.critical_dt * (1.73 if self.kernel == 'OT4' else 1.0)
+        return self.model.dtype(v)
 
     def _setup_model_and_acquisition(self, space_order, shape, spacing, nbpml, tn):
         nrec = shape[0]
