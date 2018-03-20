@@ -18,7 +18,7 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
                            ArrayCast, PointerCast, derive_parameters)
 from devito.parameters import configuration
 from devito.profiling import create_profile
-from devito.symbolics import indexify, retrieve_terminals
+from devito.symbolics import indexify
 from devito.tools import ReducerMap, as_tuple, flatten, filter_sorted, numpy_to_ctypes
 from devito.types import Object
 
