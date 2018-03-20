@@ -105,7 +105,7 @@ class Grid(object):
     @property
     def spacing(self):
         """Spacing between grid points in m."""
-        return as_tuple(np.array(self.extent) / (np.array(self.shape) - 1))
+        return as_tuple((np.array(self.extent) / (np.array(self.shape) - 1)).astype(self.dtype))
 
     @property
     def spacing_symbols(self):
