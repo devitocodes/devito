@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
-                    TimeFunction, SparseTimeFunction, Dimension, configuration,
-                    error, INTERIOR)
+                    TimeFunction, SparseFunction, SparseTimeFunction, Dimension,
+                    configuration, error, INTERIOR)
 from devito.foreign import Operator as OperatorForeign
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
@@ -1227,6 +1227,37 @@ class TestLoopScheduler(object):
         assert np.all(u.data[1, 6:, :] == 0)
         assert np.all(u.data[1, :, 0:5] == 0)
         assert np.all(u.data[1, :, 6:] == 0)
+
+    def test_scheduling_sparse_functions(self):
+        """Tests loop scheduling in presence of sparse functions."""
+        grid = Grid((10, 10))
+        time = grid.time_dim
+
+        u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
+        u2 = TimeFunction(name="u2", grid=grid, time_order=2)
+        sf1 = SparseFunction(name='sf1', grid=grid, npoint=1, ntime=10)
+        sf2 = SparseFunction(name='sf2', grid=grid, npoint=1, ntime=10)
+
+        # Deliberately inject into u1, rather than u1.forward, to create a WAR w/ eqn3
+        eqn1 = Eq(u1.forward, u1 + 2.0 - u1.backward)
+        eqn2 = sf1.inject(u1, expr=sf1)
+        eqn3 = Eq(u2.forward, u2 + 2*u2.backward - u1.dt2)
+        eqn4 = sf2.interpolate(u2)
+
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4)
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 4
+        # Time loop not shared due to the WAR
+        assert trees[0][0].dim is time and trees[0][0] is trees[1][0]  # this IS shared
+        assert trees[1][0] is not trees[2][0]
+        assert trees[2][0].dim is time and trees[2][0] is trees[3][0]  # this IS shared
+
+        # Now single, shared time loop expected
+        eqn2 = sf1.inject(u1.forward, expr=sf1)
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4)
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 4
+        assert all(trees[0][0] is i[0] for i in trees)
 
 
 @skipif_yask
