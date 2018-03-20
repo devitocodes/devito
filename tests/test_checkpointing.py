@@ -128,13 +128,11 @@ def test_forward_with_breaks(shape, kernel, space_order):
 
     cp = DevitoCheckpoint([example.forward_field])
     wrap_fw = CheckpointOperator(example.forward_operator, u=example.forward_field,
-                                 rec=example.rec, m=m0, src=example.src, dt=example.dt,
-                                 time_order=time_order)
+                                 rec=example.rec, m=m0, src=example.src, dt=example.dt)
     wrap_rev = CheckpointOperator(example.gradient_operator, u=example.forward_field,
                                   v=example.adjoint_field, m=m0, rec=example.rec_g,
-                                  grad=example.grad, dt=example.dt,
-                                  time_order=time_order)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-1)
+                                  grad=example.grad, dt=example.dt)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-time_order)
     example.forward_operator.apply(u=example.forward_field, rec=example.rec, m=m0,
                                    src=example.src, dt=example.dt)
     u_temp = np.copy(example.forward_field.data)
@@ -197,35 +195,34 @@ def test_index_alignment(const):
     and hence grad = 0*0 + 1*1 + 2*2 + 3*3 = sum(n^2) where n -> [0, nt]
     If the test fails, the resulting number can tell you how the fields are misaligned
     """
-    nt = 9
-    grid = Grid(shape=(3, 5))
+    n = 4
+    grid = Grid(shape=(2, 2))
     order_of_eqn = 1
     modulo_factor = order_of_eqn + 1
-    last_time_step_u = nt - order_of_eqn
-    u = TimeFunction(name='u', grid=grid, save=nt)
+    nt = n - order_of_eqn
+    u = TimeFunction(name='u', grid=grid, save=n)
     # Increment one in the forward pass 0 -> 1 -> 2 -> 3
     fwd_op = Operator(Eq(u.forward, u + 1.*const))
 
     # Invocation 1
-    fwd_op(time=nt-2, constant=1)
-
-    last_time_step_v = (last_time_step_u) % modulo_factor
+    fwd_op(time=nt-1, constant=1)
+    last_time_step_v = nt % modulo_factor
     # Last time step should be equal to the number of timesteps we ran
-    assert(np.allclose(u.data[last_time_step_u, :, :], nt - order_of_eqn))
+    assert(np.allclose(u.data[nt, :, :], nt))
 
     v = TimeFunction(name='v', grid=grid, save=None)
-    v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
+    v.data[last_time_step_v, :, :] = u.data[nt, :, :]
     # Decrement one in the reverse pass 3 -> 2 -> 1 -> 0
-    adj_eqn = Eq(v.backward, v - 1.*const)
+    adj_eqn = Eq(v, v.forward - 1.*const)
     adj_op = Operator(adj_eqn)
 
     # Invocation 2
-    adj_op(t=nt-1, constant=1)
+    adj_op(time=nt-1, constant=1)
     # Last time step should be back to 0
     assert(np.allclose(v.data[0, :, :], 0))
 
     # Reset v to run the backward again
-    v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
+    v.data[last_time_step_v, :, :] = u.data[nt, :, :]
     prod = Function(name="prod", grid=grid)
     # Multiply u and v and add them
     # = 3*3 + 2*2 + 1*1 + 0*0
@@ -240,23 +237,23 @@ def test_index_alignment(const):
 
     # Now reset to repeat all the above tests with checkpointing
     prod.data[:] = 0
-    v.data[last_time_step_v, :, :] = u.data[last_time_step_u, :, :]
+    v.data[last_time_step_v, :, :] = u.data[nt, :, :]
     # Checkpointed version doesn't require to save u
     u_nosave = TimeFunction(name='u_n', grid=grid)
     # change equations to use new symbols
     fwd_eqn_2 = Eq(u_nosave.forward, u_nosave + 1.*const)
     fwd_op_2 = Operator(fwd_eqn_2)
     cp = DevitoCheckpoint([u_nosave])
-    wrap_fw = CheckpointOperator(fwd_op_2, constant=1, time_order=order_of_eqn)
+    wrap_fw = CheckpointOperator(fwd_op_2, constant=1)
 
     prod_eqn_2 = Eq(prod, prod + u_nosave * v)
     comb_op_2 = Operator([adj_eqn, prod_eqn_2])
-    wrap_rev = CheckpointOperator(comb_op_2, constant=1, time_order=order_of_eqn)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt-1)
+    wrap_rev = CheckpointOperator(comb_op_2, constant=1)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt)
 
     # Invocation 4
     wrp.apply_forward()
-    assert(np.allclose(u_nosave.data[last_time_step_v, :, :], nt - order_of_eqn))
+    assert(np.allclose(u_nosave.data[last_time_step_v, :, :], nt))
 
     # Invocation 5
     wrp.apply_reverse()

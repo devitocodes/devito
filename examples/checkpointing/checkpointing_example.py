@@ -33,12 +33,12 @@ class CheckpointingExample(GradientExample):
                                       (cp.size * self.forward_field.data.itemsize)))
 
         wrap_fw = CheckpointOperator(self.forward_operator, u=self.forward_field,
-                                     rec=self.rec, m=m0, src=self.src, dt=self.dt,
-                                     time_order=2)
+                                     rec=self.rec, m=m0, src=self.src, dt=self.dt)
         wrap_rev = CheckpointOperator(self.gradient_operator, u=self.forward_field,
                                       v=self.adjoint_field, m=m0, rec=self.rec_g,
-                                      grad=self.grad, dt=self.dt, time_order=2)
-        wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, self.nt-1)
+                                      grad=self.grad, dt=self.dt)
+        # Subtracting 2 in the following line assuming time_order=2
+        wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, self.nt-2)
 
         wrp.apply_forward()
 
@@ -47,7 +47,7 @@ class CheckpointingExample(GradientExample):
         wrp.apply_reverse()
 
         # The result is in grad
-        return self.grad, self.rec
+        return self.grad.data, self.rec
 
 
 @silencio(log_level='WARNING')
