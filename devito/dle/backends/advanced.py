@@ -363,12 +363,13 @@ class DevitoRewriter(BasicRewriter):
             if not endpoint.is_Symbol:
                 continue
             condition = []
-            externals = set(i.symbolic_shape[-1] for i in FindSymbols().visit(root))
+            externals = set(i.symbolic_shape[-1] for i in FindSymbols().visit(root)
+                            if i.is_Tensor)
             for i in root.uindices:
                 for j in externals:
                     condition.append(root.end_symbolic + padding < j)
-            condition = ' || '.join(ccode(i) for i in condition)
-            endpoint_padded = endpoint.func(name='_%s' % endpoint.name)
+            condition = ' && '.join(ccode(i) for i in condition)
+            endpoint_padded = endpoint.func('_%s' % endpoint.name)
             init = cgen.Initializer(
                 cgen.Value("const int", endpoint_padded),
                 cgen.Line('(%s) ? %s : %s' % (condition,
