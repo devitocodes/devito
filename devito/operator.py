@@ -162,11 +162,8 @@ class Operator(Callable):
         args.update(kwargs.get('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        autotune = kwargs.pop('autotune', False)
-        if autotune:
-            # AT assumes and ordered dict, so let's feed it one
-            at_args = OrderedDict([(p.name, args[p.name]) for p in self.parameters])
-            args = self._autotune(at_args)
+        if kwargs.get('autotune', False):
+            args = self._autotune(args)
 
         # Check all arguments are present
         for p in self.parameters:
