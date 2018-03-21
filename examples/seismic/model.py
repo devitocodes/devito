@@ -270,17 +270,17 @@ def damp_boundary(damp, nbpml, spacing):
         pos = np.abs((nbpml - i + 1) / float(nbpml))
         val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
         if damp.ndim == 2:
-            damp.data_allocated[i, :] += val/spacing[0]
-            damp.data_allocated[-(i + 1), :] += val/spacing[0]
-            damp.data_allocated[:, i] += val/spacing[1]
-            damp.data_allocated[:, -(i + 1)] += val/spacing[1]
+            damp.data_with_halo[i, :] += val/spacing[0]
+            damp.data_with_halo[-(i + 1), :] += val/spacing[0]
+            damp.data_with_halo[:, i] += val/spacing[1]
+            damp.data_with_halo[:, -(i + 1)] += val/spacing[1]
         else:
-            damp.data_allocated[i, :, :] += val/spacing[0]
-            damp.data_allocated[-(i + 1), :, :] += val/spacing[0]
-            damp.data_allocated[:, i, :] += val/spacing[1]
-            damp.data_allocated[:, -(i + 1), :] += val/spacing[1]
-            damp.data_allocated[:, :, i] += val/spacing[2]
-            damp.data_allocated[:, :, -(i + 1)] += val/spacing[2]
+            damp.data_with_halo[i, :, :] += val/spacing[0]
+            damp.data_with_halo[-(i + 1), :, :] += val/spacing[0]
+            damp.data_with_halo[:, i, :] += val/spacing[1]
+            damp.data_with_halo[:, -(i + 1), :] += val/spacing[1]
+            damp.data_with_halo[:, :, i] += val/spacing[2]
+            damp.data_with_halo[:, :, -(i + 1)] += val/spacing[2]
 
 
 def initialize_function(function, data, nbpml):
@@ -293,7 +293,7 @@ def initialize_function(function, data, nbpml):
     :param nbpml: Number of PML layers for boundary damping.
     """
     pad_list = [(nbpml + i.left, nbpml + i.right) for i in function._offset_domain]
-    function.data_allocated[:] = np.pad(data, pad_list, 'edge')
+    function.data_with_halo[:] = np.pad(data, pad_list, 'edge')
 
 
 class Model(object):
@@ -350,8 +350,8 @@ class Model(object):
                 self.epsilon = Function(name="epsilon", grid=self.grid)
                 initialize_function(self.epsilon, 1 + 2 * epsilon, self.nbpml)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
-                if np.max(self.epsilon.data_allocated) > 0:
-                    self.scale = np.sqrt(np.max(self.epsilon.data_allocated))
+                if np.max(self.epsilon.data_with_halo) > 0:
+                    self.scale = np.sqrt(np.max(self.epsilon.data_with_halo))
             else:
                 self.epsilon = 1 + 2 * epsilon
                 self.scale = epsilon
