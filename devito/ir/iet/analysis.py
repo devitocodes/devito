@@ -11,7 +11,7 @@ from functools import cmp_to_key
 from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, VECTOR, WRAPPABLE,
                            MapIteration, NestedTransformer, retrieve_iteration_tree)
 from devito.ir.support import Scope
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import as_tuple, filter_ordered, flatten
 
 __all__ = ['iet_analyze']
 
@@ -69,18 +69,19 @@ def mark_parallel(analysis):
         for depth, i in enumerate(tree):
             if i in properties:
                 continue
-            # Get all tree dimensions, including the unbounded indices
-            dims = []
-            for j in tree[:depth + 1]:
-                dims.append(j.dim)
-                dims.extend([k.dim for k in j.uindices])
-            dims = filter_ordered(dims)
+            # Get all dimensions up to and including Iteration /i/, grouped by Iteration
+            dims = [filter_ordered([j.dim] + [k.dim for k in j.uindices])
+                    for j in tree[:depth + 1]]
+            # Get all dimensions up to and including Iteration /i-1/
+            prev = flatten(dims[:-1])
+            # Get all dimensions up to and including Iteration /i/
+            dims = flatten(dims)
             # The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):
             # (d_1, ..., d_{i-1}) > 0, OR
             # (d_1, ..., d_i) = 0
             is_sequential = False
             for dep in analysis.scopes[i].d_all:
-                test0 = dims[:-1] and any(dep.is_carried(d) for d in dims[:-1])
+                test0 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
                 test1 = all(dep.is_independent(d) for d in dims)
                 if not (test0 or test1):
                     is_sequential = True
