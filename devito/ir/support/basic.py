@@ -252,9 +252,16 @@ class IterationInstance(Vector):
     def is_irregular(self):
         return not self.is_regular
 
-    def distance(self, other, findex=None):
-        """Compute vector distance from ``self`` to ``other``. If ``findex`` is
-        supplied, compute the vector distance up to and including ``findex``."""
+    def distance(self, other, findex=None, view=None):
+        """Compute the distance from ``self`` to ``other``.
+
+        :param other: The :class:`IterationInstance` from which the distance
+                      is computed.
+        :param findex: (Optional) if supplied, compute the distance only up to
+                       and including ``findex`` (defaults to None).
+        :param view: (Optional) an iterable of ``findices`` (defaults to None); if
+                     supplied, project the distance along these dimensions.
+        """
         if not isinstance(other, IterationInstance):
             raise TypeError("Cannot compute distance from obj of type %s", type(other))
         if self.findices != other.findices:
@@ -266,7 +273,12 @@ class IterationInstance(Vector):
                 raise TypeError("Cannot compute distance as `findex` not in `findices`")
         else:
             limit = self.rank
-        return super(IterationInstance, self).distance(other)[:limit]
+        distance = super(IterationInstance, self).distance(other)[:limit]
+        if view is None:
+            return distance
+        else:
+            proj = [i for i, d in zip(distance, self.findices) if d in as_tuple(view)]
+            return Vector(*proj)
 
     def section(self, findices):
         """Return a view of ``self`` in which the slots corresponding to the

@@ -130,7 +130,7 @@ def detect_flow_directions(exprs):
                 distance = None
                 for i in d._defines:
                     try:
-                        distance = w.distance(r, i)
+                        distance = w.distance(r, i, view=i)
                     except TypeError:
                         pass
                 try:
