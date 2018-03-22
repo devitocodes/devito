@@ -68,7 +68,7 @@ def autotune(operator, arguments, tunable):
     # Will drop block sizes that might lead to a stack overflow
     functions = FindSymbols('symbolics').visit(operator.body +
                                                operator.elemental_functions)
-    stack_shapes = [i.shape for i in functions if i.is_Array and i._mem_stack]
+    stack_shapes = [i.symbolic_shape for i in functions if i.is_Array and i._mem_stack]
     stack_space = sum(reduce(mul, i, 1) for i in stack_shapes)*operator.dtype().itemsize
 
     # Note: there is only a single loop over 'blocksize' because only
