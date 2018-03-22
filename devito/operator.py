@@ -260,7 +260,73 @@ class OperatorRunnable(Operator):
         self.apply(**kwargs)
 
     def apply(self, **kwargs):
-        """Apply the stencil kernel to a set of data objects"""
+        """
+        Run the operator.
+
+        Without additional parameters specified, the operator runs on the same
+        data objects used to build it -- the so called ``default arguments``.
+
+        Optionally, any of the operator default arguments may be replaced by
+        passing suitable key-value parameters. Given ``apply(k=v, ...)``,
+        ``(k, v)`` may be used to: ::
+
+            * replace a constant (scalar) used by the operator. In this case,
+                ``k`` is the name of the constant; ``v`` is either an object
+                of type :class:`Constant` or an actual scalar value.
+            * replace a function (tensor) used by the operator. In this case,
+                ``k`` is the name of the function; ``v`` is either an object
+                of type :class:`TensorFunction` or a :class:`numpy.ndarray`.
+            * alter the iteration interval along a given :class:`Dimension`
+                ``d``, which represents a subset of the operator iteration space.
+                By default, the operator runs over all iterations within the
+                compact interval ``[d_m, d_M]``, in which ``d_m`` and ``d_M``
+                are, respectively, the smallest and largest integers not causing
+                out-of-bounds memory accesses. In this case, ``k`` can be any
+                of ``(d_m, d_M, d_n)``; ``d_n`` can be used to indicate to run
+                for exactly ``n`` iterations starting at ``d_m``. ``d_n`` is
+                ignored (raising a warning) if ``d_M`` is also provided. ``v`` is
+                an integer value.
+
+        Examples
+        --------
+        The following operator implements a trivial time-marching method which
+        adds 1 to every grid point at every time iteration.
+
+        >>> from devito import Eq, Grid, TimeFunction, Operator
+        >>> grid = Grid(shape=(3, 3))
+        >>> u = TimeFunction(name='u', grid=grid, save=3)
+        >>> op = Operator(Eq(u.forward, u + 1))
+
+        The operator is run by calling
+
+        >>> op.apply()
+
+        As no key-value parameters are specified, the operator runs with its
+        default arguments, namely ``u=u, x_m=0, x_M=2, y_m=0, y_M=2, time_m=0,
+        time_M=1``. Note that one can access the operator dimensions via the
+        ``grid`` object (e.g., ``grid.dimensions`` for the ``x`` and ``y``
+        space dimensions).
+
+        At this point, the same operator can be used for a completely different
+        run, for example
+
+        >>> u2 = TimeFunction(name='u', grid=grid, save=5)
+        >>> op.apply(u=u2, x_m=1, y_M=1)
+
+        Now, the operator will run with a different set of arguments, namely
+        ``u=u2, x_m=1, x_M=2, y_m=0, y_M=1, time_m=0, time_M=3``.
+
+        .. note::
+
+            To run an operator that only uses buffered :class:`TimeFunction`s,
+            the maximum iteration point along the time dimension must be explicitly
+            specified (otherwise, the operator wouldn't know how many iterations
+            to run).
+
+            >>> u3 = TimeFunction(name='u', grid=grid)
+            >>> op = Operator(Eq(u3.forward, u3 + 1))
+            >>> op.apply(time_M=10)
+        """
         # Build the arguments list to invoke the kernel function
         args = self.arguments(**kwargs)
 
