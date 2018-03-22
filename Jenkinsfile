@@ -1,6 +1,6 @@
 pipeline {
   agent {
-    label 'linux'
+    docker { image 'python:3.5.1' }
   }
   environment {
     PATH = "/usr/local/bin:/usr/bin:/bin"
