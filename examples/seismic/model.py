@@ -37,7 +37,7 @@ def demo_model(preset, **kwargs):
                     filepath. Requires the ``opesci/data`` repository
                     to be available on your machine.
     """
-    space_order = kwargs.pop('space_order', 1)
+    space_order = kwargs.pop('space_order', 2)
 
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -266,21 +266,21 @@ def damp_boundary(damp, nbpml, spacing):
     """
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
     assert all(damp._offset_domain[0] == i for i in damp._offset_domain)
-    for i in range(nbpml + damp._offset_domain.left[0]):
+    for i in range(nbpml):
         pos = np.abs((nbpml - i + 1) / float(nbpml))
         val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
         if damp.ndim == 2:
-            damp.data_with_halo[i, :] += val/spacing[0]
-            damp.data_with_halo[-(i + 1), :] += val/spacing[0]
-            damp.data_with_halo[:, i] += val/spacing[1]
-            damp.data_with_halo[:, -(i + 1)] += val/spacing[1]
+            damp.data[i, :] += val/spacing[0]
+            damp.data[-(i + 1), :] += val/spacing[0]
+            damp.data[:, i] += val/spacing[1]
+            damp.data[:, -(i + 1)] += val/spacing[1]
         else:
-            damp.data_with_halo[i, :, :] += val/spacing[0]
-            damp.data_with_halo[-(i + 1), :, :] += val/spacing[0]
-            damp.data_with_halo[:, i, :] += val/spacing[1]
-            damp.data_with_halo[:, -(i + 1), :] += val/spacing[1]
-            damp.data_with_halo[:, :, i] += val/spacing[2]
-            damp.data_with_halo[:, :, -(i + 1)] += val/spacing[2]
+            damp.data[i, :, :] += val/spacing[0]
+            damp.data[-(i + 1), :, :] += val/spacing[0]
+            damp.data[:, i, :] += val/spacing[1]
+            damp.data[:, -(i + 1), :] += val/spacing[1]
+            damp.data[:, :, i] += val/spacing[2]
+            damp.data[:, :, -(i + 1)] += val/spacing[2]
 
 
 def initialize_function(function, data, nbpml):
@@ -321,7 +321,7 @@ class Model(object):
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
         self.shape = shape
         self.nbpml = int(nbpml)
-        self.origin = origin
+        self.origin = tuple([dtype(o) for o in origin])
 
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
