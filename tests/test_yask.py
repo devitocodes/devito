@@ -274,7 +274,7 @@ class TestOperatorSimple(object):
         Check that :class:`Constant` objects are treated correctly.
         """
         grid = Grid(shape=(4, 4, 4))
-        c = Constant(name='c', value=2.)
+        c = Constant(name='c', value=2., dtype=grid.dtype)
         p = SparseTimeFunction(name='points', grid=grid, nt=1, npoint=1)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
