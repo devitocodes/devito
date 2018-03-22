@@ -9,7 +9,7 @@ import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
                     TimeFunction, SparseFunction, SparseTimeFunction, Dimension,
-                    configuration, error, INTERIOR)
+                    configuration, error)
 from devito.foreign import Operator as OperatorForeign
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
@@ -1186,7 +1186,7 @@ class TestLoopScheduler(object):
         assert trees[0][-1].nodes[0].write == u1
         assert trees[0][-1].nodes[1].write == u2
 
-    def test_flowdir_domain(self):
+    def test_flow_detection(self):
         """
         Test detection of spatial flow directions inside a time loop.
 
@@ -1217,7 +1217,7 @@ class TestLoopScheduler(object):
         u.data[:] = 0.0
         u.data[0, 5, 5] = 1.0
 
-        op.apply(time_e=2)
+        op.apply(time_M=0)
         assert u.data[1, 5, 5] == 2
         assert u.data[1, 4, 5] == 11
         assert u.data[1, 3, 5] == 44
@@ -1258,81 +1258,6 @@ class TestLoopScheduler(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(trees[0][0] is i[0] for i in trees)
-
-
-@skipif_yask
-class TestRegions(object):
-
-    def test_domain_vs_interior(self):
-        """
-        Tests regions work properly in terms of code generation and runtime
-        argument derivation.
-        """
-        grid = Grid(shape=(4, 4, 4))
-        x, y, z = grid.dimensions
-        t = grid.stepping_dim  # noqa
-
-        u = TimeFunction(name='u', grid=grid)  # noqa
-        eqs = [Eq(u.forward, u + 1),
-               Eq(u.forward, u.forward + 2, region=INTERIOR)]
-
-        op = Operator(eqs, dse='noop', dle='noop')
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-
-        op.apply(time_M=1)
-        assert np.all(u.data[1, 0, :, :] == 1)
-        assert np.all(u.data[1, -1, :, :] == 1)
-        assert np.all(u.data[1, :, 0, :] == 1)
-        assert np.all(u.data[1, :, -1, :] == 1)
-        assert np.all(u.data[1, :, :, 0] == 1)
-        assert np.all(u.data[1, :, :, -1] == 1)
-        assert np.all(u.data[1, 1:3, 1:3, 1:3] == 3)
-
-    def test_flowdir_interior(self):
-        """
-        Test detection of flow directions when using SubDimensions.
-
-        Stencil uses values at new timestep as well as those at previous ones
-        This forces an evaluation order onto x.
-        Weights are:
-
-               x=0     x=1     x=2     x=3
-         t=N    2    ---3
-                v   /
-         t=N+1  o--+----4
-
-        Flow dependency should traverse x in the negative direction
-
-               x=2     x=3     x=4     x=5      x=6
-        t=0             0   --- 0     -- 1    -- 0
-                        v  /    v    /   v   /
-        t=1            44 -+--- 11 -+--- 2--+ -- 0
-        """
-
-        grid = Grid(shape=(10, 10))
-        x, y = grid.dimensions
-        u = TimeFunction(name='u', grid=grid, save=10, time_order=1, space_order=0)
-        step = Eq(u.forward, 2*u
-                  + 3*u.subs(x, x+x.spacing)
-                  + 4*u.forward.subs(x, x+x.spacing),
-                  region=INTERIOR)
-        op = Operator(step)
-
-        u.data[0, 5, 5] = 1.0
-        op.apply(time_e=2)
-        assert u.data[1, 5, 5] == 2
-        assert u.data[1, 4, 5] == 11
-        assert u.data[1, 3, 5] == 44
-        assert u.data[1, 2, 5] == 4*44
-        assert u.data[1, 1, 5] == 4*4*44
-
-        # This point isn't updated because of the INTERIOR selection
-        assert u.data[1, 0, 5] == 0
-
-        assert np.all(u.data[1, 6:, :] == 0)
-        assert np.all(u.data[1, :, 0:5] == 0)
-        assert np.all(u.data[1, :, 6:] == 0)
 
 
 @skipif_yask
