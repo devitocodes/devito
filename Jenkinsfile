@@ -8,7 +8,7 @@ pipeline {
   stages {
     stage('1') {
       steps {
-        sh 'true'
+        sh 'lsb_release -a'
       }
     }
   }
