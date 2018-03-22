@@ -265,7 +265,7 @@ class Data(object):
         return self[:]
 
 
-class DataScalar(np.float64):
+class DataScalar(np.float):
 
     """A YASK grid wrapper for scalar values."""
 
