@@ -36,7 +36,7 @@ def collect(exprs):
         a[i+2] - b[i+2] : because at least one operation differs
         a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
     """
-    ExprData = namedtuple('ExprData', 'indices offsets')
+    ExprData = namedtuple('ExprData', 'dimensions offsets')
 
     # Discard expressions:
     # - that surely won't alias to anything
@@ -80,7 +80,7 @@ def collect(exprs):
         # In circumstances in which an expression has repeated coefficients, e.g.
         # ... + 0.025*a[...] + 0.025*b[...],
         # We may have found a common basis (i.e., same COM, same alias) at this point
-        v = aliases.setdefault(alias, Alias(alias, candidates[handle].indices))
+        v = aliases.setdefault(alias, Alias(alias, candidates[handle].dimensions))
         v.extend(group, distances)
 
     # Heuristically attempt to relax the aliases offsets
@@ -172,11 +172,11 @@ def calculate_offsets(indexeds):
     processed = []
     reference = indexeds[0].base.function.indices
     for indexed in indexeds:
-        indices = indexed.base.function.indices
-        if indices != reference:
+        dimensions = indexed.base.function.indices
+        if dimensions != reference:
             return None
         handle = []
-        for d, i in zip(indices, indexed.indices):
+        for d, i in zip(dimensions, indexed.indices):
             offset = i - d
             if offset.is_Number:
                 handle.append(int(offset))
@@ -239,17 +239,17 @@ class Alias(object):
     is tracked.
     """
 
-    def __init__(self, alias, indices, aliased=None, distances=None,
+    def __init__(self, alias, dimensions, aliased=None, distances=None,
                  ghost_offsets=None):
         self.alias = alias
-        self.dimensions = tuple(i.parent if i.is_Derived else i for i in indices)
+        self.dimensions = tuple(i.parent if i.is_Derived else i for i in dimensions)
 
         self.aliased = aliased or []
         self.distances = distances or []
         self._ghost_offsets = ghost_offsets or []
 
         assert len(self.aliased) == len(self.distances)
-        assert all(len(i) == len(indices) for i in self.distances)
+        assert all(len(i) == len(dimensions) for i in self.distances)
 
     @property
     def anti_stencil(self):
@@ -266,15 +266,22 @@ class Alias(object):
 
     @property
     def diameter(self):
+        """Return a map telling the min/max offsets in each dimension for this alias."""
         return OrderedDict((d, (min(i), max(i)))
                            for d, i in zip(self.dimensions, zip(*self.distances)))
 
     @property
     def relaxed_diameter(self):
+        """Return a map telling the min/max offsets in each dimension for this alias.
+        The extremes are potentially larger than those provided by ``self.diameter``,
+        as here we're also taking into account any ghost offsets provided at Alias
+        construction time.."""
         return OrderedDict((k, (min(v), max(v))) for k, v in self.anti_stencil.items())
 
     @property
     def with_distance(self):
+        """Return a tuple associating each aliased expression with its distance from
+        ``self.alias``."""
         return tuple(zip(self.aliased, self.distance_map))
 
     def extend(self, aliased, distances):

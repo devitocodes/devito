@@ -145,8 +145,8 @@ class TensorFunction(AbstractCachedFunction):
 
     @property
     def _data_buffer(self):
-        """Reference to the actual data. This is *not* a view of the data.
-        This method is for internal use only."""
+        """Reference to the data. Unlike ``data, data_with_halo, data_allocated``,
+        this *never* returns a view of the data. This method is for internal use only."""
         return self.data_allocated
 
     @property

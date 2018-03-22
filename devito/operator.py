@@ -69,7 +69,7 @@ class Operator(Callable):
         # References to local or external routines
         self.func_table = OrderedDict()
 
-        # Expression lowering: indexification, substitution rules, enrichment
+        # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
         expressions = [i.xreplace(subs) for i in expressions]
         expressions = self._specialize_exprs(expressions)

@@ -19,7 +19,7 @@ class PartialCluster(object):
     :param exprs: The ordered sequence of expressions computing a tensor.
     :param ispace: An object of type :class:`IterationSpace`, which represents the
                    iteration space of the cluster.
-    :param ispace: An object of type :class:`DataSpace`, which represents the
+    :param dspace: An object of type :class:`DataSpace`, which represents the
                    data space (i.e., data items accessed) of the cluster.
     :param atomics: (Optional) non-sharable :class:`Dimension`s in ``ispace``.
     :param guards: (Optional) iterable of conditions, provided as SymPy expressions,
