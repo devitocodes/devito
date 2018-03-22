@@ -63,8 +63,7 @@ class LoweredEq(Eq, IREq):
         if len(args) == 1:
             # origin: LoweredEq(expr)
             expr = input_expr = args[0]
-            assert type(expr) != LoweredEq
-            assert isinstance(expr, Eq)
+            assert not isinstance(expr, LoweredEq) and isinstance(expr, Eq)
         elif len(args) == 2:
             # origin: LoweredEq(lhs, rhs, stamp=...)
             stamp = kwargs.pop('stamp')
@@ -77,8 +76,7 @@ class LoweredEq(Eq, IREq):
         elif len(args) == 5:
             # origin: LoweredEq(expr, ispace, space)
             input_expr, ispace, dspace, reads, writes = args
-            assert isinstance(ispace, IterationSpace)
-            assert isinstance(dspace, DataSpace)
+            assert isinstance(ispace, IterationSpace) and isinstance(dspace, DataSpace)
             expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
             expr.is_Increment = input_expr.is_Increment
             expr._ispace, expr._dspace = ispace, dspace
@@ -159,8 +157,7 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
         if len(args) == 3:
             # origin: ClusterizedEq(expr, ispace, dspace)
             input_expr, ispace, dspace = args
-            assert isinstance(ispace, IterationSpace)
-            assert isinstance(dspace, DataSpace)
+            assert isinstance(ispace, IterationSpace) and isinstance(dspace, DataSpace)
             expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
             expr.is_Increment = input_expr.is_Increment
             expr._dspace = dspace

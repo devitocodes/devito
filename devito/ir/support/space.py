@@ -326,6 +326,8 @@ class Space(object):
 
     @property
     def empty(self):
+        """Return True if this space has no intervals (no matter whether they
+        are defined or null intervals), False otherwise."""
         return self.size == 0
 
     @property

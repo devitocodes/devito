@@ -103,7 +103,7 @@ class Dimension(AbstractSymbol):
 
     def _arg_defaults(self, start=None, size=None, alias=None):
         """
-        Returns a map of default argument values defined by this symbol.
+        Returns a map of default argument values defined by this dimension.
 
         :param start: (Optional) known starting point as provided by
                       data-carrying symbols.
@@ -115,9 +115,12 @@ class Dimension(AbstractSymbol):
 
     def _arg_infers(self, args, interval, **kwargs):
         """
-        Returns a map of "better" default argument values, reading this symbol's
-        argument values in ``args`` and adjusting them based on the provided
-        :class:`Interval` ``interval``.
+        Returns a map of "safe" argument values for this dimension, that is values
+        that will not cause out-of-bounds memory accesses. The map is obtained
+        by adjusting the argument values in ``args`` based on ``interval``, a
+        :class:`Interval` describing the data space of this dimension.
+
+        This method is usually applied to the values produced by ``_arg_defaults``.
 
         :param args: Dictionary of known argument values.
         :param interval: A :class:`Interval` for ``self``.
@@ -384,7 +387,7 @@ class SteppingDimension(DerivedDimension):
 
     def _arg_defaults(self, start=None, size=None, **kwargs):
         """
-        Returns a map of default argument values defined by this symbol.
+        Returns a map of default argument values defined by this dimension.
 
         :param start: Optional, known starting point as provided by
                       data-carrying symbols.

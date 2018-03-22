@@ -497,15 +497,15 @@ class Iteration(Node):
 
 class Callable(Node):
 
-    """A node representing a function.
+    """A node representing a callable function.
 
-    :param name: The name of the function.
+    :param name: The name of the callable.
     :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
-                 the body of the function.
-    :param retval: The type of the value returned by the function.
+                 the body of the callable.
+    :param retval: The type of the value returned by the callable.
     :param parameters: An iterable of :class:`AbstractFunction`s in input to the
-                       callable, or ``None`` if the function takes no parameter.
-    :param prefix: An iterable of qualifiers to prepend to the function declaration.
+                       callable, or ``None`` if the callable takes no parameter.
+    :param prefix: An iterable of qualifiers to prepend to the callable declaration.
                    The default value is ('static', 'inline').
     """
 
