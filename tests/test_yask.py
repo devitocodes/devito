@@ -429,7 +429,7 @@ class TestOperatorAcoustic(object):
 
         op.apply(u=u, m=m, damp=damp, src=src, dt=dt)
 
-        exp_u = 156.47
+        exp_u = 153.25
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
 
     def test_acoustic_w_src_w_rec(self, model, eqn, m, damp, u, src, rec):
@@ -449,8 +449,8 @@ class TestOperatorAcoustic(object):
 
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.
-        exp_u = 156.47
-        exp_rec = 211.81
+        exp_u = 153.25
+        exp_rec = 212.03
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
         assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
 
