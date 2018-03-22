@@ -187,6 +187,10 @@ class Dimension(AbstractSymbol):
             raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
                                                                  args[self.max_name]))
 
+        if args[self.max_name] < args[self.min_name]:
+                raise InvalidArgument("Illegal max=%s < min=%s"
+                                      % (args[self.max_name], args[self.min_name]))
+
 
 class SpaceDimension(Dimension):
 
