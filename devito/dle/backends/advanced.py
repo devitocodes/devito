@@ -330,6 +330,9 @@ class DevitoRewriter(BasicRewriter):
         Reshape temporary tensors and adjust loop trip counts to prevent as many
         compiler-generated remainder loops as possible.
         """
+        # The innermost dimension is the one that might get padded
+        p_dim = -1
+
         mapper = {}
         for tree in retrieve_iteration_tree(nodes):
             vector_iterations = [i for i in tree if i.is_Vectorizable]
@@ -353,7 +356,8 @@ class DevitoRewriter(BasicRewriter):
             if len(set(padding)) == 1:
                 padding = padding[0]
                 for i in writes:
-                    i.update(shape=i.shape[:-1] + (i.shape[-1] + padding,))
+                    padded = (i._padding[p_dim][0], i._padding[p_dim][1] + padding)
+                    i.update(padding=i._padding[:p_dim] + (padded,))
             else:
                 # Padding must be uniform -- not the case, so giving up
                 continue
