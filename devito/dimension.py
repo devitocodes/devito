@@ -101,6 +101,11 @@ class Dimension(AbstractSymbol):
     def _hashable_content(self):
         return super(Dimension, self)._hashable_content() + (self.spacing,)
 
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this dimension."""
+        return (self.name, self.size_name, self.ext_name, self.max_name, self.min_name)
+
     def _arg_defaults(self, start=None, size=None, alias=None):
         """
         Returns a map of default argument values defined by this dimension.
@@ -253,6 +258,10 @@ class DerivedDimension(Dimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(),)
 
+    @property
+    def _arg_names(self):
+        return self.parent._arg_names
+
 
 class SubDimension(DerivedDimension):
 
@@ -388,6 +397,10 @@ class SteppingDimension(DerivedDimension):
         of the parent variable.
         """
         return self.parent.symbolic_end
+
+    @property
+    def _arg_names(self):
+        return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
     def _arg_defaults(self, start=None, size=None, **kwargs):
         """
