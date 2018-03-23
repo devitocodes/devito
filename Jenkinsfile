@@ -6,7 +6,6 @@ pipeline {
                 stage('Set up GCC7 container') {
                     agent {
                         dockerfile {
-                            label '${BUILD_TAG}-gcc7'
                             additionalBuildArgs  '--build-arg gccvers=7' 
                         }
                     }
