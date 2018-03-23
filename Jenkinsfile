@@ -4,7 +4,7 @@ pipeline {
         stage('Build container') {
             parallel {
                 stage('Set up GCC7 container') {
-                    agent { label dockerhost }
+                    agent { label 'dockerhost' }
                     steps {
                         script {
                             def customImage = docker.build("devito-gcc7:${env.BUILD_ID}")
