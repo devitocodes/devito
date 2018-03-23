@@ -130,14 +130,17 @@ class TensorFunction(AbstractCachedFunction):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
                 self._data = Data(self.shape_allocated, self.indices, self.dtype)
+                if self._first_touch:
+                    first_touch(self)
                 if self.initializer is not None:
+                    if self._first_touch:
+                        warning("`first touch` together with `initializer` causing "
+                                "redundant data initialization")
                     try:
                         self.initializer(self._data)
                     except ValueError:
                         # Perhaps user only wants to initialise the physical domain
                         self.initializer(self._data[self._mask_domain])
-                elif self._first_touch:
-                    first_touch(self)
                 else:
                     self._data.fill(0)
             return func(self)
