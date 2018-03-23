@@ -4,7 +4,7 @@ pipeline {
     PATH = "/usr/local/bin:/usr/bin:/bin"
   }
   stages {
-    stage('prep'}{
+    stage('prep'){
       parallel {
         stage('xenial-gcc7'){
           agent { 
