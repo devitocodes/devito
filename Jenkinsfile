@@ -5,10 +5,10 @@ pipeline {
             parallel {
                 stage('Test On Linux 1') {
                     agent {
-                        dockerfile true
+                        dockerfile { additionalBuildArgs  '--build-arg gccvers=7' }
                     }
                     steps {
-                        echo "Steps"
+                        sh "gcc --version ; ls"
                     }
                     post {
                         always {
