@@ -3,18 +3,16 @@ pipeline {
     stages {
         stage('Run Tests') {
             parallel {
-                stage('Build and test with gcc7') {
+                stage('Test On Linux 1') {
                     agent {
-                        dockerfile {
-                            additionalBuildArgs  '--build-arg gccvers=-7'
-                        }
-                        steps {
-                            echo "steps"
-                        }
-                        post {
-                            always {
-                                echo "post"
-                            }
+                        label "linux"
+                    }
+                    steps {
+                        echo "Steps"
+                    }
+                    post {
+                        always {
+                            echo "Post"
                         }
                     }
                 }
