@@ -223,11 +223,18 @@ class IterationInstance(Vector):
     def index_mode(self):
         index_mode = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i):
-                index_mode.append('regular')
-            elif q_affine(i, fi):
+            if is_integer(i) or q_affine(i, fi):
                 index_mode.append('regular')
             else:
+                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+                try:
+                    # There's still hope it's regular if a DerivedDimension is used
+                    candidate = dims.pop()
+                    if candidate.parent == fi and q_affine(i, candidate):
+                        index_mode.append('regular')
+                        continue
+                except (KeyError, AttributeError):
+                    pass
                 index_mode.append('irregular')
         return tuple(index_mode)
 
