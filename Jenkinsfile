@@ -19,14 +19,14 @@ pipeline {
                         }
                     }
                 }
-                stage ('Run something in the GCC7 container') {
-                    agent { label 'dockerhost' }
-                    steps {
-                        script {
-                            customImage.inside {
-                                sh "which python ; python --version ; gcc-7 --version"  
-                            }
-                        }
+            }
+        }
+        stage ('Run something in the GCC7 container') {
+            agent { label 'dockerhost' }
+            steps {
+                script {
+                    customImage.inside {
+                        sh "which python ; python --version ; gcc-7 --version"
                     }
                 }
             }
