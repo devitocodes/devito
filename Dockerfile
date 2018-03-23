@@ -22,8 +22,23 @@ ARG gccvers=4.9
 # Install gcc/g++
 RUN apt-get -y install gcc-$gccvers g++-$gccvers
 
+# Set up alternatives
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-$gccvers
+RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-$gccvers
+RUN update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-$gccvers
+RUN update-alternatives --install /usr/bin/ar ar /usr/bin/gcc-ar-$gccvers
+RUN update-alternatives --install /usr/bin/nm nm /usr/bin/gcc-nm-$gccvers
+RUN update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-$gccvers
+RUN update-alternatives --install /usr/bin/ranlib ranlib /usr/bin/gcc-ranlib-$gccvers
+RUN update-alternatives --install /usr/bin/gcov-dump gcov-dump /usr/bin/gcov-dump-$gccvers
+RUN update-alternatives --install /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-$gccvers
+
 # Set up for Miniconda
 WORKDIR /tmp
 RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
 RUN bash miniconda.sh -b -p /usr/local/miniconda
 ENV PATH /usr/local/miniconda/bin:$PATH
+RUN conda config --set always_yes yes --set changeps1 no
+RUN conda update -q conda
+RUN conda info -a
+
