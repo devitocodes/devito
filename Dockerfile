@@ -23,15 +23,15 @@ ARG gccvers=4.9
 RUN apt-get -y install gcc-$gccvers g++-$gccvers
 
 # Set up alternatives
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-$gccvers
-RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-$gccvers
-RUN update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-$gccvers
-RUN update-alternatives --install /usr/bin/ar ar /usr/bin/gcc-ar-$gccvers
-RUN update-alternatives --install /usr/bin/nm nm /usr/bin/gcc-nm-$gccvers
-RUN update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-$gccvers
-RUN update-alternatives --install /usr/bin/ranlib ranlib /usr/bin/gcc-ranlib-$gccvers
-RUN update-alternatives --install /usr/bin/gcov-dump gcov-dump /usr/bin/gcov-dump-$gccvers
-RUN update-alternatives --install /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-$gccvers
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-$gccvers 10
+RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-$gccvers 10
+RUN update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-$gccvers 10
+RUN update-alternatives --install /usr/bin/ar ar /usr/bin/gcc-ar-$gccvers 10
+RUN update-alternatives --install /usr/bin/nm nm /usr/bin/gcc-nm-$gccvers 10
+RUN update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-$gccvers 10
+RUN update-alternatives --install /usr/bin/ranlib ranlib /usr/bin/gcc-ranlib-$gccvers 10
+RUN update-alternatives --install /usr/bin/gcov-dump gcov-dump /usr/bin/gcov-dump-$gccvers 10
+RUN update-alternatives --install /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-$gccvers 10
 
 # Set up for Miniconda
 WORKDIR /tmp
