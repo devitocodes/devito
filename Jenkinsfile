@@ -11,7 +11,7 @@ pipeline {
                         }
                     }
                     environment {
-                        HOME = ${WORKSPACE}
+                        HOME = "${WORKSPACE}"
                     }
                     steps {
                         sh "which python ; python --version ; gcc-7 --version"  
