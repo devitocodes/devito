@@ -18,7 +18,7 @@ RUN apt-get update
 RUN apt-get -y dist-upgrade
 
 # Install gcc/g++
-RUN apt-get -y install gcc-$gccvers g++-$gccvers wget
+RUN apt-get -y install gcc-$gccvers g++-$gccvers wget bzip2
 
 # Set up for Miniconda
 WORKDIR /tmp
