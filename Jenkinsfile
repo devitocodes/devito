@@ -7,15 +7,16 @@ pipeline {
                     agent {
                         dockerfile {
                             additionalBuildArgs  '--build-arg gccvers=-7'
-                    }
-                    steps {
-                        echo "steps"
-                    }
-                    post {
-                        always {
-                            echo "post"
                         }
-                    }   
+                        steps {
+                            echo "steps"
+                        }
+                        post {
+                            always {
+                                echo "post"
+                            }
+                        }
+                    }
                 }
             }
         }
