@@ -3,31 +3,19 @@ pipeline {
     stages {
         stage('Run Tests') {
             parallel {
-                stage('Test On Linux 1') {
+                stage('Build and test with gcc7') {
                     agent {
-                        label "linux"
+                        dockerfile {
+                            additionalBuildArgs  '--build-arg gccvers=-7'
                     }
                     steps {
-                        bat "run-tests.bat"
+                        echo "steps"
                     }
                     post {
                         always {
-                            junit "**/TEST-*.xml"
+                            echo "post"
                         }
-                    }
-                }
-                stage('Test On Linux 2') {
-                    agent {
-                        label "linux"
-                    }
-                    steps {
-                        sh "run-tests.sh"
-                    }
-                    post {
-                        always {
-                            junit "**/TEST-*.xml"
-                        }
-                    }
+                    }   
                 }
             }
         }
