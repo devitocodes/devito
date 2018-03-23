@@ -15,7 +15,17 @@ pipeline {
                     }
                     post {
                         success {
-                            echo "Built devito-gcc7:${env.BUILD_ID} as ${customImage}"
+                            echo "Built devito-gcc7:${env.BUILD_ID}"
+                        }
+                    }
+                }
+                stage ('Run something in the GCC7 container') {
+                    agent { label 'dockerhost' }
+                    steps {
+                        script {
+                            customImage.inside {
+                                sh "which python ; python --version ; gcc-7 --version"  
+                            }
                         }
                     }
                 }
