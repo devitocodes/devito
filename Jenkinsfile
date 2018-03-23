@@ -1,14 +1,17 @@
 pipeline {
-  stage('Build') {
-    steps {
+  agent { none } 
+  stages {
+    stage('Build') {
+      steps {
         parallel (
-            "Windows" : {
-                echo 'done'
-            },
-            "Linux" : {
-                echo 'done'
-            }
+          "Windows" : {
+            echo 'done'
+          },
+          "Linux" : {
+            echo 'done'
+          }
        )
+      }
     }
   }
 }  
