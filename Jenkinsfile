@@ -8,7 +8,9 @@ pipeline {
                         dockerfile { additionalBuildArgs  '--build-arg gccvers=7' }
                     }
                     steps {
-                        sh "ls /usr/bin"
+                        sh "wget http://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh -O ~/miniconda.sh"
+                        sh "bash ~/miniconda.sh -b -p $HOME/miniconda"
+                        
                     }
                     post {
                         always {
