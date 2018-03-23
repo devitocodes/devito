@@ -119,7 +119,7 @@ class Operator(Callable):
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
-    def arguments(self, **kwargs):
+    def prepare_arguments(self, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
@@ -164,12 +164,14 @@ class Operator(Callable):
         # Execute autotuning and adjust arguments accordingly
         if kwargs.get('autotune', False):
             args = self._autotune(args)
+        return args
 
+    def arguments(self, **kwargs):
+        args = self.prepare_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
             if p.name not in args:
                 raise ValueError("No value found for parameter %s" % p.name)
-
         return args
 
     @property
