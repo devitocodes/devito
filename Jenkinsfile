@@ -8,7 +8,7 @@ pipeline {
                         dockerfile { additionalBuildArgs  '--build-arg gccvers=7' }
                     }
                     steps {
-                        sh "gcc --version ; ls"
+                        sh "ls /usr/bin"
                     }
                     post {
                         always {
