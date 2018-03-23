@@ -15,7 +15,7 @@ pipeline {
                     }
                     post {
                         success {
-                            echo "Built devito-gcc7:${env.BUILD_ID}"
+                            echo "Built devito-gcc7:${env.BUILD_ID} as ${customImage}"
                         }
                     }
                 }
