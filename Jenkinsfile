@@ -8,7 +8,7 @@ pipeline {
   stages {
     stage('1') {
       steps {
-        sh 'pwd ; ls -la'
+        sh 'stat -c "%u" Jenkinsfile'
       }
     }
   }
