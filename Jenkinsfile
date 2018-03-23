@@ -4,20 +4,18 @@ pipeline {
         stage('Build container') {
             parallel {
                 stage('Set up GCC7 container') {
-                    agent {
-                        dockerfile {
-                            additionalBuildArgs  '--build-arg gccvers=7' 
-                        }
-                    }
-                    environment {
-                        HOME = "${WORKSPACE}"
-                    }
+                    agent { label dockerhost }
                     steps {
-                        sh "which python ; python --version ; gcc-7 --version"  
+                        script {
+                            def customImage = docker.build("devito-gcc7:${env.BUILD_ID}")
+                            customImage.inside {
+                                sh "which python ; python --version ; gcc-7 --version"  
+                            }
+                        }    
                     }
                     post {
                         success {
-                            echo "Built "
+                            echo "Built devito-gcc7:${env.BUILD_ID}"
                         }
                     }
                 }
