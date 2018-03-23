@@ -18,5 +18,8 @@ RUN apt-get update
 RUN apt-get -y dist-upgrade
 
 # Install gcc/g++
-RUN apt-get -y install gcc-$gccvers g++-$gccvers
+RUN apt-get -y install gcc-$gccvers g++-$gccvers wget
+
+# Add to PATH for user's miniconda install
+
 
