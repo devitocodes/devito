@@ -1,10 +1,11 @@
 import numpy as np
 
+import pytest
 from conftest import skipif_yask
 
-from devito import (ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant,
-                    INTERIOR)
-from devito.ir.iet import retrieve_iteration_tree
+from devito import (ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant,  # noqa
+                    DOMAIN, INTERIOR)
+from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
 @skipif_yask
@@ -82,6 +83,35 @@ class TestSubDimension(object):
         assert np.all(u.data[1, 6:, :] == 0)
         assert np.all(u.data[1, :, 0:5] == 0)
         assert np.all(u.data[1, :, 6:] == 0)
+
+    @pytest.mark.parametrize('exprs,expected,', [
+        # Carried dependence in both /t/ and /x/
+        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], region=DOMAIN)'], 'y'),
+        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], region=INTERIOR)'], 'yi'),
+        # Carried dependence in both /t/ and /y/
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], region=DOMAIN)'], 'x'),
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], region=INTERIOR)'], 'xi'),
+        # Carried dependence in /y/, leading to separate /y/ loops, one
+        # going forward, the other backward
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], region=INTERIOR)',
+          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], region=INTERIOR)'], 'xi'),
+    ])
+    def test_iteration_properties(self, exprs, expected):
+        """Tests detection of sequental and parallel Iterations when applying
+        equations over different regions."""
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions  # noqa
+        t = grid.time_dim  # noqa
+        u = TimeFunction(name='u', grid=grid, save=10, time_order=1)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
+
+        op = Operator(exprs)
+        iterations = FindNodes(Iteration).visit(op)
+        assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
+        assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
 
 
 class TestConditionalDimension(object):
