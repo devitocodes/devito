@@ -3,14 +3,16 @@ pipeline {
     stages {
         stage('Build container') {
             parallel {
-                stage('Set up GCC7 container') {
+                stage('Build GCC7 container') {
                     agent { label 'dockerhost' }
                     steps {
                         script {
-                            def customImage = docker.build("devito-gcc7:${env.BUILD_ID}", "--build-arg gccvers=7 .")
+                            def customImage = docker.build("opesci/devito-jenkins:gcc7-${env.BUILD_ID}", "--build-arg gccvers=7 .")
                             customImage.inside {
-                                sh "which python ; python --version ; gcc-7 --version"  
+                                sh "which python ; python --version ; gcc-7 --version"
                             }
+                            customImage.push()
+                            customImage.push('latest')
                         }    
                     }
                     post {
@@ -22,13 +24,9 @@ pipeline {
             }
         }
         stage ('Run something in the GCC7 container') {
-            agent { label 'dockerhost' }
+            agent { docker "opesci/devito-jenkins:gcc7-${env.BUILD_ID}" }
             steps {
-                script {
-                    customImage.inside {
-                        sh "which python ; python --version ; gcc-7 --version"
-                    }
-                }
+                sh "which python ; python --version ; gcc-7 --version"
             }
         }
     }
