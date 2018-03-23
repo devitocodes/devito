@@ -110,6 +110,11 @@ class TensorFunction(AbstractCachedFunction):
         :class:`SparseFunction` (or their subclasses) instead.
     """
 
+    # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
+    # think that a TensorFunction is actually iterable, thus breaking many of
+    # its key routines (e.g., solve)
+    _iterable = False
+
     is_Input = True
     is_TensorFunction = True
     is_Tensor = True
@@ -128,6 +133,10 @@ class TensorFunction(AbstractCachedFunction):
                 assert(callable(self.initializer))
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data = None
+
+    def __getitem__(self, index):
+        """Shortcut for ``self.indexed[index]``."""
+        return self.indexed[index]
 
     def _allocate_memory(func):
         """Allocate memory as a :class:`Data`."""
