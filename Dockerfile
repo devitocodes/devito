@@ -4,7 +4,7 @@ FROM ubuntu:xenial
 MAINTAINER Tim Greaves
 
 # Default gcc version to install
-ARG gccvers=-4.9
+ARG gccvers=4.9
 
 # Add the ubuntu-toolchain-r repository
 RUN echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main" > /etc/apt/sources.list.d/ubuntu-toolchain-r-ppa-xenial.list
