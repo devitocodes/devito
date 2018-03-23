@@ -8,7 +8,8 @@ pipeline {
   stages {
     stage('1') {
       steps {
-        sh 'stat -c "%u" Jenkinsfile'
+        sh 'adduser --disabled-password --gecos "" --uid `stat -c "%u" Jenkinsfile` devito'
+        sh 'ls -l'
       }
     }
   }
