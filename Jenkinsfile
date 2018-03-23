@@ -1,19 +1,24 @@
 pipeline {
     agent none
     stages {
-        stage('Run Tests') {
+        stage('Build container') {
             parallel {
-                stage('Test On Linux 1') {
+                stage('Set up GCC7 container') {
                     agent {
-                        dockerfile { additionalBuildArgs  '--build-arg gccvers=7' }
+                        dockerfile {
+                            label '${BUILD_TAG}-gcc7'
+                            additionalBuildArgs  '--build-arg gccvers=7' 
+                        }
+                    }
+                    environment {
+                        HOME = ${WORKSPACE}
                     }
                     steps {
-                        sh "which python ; python --version ; gcc-7 --version"
-                        
+                        sh "which python ; python --version ; gcc-7 --version"  
                     }
                     post {
-                        always {
-                            echo "Post"
+                        success {
+                            echo "Built "
                         }
                     }
                 }
