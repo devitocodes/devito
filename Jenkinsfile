@@ -5,7 +5,7 @@ pipeline {
             parallel {
                 stage('Test On Linux 1') {
                     agent {
-                        label "linux"
+                        dockerfile true
                     }
                     steps {
                         echo "Steps"
