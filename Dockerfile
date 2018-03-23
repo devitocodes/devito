@@ -15,7 +15,7 @@ RUN apt-get update
 RUN apt-get -y dist-upgrade
 
 # Needed for the conda install later; common across builds so put before gcc to improve cacheing
-RUN wget bzip
+RUN apt-get -y install wget bzip
 
 # Default gcc version to install; can be overridden in Jenkinsfile
 ARG gccvers=4.9
