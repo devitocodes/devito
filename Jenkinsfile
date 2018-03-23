@@ -1,16 +1,25 @@
 pipeline {
-  agent {
-    docker { image 'ubuntu' }
-  }
+  agent {  }
   environment {
     PATH = "/usr/local/bin:/usr/bin:/bin"
   }
   stages {
-    stage('1') {
-      steps {
-        sh 'adduser --disabled-password --gecos "" --uid `stat -c "%u" Jenkinsfile` devito'
+    stage 'build' {
+    parallel 'gcc7-build':{
+      node('xenial-gcc7'){
+        checkout scm
+        def customImage = docker.build("my-image:${env.BUILD_ID}")
+        customImage.inside {
         sh 'ls -l'
+        }
+      }, 'gcc8-build':{
+      node('xenial-gcc8'){
+      checkout scm
+        def customImage = docker.build("my-image:${env.BUILD_ID}")
+        customImage.inside {
+        sh 'ls -l'
+        }
       }
     }
   }
-} 
+}
