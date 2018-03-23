@@ -21,8 +21,7 @@ RUN apt-get -y dist-upgrade
 RUN apt-get -y install gcc-$gccvers g++-$gccvers wget
 
 # Set up for Miniconda
-RUN mkdir -p /usr/local/miniconda
-RUN chmod 777 /usr/local/miniconda
+RUN chmod 777 /usr/local
 ENV PATH /usr/local/miniconda/bin:$PATH
 
 
