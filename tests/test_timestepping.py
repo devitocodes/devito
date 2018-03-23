@@ -112,7 +112,7 @@ def test_loop_bounds_backward(d):
     d.data[:] = 5.
     eqn = Eq(d.backward, d - 1)
     op = Operator(eqn, dle=None, dse=None)
-    op(dt=1.)
+    op()
     assert np.allclose(d.data[0, :], 0., rtol=1.e-12)
     assert np.allclose(d.data[-1, :], 5., rtol=1.e-12)
     for i in range(1, d.data.shape[0]-1):

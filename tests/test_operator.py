@@ -241,7 +241,7 @@ class TestArithmetic(object):
         poke_eq = Eq(u.indexed[coordinates.indexed[p_poke, 0],
                                coordinates.indexed[p_poke, 1]], 1.0)
         op = Operator(poke_eq)
-        op.apply(p_src_e=2)
+        op.apply()
 
         ix, iy = np.where(u.data == 1.)
         assert len(ix) == len(iy) == 1

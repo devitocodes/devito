@@ -58,6 +58,11 @@ class Constant(AbstractCachedSymbol):
     def base(self):
         return self
 
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this symbol."""
+        return (self.name,)
+
     def _arg_defaults(self):
         """
         Returns a map of default argument values defined by this symbol.
@@ -259,6 +264,11 @@ class TensorFunction(AbstractCachedFunction):
         symbolic_shape = super(TensorFunction, self).symbolic_shape
         return tuple(sympy.Add(i, -j, evaluate=False)
                      for i, j in zip(symbolic_shape, self.staggered))
+
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this function."""
+        return (self.name,)
 
     def _arg_defaults(self, alias=None):
         """
@@ -987,6 +997,11 @@ class SparseFunction(TensorFunction):
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
+
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this function."""
+        return (self.name, self.coordinates.name)
 
     def _arg_defaults(self, alias=None):
         """
