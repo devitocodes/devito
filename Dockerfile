@@ -1,12 +1,9 @@
 FROM ubuntu:xenial
 
 # This DockerFile is looked after by
-MAINTAINER Tim Greaves
+MAINTAINER Tim Greaves <tim.greaves@imperial.ac.uk>
 
-# Default gcc version to install
-ARG gccvers=4.9
-
-# Add the ubuntu-toolchain-r repository
+# Add the ubuntu-toolchain-r test ppa
 RUN echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main" > /etc/apt/sources.list.d/ubuntu-toolchain-r-ppa-xenial.list
 
 # Import the Launchpad PPA public key
@@ -17,8 +14,13 @@ RUN gpg --export --armor BA9EF27F | apt-key add -
 RUN apt-get update
 RUN apt-get -y dist-upgrade
 
+# Needed for the conda install later; common across builds so put before gcc to improve cacheing
+RUN wget bzip
+
+# Default gcc version to install; can be overridden in Jenkinsfile
+ARG gccvers=4.9
 # Install gcc/g++
-RUN apt-get -y install gcc-$gccvers g++-$gccvers wget bzip2
+RUN apt-get -y install gcc-$gccvers g++-$gccvers
 
 # Set up for Miniconda
 WORKDIR /tmp
