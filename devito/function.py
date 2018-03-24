@@ -1032,9 +1032,18 @@ class SparseFunction(TensorFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
             values = new.argument_defaults(alias=key).reduce_all()
+            values.update(new.coordinates.argument_values(alias=key.coordinates,
+                                                          **kwargs))
         else:
-            # ..., but if not, we simply need to recurse over children.
-            values = self.coordinates.argument_values(alias=key, **kwargs)
+            # Set the data to the input if it is an array
+            values = {key.name: key._data_buffer if new is None else new}
+            # Process indices
+            shape = self.shape if new is None else new.shape
+            for i, s, o in zip(self.indices, shape, self.staggered):
+                values.update(i.argument_defaults(size=s+o))
+            # Take default coordinates values
+            defaults = key.coordinates.argument_defaults(alias=key.coordinates)
+            values.update(defaults.reduce_all())
 
         return values
 
