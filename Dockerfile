@@ -45,3 +45,9 @@ RUN conda info -a
 # Add working version of devito to image
 WORKDIR /usr/local/devito
 ADD . / ./
+
+# Install devito into the image
+RUN conda env create -q -f environment.yml python
+RUN source activate devito
+RUN pip install -e .
+RUN conda list
