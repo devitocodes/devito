@@ -63,11 +63,11 @@ RUN echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> /etc/ssh/config
 # Devito back-end set at build-time for Jenkins images
 WORKDIR /usr/local
 ARG DEVITO_BACKEND
-RUN if [ "x$DEVITO_BACKEND" = "xyask" ] ; then 
-      conda install swig
-      apt-get -y install make
-      git clone https://github.com/opesci/yask.git
-      make -C yask/ compiler compiler-api
-      pip install -e yask/
+RUN if [ "x$DEVITO_BACKEND" = "xyask" ] ; then \
+      conda install swig ; \
+      apt-get -y install make ; \
+      git clone https://github.com/opesci/yask.git ; \
+      make -C yask/ compiler compiler-api ; \
+      pip install -e yask/ ; \
     fi
   
