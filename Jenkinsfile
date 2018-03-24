@@ -7,7 +7,7 @@ pipeline {
                     agent { label 'dockerhost' }
                     steps {
                         script {
-                            def customImage = docker.build("opesci/devito-jenkins:gcc7-${env.BUILD_ID}", "--build-arg gccvers=7 .")
+                            def customImage = docker.build("opesci/devito-jenkins:gcc7-${env.BUILD_ID}", "--build-arg gccvers=7 --build-arg DEVITO_BACKEND=yask .")
                             customImage.inside {
                                 sh "which python ; python --version ; gcc-7 --version"
                             }
