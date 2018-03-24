@@ -14,8 +14,8 @@ RUN gpg --export --armor BA9EF27F | apt-key add -
 RUN apt-get update
 RUN apt-get -y dist-upgrade
 
-# Needed for the conda install later; common across builds so put before gcc to improve cacheing
-RUN apt-get -y install wget bzip2
+# Needed for the conda and devito installs later; common across builds so put before gcc to improve cacheing
+RUN apt-get -y install wget bzip2 git
 
 # Default gcc version to install; can be overridden in Jenkinsfile
 ARG gccvers=4.9
