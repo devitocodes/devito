@@ -43,5 +43,5 @@ RUN conda update -q conda
 RUN conda info -a
 
 # Add working version of devito to image
-ADD . / /usr/local/devito
-
+WORKDIR /usr/local/devito
+ADD . / ./
