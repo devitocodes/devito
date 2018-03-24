@@ -1,12 +1,7 @@
 import numpy as np
-import pytest
-from numpy import linalg
 
-from devito import TimeFunction
-from devito.logger import log
 from examples.seismic import RickerSource, demo_model
 
-from scipy import signal
 
 def test_resample():
 
@@ -23,8 +18,10 @@ def test_resample():
     model = demo_model(preset='layers-isotropic', vp_top=1., vp_bottom=2.,
                        spacing=spacing, shape=shape, nbpml=nbpml)
 
-    src_a = RickerSource(name='src_a', grid=model.grid, f0=f0, time=np.linspace(t0, tn, nt, endpoint=False))
-    src_b = RickerSource(name='src_b', grid=model.grid, f0=f0, time=np.linspace(t0, tn, nt*13, endpoint=False))
+    src_a = RickerSource(name='src_a', grid=model.grid, f0=f0,
+                         time=np.linspace(t0, tn, nt, endpoint=False))
+    src_b = RickerSource(name='src_b', grid=model.grid, f0=f0,
+                         time=np.linspace(t0, tn, nt*13, endpoint=False))
 
     src_c = src_b.resample(dt=(tn-t0)/nt)
 
@@ -33,6 +30,7 @@ def test_resample():
     res = src_a.data - src_c.data
 
     assert np.linalg.norm(res) < 0.005
+
 
 if __name__ == "__main__":
     test_resample()
