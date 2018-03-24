@@ -7,27 +7,22 @@ pipeline {
                     agent { label 'dockerhost' }
                     steps {
                         script {
-                            def customImage = docker.build("opesci/devito-jenkins:gcc7-${env.BUILD_ID}", "--build-arg gccvers=7 --build-arg DEVITO_BACKEND=yask .")
-                            customImage.inside {
-                                sh "which python ; python --version ; gcc-7 --version"
-                            }
-                            customImage.push()
-                            customImage.push('latest')
+                            buildImage(gccvers=7, DEVITO_BACKEND=yask)
                         }    
-                    }
-                    post {
-                        success {
-                            echo "Built devito-gcc7:${env.BUILD_ID}"
-                        }
                     }
                 }
             }
         }
-        stage ('Run something in the GCC7 container') {
-            agent { docker "opesci/devito-jenkins:gcc7-${env.BUILD_ID}" }
-            steps {
-                sh "which python ; python --version ; gcc-7 --version"
-            }
-        }
     }
 }
+
+void buildImage (gccvers, DEVITO_BACKEND) {
+    script {
+    def customImage = docker.build("opesci/devito-jenkins:gcc7-${env.BUILD_ID}", "-f Dockerfile.jenkins --build-arg gccvers=${gccvers} --build-arg DEVITO_BACKEND=${DEVITO_BACKEND} .")
+    customImage.inside {
+        sh "which python ; python --version ; gcc-7 --version"
+    }
+    customImage.push()
+    customImage.push('latest')
+}
+
