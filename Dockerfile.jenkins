@@ -72,7 +72,3 @@ RUN if [ "x$DEVITO_BACKEND" = "xyask" ] ; then \
       make -C yask/ compiler compiler-api ; \
       pip install -e yask/ ; \
     fi
-
-# Runtime devito environment; override at build time
-ARG DEVITO_OPENMP=0
-ARG OMP_NUM_THREADS
