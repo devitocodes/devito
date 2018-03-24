@@ -142,7 +142,7 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
                      else None, time_order=2, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
-    rec = Receiver(name='rec', grid=model.grid, 
+    rec = Receiver(name='rec', grid=model.grid,
                    t0=receiver.t0, dt=receiver.dt, ntime=receiver.nt,
                    npoint=receiver.npoint)
 

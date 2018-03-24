@@ -14,8 +14,6 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
            'RickerSource', 'GaborSource']
 
 
-import sys, traceback
-
 class PointSource(SparseTimeFunction):
     """Symbolic data object for a set of sparse point sources
 
@@ -35,8 +33,8 @@ class PointSource(SparseTimeFunction):
     initialised `data` array need to be provided.
     """
 
-    def __new__(cls, name, grid, t0=None, dt=None, ntime=None, time=None, npoint=None, data=None,
-                coordinates=None, **kwargs):
+    def __new__(cls, name, grid, t0=None, dt=None, ntime=None, time=None,
+                npoint=None, data=None, coordinates=None, **kwargs):
         p_dim = kwargs.get('dimension', Dimension(name='p_%s' % name))
         time_order = kwargs.get('time_order', 2)
         npoint = npoint or coordinates.shape[0]
@@ -94,7 +92,9 @@ class PointSource(SparseTimeFunction):
                            coordinates=self.coordinates.data)
 
     def time(self):
-        return np.linspace(self.t0, self.t0+self.data.shape[0]*self.dt, self.data.shape[0])
+        return np.linspace(self.t0, self.t0+self.data.shape[0]*self.dt,
+                           self.data.shape[0])
+
 
 Receiver = PointSource
 Shot = PointSource
@@ -114,7 +114,7 @@ class WaveletSource(PointSource):
     def __new__(cls, *args, **kwargs):
         time = kwargs.get('time')
         npoint = kwargs.get('npoint', 1)
-        if not time is None:
+        if time is not None:
             kwargs['t0'] = time[0]
             kwargs['dt'] = time[1]-time[0]
             kwargs['ntime'] = len(time)
