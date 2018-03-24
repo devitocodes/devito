@@ -38,12 +38,15 @@ class PointSource(SparseTimeFunction):
         p_dim = kwargs.get('dimension', Dimension(name='p_%s' % name))
         time_order = kwargs.get('time_order', 2)
         npoint = npoint or coordinates.shape[0]
-        if data is None:
-            if ntime is None:
-                error('Either data or ntime are required to'
-                      'initialise source/receiver objects')
-        else:
-            ntime = ntime or data.shape[0]
+        if ntime is None:
+            if data is not None:
+                ntime = data.shape[0]
+            elif time is not None:
+                ntime = time.size
+
+        if ntime is None:
+            error('Either data or ntime are required to'
+                  'initialise source/receiver objects')
 
         # Create the underlying SparseTimeFunction object
         obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,

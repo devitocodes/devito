@@ -24,6 +24,7 @@ def test_tti(shape, space_order):
     location[0, :-1] = [origin[i] + shape[i] * spacing[i] * .5
                         for i in range(ndim-1)]
     location[0, -1] = origin[-1] + 2 * spacing[-1]
+
     # Receivers locations
     receiver_coords = np.zeros((shape[0], ndim), dtype=np.float32)
     receiver_coords[:, 0] = np.linspace(0, origin[0] +
@@ -52,12 +53,14 @@ def test_tti(shape, space_order):
         return (1-2.*r**2)*np.exp(-r**2)
 
     # Source geometry
+    time = np.linspace(t0, tn, nt)
     time_series = np.zeros((nt, 1))
-    time_series[:, 0] = ricker_source(np.linspace(t0, tn, nt), f0)
+    time_series[:, 0] = ricker_source(time, f0)
+
     # Adjoint test
-    source = PointSource(name='src', grid=model.grid, data=time_series,
-                         coordinates=location)
-    receiver = Receiver(name='rec', grid=model.grid, ntime=nt,
+    source = PointSource(name='src', grid=model.grid, time=time,
+                         data=time_series, coordinates=location)
+    receiver = Receiver(name='rec', grid=model.grid, time=time,
                         coordinates=receiver_coords)
     acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
                                   time_order=2, space_order=space_order)
@@ -65,13 +68,14 @@ def test_tti(shape, space_order):
 
     tn = 100.0
     nt = int(1 + (tn - t0) / dt)
-    # Source geometry
-    time_series = np.zeros((nt, 1))
-    time_series[:, 0] = 0*ricker_source(np.linspace(t0, tn, nt), f0)
 
-    source = PointSource(name='src', grid=model.grid, data=time_series,
-                         coordinates=location)
-    receiver = Receiver(name='rec', grid=model.grid, ntime=nt,
+    # Source geometry
+    time = np.linspace(t0, tn, nt)
+    time_series = np.zeros((nt, 1))
+
+    source = PointSource(name='src', grid=model.grid, time=time,
+                         data=time_series, coordinates=location)
+    receiver = Receiver(name='rec', grid=model.grid, time=time,
                         coordinates=receiver_coords)
     acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
                                   time_order=2, space_order=space_order)
