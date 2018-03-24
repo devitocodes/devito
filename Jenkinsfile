@@ -3,7 +3,9 @@ pipeline {
     stages {
         stage('Build container') {
             parallel {
-                stage('Build GCC7 container') { steps { buildImage('7', 'yask') } }
+                stage('Build gcc-4.9 container') { steps { buildImage('4.9') } }
+                stage('Build gcc-5 container') { steps { buildImage('5') } }
+                stage('Build gcc-7 container') { steps { buildImage('7', 'yask') } }
             }
         }
     }
