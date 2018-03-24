@@ -40,14 +40,18 @@ RUN bash miniconda.sh -b -p /usr/local/miniconda
 ENV PATH /usr/local/miniconda/bin:$PATH
 RUN conda config --set always_yes yes --set changeps1 no
 RUN conda update -q conda
+# Debugging step to finish
 RUN conda info -a
 
 # Add working version of devito to image
 WORKDIR /usr/local/devito
+# Obscure syntax: 'recursively add all the contents of docker's working directory to
+#  the working directory in the container
 ADD . / ./
 
 # Install devito into the image
 RUN conda env create -q -f environment.yml python
 RUN source activate devito
 RUN pip install -e .
+# Debugging step to finish
 RUN conda list
