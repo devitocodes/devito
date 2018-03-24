@@ -42,3 +42,6 @@ RUN conda config --set always_yes yes --set changeps1 no
 RUN conda update -q conda
 RUN conda info -a
 
+# Add working version of devito to image
+ADD . /usr/local/devito
+
