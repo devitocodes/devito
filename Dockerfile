@@ -40,6 +40,7 @@ RUN bash miniconda.sh -b -p /usr/local/miniconda
 ENV PATH /usr/local/miniconda/bin:$PATH
 RUN conda config --set always_yes yes --set changeps1 no
 RUN conda update -q conda
+RUN ln -s /usr/local/miniconda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 # Debugging step to finish
 RUN conda info -a
 
