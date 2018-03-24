@@ -11,7 +11,7 @@ pipeline {
     }
 }               
                 
-def buildImage (gccvers, DEVITO_BACKEND) {
+def buildImage (def gccvers, def DEVITO_BACKEND=null) {
     script {
         if (DEVITO_BACKEND!=null && DEVITO_BACKEND.length()>0) {
             BACKEND_ARG="--build-arg DEVITO_BACKEND=${DEVITO_BACKEND}"
