@@ -143,15 +143,15 @@ class Profiler(object):
             time = max(getattr(arguments[self.name]._obj, profile.name), 10e-7)
 
             # Flops
-            itershape = [i.extent(finish=arguments[dims[i].end_name],
-                                  start=arguments[dims[i].start_name]) for i in itspace]
+            itershape = [i.extent(finish=arguments[dims[i].max_name],
+                                  start=arguments[dims[i].min_name]) for i in itspace]
             iterspace = reduce(operator.mul, itershape)
             flops = float(profile.ops*iterspace)
             gflops = flops/10**9
             gpoints = iterspace/10**9
 
             # Compulsory traffic
-            datashape = [(arguments[dims[i].end_name] - arguments[dims[i].start_name])
+            datashape = [(arguments[dims[i].max_name] - arguments[dims[i].min_name] + 1)
                          for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = float(profile.memory*dataspace*dtype().itemsize)

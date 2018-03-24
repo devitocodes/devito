@@ -39,8 +39,8 @@ def function(name, shape, dimensions):
     return Function(name=name, shape=shape, dimensions=dimensions)
 
 
-def timefunction(name):
-    return TimeFunction(name=name, grid=grid)
+def timefunction(name, space_order=1):
+    return TimeFunction(name=name, grid=grid, space_order=space_order)
 
 
 @pytest.fixture(scope="session")
@@ -153,17 +153,17 @@ def ti3(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def tu(dims):
-    return timefunction('tu').indexify()
+    return timefunction('tu', space_order=4).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def tv(dims):
-    return timefunction('tv').indexify()
+    return timefunction('tv', space_order=4).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def tw(dims):
-    return timefunction('tw').indexify()
+    return timefunction('tw', space_order=4).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)

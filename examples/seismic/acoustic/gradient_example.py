@@ -12,16 +12,18 @@ class GradientExample(object):
                  kernel='OT2', space_order=4, nbpml=10):
         self.kernel = kernel
         self.space_order = space_order
-        self._setup_model_and_acquisition(shape, spacing, nbpml, tn)
+        self._setup_model_and_acquisition(space_order, shape, spacing, nbpml, tn)
         self._true_data()
 
     @cached_property
     def dt(self):
-        return self.model.critical_dt * (1.73 if self.kernel == 'OT4' else 1.0)
+        v = self.model.critical_dt * (1.73 if self.kernel == 'OT4' else 1.0)
+        return self.model.dtype(v)
 
-    def _setup_model_and_acquisition(self, shape, spacing, nbpml, tn):
+    def _setup_model_and_acquisition(self, space_order, shape, spacing, nbpml, tn):
         nrec = shape[0]
-        model = demo_model('layers-isotropic', shape=shape, spacing=spacing, nbpml=nbpml)
+        model = demo_model('layers-isotropic', space_order=space_order,
+                           shape=shape, spacing=spacing, nbpml=nbpml)
         self.model = model
         t0 = 0.0
         self.nt = int(1 + (tn-t0) / self.dt)  # Number of timesteps
@@ -54,8 +56,9 @@ class GradientExample(object):
         self.grad = Function(name="grad", grid=model.grid)
 
     def initial_estimate(self):
-        m0 = smooth10(self.model.m.data, self.model.shape_domain)
-        dm = np.float32(self.model.m.data - m0)
+        m0 = Function(name='m0', grid=self.model.m.grid, space_order=self.space_order)
+        m0.data[:] = smooth10(self.model.m.data, self.model.shape_domain)
+        dm = np.float32(self.model.m.data - m0.data)
         return m0, dm
 
     def _true_data(self):
@@ -112,9 +115,9 @@ class GradientExample(object):
     def _objective_function_value(self, rec_data):
         return .5*linalg.norm(rec_data - self.rec_t.data)**2
 
-    def verify(self, m0, gradient, rec_data, dm):
+    def verify(self, m0, gradient, rec, dm):
         # Objective function value
-        F0 = self._objective_function_value(rec_data)
+        F0 = self._objective_function_value(rec.data)
 
         # <J^T \delta d, dm>
         G = np.dot(gradient.reshape(-1), dm.reshape(-1))
@@ -125,7 +128,10 @@ class GradientExample(object):
 
         for i in range(0, 7):
             # Add the perturbation to the model
-            mloc = m0 + H[i] * dm
+            def initializer(data):
+                data[:] = m0.data + H[i] * dm
+            mloc = Function(name='mloc', grid=self.model.m.grid,
+                            space_order=self.space_order, initializer=initializer)
             # Set field to zero (we're re-using it)
             self.temp_field.data.fill(0)
             # Receiver data for the new model
@@ -150,8 +156,8 @@ def run(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500., kernel='OT2',
         space_order=4, nbpml=10):
     example = GradientExample(shape, spacing, tn, kernel, space_order, nbpml)
     m0, dm = example.initial_estimate()
-    gradient, rec_data = example.gradient(m0)
-    example.verify(m0, gradient, rec_data, dm)
+    gradient, rec = example.gradient(m0)
+    example.verify(m0, gradient, rec, dm)
 
 
 if __name__ == "__main__":
