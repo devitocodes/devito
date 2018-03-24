@@ -56,3 +56,6 @@ RUN . activate devito
 RUN pip install -e .
 # Debugging step to finish
 RUN conda list
+
+# Disable key checking for github.com
+RUN echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> /etc/ssh/config
