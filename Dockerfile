@@ -51,7 +51,7 @@ ADD . / ./
 
 # Install devito into the image
 RUN conda env create -q -f environment.yml python
-RUN source activate devito
+RUN . activate devito
 RUN pip install -e .
 # Debugging step to finish
 RUN conda list
