@@ -19,6 +19,8 @@ RUN apt-get -y install wget bzip2 git
 
 # Default gcc version to install; can be overridden in Jenkinsfile
 ARG gccvers=4.9
+ENV DEVITO_ARCH=gcc-$gccvers
+
 # Install gcc/g++
 RUN apt-get -y install gcc-$gccvers g++-$gccvers
 
@@ -70,4 +72,7 @@ RUN if [ "x$DEVITO_BACKEND" = "xyask" ] ; then \
       make -C yask/ compiler compiler-api ; \
       pip install -e yask/ ; \
     fi
-  
+
+# Runtime devito environment; override at build time
+ARG DEVITO_OPENMP=0
+ARG OMP_NUM_THREADS
