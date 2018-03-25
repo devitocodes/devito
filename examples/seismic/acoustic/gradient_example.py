@@ -38,19 +38,19 @@ class GradientExample(object):
 
         # Define receiver geometry (spread across x, just below surface)
         # We need two receiver fields - one for the true (verification) run
-        rec_t = Receiver(name='rec', grid=model.grid, ntime=self.nt, npoint=nrec)
+        rec_t = Receiver(name='rec', grid=model.grid, time=time, npoint=nrec)
         rec_t.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
         rec_t.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
         self.rec_t = rec_t
 
         # and the other for the smoothed run
-        self.rec = Receiver(name='rec', grid=model.grid, ntime=self.nt, npoint=nrec,
+        self.rec = Receiver(name='rec', grid=model.grid, time=time, npoint=nrec,
                             coordinates=rec_t.coordinates.data)
 
         # Receiver for Gradient
         self.rec_g = Receiver(name="rec", coordinates=self.rec.coordinates.data,
-                              grid=model.grid, dt=self.dt, ntime=self.nt)
+                              grid=model.grid, time=time)
 
         # Gradient symbol
         self.grad = Function(name="grad", grid=model.grid)
