@@ -42,10 +42,10 @@ class PointSource(SparseTimeFunction):
             if data is not None:
                 ntime = data.shape[0]
             elif time is not None:
-                ntime = time.size
+                ntime = time.shape[0]
 
         if ntime is None:
-            error('Either data or ntime are required to'
+            error('Either data or ntime are required to '
                   'initialise source/receiver objects')
 
         # Create the underlying SparseTimeFunction object
@@ -61,7 +61,7 @@ class PointSource(SparseTimeFunction):
         # Set the origin and interval in the time axis
         if time is None:
             if dt is None or t0 is None:
-                error('Either time or t0 and dt are required to'
+                error('Either time or t0 and dt are required to '
                       'initialise source/receiver objects')
             else:
                 obj.t0 = t0
@@ -124,10 +124,9 @@ class WaveletSource(PointSource):
         kwargs['npoint'] = npoint
         obj = PointSource.__new__(cls, *args, **kwargs)
 
-        obj.time = time
         obj.f0 = kwargs.get('f0')
         for p in range(npoint):
-            obj.data[:, p] = obj.wavelet(obj.f0, obj.time)
+            obj.data[:, p] = obj.wavelet(obj.f0, time)
         return obj
 
     def __init__(self, *args, **kwargs):
