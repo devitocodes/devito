@@ -15,7 +15,8 @@ pipeline {
 def buildImage (def gccvers, def DEVITO_BACKEND=null, def DEVITO_OPENMP=null, def OMP_NUM_THREADS=null) {
     script {
         BACKEND_ARG = (DEVITO_BACKEND!=null && DEVITO_BACKEND.length()>0) ? "--build-arg DEVITO_BACKEND=${DEVITO_BACKEND}" : ''
-        def customImage = docker.build("opesci/devito-jenkins:gcc${gccvers}-${env.BUILD_ID}", "--no-cache -f Dockerfile.jenkins --build-arg gccvers=${gccvers} ${BACKEND_ARG} .")
+        BACKEND_SUFFIX = (DEVITO_BACKEND!=null && DEVITO_BACKEND.length()>0) ? "-${DEVITO_BACKEND}" : ''
+        def customImage = docker.build("opesci/devito-jenkins:gcc${gccvers}${BACKEND_SUFFIX}-${env.BUILD_ID}", "--no-cache -f Dockerfile.jenkins --build-arg gccvers=${gccvers} ${BACKEND_ARG} .")
         customImage.inside {
             sh "which python ; python --version ; gcc --version"
         }
