@@ -52,7 +52,7 @@ def buildAndTest (def gccvers, def DEVITO_BACKEND=null, def DEVITO_OPENMP=null, 
                 sh "py.test -vs --nbval examples/seismic/tutorials"
                 sh "py.test -vs --nbval examples/cfd"
             }
-            sh "codecov"
+            // sh "codecov"
         }
         // If the build and test succeeded, push the container to dockerhub
         customImage.push()
