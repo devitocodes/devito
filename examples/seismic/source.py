@@ -151,7 +151,7 @@ class WaveletSource(PointSource):
         :param time: Prescribed time instead of time from this symbol
         """
         wavelet = wavelet or self.data[:, idx]
-        time = time or self.time
+        time = time or self.time()
         plt.figure()
         plt.plot(time, wavelet)
         plt.xlabel('Time (ms)')
