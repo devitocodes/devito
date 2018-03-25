@@ -58,6 +58,7 @@ ADD . / ./
 
 # Install devito into the image
 RUN conda env create -q -f environment.yml python
+# Normal activation of virtualenv doesn't persist; set environment explicitly
 ENV CONDA_DEFAULT_ENV="devito"
 ENV CONDA_EXE="/usr/local/miniconda/bin/conda"
 ENV CONDA_PREFIX="/usr/local/miniconda/envs/devito"
@@ -65,6 +66,7 @@ ENV CONDA_PROMPT_MODIFIER="(devito) "
 ENV CONDA_PYTHON_EXE="/usr/local/miniconda/bin/python"
 ENV CONDA_SHLVL="1"
 ENV PATH="/usr/local/miniconda/envs/devito/bin:$PATH"
+# Now install devito into the virtualenv
 RUN pip install -e .
 # Debugging step to finish
 RUN conda list
