@@ -58,7 +58,14 @@ ADD . / ./
 
 # Install devito into the image
 RUN conda env create -q -f environment.yml python
-# Normal activation of virtualenv doesn't persist; set environment explicitly
+# *** NOTE TO FUTURE DEVELOPERS REUSING THIS JENKINSFILE FOR DEPLOYMENT ***
+# Normal activation of virtualenv doesn't persist; set environment explicitly so that
+#  when Jenkins runs the container it will start up with the devito virtualenv active.
+#  Note that this may not be ideal for non-Jenkins-intended containers, BUT does need
+#  to be present before the devito install as 'RUN source activate devito' doesn't
+#  persist into the next RUN and devito will end up being installed into base instead
+#  of into the devito virtualenv. On the other hand, defaulting to a devito virtualenv
+#  in a devito container seems like a pretty sensible thing to happen...
 ENV CONDA_DEFAULT_ENV="devito"
 ENV CONDA_EXE="/usr/local/miniconda/bin/conda"
 ENV CONDA_PREFIX="/usr/local/miniconda/envs/devito"
