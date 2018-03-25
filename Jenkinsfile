@@ -14,7 +14,7 @@ def buildImage (def gccvers, def DEVITO_BACKEND=null) {
         if (DEVITO_BACKEND!=null && DEVITO_BACKEND.length()>0) {
             BACKEND_ARG="--build-arg DEVITO_BACKEND=${DEVITO_BACKEND}"
         } else {
-            BACKEND_ARG=null
+            BACKEND_ARG=''
         }
         def customImage = docker.build("opesci/devito-jenkins:gcc${gccvers}-${env.BUILD_ID}", "-f Dockerfile.jenkins --build-arg gccvers=${gccvers} ${BACKEND_ARG} .")
         customImage.inside {
