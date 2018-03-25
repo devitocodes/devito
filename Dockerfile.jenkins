@@ -75,7 +75,7 @@ RUN conda list
 RUN echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> /etc/ssh/config
 
 # Devito back-end set at build-time for Jenkins images
-WORKDIR /usr/local
+WORKDIR /usr/localwhich python ; python --version ; gcc --version
 ARG DEVITO_BACKEND
 RUN if [ "x$DEVITO_BACKEND" = "xyask" ] ; then \
       conda install swig ; \
@@ -84,3 +84,6 @@ RUN if [ "x$DEVITO_BACKEND" = "xyask" ] ; then \
       make -C yask/ compiler compiler-api ; \
       pip install -e yask/ ; \
     fi
+
+# By default, start the container in the devito directory
+WORKDIR /usr/local/devito
