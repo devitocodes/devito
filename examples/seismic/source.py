@@ -91,7 +91,7 @@ class PointSource(SparseTimeFunction):
             data[:, i] = signal.resample(self.data[:, i], nt, window=window)
 
         # Return new object
-        return PointSource(self.name, self.grid, self.t0, dt, data=data,
+        return PointSource(self.name, self.grid, t0=self.t0, dt=dt, data=data,
                            coordinates=self.coordinates.data)
 
     def time(self):
