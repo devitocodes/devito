@@ -44,14 +44,16 @@ def test_gradientFWI(shape, kernel, space_order):
 
     # Compute receiver data for the true velocity
     rec, u, _ = wave.forward()
+
     # Compute receiver data and full wavefield for the smooth velocity
     rec0, u0, _ = wave.forward(m=m0, save=True)
 
     # Objective function value
     F0 = .5*linalg.norm(rec0.data - rec.data)**2
+
     # Gradient: <J^T \delta d, dm>
     residual = Receiver(name='rec', grid=wave.model.grid, data=rec0.data - rec.data,
-                        coordinates=rec0.coordinates.data)
+                        time=rec.time(), coordinates=rec0.coordinates.data)
     gradient, _ = wave.gradient(residual, u0, m=m0)
     G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
 
