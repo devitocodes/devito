@@ -3,7 +3,7 @@ from conftest import EVAL
 from sympy import sin  # noqa
 import numpy as np
 import pytest
-from conftest import x, y, z, time, skipif_yask  # noqa
+from conftest import x, y, z, skipif_yask  # noqa
 
 from devito import Eq  # noqa
 from devito.ir import Stencil, FlowGraph
