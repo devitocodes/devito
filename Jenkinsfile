@@ -37,6 +37,7 @@ def buildAndTest (def gccvers, def DEVITO_BACKEND=null, def DEVITO_OPENMP=null, 
         customImage.inside {
             sh "flake8 --builtins=ArgumentError ."
             sh "py.test -vs --cov devito tests/"
+            // Additional seismic operator tests
             if ( DEVITO_BACKEND!='yask' ) {
                 sh "DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign"
                 sh "python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5"
