@@ -380,9 +380,9 @@ def ForwardOperator(model, source, receiver, space_order=4,
     v = TimeFunction(name='v', grid=model.grid,
                      save=source.nt if save else None,
                      time_order=2, space_order=space_order)
-    src = PointSource(name='src', grid=model.grid, ntime=source.nt,
+    src = PointSource(name='src', grid=model.grid, time=source.time(),
                       npoint=source.npoint)
-    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
+    rec = Receiver(name='rec', grid=model.grid, time=receiver.time(),
                    npoint=receiver.npoint)
 
     # Tilt and azymuth setup

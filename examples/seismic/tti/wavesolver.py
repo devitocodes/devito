@@ -61,9 +61,10 @@ class AnisotropicWaveSolver(object):
         # Source term is read-only, so re-use the default
         if src is None:
             src = self.source
+
         # Create a new receiver object to store the result
         if rec is None:
-            rec = Receiver(name='rec', grid=self.model.grid, ntime=self.receiver.nt,
+            rec = Receiver(name='rec', grid=self.model.grid, time=self.receiver.time(),
                            coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield if not provided
@@ -71,11 +72,13 @@ class AnisotropicWaveSolver(object):
             u = TimeFunction(name='u', grid=self.model.grid,
                              save=self.source.nt if save else None,
                              time_order=2, space_order=self.space_order)
+
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeFunction(name='v', grid=self.model.grid,
                              save=self.source.nt if save else None,
                              time_order=2, space_order=self.space_order)
+
         # Pick m from model unless explicitly provided
         if m is None:
             m = m or self.model.m
@@ -99,4 +102,5 @@ class AnisotropicWaveSolver(object):
             summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
                                delta=delta, theta=theta, phi=phi,
                                dt=kwargs.pop('dt', self.dt), **kwargs)
+
         return rec, u, v, summary

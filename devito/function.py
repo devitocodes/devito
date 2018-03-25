@@ -1029,18 +1029,17 @@ class SparseFunction(TensorFunction):
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
-            values = new.argument_defaults(alias=key).reduce_all()
-            values.update(new.coordinates.argument_values(alias=key.coordinates,
-                                                          **kwargs))
+            values = new._arg_defaults(alias=key).reduce_all()
+            values.update(new.coordinates._arg_values(alias=key.coordinates, **kwargs))
         else:
             # Set the data to the input if it is an array
             values = {key.name: key._data_buffer if new is None else new}
             # Process indices
             shape = self.shape if new is None else new.shape
             for i, s, o in zip(self.indices, shape, self.staggered):
-                values.update(i.argument_defaults(size=s+o))
+                values.update(i._arg_defaults(size=s+o))
             # Take default coordinates values
-            defaults = key.coordinates.argument_defaults(alias=key.coordinates)
+            defaults = key.coordinates._arg_defaults(alias=key.coordinates)
             values.update(defaults.reduce_all())
 
         return values
