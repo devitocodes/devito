@@ -40,15 +40,15 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     # Derive timestepping from model spacing
     dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
     nt = int(1 + (tn-t0) / dt)  # Number of timesteps
-    time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+    time = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = 30.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec = Receiver(name='rec', grid=model.grid, time=time, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -57,7 +57,7 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
                                 kernel=kernel, space_order=space_order)
 
     # Create adjoint receiver symbol
-    srca = Receiver(name='srca', grid=model.grid, ntime=solver.source.nt,
+    srca = Receiver(name='srca', grid=model.grid, time=solver.source.time(),
                     coordinates=solver.source.coordinates.data)
 
     # Run forward and adjoint operators

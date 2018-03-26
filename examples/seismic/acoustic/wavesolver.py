@@ -88,7 +88,8 @@ class AcousticWaveSolver(object):
         # Create a new receiver object to store the result
         if rec is None:
             rec = Receiver(name='rec', grid=self.model.grid,
-                           ntime=self.receiver.nt,
+                           t0=src.t0, dt=src.dt,
+                           time=self.receiver.time(),
                            coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield if not provided
@@ -103,7 +104,7 @@ class AcousticWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, m=m,
-                                          dt=kwargs.pop('dt', self.dt), **kwargs)
+                                          dt=kwargs.get('dt', self.dt), **kwargs)
         return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, m=None, **kwargs):
@@ -123,7 +124,7 @@ class AcousticWaveSolver(object):
         # Create a new adjoint source and receiver symbol
         if srca is None:
             srca = PointSource(name='srca', grid=self.model.grid,
-                               ntime=self.source.nt,
+                               time=self.source.time(),
                                coordinates=self.source.coordinates.data)
 
         # Create the adjoint wavefield if not provided
@@ -137,7 +138,7 @@ class AcousticWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj().apply(srca=srca, rec=rec, v=v, m=m,
-                                      dt=kwargs.pop('dt', self.dt), **kwargs)
+                                      dt=kwargs.get('dt', self.dt), **kwargs)
         return srca, v, summary
 
     def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
@@ -168,7 +169,7 @@ class AcousticWaveSolver(object):
             m = m or self.model.m
 
         summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m,
-                                       dt=kwargs.pop('dt', self.dt), **kwargs)
+                                       dt=kwargs.get('dt', self.dt), **kwargs)
         return grad, summary
 
     def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
@@ -188,7 +189,7 @@ class AcousticWaveSolver(object):
         # Create a new receiver object to store the result
         if rec is None:
             rec = rec or Receiver(name='rec', grid=self.model.grid,
-                                  ntime=self.receiver.nt,
+                                  time=self.receiver.time(),
                                   coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefields u and U if not provided
@@ -205,5 +206,5 @@ class AcousticWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_born().apply(dm=dmin, u=u, U=U, src=src, rec=rec,
-                                       m=m, dt=kwargs.pop('dt', self.dt), **kwargs)
+                                       m=m, dt=kwargs.get('dt', self.dt), **kwargs)
         return rec, u, U, summary

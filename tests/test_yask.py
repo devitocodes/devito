@@ -386,9 +386,9 @@ class TestOperatorAcoustic(object):
 
     @pytest.fixture
     def src(self, model, time_params, dtype):
-        time_values = np.linspace(*time_params)  # Discretized time axis
+        time = np.linspace(*time_params)  # Discretized time axis
         # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values,
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time,
                            dtype=dtype)
         src.coordinates.data[0, :] = np.array(model.domain_size) * .5
         src.coordinates.data[0, -1] = 30.
