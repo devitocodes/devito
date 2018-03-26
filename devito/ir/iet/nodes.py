@@ -416,21 +416,28 @@ class Iteration(Node):
         """
         Return the symbolic extent of the Iteration.
         """
-        return self.bounds_symbolic[1] - self.bounds_symbolic[0]
+        return self.bounds_symbolic[1] - self.bounds_symbolic[0] + 1
 
     @property
     def start_symbolic(self):
         """
-        Return the symbolic extent of the Iteration.
+        Return the symbolic start of the Iteration.
         """
         return self.bounds_symbolic[0]
 
     @property
     def end_symbolic(self):
         """
-        Return the symbolic extent of the Iteration.
+        Return the symbolic end of the Iteration.
         """
         return self.bounds_symbolic[1]
+
+    @property
+    def incr_symbolic(self):
+        """
+        Return the symbolic extent of the Iteration.
+        """
+        return self.limits[2]
 
     def bounds(self, start=None, finish=None):
         """Return the start and end points of the Iteration if the limits are
@@ -450,7 +457,7 @@ class Iteration(Node):
         ``None`` otherwise."""
         start, finish = self.bounds(start, finish)
         try:
-            return finish - start
+            return finish - start + 1
         except TypeError:
             return None
 
@@ -490,15 +497,15 @@ class Iteration(Node):
 
 class Callable(Node):
 
-    """A node representing a function.
+    """A node representing a callable function.
 
-    :param name: The name of the function.
+    :param name: The name of the callable.
     :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
-                 the body of the function.
-    :param retval: The type of the value returned by the function.
-    :param parameters: An iterable of :class:`SymbolicData` objects in input to the
-                       function, or ``None`` if the function takes no parameter.
-    :param prefix: An iterable of qualifiers to prepend to the function declaration.
+                 the body of the callable.
+    :param retval: The type of the value returned by the callable.
+    :param parameters: An iterable of :class:`AbstractFunction`s in input to the
+                       callable, or ``None`` if the callable takes no parameter.
+    :param prefix: An iterable of qualifiers to prepend to the callable declaration.
                    The default value is ('static', 'inline').
     """
 
@@ -705,16 +712,26 @@ class UnboundedIndex(object):
     def __init__(self, index, start=0, step=None, dim=None, expr=None):
         self.name = index
         self.index = index
-        self.start = start
-        self.step = index + 1 if step is None else step
         self.dim = dim
         self.expr = expr
+
+        try:
+            self.start = as_symbol(start)
+        except TypeError:
+            self.start = start
+
+        try:
+            if step is None:
+                self.step = index + 1
+            else:
+                self.step = as_symbol(step)
+        except TypeError:
+            self.step = step
 
     @property
     def free_symbols(self):
         """
         Return the symbols used by this :class:`UnboundedIndex`.
-
         """
         free = self.index.free_symbols
         free.update(self.start.free_symbols)

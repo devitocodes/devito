@@ -2,14 +2,17 @@ import numpy as np
 import os
 import ctypes
 import inspect
-from collections import Callable, Iterable, OrderedDict, Hashable
-from functools import partial, wraps
+from collections import Callable, Iterable, OrderedDict, Hashable, Mapping
+from functools import partial, wraps, reduce
 from itertools import chain, combinations, product, zip_longest
 from operator import attrgetter
 from subprocess import DEVNULL, PIPE, Popen, CalledProcessError, check_output
 import cpuinfo
 from distutils import version
 
+from multidict import MultiDict
+
+from devito.logger import error
 from devito.parameters import configuration
 
 __all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
@@ -569,7 +572,80 @@ class EnrichedTuple(tuple):
     """
     A tuple with an arbitrary number of additional attributes.
     """
-    def __new__(cls, *items, **kwargs):
+    def __new__(cls, *items, getters=None, **kwargs):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
+        obj._getters = dict(zip(getters or [], items))
         return obj
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return super(EnrichedTuple, self).__getitem__(key)
+        else:
+            return self._getters[key]
+
+
+class ReducerMap(MultiDict):
+    """
+    Specialised :class:`MultiDict` object that maps a single key to a
+    list of potential values and provides a reduction method for
+    retrieval.
+    """
+
+    def update(self, values):
+        """
+        Update internal mapping with standard dictionary semantics.
+        """
+        if isinstance(values, Mapping):
+            self.extend(values)
+        elif isinstance(values, Iterable) and not isinstance(values, str):
+            for v in values:
+                self.extend(v)
+        else:
+            self.extend(values)
+
+    def unique(self, key):
+        """
+        Returns a unique value for a given key, if such a value
+        exists, and raises a ``ValueError`` if it does not.
+
+        :param key: Key for which to retrieve a unique value
+        """
+        candidates = self.getall(key)
+
+        def compare_to_first(v):
+            first = candidates[0]
+            if isinstance(first, np.ndarray) or isinstance(v, np.ndarray):
+                return (first == v).all()
+            else:
+                return first == v
+
+        if len(candidates) == 1:
+            return candidates[0]
+        elif all(map(compare_to_first, candidates)):
+            return candidates[0]
+        else:
+            error("Unable to find unique value for key %s, candidates: %s" %
+                  (key, candidates))
+            raise ValueError('Inconsistent values for key reduction')
+
+    def reduce(self, key, op=None):
+        """
+        Returns a reduction of all candidate values for a given key.
+
+        :param key: Key for which to retrieve candidate values
+        :param op: Operator for reduction among candidate values.
+                   If not provided, a unique value will be returned,
+                   or a ``ValueError`` raised if no unique value exists.
+        """
+        if op is None:
+            # Return a unique value if it exists
+            return self.unique(key)
+        else:
+            return reduce(op, self.getall(key))
+
+    def reduce_all(self):
+        """
+        Returns a dictionary with reduced/unique values for all keys.
+        """
+        return {k: self.reduce(key=k) for k in self}

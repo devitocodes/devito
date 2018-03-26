@@ -6,8 +6,8 @@ import pytest
 from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito import Eq  # noqa
-from devito.ir import Stencil, clusterize, FlowGraph, LoweredEq
-from devito.dse import rewrite, common_subexprs_elimination, collect
+from devito.ir import Stencil, FlowGraph
+from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
 from devito.types import Scalar
@@ -71,7 +71,7 @@ def tti_operator(dse=False, space_order=4):
     spacing = (20., 20., 20.)
 
     # Two layer model for true velocity
-    model = demo_model('layers-tti', ratio=3, nbpml=nbpml,
+    model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
                        shape=shape, spacing=spacing)
 
     # Derive timestepping from model spacing
@@ -99,28 +99,6 @@ def tti_nodse():
     operator = tti_operator(dse=None)
     rec, u, v, _ = operator.forward()
     return v, rec
-
-
-@skipif_yask
-def test_tti_clusters_to_graph():
-    solver = tti_operator()
-
-    expressions = solver.op_fwd('centered').args['expressions']
-    subs = solver.op_fwd('centered').args['subs']
-    expressions = [LoweredEq(e, subs=subs) for e in expressions]
-    clusters = clusterize(expressions)
-    assert len(clusters) == 3
-
-    main_cluster = clusters[0]
-    n_output_tensors = len(main_cluster.trace)
-
-    clusters = rewrite([main_cluster], mode='basic')
-    assert len(clusters) == 1
-    main_cluster = clusters[0]
-
-    graph = main_cluster.trace
-    assert len([v for v in graph.values() if v.is_tensor]) == n_output_tensors  # u and v
-    assert all(v.reads or v.readby for v in graph.values())
 
 
 @skipif_yask
@@ -161,7 +139,7 @@ def test_tti_rewrite_aggressive(tti_nodse):
 
 @skipif_yask
 @pytest.mark.parametrize('kernel,space_order,expected', [
-    ('shifted', 8, 355), ('shifted', 16, 811),
+    ('shifted', 8, 355), ('shifted', 16, 622),
     ('centered', 8, 168), ('centered', 16, 300)
 ])
 def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):

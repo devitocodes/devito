@@ -2,11 +2,11 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
+from cached_property import cached_property
 import ctypes
 import numpy as np
 import sympy
 
-from devito.arguments import ArgumentMap
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import transform
@@ -19,7 +19,8 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
                            ArrayCast, PointerCast, derive_parameters)
 from devito.parameters import configuration
 from devito.profiling import create_profile
-from devito.tools import as_tuple, flatten, filter_sorted, numpy_to_ctypes
+from devito.symbolics import indexify
+from devito.tools import ReducerMap, as_tuple, flatten, filter_sorted, numpy_to_ctypes
 from devito.types import Object
 
 
@@ -69,8 +70,12 @@ class Operator(Callable):
         # References to local or external routines
         self.func_table = OrderedDict()
 
-        # Expression lowering and analysis
-        expressions = [LoweredEq(e, subs=subs) for e in expressions]
+        # Expression lowering: indexification, substitution rules, specialization
+        expressions = [indexify(i) for i in expressions]
+        expressions = [i.xreplace(subs) for i in expressions]
+        expressions = self._specialize_exprs(expressions)
+
+        # Expression analysis
         self.dtype = retrieve_dtype(expressions)
         self.input = filter_sorted(flatten(e.reads for e in expressions))
         self.output = filter_sorted(flatten(e.writes for e in expressions))
@@ -80,6 +85,7 @@ class Operator(Callable):
         # and apply the Devito Symbolic Engine (DSE) for flop optimization
         clusters = clusterize(expressions)
         clusters = rewrite(clusters, mode=set_dse_mode(dse))
+        self._dspace = clusters.dspace
 
         # Lower Clusters to an Iteration/Expression tree (IET)
         nodes = iet_build(clusters, self.dtype)
@@ -88,17 +94,17 @@ class Operator(Callable):
         nodes, self.profiler = self._profile_sections(nodes)
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes = self._specialize(nodes)
+        nodes = self._specialize_iet(nodes)
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
         dle_state = transform(nodes, *set_dle_mode(dle))
 
         # Update the Operator state based on the DLE
-        self.dle_arguments = dle_state.arguments
+        self.dle_args = dle_state.arguments
         self.dle_flags = dle_state.flags
         self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                             for i in dle_state.elemental_functions]))
-        self.dimensions.extend([i.argument for i in self.dle_arguments
+        self.dimensions.extend([i.argument for i in self.dle_args
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
 
@@ -114,63 +120,73 @@ class Operator(Callable):
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
-    def _argument_defaults(self, arguments):
-        """
-        Derive all default values from parameters and ensure uniqueness.
-        """
-        default_args = ArgumentMap()
-        for p in self.input:
-            if p.name not in arguments:
-                default_args.update(p.argument_defaults())
-        for p in self.dimensions:
-            if p.name not in arguments and p.is_Sub:
-                default_args.update(p.argument_defaults(default_args))
-        return {k: default_args.reduce(k) for k in default_args if k not in arguments}
-
-    def arguments(self, **kwargs):
+    def prepare_arguments(self, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
-        arguments = {}
-        # First, we insert user-provided override
-        for p in self.input + self.dimensions:
-            arguments.update(p.argument_values(**kwargs))
+        # Handle data-carriers (first overrides, then defaults)
+        args = ReducerMap()
+        args.update([p._arg_values(**kwargs) for p in self.input if p.name in kwargs])
+        args.update([p._arg_defaults() for p in self.input if p.name not in args])
+        args = args.reduce_all()
 
-        # Second, derive all remaining default values from parameters
-        arguments.update(self._argument_defaults(arguments))
+        # Handle dimensions (first adjust data-carriers-induced defaults, then overrides)
+        for p in self.dimensions:
+            args.update(p._arg_infers(args, self._dspace[p], **kwargs))
+        for p in self.dimensions:
+            args.update(p._arg_values(**kwargs))
+
+        # Sanity check
+        for p in self.input:
+            p._arg_check(args, self._dspace[p])
 
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
         # with the rest of the argument derivation procedure.
-        for arg in self.dle_arguments:
+        for arg in self.dle_args:
             dim = arg.argument
-            osize = arguments[arg.original_dim.symbolic_size.name]
+            osize = args[arg.original_dim.symbolic_size.name]
             if dim.symbolic_size in self.parameters:
                 if arg.value is None:
-                    arguments[dim.symbolic_size.name] = osize
+                    args[dim.symbolic_size.name] = osize
                 elif isinstance(arg.value, int):
-                    arguments[dim.symbolic_size.name] = arg.value
+                    args[dim.symbolic_size.name] = arg.value
                 else:
-                    arguments[dim.symbolic_size.name] = arg.value(osize)
+                    args[dim.symbolic_size.name] = arg.value(osize)
 
         # Add in the profiler argument
-        arguments[self.profiler.name] = self.profiler.new()
+        args[self.profiler.name] = self.profiler.new()
+
+        # Add in any backend-specific argument
+        args.update(kwargs.pop('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        autotune = kwargs.pop('autotune', False)
-        if autotune:
-            # AT assumes and ordered dict, so let's feed it one
-            at_args = OrderedDict([(p.name, arguments[p.name]) for p in self.parameters])
-            arguments = self._autotune(at_args)
+        if kwargs.pop('autotune', False):
+            args = self._autotune(args)
 
-        # Check all argument are present
+        # Check all user-provided keywords are known to the Operator
+        for k, v in kwargs.items():
+            if k not in self.known_arguments:
+                raise ValueError("Unrecognized argument %s=%s passed to `apply`" % (k, v))
+
+        return args
+
+    @cached_property
+    def known_arguments(self):
+        """Return an iterable of arguments that can be passed to ``apply``
+        when running the operator."""
+        ret = set.union(*[set(i._arg_names) for i in self.input + self.dimensions])
+        return tuple(sorted(ret))
+
+    def arguments(self, **kwargs):
+        args = self.prepare_arguments(**kwargs)
+        # Check all arguments are present
         for p in self.parameters:
-            if p.name not in arguments:
+            if p.name not in args:
                 raise ValueError("No value found for parameter %s" % p.name)
-
-        return arguments
+        return args
 
     @property
     def elemental_functions(self):
@@ -221,12 +237,16 @@ class Operator(Callable):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         return List(body=nodes), None
 
-    def _autotune(self, arguments):
+    def _autotune(self, args):
         """Use auto-tuning on this Operator to determine empirically the
         best block sizes when loop blocking is in use."""
-        return arguments
+        return args
 
-    def _specialize(self, nodes):
+    def _specialize_exprs(self, expressions):
+        """Transform ``expressions`` into a backend-specific representation."""
+        return [LoweredEq(i) for i in expressions]
+
+    def _specialize_iet(self, nodes):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
@@ -256,20 +276,86 @@ class OperatorRunnable(Operator):
         self.apply(**kwargs)
 
     def apply(self, **kwargs):
-        """Apply the stencil kernel to a set of data objects"""
+        """
+        Run the operator.
+
+        Without additional parameters specified, the operator runs on the same
+        data objects used to build it -- the so called ``default arguments``.
+
+        Optionally, any of the operator default arguments may be replaced by
+        passing suitable key-value parameters. Given ``apply(k=v, ...)``,
+        ``(k, v)`` may be used to: ::
+
+            * replace a constant (scalar) used by the operator. In this case,
+                ``k`` is the name of the constant; ``v`` is either an object
+                of type :class:`Constant` or an actual scalar value.
+            * replace a function (tensor) used by the operator. In this case,
+                ``k`` is the name of the function; ``v`` is either an object
+                of type :class:`TensorFunction` or a :class:`numpy.ndarray`.
+            * alter the iteration interval along a given :class:`Dimension`
+                ``d``, which represents a subset of the operator iteration space.
+                By default, the operator runs over all iterations within the
+                compact interval ``[d_m, d_M]``, in which ``d_m`` and ``d_M``
+                are, respectively, the smallest and largest integers not causing
+                out-of-bounds memory accesses. In this case, ``k`` can be any
+                of ``(d_m, d_M, d_n)``; ``d_n`` can be used to indicate to run
+                for exactly ``n`` iterations starting at ``d_m``. ``d_n`` is
+                ignored (raising a warning) if ``d_M`` is also provided. ``v`` is
+                an integer value.
+
+        Examples
+        --------
+        The following operator implements a trivial time-marching method which
+        adds 1 to every grid point at every time iteration.
+
+        >>> from devito import Eq, Grid, TimeFunction, Operator
+        >>> grid = Grid(shape=(3, 3))
+        >>> u = TimeFunction(name='u', grid=grid, save=3)
+        >>> op = Operator(Eq(u.forward, u + 1))
+
+        The operator is run by calling
+
+        >>> op.apply()
+
+        As no key-value parameters are specified, the operator runs with its
+        default arguments, namely ``u=u, x_m=0, x_M=2, y_m=0, y_M=2, time_m=0,
+        time_M=1``. Note that one can access the operator dimensions via the
+        ``grid`` object (e.g., ``grid.dimensions`` for the ``x`` and ``y``
+        space dimensions).
+
+        At this point, the same operator can be used for a completely different
+        run, for example
+
+        >>> u2 = TimeFunction(name='u', grid=grid, save=5)
+        >>> op.apply(u=u2, x_m=1, y_M=1)
+
+        Now, the operator will run with a different set of arguments, namely
+        ``u=u2, x_m=1, x_M=2, y_m=0, y_M=1, time_m=0, time_M=3``.
+
+        .. note::
+
+            To run an operator that only uses buffered :class:`TimeFunction`s,
+            the maximum iteration point along the time dimension must be explicitly
+            specified (otherwise, the operator wouldn't know how many iterations
+            to run).
+
+            >>> u3 = TimeFunction(name='u', grid=grid)
+            >>> op = Operator(Eq(u3.forward, u3 + 1))
+            >>> op.apply(time_M=10)
+        """
         # Build the arguments list to invoke the kernel function
-        arguments = self.arguments(**kwargs)
+        args = self.arguments(**kwargs)
 
         # Invoke kernel function with args
-        arg_values = [arguments[p.name] for p in self.parameters]
+        arg_values = [args[p.name] for p in self.parameters]
         self.cfunction(*arg_values)
 
         # Output summary of performance achieved
-        return self._profile_output(arguments)
+        return self._profile_output(args)
 
-    def _profile_output(self, arguments):
+    def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
-        summary = self.profiler.summary(arguments, self.dtype)
+        summary = self.profiler.summary(args, self.dtype)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))

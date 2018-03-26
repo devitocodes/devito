@@ -8,36 +8,75 @@ from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
 
-__all__ = ['compute_intervals', 'detect_flow_directions', 'compute_directions',
-           'force_directions', 'group_expressions', 'detect_io']
+__all__ = ['detect_accesses', 'detect_oobs', 'build_intervals',
+           'detect_flow_directions', 'force_directions', 'group_expressions',
+           'align_accesses', 'detect_io']
 
 
-def compute_intervals(expr):
-    """Return an iterable of :class:`Interval`s representing the data items
-    accessed by the :class:`sympy.Eq` ``expr``."""
-    # Detect the indexeds' offsets along each dimension
-    stencil = Stencil()
+def detect_accesses(expr):
+    """
+    Return a mapper ``M : F -> S``, where F are :class:`Function`s appearing
+    in ``expr`` and S are :class:`Stencil`s. ``M[f]`` represents all data accesses
+    to ``f`` within ``expr``.
+    """
+    mapper = defaultdict(Stencil)
     for e in retrieve_indexed(expr, mode='all', deep=True):
+        f = e.base.function
         for a in e.indices:
             if isinstance(a, Dimension):
-                stencil[a].update([0])
+                mapper[f][a].update([0])
             d = None
-            off = [0]
+            off = []
             for i in a.args:
                 if isinstance(i, Dimension):
                     d = i
                 elif i.is_integer:
                     off += [int(i)]
             if d is not None:
-                stencil[d].update(off)
+                mapper[f][d].update(off or [0])
+    return mapper
 
-    # Determine intervals and their iterators
+
+def detect_oobs(mapper):
+    """
+    Given M as produced by :func:`detect_accesses`, return the set of
+    :class:`Dimension`s that cannot be iterated over for the entire
+    computational domain, to avoid out-of-bounds (OOB) accesses.
+    """
+    found = set()
+    for f, stencil in mapper.items():
+        if not f.is_TensorFunction:
+            continue
+        for d, v in stencil.items():
+            p = d.parent if d.is_Sub else d
+            try:
+                if min(v) < 0 or max(v) > sum(f._offset_domain[p]):
+                    found.add(p)
+            except KeyError:
+                # Unable to detect presence of OOB accesses
+                # (/p/ not in /f._offset_domain/, typical of indirect
+                # accesses such as A[B[i]])
+                pass
+    return found | {i.parent for i in found if i.is_Derived}
+
+
+def build_intervals(mapper):
+    """
+    Given M as produced by :func:`detect_accesses`, return: ::
+
+        * An iterable of :class:`Interval`s, representing the data items
+          accessed in each :class:`Dimension` in M;
+        * A dictionary of ``iterators``, suitable to build an
+          :class:`IterationSpace`.
+    """
     iterators = OrderedDict()
+    stencil = Stencil.union(*mapper.values())
     for i in stencil.dimensions:
         if i.is_NonlinearDerived:
             iterators.setdefault(i.parent, []).append(stencil.entry(i))
         else:
             iterators.setdefault(i, [])
+
     intervals = []
     for k, v in iterators.items():
         offs = set.union(set(stencil.get(k)), *[i.ofs for i in v])
@@ -46,11 +85,32 @@ def compute_intervals(expr):
     return intervals, iterators
 
 
+def align_accesses(expr, reverse=False):
+    """
+    ``expr -> expr'``, with ``expr'`` semantically equivalent to ``expr``, but
+    with data accesses aligned to the computational domain. If the optional flag
+    ``reverse`` is passed as True (defaults False), then the reverse operation
+    takes place; that is, assuming ``expr`` was aligned to the computational
+    domain, ``expr'`` gets aligned back to the first allocated entry.
+    """
+    shift = lambda i: (-i if reverse is True else i)
+    mapper = {}
+    for indexed in retrieve_indexed(expr):
+        f = indexed.base.function
+        if not f.is_TensorFunction:
+            continue
+        subs = {i: i + shift(j.left) for i, j in zip(indexed.indices, f._offset_domain)}
+        mapper[indexed] = indexed.xreplace(subs)
+    return expr.xreplace(mapper)
+
+
 def detect_flow_directions(exprs):
-    """Return a mapper from :class:`Dimension`s to iterables of
+    """
+    Return a mapper from :class:`Dimension`s to iterables of
     :class:`IterationDirection`s representing the theoretically necessary
     directions to evaluate ``exprs`` so that the information "naturally
-    flows" from an iteration to another."""
+    flows" from an iteration to another.
+    """
     exprs = as_tuple(exprs)
 
     writes = [Access(i.lhs, 'W') for i in exprs]
@@ -93,24 +153,6 @@ def detect_flow_directions(exprs):
                    if k.is_Derived and mapper.get(k.parent, {Any}) == {Any}})
 
     return mapper
-
-
-def compute_directions(exprs, key):
-    """
-    Return a mapper ``M : D -> I`` where D is the set of :class:`Dimension`s
-    found in the input expressions ``exprs``, while I = {Any, Backward,
-    Forward} (i.e., the set of possible :class:`IterationDirection`s).
-
-    The iteration direction is chosen so that the information "naturally flows"
-    from an iteration to another (i.e., to generate "flow" or "read-after-write"
-    dependencies).
-
-    In the case of a clash (e.g., both Forward and Backward should be used
-    for a given dimension in order to have a flow dependence), the function
-    ``key : D -> I`` is used to pick one value.
-    """
-    mapper = detect_flow_directions(exprs)
-    return force_directions(mapper, key)
 
 
 def force_directions(mapper, key):

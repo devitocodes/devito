@@ -150,25 +150,27 @@ def optimize_unfolded_tree(unfolded, root):
 
         # "Shrink" the iteration space
         for t1, t2 in zip(tree, root):
-            start, end, incr = t1.args['limits']
             index = Symbol('%ss%d' % (t1.index, i))
-
-            t1_uindex = (UnboundedIndex(index, start),)
-            t2_uindex = (UnboundedIndex(index, -start),)
-
-            modified_tree.append(t1._rebuild(limits=[0, end-start, incr],
-                                             uindices=t1.uindices + t1_uindex))
-            modified_root.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
-
             mapper[t1.dim] = index
+
+            t1_uindex = (UnboundedIndex(index, t1.limits[0]),)
+            t2_uindex = (UnboundedIndex(index, -t1.limits[0]),)
+
+            limits = (0, t1.limits[1] - t1.limits[0], t1.incr_symbolic)
+            modified_tree.append(t1._rebuild(limits=limits,
+                                             uindices=t1.uindices + t1_uindex))
+
+            modified_root.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
 
         # Temporary arrays can now be moved onto the stack
         exprs = FindNodes(Expression).visit(modified_tree[-1])
         if all(not j.is_Remainder for j in modified_tree):
-            shape = tuple(j.bounds_symbolic[1] for j in modified_tree)
+            dimensions = tuple(j.limits[0] for j in modified_root)
             for j in exprs:
-                j_shape = shape + j.write.shape[len(modified_tree):]
-                j.write.update(shape=j_shape, onstack=True)
+                if j.write.is_Array:
+                    j_dimensions = dimensions + j.write.dimensions[len(modified_root):]
+                    j_shape = tuple(k.symbolic_size for k in j_dimensions)
+                    j.write.update(shape=j_shape, dimensions=j_dimensions, onstack=True)
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)
@@ -234,12 +236,13 @@ class IterationFold(Iteration):
 
         # Construct the folds
         args.pop('nodes')
-        args.pop('offsets')
+        ofs = args.pop('offsets')
         try:
             start, end, incr = args.pop('limits')
         except TypeError:
             start, end, incr = self.limits
-        folds = tuple(Iteration(nodes, limits=[start-ofs[0], end-ofs[1], incr], **args)
-                      for ofs, nodes in self.folds)
+        folds = tuple(Iteration(nodes, limits=(start, end, incr),
+                                offsets=tuple(i-j for i, j in zip(ofs, shift)), **args)
+                      for shift, nodes in self.folds)
 
         return folds + as_tuple(root)

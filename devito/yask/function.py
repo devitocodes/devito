@@ -25,13 +25,13 @@ class Constant(function.Constant):
     def data(self, val):
         self._value = DataScalar(val)
 
-    def argument_defaults(self):
-        args = super(Constant, self).argument_defaults()
+    def _arg_defaults(self):
+        args = super(Constant, self)._arg_defaults()
         args[namespace['code-grid-name'](self.name)] = None
         return args
 
-    def argument_values(self, alias=None, **kwargs):
-        values = super(Constant, self).argument_values(**kwargs)
+    def _arg_values(self, alias=None, **kwargs):
+        values = super(Constant, self)._arg_values(**kwargs)
         values[namespace['code-grid-name'](self.name)] = None
         return values
 
@@ -44,7 +44,7 @@ class Function(function.Function):
         """Allocate memory in terms of YASK grids."""
         def wrapper(self):
             if self._data is None:
-                log("Allocating memory for %s (%s)" % (self.name, self.shape))
+                log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
 
                 # Fetch the appropriate context
                 context = contexts.fetch(self.grid, self.dtype)
@@ -69,36 +69,15 @@ class Function(function.Function):
             self._data.release_storage()
 
     @property
+    @_allocate_memory
     def _data_buffer(self):
-        data = self.data
-        ctype = numpy_to_ctypes(data.dtype)
-        cpointer = ctypes.cast(int(data.grid.get_raw_storage_buffer()),
+        ctype = numpy_to_ctypes(self.dtype)
+        cpointer = ctypes.cast(int(self._data.grid.get_raw_storage_buffer()),
                                ctypes.POINTER(ctype))
-        ndpointer = np.ctypeslib.ndpointer(dtype=data.dtype, shape=data.shape)
+        ndpointer = np.ctypeslib.ndpointer(dtype=self.dtype, shape=self.shape_allocated)
         casted = ctypes.cast(cpointer, ndpointer)
-        ndarray = np.ctypeslib.as_array(casted, shape=data.shape)
+        ndarray = np.ctypeslib.as_array(casted, shape=self.shape_allocated)
         return ndarray
-
-    @property
-    def shape_with_halo(self):
-        """
-        Shape of the domain plus the read-only stencil boundary associated
-        with this :class:`Function`.
-        """
-        # TODO: Drop me after the domain-allocation switch, as this method
-        # will be provided by the superclass
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
-
-    @property
-    def shape_allocated(self):
-        """
-        Shape of the allocated data associated with this :class:`Function`.
-        It includes the domain and halo regions, as well as any additional
-        padding outside of the halo.
-        """
-        # TODO: Drop me after the domain-allocation switch, as this method
-        # will be provided by the superclass
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
 
     @property
     def data(self):
@@ -142,20 +121,25 @@ class Function(function.Function):
         return Data(self._data.grid, self.shape_with_halo, self.indices, self.dtype,
                     offset=self._offset_halo.left)
 
+    @cached_property
+    @_allocate_memory
+    def data_allocated(self):
+        return Data(self._data.grid, self.shape_allocated, self.indices, self.dtype)
+
     def initialize(self):
         raise NotImplementedError
 
-    def argument_defaults(self, alias=None):
-        args = super(Function, self).argument_defaults(alias)
+    def _arg_defaults(self, alias=None):
+        args = super(Function, self)._arg_defaults(alias)
 
         key = alias or self.name
         args[namespace['code-grid-name'](key)] = self.data.rawpointer
 
         return args
 
-    def argument_values(self, alias=None, **kwargs):
+    def _arg_values(self, alias=None, **kwargs):
         new = kwargs.get(self.name)
-        values = super(Function, self).argument_values(alias=alias, **kwargs)
+        values = super(Function, self)._arg_values(alias=alias, **kwargs)
 
         key = alias or self.name
         if key in values and isinstance(new, Function):
@@ -167,8 +151,3 @@ class Function(function.Function):
 class TimeFunction(function.TimeFunction, Function):
 
     from_YASK = True
-
-    def __init__(self, *args, **kwargs):
-        super(TimeFunction, self).__init__(*args, **kwargs)
-        # TODO: YASK does not support halo in time stepping dimensions yet
-        self._halo = ((0, 0),) + self._halo[1:]

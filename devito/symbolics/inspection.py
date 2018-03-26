@@ -123,14 +123,17 @@ def dimension_sort(expr, key=None):
                  symbols.
     :param key: A callable used as key to enforce a final ordering.
     """
-    # Get the Indexed dimensions, in appearance order
-    constraints = [tuple(i.indices) for i in retrieve_indexed(expr, mode='all')]
-    for i, constraint in enumerate(list(constraints)):
-        normalized = []
-        for j in constraint:
-            found = [d for d in j.free_symbols if isinstance(d, Dimension)]
-            normalized.extend([d for d in found if d not in normalized])
-        constraints[i] = normalized
+    # Get all Indexed dimensions, in the same order as the appear in /expr/
+    constraints = []
+    for i in retrieve_indexed(expr, mode='all'):
+        constraint = []
+        for ai, fi in zip(i.indices, i.base.function.indices):
+            if ai.is_Number:
+                constraint.append(fi)
+            else:
+                constraint.extend([d for d in ai.free_symbols
+                                   if isinstance(d, Dimension) and d not in constraint])
+        constraints.append(tuple(constraint))
     ordering = partial_order(constraints)
 
     # Add any leftover free dimensions (not an Indexed' index)

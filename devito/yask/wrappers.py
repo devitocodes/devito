@@ -249,7 +249,7 @@ class YaskContext(object):
 
         # Set up the YASK grid and allocate memory
         grid = self.yk_hook.new_grid(name, obj)
-        for i, s, h in zip(obj.indices, obj.shape, obj._halo):
+        for i, s, h in zip(obj.indices, obj.shape_allocated, obj._extent_halo):
             if i.is_Time:
                 assert grid.is_dim_used(i.name)
                 assert grid.get_alloc_size(i.name) == s
@@ -314,7 +314,7 @@ class YaskContext(object):
                 "- domain: %s\n"
                 "- grids: [%s]\n"
                 "- solns: [%s]\n") % (self.name, str(self.space_dimensions),
-                                      ', '.join([i.get_name() for i in list(self.grids)]),
+                                      ', '.join([i for i in list(self.grids)]),
                                       ', '.join([i.name for i in self.solutions]))
 
 

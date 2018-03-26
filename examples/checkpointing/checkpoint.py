@@ -13,12 +13,19 @@ class CheckpointOperator(Operator):
                     automatically include these cached arguments in the call to the
                     underlying devito.Operator.apply().
     """
-    t_arg_names = {'t_start': 'time_s', 't_end': 'time_e'}
+    t_arg_names = {'t_start': 'time_m', 't_end': 'time_M'}
 
     def __init__(self, op, **kwargs):
         self.op = op
-        self.time_order = kwargs.pop('time_order', 1)
         self.args = kwargs
+        op_default_args = self.op.prepare_arguments()
+        self.start_offset = op_default_args[self.t_arg_names['t_start']]
+
+    def _prepare_args(self, t_start, t_end):
+        args = self.args.copy()
+        args[self.t_arg_names['t_start']] = t_start + self.start_offset
+        args[self.t_arg_names['t_end']] = t_end - 1 + self.start_offset
+        return args
 
     def apply(self, t_start, t_end):
         """ If the devito operator requires some extra arguments in the call to apply
@@ -26,9 +33,7 @@ class CheckpointOperator(Operator):
             pyRevolve.Operator.apply() without caring about these extra arguments while
             this method passes them on correctly to devito.Operator
         """
-        args = self.args.copy()
-        args[self.t_arg_names['t_start']] = t_start
-        args[self.t_arg_names['t_end']] = t_end + self.time_order
+        args = self._prepare_args(t_start, t_end)
         self.op.apply(**args)
 
 

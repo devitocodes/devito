@@ -1,22 +1,17 @@
 from conftest import skipif_yask
 
 import numpy as np
-import pytest
 
 from devito import Grid, Function, TimeFunction
 
 
-@pytest.fixture
-def u():
+def test_basic_indexing():
+    """
+    Tests packing/unpacking data in :class:`Function` objects.
+    """
     grid = Grid(shape=(16, 16, 16))
     u = Function(name='yu3D', grid=grid, space_order=0)
-    return u
 
-
-def test_basic_indexing(u):
-    """
-    Tests packing/unpacking :class:`Data` objects.
-    """
     # Test simple insertion and extraction
     u.data[0, 1, 1] = 1.
     assert u.data[0, 0, 0] == 0.
@@ -50,10 +45,37 @@ def test_basic_indexing(u):
     assert np.all(u.data[4, :, 4] == block)
 
 
-def test_basic_arithmetic(u):
+def test_halo_indexing():
+    """
+    Tests packing/unpacking data in :class:`Function` objects when some halo
+    region is present.
+    """
+    domain_shape = (16, 16, 16)
+    grid = Grid(shape=domain_shape)
+    u = Function(name='yu3D', grid=grid, space_order=2)
+
+    assert u.shape == u.data.shape == domain_shape
+    assert u.shape_with_halo == u.data_with_halo.shape == (20, 20, 20)
+
+    # Test simple insertion and extraction
+    u.data_with_halo[0, 0, 0] = 1.
+    u.data[0, 0, 0] = 2.
+    assert u.data_with_halo[0, 0, 0] == 1.
+    assert u.data[0, 0, 0] == 2.
+    assert u.data_with_halo[2, 2, 2] == 2.
+
+    # Test negative indices
+    u.data_with_halo[-1, -1, -1] = 3.
+    assert u.data[-1, -1, -1] == 0.
+    assert u.data_with_halo[-1, -1, -1] == 3.
+
+
+def test_data_arithmetic():
     """
     Tests arithmetic operations between :class:`Data` objects and values.
     """
+    grid = Grid(shape=(16, 16, 16))
+    u = Function(name='yu3D', grid=grid, space_order=0)
     u.data[:] = 1
 
     # Simple arithmetic
@@ -116,3 +138,39 @@ def test_logic_indexing():
     assert np.all(v_mod.data[3] == v_mod.data[1])
     assert np.all(v_mod.data[-1] == v_mod.data[1])
     assert np.all(v_mod.data[-2] == v_mod.data[0])
+
+
+def test_domain_vs_halo():
+    """
+    Tests access to domain and halo data.
+    """
+    grid = Grid(shape=(4, 4, 4))
+
+    # Without padding
+    u0 = Function(name='u0', grid=grid, space_order=0)
+    u2 = Function(name='u2', grid=grid, space_order=2)
+
+    assert u0.shape == u0.shape_with_halo == u0.shape_allocated
+    assert len(u2.shape) == len(u2._extent_halo.left)
+    assert tuple(i + j*2 for i, j in zip(u2.shape, u2._extent_halo.left)) ==\
+        u2.shape_with_halo
+
+    assert all(i == (0, 0) for i in u0._offset_domain)
+    assert all(i == 0 for i in u0._offset_domain.left)
+    assert all(i == 0 for i in u0._offset_domain.right)
+
+    assert all(i == (2, 2) for i in u2._offset_domain)
+    assert all(i == 2 for i in u2._offset_domain.left)
+    assert all(i == 2 for i in u2._offset_domain.right)
+
+    # With some random padding
+    v = Function(name='v', grid=grid, space_order=2, padding=(1, 3, 4))
+    assert len(v.shape_allocated) == len(u2._extent_padding.left)
+    assert tuple(i + j + k for i, (j, k) in zip(v.shape_with_halo, v._padding)) ==\
+        v.shape_allocated
+
+    assert all(i == (2, 2) for i in v._halo)
+    assert v._offset_domain == ((3, 3), (5, 5), (6, 6))
+    assert v._offset_domain.left == v._offset_domain.right == (3, 5, 6)
+    assert v._extent_padding == ((1, 1), (3, 3), (4, 4))
+    assert v._extent_padding.left == v._extent_padding.right == (1, 3, 4)

@@ -9,6 +9,7 @@ from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
                                      Any, Forward, Backward)
 from devito.ir.support.utils import detect_flow_directions
+from devito.symbolics import indexify
 
 
 @pytest.fixture(scope="session")
@@ -210,7 +211,7 @@ def test_dependences_eq(expr, expected, ti0, ti1, fa):
 
     # Force innatural flow, only to stress the compiler to see if it was
     # capable of detecting anti-dependences
-    expr.ispace.directions = {i: Forward for i in expr.ispace.directions}
+    expr.ispace._directions = {i: Forward for i in expr.ispace.directions}
 
     scope = Scope(expr)
     deps = scope.d_all
@@ -313,7 +314,7 @@ def test_dependences_scope(exprs, expected, ti0, ti1, ti3, fa):
     # Force innatural flow, only to stress the compiler to see if it was
     # capable of detecting anti-dependences
     for i in exprs:
-        i.ispace.directions = {i: Forward for i in i.ispace.directions}
+        i.ispace._directions = {i: Forward for i in i.ispace.directions}
 
     scope = Scope(exprs)
     assert len(scope.d_all) == len(expected)
@@ -332,11 +333,10 @@ def test_dependences_scope(exprs, expected, ti0, ti1, ti3, fa):
 def test_flow_detection():
     """Test detection of information flow."""
     grid = Grid((10, 10))
-    u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=1)
     u2 = TimeFunction(name="u2", grid=grid, time_order=2)
     u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
-    exprs = [LoweredEq(Eq(u1.forward, u1 + 2.0 - u1.backward)),
-             LoweredEq(Eq(u2.forward, u2 + 2*u2.backward - u1.dt2))]
+    exprs = [LoweredEq(indexify(Eq(u1.forward, u1 + 2.0 - u1.backward))),
+             LoweredEq(indexify(Eq(u2.forward, u2 + 2*u2.backward - u1.dt2)))]
     mapper = detect_flow_directions(exprs)
     assert mapper.get(grid.stepping_dim) == {Forward}
     assert mapper.get(grid.time_dim) == {Any, Forward}
@@ -413,6 +413,41 @@ def test_intervals_union():
     assert ix.union(nully) == IntervalGroup([ix, nully])
     assert ix.union(iy) == IntervalGroup([iy, ix])
     assert iy.union(ix) == IntervalGroup([iy, ix])
+
+
+@skipif_yask
+def test_intervals_merge():
+    nullx = NullInterval(x)
+
+    # All nulls
+    assert nullx.merge(nullx) == nullx
+
+    ix = Interval(x, -2, 2)
+
+    # Mixed nulls and defined on the same dimension
+    assert nullx.merge(ix) == ix
+    assert ix.merge(ix) == ix
+    assert ix.merge(nullx) == ix
+
+    ix2 = Interval(x, 1, 4)
+    ix3 = Interval(x, -3, 6)
+
+    # All defined overlapping
+    assert ix.merge(ix2) == Interval(x, -2, 4)
+    assert ix.merge(ix3) == ix3
+    assert ix2.merge(ix3) == ix3
+
+    ix4 = Interval(x, 0, 0)
+    ix5 = Interval(x, -1, -1)
+    ix6 = Interval(x, 9, 11)
+
+    # Non-overlapping
+    assert ix.merge(ix4) == Interval(x, -2, 2)
+    assert ix.merge(ix5) == Interval(x, -2, 2)
+    assert ix4.merge(ix5) == Interval(x, -1, 0)
+    assert ix.merge(ix6) == Interval(x, -2, 11)
+    assert ix6.merge(ix) == Interval(x, -2, 11)
+    assert ix5.merge(ix6) == Interval(x, -1, 11)
 
 
 @skipif_yask
