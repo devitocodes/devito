@@ -448,6 +448,14 @@ class IterationSpace(Space):
                         ofs.update(se.ofs)
         return IterationSpace(intervals, sub_iterators, directions)
 
+    def project(self, func):
+        """Return a new ``IterationSpace`` in which only the :class:`Dimension`s
+        ``d`` in ``self`` for which ``func(d)`` gives True are retained."""
+        intervals = [i for i in self.intervals if func(i.dim)]
+        sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
+        directions = {k: v for k, v in self.directions.items() if func(k)}
+        return IterationSpace(intervals, sub_iterators, directions)
+
     def is_compatible(self, other):
         """A relaxed version of ``__eq__``, in which only non-derived dimensions
         are compared for equality."""
