@@ -111,7 +111,6 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.arguments">devito.arguments module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
@@ -442,19 +441,19 @@ a statement, …</p>
 <dt id="devito.ir.iet.nodes.Callable">
 <em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Callable</code><span class="sig-paren">(</span><em>name</em>, <em>body</em>, <em>retval</em>, <em>parameters=None</em>, <em>prefix=('static'</em>, <em>'inline')</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Callable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Callable" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
-<p>A node representing a function.</p>
+<p>A node representing a callable function.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> – The name of the function.</li>
+<li><strong>name</strong> – The name of the callable.</li>
 <li><strong>body</strong> – A <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code></a> or an iterable of <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code></a> objects representing
-the body of the function.</li>
-<li><strong>retval</strong> – The type of the value returned by the function.</li>
-<li><strong>parameters</strong> – An iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">SymbolicData</span></code> objects in input to the
-function, or <code class="docutils literal notranslate"><span class="pre">None</span></code> if the function takes no parameter.</li>
-<li><strong>prefix</strong> – An iterable of qualifiers to prepend to the function declaration.
+the body of the callable.</li>
+<li><strong>retval</strong> – The type of the value returned by the callable.</li>
+<li><strong>parameters</strong> – An iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractFunction`s</span> <span class="pre">in</span> <span class="pre">input</span> <span class="pre">to</span> <span class="pre">the</span>
+<span class="pre">callable,</span> <span class="pre">or</span> <span class="pre">``None`</span></code> if the callable takes no parameter.</li>
+<li><strong>prefix</strong> – An iterable of qualifiers to prepend to the callable declaration.
 The default value is (‘static’, ‘inline’).</li>
 </ul>
 </td>
@@ -592,7 +591,7 @@ if a limit is unknown.</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Iteration.end_symbolic">
 <code class="descname">end_symbolic</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.end_symbolic" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the symbolic extent of the Iteration.</p>
+<dd><p>Return the symbolic end of the Iteration.</p>
 </dd></dl>
 
 <dl class="method">
@@ -620,6 +619,12 @@ if a limit is unknown.</p>
 <code class="descname">functions</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.functions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return all <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> objects used in the header of
 this <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.incr_symbolic">
+<code class="descname">incr_symbolic</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.incr_symbolic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the symbolic extent of the Iteration.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -680,7 +685,7 @@ an internally generated tag is used.</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Iteration.start_symbolic">
 <code class="descname">start_symbolic</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.start_symbolic" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the symbolic extent of the Iteration.</p>
+<dd><p>Return the symbolic start of the Iteration.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -1013,7 +1018,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x1549ec429c80&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x1549ec429bf8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x153883211268&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x1538832111e0&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1095,7 +1100,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x1549ec4298c8&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x1549ec429840&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x1549ec429730&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x1549ec4297b8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x153883210e18&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x153883210d90&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x153883210c80&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x153883210d08&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">

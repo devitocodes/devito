@@ -169,36 +169,75 @@
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_sorted</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;compute_intervals&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_flow_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;compute_directions&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;force_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;group_expressions&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_io&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;detect_accesses&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_oobs&#39;</span><span class="p">,</span> <span class="s1">&#39;build_intervals&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;detect_flow_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;force_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;group_expressions&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;align_accesses&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_io&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="compute_intervals"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.compute_intervals">[docs]</a><span class="k">def</span> <span class="nf">compute_intervals</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Return an iterable of :class:`Interval`s representing the data items</span>
-<span class="sd">    accessed by the :class:`sympy.Eq` ``expr``.&quot;&quot;&quot;</span>
-    <span class="c1"># Detect the indexeds&#39; offsets along each dimension</span>
-    <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">()</span>
+<div class="viewcode-block" id="detect_accesses"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_accesses">[docs]</a><span class="k">def</span> <span class="nf">detect_accesses</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a mapper ``M : F -&gt; S``, where F are :class:`Function`s appearing</span>
+<span class="sd">    in ``expr`` and S are :class:`Stencil`s. ``M[f]`` represents all data accesses</span>
+<span class="sd">    to ``f`` within ``expr``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="n">Stencil</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
         <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
-                <span class="n">stencil</span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">mapper</span><span class="p">[</span><span class="n">f</span><span class="p">][</span><span class="n">a</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
             <span class="n">d</span> <span class="o">=</span> <span class="kc">None</span>
-            <span class="n">off</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">off</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                     <span class="n">d</span> <span class="o">=</span> <span class="n">i</span>
                 <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
                     <span class="n">off</span> <span class="o">+=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span>
             <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">stencil</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">off</span><span class="p">)</span>
+                <span class="n">mapper</span><span class="p">[</span><span class="n">f</span><span class="p">][</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">off</span> <span class="ow">or</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span></div>
+    <span class="k">return</span> <span class="n">mapper</span>
 
-    <span class="c1"># Determine intervals and their iterators</span>
+
+<div class="viewcode-block" id="detect_oobs"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_oobs">[docs]</a><span class="k">def</span> <span class="nf">detect_oobs</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given M as produced by :func:`detect_accesses`, return the set of</span>
+<span class="sd">    :class:`Dimension`s that cannot be iterated over for the entire</span>
+<span class="sd">    computational domain, to avoid out-of-bounds (OOB) accesses.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">found</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">stencil</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">stencil</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Sub</span> <span class="k">else</span> <span class="n">d</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">max</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">sum</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">p</span><span class="p">]):</span>
+                    <span class="n">found</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="c1"># Unable to detect presence of OOB accesses</span>
+                <span class="c1"># (/p/ not in /f._offset_domain/, typical of indirect</span>
+                <span class="c1"># accesses such as A[B[i]])</span>
+                <span class="k">pass</span></div>
+    <span class="k">return</span> <span class="n">found</span> <span class="o">|</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">found</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="build_intervals"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.build_intervals">[docs]</a><span class="k">def</span> <span class="nf">build_intervals</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given M as produced by :func:`detect_accesses`, return: ::</span>
+
+<span class="sd">        * An iterable of :class:`Interval`s, representing the data items</span>
+<span class="sd">          accessed in each :class:`Dimension` in M;</span>
+<span class="sd">        * A dictionary of ``iterators``, suitable to build an</span>
+<span class="sd">          :class:`IterationSpace`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">iterators</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">stencil</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_NonlinearDerived</span><span class="p">:</span>
             <span class="n">iterators</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">iterators</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span>
+
     <span class="n">intervals</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">iterators</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">offs</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">ofs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">])</span>
@@ -207,11 +246,32 @@
     <span class="k">return</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">iterators</span>
 
 
+<div class="viewcode-block" id="align_accesses"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.align_accesses">[docs]</a><span class="k">def</span> <span class="nf">align_accesses</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    ``expr -&gt; expr&#39;``, with ``expr&#39;`` semantically equivalent to ``expr``, but</span>
+<span class="sd">    with data accesses aligned to the computational domain. If the optional flag</span>
+<span class="sd">    ``reverse`` is passed as True (defaults False), then the reverse operation</span>
+<span class="sd">    takes place; that is, assuming ``expr`` was aligned to the computational</span>
+<span class="sd">    domain, ``expr&#39;`` gets aligned back to the first allocated entry.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">shift</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="n">i</span> <span class="k">if</span> <span class="n">reverse</span> <span class="ow">is</span> <span class="kc">True</span> <span class="k">else</span> <span class="n">i</span><span class="p">)</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">indexed</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="n">shift</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">left</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">)}</span>
+        <span class="n">mapper</span><span class="p">[</span><span class="n">indexed</span><span class="p">]</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+
+
 <div class="viewcode-block" id="detect_flow_directions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_flow_directions">[docs]</a><span class="k">def</span> <span class="nf">detect_flow_directions</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Return a mapper from :class:`Dimension`s to iterables of</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a mapper from :class:`Dimension`s to iterables of</span>
 <span class="sd">    :class:`IterationDirection`s representing the theoretically necessary</span>
 <span class="sd">    directions to evaluate ``exprs`` so that the information &quot;naturally</span>
-<span class="sd">    flows&quot; from an iteration to another.&quot;&quot;&quot;</span>
+<span class="sd">    flows&quot; from an iteration to another.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">exprs</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
 
     <span class="n">writes</span> <span class="o">=</span> <span class="p">[</span><span class="n">Access</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="s1">&#39;W&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">]</span>
@@ -254,24 +314,6 @@
                    <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Derived</span> <span class="ow">and</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">{</span><span class="n">Any</span><span class="p">})</span> <span class="o">==</span> <span class="p">{</span><span class="n">Any</span><span class="p">}})</span>
 </div>
     <span class="k">return</span> <span class="n">mapper</span>
-
-
-<div class="viewcode-block" id="compute_directions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.compute_directions">[docs]</a><span class="k">def</span> <span class="nf">compute_directions</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return a mapper ``M : D -&gt; I`` where D is the set of :class:`Dimension`s</span>
-<span class="sd">    found in the input expressions ``exprs``, while I = {Any, Backward,</span>
-<span class="sd">    Forward} (i.e., the set of possible :class:`IterationDirection`s).</span>
-
-<span class="sd">    The iteration direction is chosen so that the information &quot;naturally flows&quot;</span>
-<span class="sd">    from an iteration to another (i.e., to generate &quot;flow&quot; or &quot;read-after-write&quot;</span>
-<span class="sd">    dependencies).</span>
-
-<span class="sd">    In the case of a clash (e.g., both Forward and Backward should be used</span>
-<span class="sd">    for a given dimension in order to have a flow dependence), the function</span>
-<span class="sd">    ``key : D -&gt; I`` is used to pick one value.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="n">detect_flow_directions</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span></div>
-    <span class="k">return</span> <span class="n">force_directions</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="force_directions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.force_directions">[docs]</a><span class="k">def</span> <span class="nf">force_directions</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>

@@ -111,7 +111,6 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.arguments">devito.arguments module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
@@ -509,6 +508,11 @@ supplied, compute the vector distance up to and including <code class="docutils 
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="devito.ir.support.space.NullInterval.merge">
+<code class="descname">merge</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.support.space.NullInterval.merge" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
 <dt id="devito.ir.support.space.NullInterval.overlap">
 <code class="descname">overlap</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#NullInterval.overlap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.NullInterval.overlap" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -529,6 +533,11 @@ supplied, compute the vector distance up to and including <code class="docutils 
 </pre></div>
 </div>
 <dl class="method">
+<dt id="devito.ir.support.space.Interval.flip">
+<code class="descname">flip</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#Interval.flip"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.Interval.flip" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
 <dt id="devito.ir.support.space.Interval.intersection">
 <code class="descname">intersection</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#Interval.intersection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.Interval.intersection" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -541,6 +550,11 @@ supplied, compute the vector distance up to and including <code class="docutils 
 <dl class="attribute">
 <dt id="devito.ir.support.space.Interval.limits">
 <code class="descname">limits</code><a class="headerlink" href="#devito.ir.support.space.Interval.limits" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.space.Interval.merge">
+<code class="descname">merge</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#Interval.merge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.Interval.merge" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -561,6 +575,11 @@ supplied, compute the vector distance up to and including <code class="docutils 
 <dl class="method">
 <dt id="devito.ir.support.space.Interval.union">
 <code class="descname">union</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#Interval.union"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.Interval.union" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.space.Interval.zero">
+<code class="descname">zero</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#Interval.zero"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.Interval.zero" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -627,14 +646,20 @@ False otherwise.</p>
 <code class="descname">subtract</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IntervalGroup.subtract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IntervalGroup.subtract" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="method">
+<dt id="devito.ir.support.space.IntervalGroup.zero">
+<code class="descname">zero</code><span class="sig-paren">(</span><em>d=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IntervalGroup.zero"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IntervalGroup.zero" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.ir.support.space.IterationSpace">
 <em class="property">class </em><code class="descclassname">devito.ir.support.space.</code><code class="descname">IterationSpace</code><span class="sig-paren">(</span><em>intervals</em>, <em>sub_iterators=None</em>, <em>directions=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IterationSpace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IterationSpace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.support.space.Space</span></code></p>
 <p>A representation of an iteration space and its traversal through
-:class:<a href="#id13"><span class="problematic" id="id14">`</span></a>Interval`s and :class:<a href="#id15"><span class="problematic" id="id16">`</span></a>IterationDirection`s.</p>
+:class:<a href="#id13"><span class="problematic" id="id14">`</span></a>Interval`s and :class:<a href="#id15"><span class="problematic" id="id16">`</span></a>IterationDirection`s. For each interval,
+an arbitrary number of (sub-)iterators may be specified (see below).</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -664,8 +689,8 @@ space is traversed.</li>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.ir.support.space.IterationSpace.empty">
-<code class="descname">empty</code><a class="headerlink" href="#devito.ir.support.space.IterationSpace.empty" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.support.space.IterationSpace.directions">
+<code class="descname">directions</code><a class="headerlink" href="#devito.ir.support.space.IterationSpace.directions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -681,8 +706,43 @@ are compared for equality.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.ir.support.space.IterationSpace.size">
-<code class="descname">size</code><a class="headerlink" href="#devito.ir.support.space.IterationSpace.size" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.support.space.IterationSpace.sub_iterators">
+<code class="descname">sub_iterators</code><a class="headerlink" href="#devito.ir.support.space.IterationSpace.sub_iterators" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.support.space.DataSpace">
+<em class="property">class </em><code class="descclassname">devito.ir.support.space.</code><code class="descname">DataSpace</code><span class="sig-paren">(</span><em>intervals</em>, <em>parts</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#DataSpace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.DataSpace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.support.space.Space</span></code></p>
+<p>A representation of a data space.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>intervals</strong> – A sequence of :class:<a href="#id21"><span class="problematic" id="id22">`</span></a>Interval`s describing the data space.</li>
+<li><strong>parts</strong> – A mapper from <code class="xref py py-class docutils literal notranslate"><span class="pre">Function`s</span> <span class="pre">to</span> <span class="pre">iterables</span> <span class="pre">of</span> <span class="pre">:class:`Interval</span></code>
+describing the individual components of the data space.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="classmethod">
+<dt id="devito.ir.support.space.DataSpace.merge">
+<em class="property">classmethod </em><code class="descname">merge</code><span class="sig-paren">(</span><em>*others</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#DataSpace.merge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.DataSpace.merge" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.support.space.DataSpace.parts">
+<code class="descname">parts</code><a class="headerlink" href="#devito.ir.support.space.DataSpace.parts" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.space.DataSpace.zero">
+<code class="descname">zero</code><span class="sig-paren">(</span><em>d=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#DataSpace.zero"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.DataSpace.zero" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -723,13 +783,6 @@ offsets used with it in expressions (the “neighboring points accessed”).</p>
 <code class="descname">add</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/stencil.html#Stencil.add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.stencil.Stencil.add" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compute the set union of each Dimension in self with the corresponding
 Dimension in <code class="docutils literal notranslate"><span class="pre">o</span></code>.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.ir.support.stencil.Stencil.boxify">
-<code class="descname">boxify</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/stencil.html#Stencil.boxify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.stencil.Stencil.boxify" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a <code class="xref py py-class docutils literal notranslate"><span class="pre">IntervalGroup</span></code> from <code class="docutils literal notranslate"><span class="pre">self</span></code>, with as many intervals
-as dimensions in <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
 </dd></dl>
 
 <dl class="method">
@@ -793,10 +846,31 @@ Dimension in <code class="docutils literal notranslate"><span class="pre">o</spa
 <div class="section" id="module-devito.ir.support.utils">
 <span id="devito-ir-support-utils-module"></span><h2>devito.ir.support.utils module<a class="headerlink" href="#module-devito.ir.support.utils" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
-<dt id="devito.ir.support.utils.compute_intervals">
-<code class="descclassname">devito.ir.support.utils.</code><code class="descname">compute_intervals</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#compute_intervals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.compute_intervals" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return an iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">Interval`s</span> <span class="pre">representing</span> <span class="pre">the</span> <span class="pre">data</span> <span class="pre">items</span>
-<span class="pre">accessed</span> <span class="pre">by</span> <span class="pre">the</span> <span class="pre">:class:`sympy.Eq</span></code> <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+<dt id="devito.ir.support.utils.detect_accesses">
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">detect_accesses</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#detect_accesses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.detect_accesses" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a mapper <code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">:</span> <span class="pre">F</span> <span class="pre">-&gt;</span> <span class="pre">S</span></code>, where F are <code class="xref py py-class docutils literal notranslate"><span class="pre">Function`s</span> <span class="pre">appearing</span>
+<span class="pre">in</span> <span class="pre">``expr`</span></code> and S are <code class="xref py py-class docutils literal notranslate"><span class="pre">Stencil`s.</span> <span class="pre">``M[f]`</span></code> represents all data accesses
+to <code class="docutils literal notranslate"><span class="pre">f</span></code> within <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.support.utils.detect_oobs">
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">detect_oobs</code><span class="sig-paren">(</span><em>mapper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#detect_oobs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.detect_oobs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given M as produced by <a class="reference internal" href="#devito.ir.support.utils.detect_accesses" title="devito.ir.support.utils.detect_accesses"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_accesses()</span></code></a>, return the set of
+:class:<a href="#id23"><span class="problematic" id="id24">`</span></a>Dimension`s that cannot be iterated over for the entire
+computational domain, to avoid out-of-bounds (OOB) accesses.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.support.utils.build_intervals">
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">build_intervals</code><span class="sig-paren">(</span><em>mapper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#build_intervals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.build_intervals" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given M as produced by <a class="reference internal" href="#devito.ir.support.utils.detect_accesses" title="devito.ir.support.utils.detect_accesses"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_accesses()</span></code></a>, return:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* An iterable of :class:`Interval`s, representing the data items
+  accessed in each :class:`Dimension` in M;
+* A dictionary of ``iterators``, suitable to build an
+  :class:`IterationSpace`.
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="function">
@@ -809,25 +883,11 @@ flows” from an iteration to another.</p>
 </dd></dl>
 
 <dl class="function">
-<dt id="devito.ir.support.utils.compute_directions">
-<code class="descclassname">devito.ir.support.utils.</code><code class="descname">compute_directions</code><span class="sig-paren">(</span><em>exprs</em>, <em>key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#compute_directions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.compute_directions" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a mapper <code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">:</span> <span class="pre">D</span> <span class="pre">-&gt;</span> <span class="pre">I</span></code> where D is the set of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span>
-<span class="pre">found</span> <span class="pre">in</span> <span class="pre">the</span> <span class="pre">input</span> <span class="pre">expressions</span> <span class="pre">``exprs`</span></code>, while I = {Any, Backward,
-Forward} (i.e., the set of possible :class:<a href="#id21"><span class="problematic" id="id22">`</span></a>IterationDirection`s).</p>
-<p>The iteration direction is chosen so that the information “naturally flows”
-from an iteration to another (i.e., to generate “flow” or “read-after-write”
-dependencies).</p>
-<p>In the case of a clash (e.g., both Forward and Backward should be used
-for a given dimension in order to have a flow dependence), the function
-<code class="docutils literal notranslate"><span class="pre">key</span> <span class="pre">:</span> <span class="pre">D</span> <span class="pre">-&gt;</span> <span class="pre">I</span></code> is used to pick one value.</p>
-</dd></dl>
-
-<dl class="function">
 <dt id="devito.ir.support.utils.force_directions">
 <code class="descclassname">devito.ir.support.utils.</code><code class="descname">force_directions</code><span class="sig-paren">(</span><em>mapper</em>, <em>key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#force_directions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.force_directions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a mapper <code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">:</span> <span class="pre">D</span> <span class="pre">-&gt;</span> <span class="pre">I</span></code> where D is the set of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span>
 <span class="pre">found</span> <span class="pre">in</span> <span class="pre">the</span> <span class="pre">input</span> <span class="pre">mapper</span> <span class="pre">``M'</span> <span class="pre">:</span> <span class="pre">D</span> <span class="pre">-&gt;</span> <span class="pre">{I}`</span></code>, while I = {Any, Backward,
-Forward} (i.e., the set of possible :class:<a href="#id23"><span class="problematic" id="id24">`</span></a>IterationDirection`s).</p>
+Forward} (i.e., the set of possible :class:<a href="#id25"><span class="problematic" id="id26">`</span></a>IterationDirection`s).</p>
 <p>The iteration direction is chosen so that the information “naturally flows”
 from an iteration to another (i.e., to generate “flow” or “read-after-write”
 dependencies).</p>
@@ -847,9 +907,19 @@ for a given dimension in order to have a flow dependence), the function
 </dd></dl>
 
 <dl class="function">
+<dt id="devito.ir.support.utils.align_accesses">
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">align_accesses</code><span class="sig-paren">(</span><em>expr</em>, <em>reverse=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#align_accesses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.align_accesses" title="Permalink to this definition">¶</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">expr</span> <span class="pre">-&gt;</span> <span class="pre">expr'</span></code>, with <code class="docutils literal notranslate"><span class="pre">expr'</span></code> semantically equivalent to <code class="docutils literal notranslate"><span class="pre">expr</span></code>, but
+with data accesses aligned to the computational domain. If the optional flag
+<code class="docutils literal notranslate"><span class="pre">reverse</span></code> is passed as True (defaults False), then the reverse operation
+takes place; that is, assuming <code class="docutils literal notranslate"><span class="pre">expr</span></code> was aligned to the computational
+domain, <code class="docutils literal notranslate"><span class="pre">expr'</span></code> gets aligned back to the first allocated entry.</p>
+</dd></dl>
+
+<dl class="function">
 <dt id="devito.ir.support.utils.detect_io">
 <code class="descclassname">devito.ir.support.utils.</code><code class="descname">detect_io</code><span class="sig-paren">(</span><em>exprs</em>, <em>relax=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#detect_io"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.detect_io" title="Permalink to this definition">¶</a></dt>
-<dd><p><a href="#id25"><span class="problematic" id="id26">``</span></a>{exprs} -&gt; ({reads}, {writes})</p>
+<dd><p><a href="#id27"><span class="problematic" id="id28">``</span></a>{exprs} -&gt; ({reads}, {writes})</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -857,8 +927,8 @@ for a given dimension in order to have a flow dependence), the function
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>exprs</strong> – The expressions inspected.</li>
 <li><strong>relax</strong> – (Optional) if False, as by default, collect only
-:class:<a href="#id27"><span class="problematic" id="id28">`</span></a>Constant`s and :class:<a href="#id29"><span class="problematic" id="id30">`</span></a>Function`s. Otherwise,
-collect any :class:<a href="#id31"><span class="problematic" id="id32">`</span></a>Basic`s.</li>
+:class:<a href="#id29"><span class="problematic" id="id30">`</span></a>Constant`s and :class:<a href="#id31"><span class="problematic" id="id32">`</span></a>Function`s. Otherwise,
+collect any :class:<a href="#id33"><span class="problematic" id="id34">`</span></a>Basic`s.</li>
 </ul>
 </td>
 </tr>

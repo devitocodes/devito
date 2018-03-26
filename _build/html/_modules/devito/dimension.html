@@ -163,6 +163,8 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">Scalar</span><span class="p">,</span> <span class="n">Symbol</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span>
@@ -214,14 +216,14 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The symbol defining the iteration start for this dimension.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_end</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The symbol defining the iteration end for this dimension.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_extent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -238,12 +240,16 @@
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_size&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">start_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_s&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+    <span class="k">def</span> <span class="nf">ext_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_n&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">end_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_e&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+    <span class="k">def</span> <span class="nf">min_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_m&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">max_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_M&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">spacing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -256,17 +262,61 @@
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">,)</span>
 
-<div class="viewcode-block" id="Dimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a tuple of argument names introduced by this dimension.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ext_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">)</span>
 
-<span class="sd">        :param size: Optional, known size as provided by data-carrying symbols</span>
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this dimension.</span>
+
+<span class="sd">        :param start: (Optional) known starting point as provided by</span>
+<span class="sd">                      data-carrying symbols.</span>
+<span class="sd">        :param size: (Optional) known size as provided by data-carrying symbols.</span>
+<span class="sd">        :param alias: (Optional) name under which to store values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">dim</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
-</div>
-        <span class="k">return</span> <span class="p">{</span><span class="n">dim</span><span class="o">.</span><span class="n">start_name</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">end_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">start</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
 
-<div class="viewcode-block" id="Dimension.argument_values"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_infers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of &quot;safe&quot; argument values for this dimension, that is values</span>
+<span class="sd">        that will not cause out-of-bounds memory accesses. The map is obtained</span>
+<span class="sd">        by adjusting the argument values in ``args`` based on ``interval``, a</span>
+<span class="sd">        :class:`Interval` describing the data space of this dimension.</span>
+
+<span class="sd">        This method is usually applied to the values produced by ``_arg_defaults``.</span>
+
+<span class="sd">        :param args: Dictionary of known argument values.</span>
+<span class="sd">        :param interval: A :class:`Interval` for ``self``.</span>
+<span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">infs</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">interval</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">infs</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">-</span> <span class="nb">min</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ext_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+                <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Ignoring `</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">` as `</span><span class="si">%s</span><span class="s2">` takes priority&quot;</span> <span class="o">%</span>
+                        <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ext_name</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ext_name</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">))</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">])</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` must be known to use `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span>
+                                      <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ext_name</span><span class="p">))</span>
+            <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="n">kwargs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ext_name</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">infs</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of argument values after evaluating user input.</span>
 
@@ -274,17 +324,38 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">)</span>
 
         <span class="c1"># Let the dimension name be an alias for `dim_e`</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-</div></div>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">values</span>
+
+    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">interval</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :raises InvalidArgument: If any of the ``self``-related runtime arguments</span>
+<span class="sd">                                 in ``args`` will cause an out-of-bounds access.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;No runtime value for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">interval</span><span class="o">.</span><span class="n">is_Defined</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="n">interval</span><span class="o">.</span><span class="n">lower</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;OOB detected due to </span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span>
+                                                                 <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;No runtime value for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">interval</span><span class="o">.</span><span class="n">is_Defined</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">+</span> <span class="n">interval</span><span class="o">.</span><span class="n">upper</span> <span class="o">&gt;=</span> <span class="n">size</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;OOB detected due to </span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span>
+                                                                 <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal max=</span><span class="si">%s</span><span class="s2"> &lt; min=</span><span class="si">%s</span><span class="s2">&quot;</span></div>
+                                      <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]))</span>
 
 
 <div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
@@ -348,6 +419,10 @@
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),)</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
+
 
 <div class="viewcode-block" id="SubDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension">[docs]</a><span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
@@ -380,25 +455,20 @@
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">)</span>
 
-<div class="viewcode-block" id="SubDimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_defaults</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+    <span class="k">def</span> <span class="nf">_arg_infers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">infs</span> <span class="o">=</span> <span class="p">{}</span>
 
-<span class="sd">        :param parent_defaults: Default values for the parent dimensions.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span> <span class="ow">in</span> <span class="n">parent_defaults</span><span class="p">:</span>
-            <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parent_defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">end_name</span> <span class="ow">in</span> <span class="n">parent_defaults</span><span class="p">:</span>
-            <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parent_defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span> <span class="ow">in</span> <span class="n">parent_defaults</span><span class="p">:</span>
-            <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parent_defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">-</span>\
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">-</span>\
                 <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lower</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">)</span>
-</div></div>
-        <span class="k">return</span> <span class="n">args</span>
+</div>
+        <span class="k">return</span> <span class="n">infs</span>
 
 
 <div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -432,8 +502,23 @@
     <span class="k">def</span> <span class="nf">condition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span>
 
-    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">condition</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A :class:`ConditionalDimension` neither knows its size nor its</span>
+<span class="sd">        iteration start and end points. So there are no defaults to be</span>
+<span class="sd">        provided.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">interval</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A :class:`ConditionalDimension` provides no arguments, so there&#39;s</span>
+<span class="sd">        no check to be performed.</span>
+<span class="sd">        &quot;&quot;&quot;</span></div>
+        <span class="k">return</span>
 
 
 <div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -474,38 +559,51 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span>
 
-<div class="viewcode-block" id="SteppingDimension.argument_defaults"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension.argument_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
 
-<span class="sd">        :param size: Optional, known size as provided by data-carrying symbols</span>
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this dimension.</span>
+
+<span class="sd">        :param start: Optional, known starting point as provided by</span>
+<span class="sd">                      data-carrying symbols.</span>
+<span class="sd">        :param size: Optional, known size as provided by data-carrying symbols.</span>
 
 <span class="sd">        note ::</span>
 
 <span class="sd">        A :class:`SteppingDimension` neither knows its size nor its</span>
 <span class="sd">        iteration end point. So all we can provide is a starting point.</span>
-<span class="sd">        &quot;&quot;&quot;</span></div>
-        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">start</span><span class="p">}</span>
 
-<div class="viewcode-block" id="SteppingDimension.argument_values"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension.argument_values">[docs]</a>    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of argument values after evaluating user input.</span>
 
 <span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">argument_values</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_values</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">start_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">)</span>
 
         <span class="c1"># Let the dimension name be an alias for `dim_e`</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">end_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-</div></div>
+            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">values</span>
+
+    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">interval</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :raises InvalidArgument: If any of the ``self``-related runtime arguments</span>
+<span class="sd">                                 in ``args`` will cause an out-of-bounds access.</span>
+<span class="sd">        &quot;&quot;&quot;</span></div>
+        <span class="k">return</span>
 
 
 <span class="k">class</span> <span class="nc">LoweredDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>

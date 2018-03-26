@@ -164,13 +164,15 @@
 <span class="kn">import</span> <span class="nn">abc</span>
 <span class="kn">import</span> <span class="nn">gc</span>
 
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
 
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">sympy</span>
+
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">single_or</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">single_or</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">]</span>
 
@@ -214,7 +216,6 @@
 
     <span class="c1"># Symbolic objects created internally by Devito</span>
     <span class="n">is_Symbol</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_SymbolicData</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Array</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="c1"># Created by the user</span>
@@ -223,7 +224,6 @@
     <span class="n">is_Dimension</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Constant</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="c1"># Tensor symbolic objects created by the user</span>
-    <span class="n">is_SymbolicFunction</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_TensorFunction</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_TimeFunction</span> <span class="o">=</span> <span class="kc">False</span>
@@ -239,7 +239,7 @@
         <span class="k">return</span>
 
     <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
-    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of default argument values defined by this symbol.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -247,7 +247,7 @@
                                   <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span>
 
     <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
-    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of argument values after evaluating user input.</span>
 
@@ -312,6 +312,8 @@
 <span class="sd">        --------------------</span>
 <span class="sd">        |                  |</span>
 <span class="sd">     Symbol            Constant</span>
+<span class="sd">        |</span>
+<span class="sd">     Scalar</span>
 
 <span class="sd">    There are three relevant :class:`AbstractSymbol` sub-types: ::</span>
 
@@ -393,6 +395,29 @@
         <span class="k">return</span> <span class="bp">self</span>
 
 
+<span class="k">class</span> <span class="nc">Scalar</span><span class="p">(</span><span class="n">Symbol</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Symbolic object representing a scalar.</span>
+
+<span class="sd">    :param name: Name of the symbol</span>
+<span class="sd">    :param dtype: Data type of the scalar</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Scalar</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_mem_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if the associated data should be allocated on the stack</span>
+<span class="sd">        in a C module, False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
+
+
 <span class="k">class</span> <span class="nc">AbstractFunction</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Function</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class for tensor symbols, only cached by SymPy. It inherits from and</span>
@@ -406,9 +431,7 @@
 <span class="sd">                                 |</span>
 <span class="sd">               -------------------------------------</span>
 <span class="sd">               |                                   |</span>
-<span class="sd">          SymbolicData                      SymbolicFunction</span>
-<span class="sd">               |                                   |</span>
-<span class="sd">             Array                           TensorFunction</span>
+<span class="sd">             Array                          TensorFunction</span>
 <span class="sd">                                                   |</span>
 <span class="sd">                                     ------------------------------</span>
 <span class="sd">                                     |                            |</span>
@@ -418,8 +441,7 @@
 
 <span class="sd">    There are five relevant :class:`AbstractFunction` sub-types: ::</span>
 
-<span class="sd">        * Array: Like any :class:`SymbolicData`, an array does not carry data.</span>
-<span class="sd">                 Usually, it is only created internally by Devito (e.g., by the DSE).</span>
+<span class="sd">        * Array: A function that does not carry data. Usually created by the DSE.</span>
 <span class="sd">        * Function: A space-varying discrete function, which carries user data.</span>
 <span class="sd">        * TimeFunction: A time- and space-varying discrete function, which carries</span>
 <span class="sd">                        user data.</span>
@@ -490,6 +512,11 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Tuple of :class:`Dimension`s representing the function indices.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the shape of the function.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span>
@@ -502,21 +529,15 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the symbolic shape of the object. For an entry ``E`` in ``self.shape``,</span>
-<span class="sd">        there are two possibilities: ::</span>
-
-<span class="sd">            * ``E`` is already in symbolic form, then simply use ``E``.</span>
-<span class="sd">            * ``E`` is an integer representing the size along a dimension ``D``,</span>
-<span class="sd">              then, use a symbolic representation of ``D``.</span>
+<span class="sd">        Return the symbolic shape of the object. This includes the padding,</span>
+<span class="sd">        halo, and domain regions. While halo and padding are known quantities</span>
+<span class="sd">        (integers), the domain size is represented by a symbol.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">sshape</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">i</span><span class="o">.</span><span class="n">is_algebraic_expr</span><span class="p">()</span>
-                <span class="n">sshape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-                <span class="n">sshape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">symbolic_size</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sshape</span><span class="p">)</span>
+        <span class="n">halo_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">]</span>
+        <span class="n">padding_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_padding</span><span class="p">]</span>
+        <span class="n">domain_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">domain_sizes</span><span class="p">,</span> <span class="n">halo_sizes</span><span class="p">,</span> <span class="n">padding_sizes</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Create a :class:`sympy.Indexed` object from the current object.&quot;&quot;&quot;</span>
@@ -558,56 +579,86 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_offset_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The number of grid points between the first (last) allocated element</span>
+<span class="sd">        (possibly in the halo/padding region) and the first (last) domain element,</span>
+<span class="sd">        for each dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_padding</span><span class="o">.</span><span class="n">left</span><span class="p">))</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_padding</span><span class="o">.</span><span class="n">right</span><span class="p">))</span>
 
-<span class="k">class</span> <span class="nc">SymbolicData</span><span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">):</span>
+        <span class="n">Offset</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Offset&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
+        <span class="n">offsets</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Offset</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A symbolic function object, created and managed directly by Devito.</span>
-
-<span class="sd">    Unlike :class:`SymbolicFunction` objects, the state of a SymbolicData</span>
-<span class="sd">    is mutable.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">is_SymbolicData</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;evaluate&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}})</span>
-        <span class="k">return</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span>
-
-
-<span class="k">class</span> <span class="nc">Scalar</span><span class="p">(</span><span class="n">Symbol</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Symbolic object representing a scalar.</span>
-
-<span class="sd">    :param name: Name of the symbol</span>
-<span class="sd">    :param dtype: Data type of the scalar</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">is_Scalar</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">offsets</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="n">right</span><span class="p">)</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_mem_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return True if the associated data should be allocated on the stack</span>
-<span class="sd">        in a C module, False otherwise.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">def</span> <span class="nf">_offset_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The number of grid points between the first (last) allocated element</span>
+<span class="sd">        (possibly in the halo/padding region) and the first (last) halo element,</span>
+<span class="sd">        for each dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_padding</span><span class="o">.</span><span class="n">left</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_padding</span><span class="o">.</span><span class="n">right</span>
 
-    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="n">Offset</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Offset&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
+        <span class="n">offsets</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Offset</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">offsets</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="n">right</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_extent_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The number of grid points in the halo region.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">Extent</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Extent&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
+        <span class="n">extents</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Extent</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">extents</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="n">right</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_extent_padding</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The number of grid points in the padding region.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">Extent</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Extent&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
+        <span class="n">extents</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Extent</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">extents</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="n">right</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_mask_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A mask to access the domain region of the allocated data.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">j</span><span class="p">)</span> <span class="k">if</span> <span class="n">j</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_mask_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A mask to access the domain+halo region of the allocated data.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">j</span><span class="p">)</span> <span class="k">if</span> <span class="n">j</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">Array</span><span class="p">(</span><span class="n">SymbolicData</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Symbolic object representing a tensor.</span>
+<span class="k">class</span> <span class="nc">Array</span><span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A symbolic function object, created and managed directly by Devito..</span>
 
-<span class="sd">    :param name: Name of the symbol</span>
-<span class="sd">    :param dtype: Data type of the scalar</span>
-<span class="sd">    :param shape: The shape of the tensor</span>
-<span class="sd">    :param dimensions: The symbolic dimensions of the tensor.</span>
+<span class="sd">    :param name: Name of the object.</span>
+<span class="sd">    :param dtype: Data type of the object.</span>
+<span class="sd">    :param shape: The shape of the object.</span>
+<span class="sd">    :param dimensions: The symbolic dimensions of the object.</span>
+<span class="sd">    :param halo: The halo region of the object, expressed as an iterable</span>
+<span class="sd">                 ``[(dim1_left_halo, dim1_right_halo), (dim2_left_halo, ...)]``</span>
+<span class="sd">    :param padding: The padding region of the object, expressed as an iterable</span>
+<span class="sd">                    ``[(dim1_left_pad, dim1_right_pad), (dim2_left_pad, ...)]``</span>
 <span class="sd">    :param external: Pass True if there is no need to allocate storage</span>
 <span class="sd">    :param onstack: Pass True to enforce allocation on the stack</span>
 <span class="sd">    :param onheap: Pass True to enforce allocation on the heap</span>
@@ -616,9 +667,16 @@
     <span class="n">is_Array</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Tensor</span> <span class="o">=</span> <span class="kc">True</span>
 
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;evaluate&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}})</span>
+        <span class="k">return</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;padding&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)))</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">_external</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;external&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onstack&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
@@ -647,39 +705,19 @@
     <span class="k">def</span> <span class="nf">_mem_heap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span>
 
-    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-               <span class="n">onheap</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">external</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">halo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+               <span class="n">onstack</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">onheap</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">external</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="n">shape</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span> <span class="o">=</span> <span class="n">dimensions</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="n">halo</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="n">padding</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span>
 
         <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">external</span><span class="p">,</span> <span class="n">onstack</span><span class="p">,</span> <span class="n">onheap</span><span class="p">]):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_external</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">external</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">onstack</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">onheap</span><span class="p">)</span>
             <span class="k">assert</span> <span class="n">single_or</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_external</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span><span class="p">])</span>
-
-
-<span class="k">class</span> <span class="nc">SymbolicFunction</span><span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A symbolic object associated with data.</span>
-
-<span class="sd">    Unlike :class:`SymbolicData` objects, the structure of a SymbolicFunction</span>
-<span class="sd">    is immutable (e.g., shape, dtype, ...). Obviously, the object value (``data``)</span>
-<span class="sd">    may be altered, either directly by the user or by an :class:`Operator`.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">is_SymbolicFunction</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_data_buffer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Reference to the actual data. This is *not* a view of the data.</span>
-<span class="sd">        This method is for internal use only.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
-
-    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractproperty</span>
-    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The value of the data object.&quot;&quot;&quot;</span>
-        <span class="k">return</span>
 
 
 <span class="c1"># Objects belonging to the Devito API not involving data, such as data structures</span>
@@ -702,13 +740,13 @@
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
 
-    <span class="k">def</span> <span class="nf">argument_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">):</span>
             <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">()}</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">}</span>
 
-    <span class="k">def</span> <span class="nf">argument_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)}</span>
         <span class="k">else</span><span class="p">:</span>

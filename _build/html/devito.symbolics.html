@@ -115,7 +115,6 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.arguments">devito.arguments module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
@@ -710,6 +709,21 @@ objects.</p>
 <dt id="devito.symbolics.manipulation.convert_to_SSA">
 <code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">convert_to_SSA</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#convert_to_SSA"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.convert_to_SSA" title="Permalink to this definition">¶</a></dt>
 <dd><p>Convert an iterable of :class:<a href="#id5"><span class="problematic" id="id6">`</span></a>Eq`s into Static Single Assignment form.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.manipulation.split_affine">
+<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">split_affine</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#split_affine"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.split_affine" title="Permalink to this definition">¶</a></dt>
+<dd><p>Split an affine scalar function into its three components, namely variable,
+coefficient, and translation from origin.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">expr</span></code> is non affine.</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </div>

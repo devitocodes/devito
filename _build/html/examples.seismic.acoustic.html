@@ -252,7 +252,7 @@
 
 <dl class="method">
 <dt id="examples.seismic.acoustic.gradient_example.GradientExample.verify">
-<code class="descname">verify</code><span class="sig-paren">(</span><em>m0</em>, <em>gradient</em>, <em>rec_data</em>, <em>dm</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/gradient_example.html#GradientExample.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.verify" title="Permalink to this definition">¶</a></dt>
+<code class="descname">verify</code><span class="sig-paren">(</span><em>m0</em>, <em>gradient</em>, <em>rec</em>, <em>dm</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/acoustic/gradient_example.html#GradientExample.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.acoustic.gradient_example.GradientExample.verify" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -324,7 +324,6 @@
 <li><strong>model</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Model</span></code> object containing the physical parameters</li>
 <li><strong>source</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">PointData</span></code> object containing the source geometry</li>
 <li><strong>receiver</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">PointData</span></code> object containing the acquisition geometry</li>
-<li><strong>time_order</strong> – Time discretization order</li>
 <li><strong>space_order</strong> – Space discretization order</li>
 <li><strong>save</strong> – Saving flag, True saves all time steps, False only the three</li>
 </ul>
@@ -361,7 +360,6 @@
 <dd><p>Stencil for the acoustic isotropic wave-equation:
 u.dt2 - H + damp*u.dt = 0
 :param field: Symbolic TimeFunction object, solution to be computed
-:param time_order: time order
 :param m: square slowness
 :param s: symbol for the time-step
 :param damp: ABC dampening field (Function)
@@ -378,7 +376,6 @@ order in time formulation, the 4th order time derivative is replaced by a
 double laplacian:
 H = (laplacian + s**2/12 laplacian(1/m*laplacian))
 :param field: Symbolic TimeFunction object, solution to be computed
-:param time_order: time order
 :param m: square slowness
 :param s: symbol for the time-step
 :return: H</p>

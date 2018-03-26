@@ -181,6 +181,7 @@
 <span class="sd">    :param data: (Optional) Data values to initialise point data</span>
 <span class="sd">    :param ntime: (Optional) Number of timesteps for which to allocate data</span>
 <span class="sd">    :param npoint: (Optional) Number of sparse points represented by this source</span>
+<span class="sd">    :param time_order: (Optional) Time discretization order (defaults to 2)</span>
 <span class="sd">    :param dimension: :(Optional) class:`Dimension` object for</span>
 <span class="sd">                       representing the number of points in this source</span>
 
@@ -191,6 +192,7 @@
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">ntime</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">npoint</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                 <span class="n">coordinates</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">p_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimension&#39;</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">))</span>
+        <span class="n">time_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
         <span class="n">npoint</span> <span class="o">=</span> <span class="n">npoint</span> <span class="ow">or</span> <span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">ntime</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -202,7 +204,7 @@
         <span class="c1"># Create the underlying SparseTimeFunction object</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">SparseTimeFunction</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span>
                                          <span class="n">dimensions</span><span class="o">=</span><span class="p">[</span><span class="n">grid</span><span class="o">.</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">p_dim</span><span class="p">],</span>
-                                         <span class="n">npoint</span><span class="o">=</span><span class="n">npoint</span><span class="p">,</span> <span class="n">nt</span><span class="o">=</span><span class="n">ntime</span><span class="p">,</span>
+                                         <span class="n">npoint</span><span class="o">=</span><span class="n">npoint</span><span class="p">,</span> <span class="n">nt</span><span class="o">=</span><span class="n">ntime</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span>
                                          <span class="n">coordinates</span><span class="o">=</span><span class="n">coordinates</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># If provided, copy initial data into the allocated buffer</span>

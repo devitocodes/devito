@@ -111,7 +111,6 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.arguments">devito.arguments module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
@@ -229,7 +228,7 @@ based upon classic Lamport theory.</p>
 <span id="devito-ir-clusters-cluster-module"></span><h2>devito.ir.clusters.cluster module<a class="headerlink" href="#module-devito.ir.clusters.cluster" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.ir.clusters.cluster.Cluster">
-<em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">Cluster</code><span class="sig-paren">(</span><em>exprs</em>, <em>ispace</em>, <em>atomics=None</em>, <em>guards=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">Cluster</code><span class="sig-paren">(</span><em>exprs</em>, <em>ispace</em>, <em>dspace</em>, <em>atomics=None</em>, <em>guards=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.clusters.cluster.PartialCluster</span></code></p>
 <p>A Cluster is an immutable <code class="xref py py-class docutils literal notranslate"><span class="pre">PartialCluster</span></code>.</p>
 <dl class="attribute">
@@ -259,7 +258,8 @@ space and atomics as <code class="docutils literal notranslate"><span class="pre
 <code class="descname">squash</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#Cluster.squash"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.Cluster.squash" title="Permalink to this definition">¶</a></dt>
 <dd><p>Concatenate the expressions in <code class="docutils literal notranslate"><span class="pre">other</span></code> to those in <code class="docutils literal notranslate"><span class="pre">self</span></code>.
 <code class="docutils literal notranslate"><span class="pre">self</span></code> and <code class="docutils literal notranslate"><span class="pre">other</span></code> must have same <code class="docutils literal notranslate"><span class="pre">ispace</span></code>. Duplicate
-expressions are dropped.</p>
+expressions are dropped. The <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code> is updated
+accordingly.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -274,6 +274,12 @@ expressions are dropped.</p>
 <em class="property">class </em><code class="descclassname">devito.ir.clusters.cluster.</code><code class="descname">ClusterGroup</code><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code></p>
 <p>An iterable of :class:<a href="#id9"><span class="problematic" id="id10">`</span></a>PartialCluster`s.</p>
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.ClusterGroup.dspace">
+<code class="descname">dspace</code><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.dspace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the cumulative <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code> of this ClusterGroup.</p>
+</dd></dl>
+
 <dl class="method">
 <dt id="devito.ir.clusters.cluster.ClusterGroup.finalize">
 <code class="descname">finalize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup.finalize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.finalize" title="Permalink to this definition">¶</a></dt>

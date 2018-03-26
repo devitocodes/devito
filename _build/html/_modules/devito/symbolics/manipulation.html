@@ -159,10 +159,10 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.symbolics.manipulation</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
 
 <span class="kn">import</span> <span class="nn">sympy</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Number</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Symbol</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Number</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">LM</span><span class="p">,</span> <span class="n">LC</span>
 
 <span class="kn">from</span> <span class="nn">devito.symbolics.extended_sympy</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Eq</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_functions</span>
@@ -171,7 +171,7 @@
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Symbol</span> <span class="k">as</span> <span class="n">dSymbol</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;freeze_expression&#39;</span><span class="p">,</span> <span class="s1">&#39;xreplace_constrained&#39;</span><span class="p">,</span> <span class="s1">&#39;xreplace_indices&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;pow_to_mul&#39;</span><span class="p">,</span> <span class="s1">&#39;as_symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;indexify&#39;</span><span class="p">,</span> <span class="s1">&#39;convert_to_SSA&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;pow_to_mul&#39;</span><span class="p">,</span> <span class="s1">&#39;as_symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;indexify&#39;</span><span class="p">,</span> <span class="s1">&#39;convert_to_SSA&#39;</span><span class="p">,</span> <span class="s1">&#39;split_affine&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="freeze_expression"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.freeze_expression">[docs]</a><span class="k">def</span> <span class="nf">freeze_expression</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -339,10 +339,26 @@
         <span class="k">return</span> <span class="n">expr</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span>
-    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span></div>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot extract symbol from type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="split_affine"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.split_affine">[docs]</a><span class="k">def</span> <span class="nf">split_affine</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    split_affine(expr)</span>
+
+<span class="sd">    Split an affine scalar function into its three components, namely variable,</span>
+<span class="sd">    coefficient, and translation from origin.</span>
+
+<span class="sd">    :raises ValueError: If ``expr`` is non affine.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">AffineFunction</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;AffineFunction&quot;</span><span class="p">,</span> <span class="s2">&quot;var, coeff, shift&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">AffineFunction</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+    <span class="n">poly</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_poly</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">is_univariate</span> <span class="ow">and</span> <span class="n">poly</span><span class="o">.</span><span class="n">is_linear</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">LM</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span></div>
+    <span class="k">return</span> <span class="n">AffineFunction</span><span class="p">(</span><span class="n">LM</span><span class="p">(</span><span class="n">poly</span><span class="p">),</span> <span class="n">LC</span><span class="p">(</span><span class="n">poly</span><span class="p">),</span> <span class="n">poly</span><span class="o">.</span><span class="n">TC</span><span class="p">())</span>
 
 
 <div class="viewcode-block" id="indexify"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.indexify">[docs]</a><span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>

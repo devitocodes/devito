@@ -164,6 +164,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">ClusterizedEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters.graph</span> <span class="k">import</span> <span class="n">FlowGraph</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">DataSpace</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Cluster&quot;</span><span class="p">,</span> <span class="s2">&quot;ClusterGroup&quot;</span><span class="p">]</span>
 
@@ -179,14 +180,17 @@
 <span class="sd">    :param exprs: The ordered sequence of expressions computing a tensor.</span>
 <span class="sd">    :param ispace: An object of type :class:`IterationSpace`, which represents the</span>
 <span class="sd">                   iteration space of the cluster.</span>
+<span class="sd">    :param dspace: An object of type :class:`DataSpace`, which represents the</span>
+<span class="sd">                   data space (i.e., data items accessed) of the cluster.</span>
 <span class="sd">    :param atomics: (Optional) non-sharable :class:`Dimension`s in ``ispace``.</span>
 <span class="sd">    :param guards: (Optional) iterable of conditions, provided as SymPy expressions,</span>
 <span class="sd">                   under which ``exprs`` are evaluated.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ispace</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">ispace</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">dspace</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">atomics</span> <span class="ow">or</span> <span class="p">[])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_guards</span> <span class="o">=</span> <span class="n">guards</span> <span class="ow">or</span> <span class="p">{}</span>
 
@@ -199,6 +203,10 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dspace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">atomics</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span>
 
@@ -208,7 +216,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -230,24 +238,30 @@
     <span class="k">def</span> <span class="nf">ispace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">AttributeError</span>
 
+    <span class="nd">@dspace</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">dspace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">val</span>
+
     <span class="k">def</span> <span class="nf">squash</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Concatenate the expressions in ``other`` to those in ``self``.</span>
 <span class="sd">        ``self`` and ``other`` must have same ``ispace``. Duplicate</span>
-<span class="sd">        expressions are dropped.&quot;&quot;&quot;</span>
+<span class="sd">        expressions are dropped. The :class:`DataSpace` is updated</span>
+<span class="sd">        accordingly.&quot;&quot;&quot;</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">is_compatible</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">exprs</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dspace</span> <span class="o">=</span> <span class="n">DataSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">dspace</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Cluster"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster">[docs]</a><span class="k">class</span> <span class="nc">Cluster</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;A Cluster is an immutable :class:`PartialCluster`.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="c1"># Keep expressions ordered based on information flow</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="n">exprs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">ispace</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
-
+        <span class="c1"># Keep expressions ordered based on information flow</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">ispace</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">dspace</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">atomics</span> <span class="ow">or</span> <span class="p">())</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_guards</span> <span class="o">=</span> <span class="n">frozendict</span><span class="p">(</span><span class="n">guards</span> <span class="ow">or</span> <span class="p">{})</span>
 
@@ -268,7 +282,7 @@
 <span class="sd">        Build a new cluster with expressions ``exprs`` having same iteration</span>
 <span class="sd">        space and atomics as ``self``.</span>
 <span class="sd">        &quot;&quot;&quot;</span></div>
-        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span>
 
     <span class="nd">@PartialCluster</span><span class="o">.</span><span class="n">exprs</span><span class="o">.</span><span class="n">setter</span>
     <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
@@ -301,8 +315,13 @@
                 <span class="n">cluster</span> <span class="o">=</span> <span class="n">Cluster</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
                 <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cluster</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span></div></div>
+                <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span></div>
         <span class="k">return</span> <span class="n">clusters</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dspace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the cumulative :class:`DataSpace` of this ClusterGroup.&quot;&quot;&quot;</span></div>
+        <span class="k">return</span> <span class="n">DataSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dspace</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
 </pre></div>
 
            </div>

@@ -17,14 +17,6 @@ Subpackages
 Submodules
 ----------
 
-devito.arguments module
------------------------
-
-.. automodule:: devito.arguments
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 devito.backends module
 ----------------------
 

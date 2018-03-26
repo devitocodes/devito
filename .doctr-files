@@ -27,7 +27,6 @@
 ./_build/html/_images/data_structures.png
 ./_build/html/_modules/abc.html
 ./_build/html/_modules/cached_property.html
-./_build/html/_modules/devito/arguments.html
 ./_build/html/_modules/devito/backends.html
 ./_build/html/_modules/devito/base.html
 ./_build/html/_modules/devito/cgen_utils.html

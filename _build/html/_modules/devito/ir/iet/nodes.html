@@ -577,21 +577,28 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the symbolic extent of the Iteration.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds_symbolic</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds_symbolic</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds_symbolic</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds_symbolic</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">start_symbolic</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the symbolic extent of the Iteration.</span>
+<span class="sd">        Return the symbolic start of the Iteration.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds_symbolic</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">end_symbolic</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the symbolic extent of the Iteration.</span>
+<span class="sd">        Return the symbolic end of the Iteration.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds_symbolic</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">incr_symbolic</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the symbolic extent of the Iteration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
 
 <div class="viewcode-block" id="Iteration.bounds"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Iteration.bounds">[docs]</a>    <span class="k">def</span> <span class="nf">bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">finish</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the start and end points of the Iteration if the limits are</span>
@@ -611,7 +618,7 @@
 <span class="sd">        ``None`` otherwise.&quot;&quot;&quot;</span>
         <span class="n">start</span><span class="p">,</span> <span class="n">finish</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">finish</span> <span class="o">-</span> <span class="n">start</span>
+            <span class="k">return</span> <span class="n">finish</span> <span class="o">-</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span></div>
             <span class="k">return</span> <span class="kc">None</span>
 
@@ -651,15 +658,15 @@
 
 <div class="viewcode-block" id="Callable"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Callable">[docs]</a><span class="k">class</span> <span class="nc">Callable</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;A node representing a function.</span>
+    <span class="sd">&quot;&quot;&quot;A node representing a callable function.</span>
 
-<span class="sd">    :param name: The name of the function.</span>
+<span class="sd">    :param name: The name of the callable.</span>
 <span class="sd">    :param body: A :class:`Node` or an iterable of :class:`Node` objects representing</span>
-<span class="sd">                 the body of the function.</span>
-<span class="sd">    :param retval: The type of the value returned by the function.</span>
-<span class="sd">    :param parameters: An iterable of :class:`SymbolicData` objects in input to the</span>
-<span class="sd">                       function, or ``None`` if the function takes no parameter.</span>
-<span class="sd">    :param prefix: An iterable of qualifiers to prepend to the function declaration.</span>
+<span class="sd">                 the body of the callable.</span>
+<span class="sd">    :param retval: The type of the value returned by the callable.</span>
+<span class="sd">    :param parameters: An iterable of :class:`AbstractFunction`s in input to the</span>
+<span class="sd">                       callable, or ``None`` if the callable takes no parameter.</span>
+<span class="sd">    :param prefix: An iterable of qualifiers to prepend to the callable declaration.</span>
 <span class="sd">                   The default value is (&#39;static&#39;, &#39;inline&#39;).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -866,16 +873,26 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">index</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">start</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">step</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">step</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dim</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">as_symbol</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">start</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">step</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">as_symbol</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">step</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the symbols used by this :class:`UnboundedIndex`.</span>
-
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">free</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">free_symbols</span>
         <span class="n">free</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>

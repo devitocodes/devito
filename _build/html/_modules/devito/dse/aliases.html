@@ -246,10 +246,10 @@
 
     <span class="c1"># Heuristically attempt to relax the aliases offsets</span>
     <span class="c1"># to maximize the likelyhood of loop fusion</span>
-    <span class="n">grouped</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="n">groups</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">aliases</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-        <span class="n">grouped</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">grouped</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">groups</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
         <span class="n">ideal_anti_stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">anti_stencil</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">])</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">anti_stencil</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">ideal_anti_stencil</span><span class="p">)</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
@@ -273,7 +273,7 @@
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">ofs</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indexeds</span><span class="p">,</span> <span class="n">offsets</span><span class="p">):</span>
         <span class="n">base</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">base</span>
-        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">dimensions</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">dimensions</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">ofs</span><span class="p">)</span>
         <span class="n">mapper</span><span class="p">[</span><span class="n">indexed</span><span class="p">]</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="o">*</span><span class="p">[</span><span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">ofs</span><span class="p">)])</span>
 
@@ -319,7 +319,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return a list of tuples, with one tuple for each indexed object appearing</span>
 <span class="sd">    in ``indexeds``. A tuple represents the offsets from the origin (0, 0, ..., 0)</span>
-<span class="sd">    along each dimension. All objects must use the same dimensions, in the same</span>
+<span class="sd">    along each dimension. All objects must use the same indices, in the same</span>
 <span class="sd">    order; otherwise, ``None`` is returned.</span>
 
 <span class="sd">    For example, given: ::</span>
@@ -403,7 +403,7 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">aliased</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">distances</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">ghost_offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">alias</span> <span class="o">=</span> <span class="n">alias</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">dimensions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">aliased</span> <span class="o">=</span> <span class="n">aliased</span> <span class="ow">or</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">distances</span> <span class="o">=</span> <span class="n">distances</span> <span class="ow">or</span> <span class="p">[]</span>
@@ -422,9 +422,28 @@
         <span class="k">return</span> <span class="n">handle</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">distance_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">diameter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a map telling the min/max offsets in each dimension for this alias.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">i</span><span class="p">)))</span>
+                           <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">)))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">relaxed_diameter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a map telling the min/max offsets in each dimension for this alias.</span>
+<span class="sd">        The extremes are potentially larger than those provided by ``self.diameter``,</span>
+<span class="sd">        as here we&#39;re also taking into account any ghost offsets provided at Alias</span>
+<span class="sd">        construction time..&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">v</span><span class="p">)))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">anti_stencil</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">with_distance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">j</span><span class="p">)))</span>
-                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aliased</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">)]</span>
+        <span class="sd">&quot;&quot;&quot;Return a tuple associating each aliased expression with its distance from</span>
+<span class="sd">        ``self.alias``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aliased</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_map</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">extend</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aliased</span><span class="p">,</span> <span class="n">distances</span><span class="p">):</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">aliased</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">distances</span><span class="p">)</span>

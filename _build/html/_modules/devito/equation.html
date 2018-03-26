@@ -181,8 +181,12 @@
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;evaluate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="n">region</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;region&#39;</span><span class="p">,</span> <span class="n">DOMAIN</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">_region</span> <span class="o">=</span> <span class="n">region</span></div>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_region</span> <span class="o">=</span> <span class="n">region</span>
         <span class="k">return</span> <span class="n">obj</span>
+
+<div class="viewcode-block" id="Eq.xreplace"><a class="viewcode-back" href="../../devito.html#devito.equation.Eq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span></div></div>
+                         <span class="n">region</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_region</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../devito.html#devito.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>

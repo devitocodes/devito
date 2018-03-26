@@ -267,7 +267,7 @@
 <span id="examples-seismic-model-module"></span><h2>examples.seismic.model module<a class="headerlink" href="#module-examples.seismic.model" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="examples.seismic.model.Model">
-<em class="property">class </em><code class="descclassname">examples.seismic.model.</code><code class="descname">Model</code><span class="sig-paren">(</span><em>origin</em>, <em>spacing</em>, <em>shape</em>, <em>vp</em>, <em>nbpml=20</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">examples.seismic.model.</code><code class="descname">Model</code><span class="sig-paren">(</span><em>origin</em>, <em>spacing</em>, <em>shape</em>, <em>space_order</em>, <em>vp</em>, <em>nbpml=20</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>The physical model used in seismic inversion processes.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -278,6 +278,7 @@
 <li><strong>origin</strong> – Origin of the model in m as a tuple in (x,y,z) order</li>
 <li><strong>spacing</strong> – Grid size in m as a Tuple in (x,y,z) order</li>
 <li><strong>shape</strong> – Number of grid points size in (x,y,z) order</li>
+<li><strong>space_order</strong> – Order of the spatial stencil discretisation</li>
 <li><strong>vp</strong> – Velocity in km/s</li>
 <li><strong>nbpml</strong> – The number of PML layers for boundary damping</li>
 <li><strong>rho</strong> – Density in kg/cm^3 (rho=1 for water)</li>
@@ -326,14 +327,6 @@ creation of seismic wave propagation operators:</p>
 <dt id="examples.seismic.model.Model.dtype">
 <code class="descname">dtype</code><a class="headerlink" href="#examples.seismic.model.Model.dtype" title="Permalink to this definition">¶</a></dt>
 <dd><p>Data type for all assocaited data objects.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="examples.seismic.model.Model.pad">
-<code class="descname">pad</code><span class="sig-paren">(</span><em>data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.pad" title="Permalink to this definition">¶</a></dt>
-<dd><p>Padding function PNL layers in every direction for for the
-absorbing boundary conditions.</p>
-<p>:param data : Data array to be padded</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -520,6 +513,7 @@ object. Optionally also includes point markers for sources and receivers.</p>
 <li><strong>data</strong> – (Optional) Data values to initialise point data</li>
 <li><strong>ntime</strong> – (Optional) Number of timesteps for which to allocate data</li>
 <li><strong>npoint</strong> – (Optional) Number of sparse points represented by this source</li>
+<li><strong>time_order</strong> – (Optional) Time discretization order (defaults to 2)</li>
 <li><strong>dimension</strong> – :(Optional) class:<cite>Dimension</cite> object for
 representing the number of points in this source</li>
 </ul>
