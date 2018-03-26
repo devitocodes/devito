@@ -1,16 +1,15 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from functools import partial
-from math import ceil
 
 import sympy
 import numpy as np
 from psutil import virtual_memory
 
-from devito.arguments import ArgumentMap
 from devito.cgen_utils import INT, FLOAT
 from devito.data import Data, first_touch
 from devito.dimension import Dimension
 from devito.equation import Eq, Inc
+from devito.exceptions import InvalidArgument
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
@@ -18,8 +17,8 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, error, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import SymbolicFunction, AbstractCachedSymbol
-from devito.tools import EnrichedTuple
+from devito.types import AbstractCachedFunction, AbstractCachedSymbol
+from devito.tools import ReducerMap
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction']
@@ -37,6 +36,7 @@ class Constant(AbstractCachedSymbol):
         symbolic function.
     """
 
+    is_Input = True
     is_Constant = True
     is_Scalar = True
 
@@ -58,13 +58,18 @@ class Constant(AbstractCachedSymbol):
     def base(self):
         return self
 
-    def argument_defaults(self):
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this symbol."""
+        return (self.name,)
+
+    def _arg_defaults(self):
         """
         Returns a map of default argument values defined by this symbol.
         """
         return {self.name: self.data}
 
-    def argument_values(self, **kwargs):
+    def _arg_values(self, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -76,8 +81,24 @@ class Constant(AbstractCachedSymbol):
             values[self.name] = new.data if isinstance(new, Constant) else new
         return values
 
+    def _arg_check(self, args, dspace):
+        """
+        :raises InvalidArgument: If, given the runtime arguments ``args``, an
+                                 out-of-bounds access will be performed.
+        """
+        if self.name not in args:
+            raise InvalidArgument("No runtime value for %s" % self.name)
+        key = args[self.name]
+        try:
+            # Might be a plain number, w/o a dtype field
+            if key.dtype != self.dtype:
+                warning("Data type %s of runtime value `%s` does not match the "
+                        "Constant data type %s" % (key.dtype, self.name, self.dtype))
+        except AttributeError:
+            pass
 
-class TensorFunction(SymbolicFunction):
+
+class TensorFunction(AbstractCachedFunction):
 
     """
     Utility class to encapsulate all symbolic types that represent
@@ -89,6 +110,7 @@ class TensorFunction(SymbolicFunction):
         :class:`SparseFunction` (or their subclasses) instead.
     """
 
+    is_Input = True
     is_TensorFunction = True
     is_Tensor = True
 
@@ -111,72 +133,29 @@ class TensorFunction(SymbolicFunction):
         """Allocate memory as a :class:`Data`."""
         def wrapper(self):
             if self._data is None:
-                debug("Allocating memory for %s (%s)" % (self.name, self.shape))
-                self._data = Data(self.shape, self.indices, self.dtype)
+                debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
+                self._data = Data(self.shape_allocated, self.indices, self.dtype)
                 if self._first_touch:
                     first_touch(self)
-                else:
-                    self.data.fill(0)
                 if self.initializer is not None:
-                    self.initializer(self.data)
+                    if self._first_touch:
+                        warning("`first touch` together with `initializer` causing "
+                                "redundant data initialization")
+                    try:
+                        self.initializer(self._data)
+                    except ValueError:
+                        # Perhaps user only wants to initialise the physical domain
+                        self.initializer(self._data[self._mask_domain])
+                else:
+                    self._data.fill(0)
             return func(self)
         return wrapper
 
     @property
-    def _offset_domain(self):
-        """
-        The number of grid points between the first (last) allocated element
-        (possibly in the halo/padding region) and the first (last) domain element,
-        for each dimension.
-        """
-        left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
-        right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
-
-        return EnrichedTuple(*offsets, left=left, right=right)
-
-    @property
-    def _offset_halo(self):
-        """
-        The number of grid points between the first (last) allocated element
-        (possibly in the halo/padding region) and the first (last) halo element,
-        for each dimension.
-        """
-        left = self._extent_padding.left
-        right = self._extent_padding.right
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in self._padding)
-
-        return EnrichedTuple(*offsets, left=left, right=right)
-
-    @property
-    def _extent_halo(self):
-        """
-        The number of grid points in the halo region.
-        """
-        left = tuple(zip(*self._halo))[0]
-        right = tuple(zip(*self._halo))[1]
-
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in self._halo)
-
-        return EnrichedTuple(*extents, left=left, right=right)
-
-    @property
-    def _extent_padding(self):
-        """
-        The number of grid points in the padding region.
-        """
-        left = tuple(zip(*self._padding))[0]
-        right = tuple(zip(*self._padding))[1]
-
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in self._padding)
-
-        return EnrichedTuple(*extents, left=left, right=right)
+    def _data_buffer(self):
+        """Reference to the data. Unlike ``data, data_with_halo, data_allocated``,
+        this *never* returns a view of the data. This method is for internal use only."""
+        return self.data_allocated
 
     @property
     def _mem_external(self):
@@ -210,10 +189,7 @@ class TensorFunction(SymbolicFunction):
         Shape of the domain plus the read-only stencil boundary associated
         with this :class:`Function`.
         """
-        # TODO: for the domain-allocation switch, this needs to return the shape
-        # of the data including the halo region, ie:
-        # `tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))`
-        raise NotImplementedError
+        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
 
     @property
     def shape_allocated(self):
@@ -222,10 +198,7 @@ class TensorFunction(SymbolicFunction):
         It includes the domain and halo regions, as well as any additional
         padding outside of the halo.
         """
-        # TODO: for the domain-allocation switch, this needs to return the shape
-        # of the data including the halo and padding regions, ie:
-        # `tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))`
-        raise NotImplementedError
+        return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
 
     @property
     def data(self):
@@ -240,7 +213,7 @@ class TensorFunction(SymbolicFunction):
     @_allocate_memory
     def data_domain(self):
         """
-        The domain data values, as a :class:`numpy.ndarray`.
+        The domain data values.
 
         Elements are stored in row-major format.
 
@@ -248,9 +221,7 @@ class TensorFunction(SymbolicFunction):
 
             Alias to ``self.data``.
         """
-        # TODO: for the domain-allocation switch, this needs to be turned
-        # into a view of the domain region
-        return self._data
+        return self._data[self._mask_domain]
 
     @property
     @_allocate_memory
@@ -260,9 +231,7 @@ class TensorFunction(SymbolicFunction):
 
         Elements are stored in row-major format.
         """
-        # TODO: for the domain-allocation switch, this needs to be turned
-        # into a view of the halo region
-        raise NotImplementedError
+        return self._data[self._mask_with_halo]
 
     @property
     @_allocate_memory
@@ -272,14 +241,7 @@ class TensorFunction(SymbolicFunction):
 
         Elements are stored in row-major format.
         """
-        # TODO: for the domain-allocation switch, this needs to return all
-        # allocated data values, i.e. self._data
-        raise NotImplementedError
-
-    @property
-    def dimensions(self):
-        """Tuple of :class:`Dimension`s representing the function indices."""
-        return self.indices
+        return self._data
 
     @property
     def space_dimensions(self):
@@ -293,29 +255,36 @@ class TensorFunction(SymbolicFunction):
     @property
     def symbolic_shape(self):
         """
-        Return the symbolic shape of the object. This is simply the
-        appropriate combination of symbolic dimension sizes shifted
-        according to the ``staggered`` mask.
-        """
-        return tuple(i.symbolic_size - s for i, s in
-                     zip(self.indices, self.staggered))
+        Return the symbolic shape of the object. This includes: ::
 
-    def argument_defaults(self, alias=None):
+            * the padding, halo, and domain regions. While halo and padding are
+              known quantities (integers), the domain size is represented by a symbol.
+            * the shifting induced by the ``staggered`` mask
+        """
+        symbolic_shape = super(TensorFunction, self).symbolic_shape
+        return tuple(sympy.Add(i, -j, evaluate=False)
+                     for i, j in zip(symbolic_shape, self.staggered))
+
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this function."""
+        return (self.name,)
+
+    def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
-        args = ArgumentMap({key.name: self._data_buffer})
+        args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
         for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
-            args.update(i.argument_defaults(size=s+o, alias=k))
-
+            args.update(i._arg_defaults(start=0, size=s+o, alias=k))
         return args
 
-    def argument_values(self, alias=None, **kwargs):
+    def _arg_values(self, alias=None, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -328,50 +297,66 @@ class TensorFunction(SymbolicFunction):
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
-            if len(new.shape) != self.ndim:
-                raise ValueError("Array shape %s does not match" % (new.shape, ) +
-                                 "dimensions %s" % (self.indices, ))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
-                values[key.name] = new._data_buffer
-                values.update(new.argument_defaults(alias=key).reduce_all())
+                values.update(new._arg_defaults(alias=key).reduce_all())
             else:
                 # We've been provided a pure-data replacement (array)
                 values[key.name] = new
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
-                    values.update(i.argument_defaults(size=s+o))
+                    values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
 
         return values
 
+    def _arg_check(self, args, intervals):
+        """
+        :raises InvalidArgument: If, given the runtime arguments ``args``, an
+                                 out-of-bounds access will be performed.
+        """
+        if self.name not in args:
+            raise InvalidArgument("No runtime value for `%s`" % self.name)
+        key = args[self.name]
+        if len(key.shape) != self.ndim:
+            raise InvalidArgument("Shape %s of runtime value `%s` does not match "
+                                  "dimensions %s" % (key.shape, self.name, self.indices))
+        if key.dtype != self.dtype:
+            warning("Data type %s of runtime value `%s` does not match the "
+                    "Function data type %s" % (key.dtype, self.name, self.dtype))
+        for i, s in zip(self.indices, key.shape):
+            i._arg_check(args, s, intervals[i])
+
 
 class Function(TensorFunction):
-    """Data object for spatially varying data acting as a :class:`SymbolicFunction`.
+    """A :class:`TensorFunction` providing operations to express
+    finite-difference approximation. A ``Function`` encapsulates
+    space-varying data; for time-varying data, use :class:`TimeFunction`.
 
     :param name: Name of the symbol
     :param grid: :class:`Grid` object from which to infer the data shape
                  and :class:`Dimension` indices.
+    :param space_order: Discretisation order for space derivatives. By default,
+                        ``space_order`` points are available on both sides of
+                        a generic point of interest, including those on the grid
+                        border. Sometimes, fewer points may be necessary; in
+                        other cases, depending on the PDE being approximated,
+                        more points may be necessary. In such cases, one
+                        can pass a 3-tuple ``(o, lp, rp)`` instead of a single
+                        integer representing the discretization order. Here,
+                        ``o`` is the discretization order, while ``lp`` and ``rp``
+                        indicate how many points are expected on left (``lp``)
+                        and right (``rp``) of a point of interest.
     :param shape: (Optional) shape of the domain region in grid points.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
+    :param dtype: (Optional) data type of the buffered data.
     :param staggered: (Optional) tuple containing staggering offsets.
     :param padding: (Optional) allocate extra grid points at a space dimension
-                    boundary. These may be used for non-symmetric stencils
-                    or simply to enforce data alignment. Defaults to 0.
-                    In alternative to an integer, an iterable, indicating
-                    the padding in each dimension, may be passed; in this
-                    case, an error is raised if such iterable has fewer entries
-                    then the number of space dimensions.
-    :param dtype: (Optional) data type of the buffered data.
-    :param space_order: Discretisation order for space derivatives. By default,
-                        space derivatives are expressed in terms of centered
-                        approximations, with ``ceil(space_order/2)`` points
-                        on each side of the point of interest. For asymmetric
-                        approximations, one may pass a 3-tuple ``(o, lp, rp)``
-                        instead of a single integer. Here, ``o`` is the
-                        approximation order, while ``lp`` and ``rp`` indicate
-                        the maximum number of points that an approximation can
-                        use on the two sides of the point of interest.
+                    boundary. These may be used for data alignment. Defaults to 0.
+                    In alternative to an integer, a tuple, indicating the padding
+                    in each dimension, may be passed; in this case, an error is
+                    raised if such tuple has fewer entries then the number of space
+                    dimensions.
     :param initializer: (Optional) A callable to initialize the data
 
     .. note::
@@ -384,6 +369,8 @@ class Function(TensorFunction):
 
        If the parameter ``grid`` is provided, the values for ``shape``,
        ``dimensions`` and ``dtype`` will be derived from it.
+
+    .. note::
 
        :class:`Function` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
@@ -418,7 +405,7 @@ class Function(TensorFunction):
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 self.space_order = space_order
-                halo = (ceil(space_order/2), ceil(space_order/2))
+                halo = (space_order, space_order)
             elif isinstance(space_order, tuple) and len(space_order) == 3:
                 self.space_order, left_points, right_points = space_order
                 halo = (left_points, right_points)
@@ -560,43 +547,42 @@ class Function(TensorFunction):
 
 class TimeFunction(Function):
     """
-    Data object for time-varying data that acts as a Function symbol
+    A special :class:`Function` encapsulating time-varying data.
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param grid: :class:`Grid` object from which to infer the data shape
                  and :class:`Dimension` indices.
+    :param space_order: Discretisation order for space derivatives. By default,
+                        ``space_order`` points are available on both sides of
+                        a generic point of interest, including those on the grid
+                        border. Sometimes, fewer points may be necessary; in
+                        other cases, depending on the PDE being approximated,
+                        more points may be necessary. In such cases, one
+                        can pass a 3-tuple ``(o, lp, rp)`` instead of a single
+                        integer representing the discretization order. Here,
+                        ``o`` is the discretization order, while ``lp`` and ``rp``
+                        indicate how many points are expected on left (``lp``)
+                        and right (``rp``) of a point of interest.
+    :param time_order: Discretization order for time derivatives.
     :param shape: (Optional) shape of the domain region in grid points.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
+    :param dtype: (Optional) data type of the buffered data
+    :param save: (Optional) Save the intermediate results to the data buffer.
+                 Defaults to `None`, indicating the use of alternating buffers.
+                 If intermediate results are required, the value of save must be
+                 set to the required size of the time dimension.
+    :param time_dim: (Optional) The :class:`Dimension` object to use to represent
+                     time in this symbol. Defaults to the time dimension provided
+                     by the :class:`Grid`.
     :param staggered: (Optional) tuple containing staggering offsets.
     :param padding: (Optional) allocate extra grid points at a space dimension
-                    boundary. These may be used for non-symmetric stencils
-                    or simply to enforce data alignment. Defaults to 0.
-                    In alternative to an integer, a tuple, indicating
-                    the padding in each dimension, may be passed; in this
-                    case, an error is raised if such tuple has fewer entries
-                    then the number of space dimensions.
-    :param dtype: (Optional) data type of the buffered data
-    :param space_order: Discretisation order for space derivatives. By default,
-                        space derivatives are expressed in terms of centered
-                        approximations, with ``ceil(space_order/2)`` points
-                        on each side of the point of interest. For asymmetric
-                        approximations, one may pass a 3-tuple ``(o, lp, rp)``
-                        instead of a single integer. Here, ``o`` is the
-                        approximation order, while ``lp`` and ``rp`` indicate
-                        the maximum number of points that an approximation can
-                        use on the two sides of the point of interest.
+                    boundary. These may be used for data alignment. Defaults to 0.
+                    In alternative to an integer, a tuple, indicating the padding
+                    in each dimension, may be passed; in this case, an error is
+                    raised if such tuple has fewer entries then the number of
+                    space dimensions.
     :param initializer: (Optional) A callable to initialize the data
-    :param save: Save the intermediate results to the data buffer. Defaults
-                 to `None`, indicating the use of alternating buffers. If
-                 intermediate results are required, the value of save must
-                 be set to the required size of the time dimension.
-    :param time_dim: The :class:`Dimension` object to use to represent time in this
-                     symbol. Defaults to the time dimension provided by the :class:`Grid`.
-    :param time_order: Order of the time discretization which affects the
-                       final size of the leading time dimension of the
-                       data buffer. Unlike ``space_order``, this can only be
-                       an integer.
 
     .. note::
 
@@ -629,9 +615,12 @@ class TimeFunction(Function):
 
     is_TimeFunction = True
 
+    _time_position = 0
+    """Position of time index among the function indices."""
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(TimeFunction, self).__init__(**kwargs)
+            super(TimeFunction, self).__init__(*args, **kwargs)
 
             # Check we won't allocate too much memory for the system
             available_mem = virtual_memory().available
@@ -639,7 +628,7 @@ class TimeFunction(Function):
                 warning("Trying to allocate more memory for symbol %s " % self.name +
                         "than available on physical device, this will start swapping")
 
-            self.time_dim = kwargs.get('time_dim')
+            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
             self.time_order = kwargs.get('time_order', 1)
             self.save = type(kwargs.get('save', None) or None)
             if not isinstance(self.time_order, int):
@@ -660,7 +649,10 @@ class TimeFunction(Function):
         elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
             raise ValueError("'time_dim' must be a time dimension")
 
-        return (time_dim,) + Function.__indices_setup__(**kwargs)
+        indices = list(Function.__indices_setup__(**kwargs))
+        indices.insert(cls._time_position, time_dim)
+
+        return tuple(indices)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -727,7 +719,7 @@ class TimeFunction(Function):
 
         return self.diff(_t, _t).as_finite_difference(indt)
 
-    def argument_values(self, alias=None, **kwargs):
+    def _arg_values(self, alias=None, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -741,7 +733,7 @@ class TimeFunction(Function):
                 raise TypeError("Incorrect value encountered, save should be %s" %
                                 self.save)
 
-        values = super(TimeFunction, self).argument_values(alias=alias, **kwargs)
+        values = super(TimeFunction, self)._arg_values(alias=alias, **kwargs)
         return values
 
 
@@ -761,8 +753,9 @@ class SparseFunction(TensorFunction):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param dtype: Data type of the buffered data.
+    :param space_order: (Optional) Discretisation order for space derivatives.
+                        Defaults to 0.
+    :param dtype: (Optional) Data type of the buffered data.
     :param initializer: (Optional) A callable to initialize the data
 
     .. note::
@@ -1004,49 +997,22 @@ class SparseFunction(TensorFunction):
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
-    def argument_defaults(self, alias=None):
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this function."""
+        return (self.name, self.coordinates.name)
+
+    def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
-        args = super(SparseFunction, self).argument_defaults(alias=alias)
-        args.update(self.coordinates.argument_defaults(alias=key.coordinates))
 
+        args = super(SparseFunction, self)._arg_defaults(alias=alias)
+        args.update(self.coordinates._arg_defaults(alias=key.coordinates))
         return args
-
-    def argument_values(self, alias=None, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
-        """
-        # Take a copy of the replacement before super pops it from kwargs
-
-        new = kwargs.get(self.name)
-        key = alias or self
-
-        if new is not None and isinstance(new, SparseFunction):
-            # If we've been replaced with a SparseFunction,
-            # we need to re-derive defaults and values...
-            values = new.argument_defaults(alias=key).reduce_all()
-            values.update(new.coordinates.argument_values(alias=key.coordinates,
-                                                          **kwargs))
-        else:
-            # Set the data to the input if it is an array
-            values = {key.name: key._data_buffer if new is None else new}
-            # Process indices
-            shape = self.shape if new is None else new.shape
-            for i, s, o in zip(self.indices, shape, self.staggered):
-                values.update(i.argument_defaults(size=s+o))
-            # Take default coordinates values
-            defaults = key.coordinates.argument_defaults(alias=key.coordinates)
-            values.update(defaults.reduce_all())
-
-        return values
-
 
 class SparseTimeFunction(SparseFunction):
     """
@@ -1060,9 +1026,11 @@ class SparseTimeFunction(SparseFunction):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param time_order: Discretisation order for time derivatives.
-    :param dtype: Data type of the buffered data.
+    :param space_order: (Optional) Discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) Discretisation order for time derivatives.
+                       Default to 1.
+    :param dtype: (Optional) Data type of the buffered data.
     :param initializer: (Optional) A callable to initialize the data
 
     .. note::
@@ -1074,15 +1042,22 @@ class SparseTimeFunction(SparseFunction):
 
     is_SparseTimeFunction = True
 
+    _time_position = 0
+    """Position of time index among the function indices."""
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(SparseTimeFunction, self).__init__(*args, **kwargs)
-            self.time_order = kwargs.get('time_order', 1)
 
             nt = kwargs.get('nt')
             if not isinstance(nt, int) and nt > 0:
                 raise ValueError('SparseTimeFunction requires int parameter `nt`')
             self.nt = nt
+
+            self.time_dim = self.indices[self._time_position]
+            self.time_order = kwargs.get('time_order', 1)
+            if not isinstance(self.time_order, int):
+                raise ValueError("'time_order' must be int")
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

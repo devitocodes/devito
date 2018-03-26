@@ -85,10 +85,10 @@ def collect(exprs):
 
     # Heuristically attempt to relax the aliases offsets
     # to maximize the likelyhood of loop fusion
-    grouped = OrderedDict()
+    groups = OrderedDict()
     for i in aliases.values():
-        grouped.setdefault(i.dimensions, []).append(i)
-    for dimensions, group in grouped.items():
+        groups.setdefault(i.dimensions, []).append(i)
+    for group in groups.values():
         ideal_anti_stencil = Stencil.union(*[i.anti_stencil for i in group])
         for i in group:
             if i.anti_stencil.subtract(ideal_anti_stencil).empty:
@@ -112,7 +112,7 @@ def create_alias(expr, offsets):
     mapper = {}
     for indexed, ofs in zip(indexeds, offsets):
         base = indexed.base
-        dimensions = base.function.indices
+        dimensions = base.function.dimensions
         assert len(dimensions) == len(ofs)
         mapper[indexed] = indexed.func(base, *[sum(i) for i in zip(dimensions, ofs)])
 
@@ -158,7 +158,7 @@ def calculate_offsets(indexeds):
     """
     Return a list of tuples, with one tuple for each indexed object appearing
     in ``indexeds``. A tuple represents the offsets from the origin (0, 0, ..., 0)
-    along each dimension. All objects must use the same dimensions, in the same
+    along each dimension. All objects must use the same indices, in the same
     order; otherwise, ``None`` is returned.
 
     For example, given: ::
@@ -242,7 +242,7 @@ class Alias(object):
     def __init__(self, alias, dimensions, aliased=None, distances=None,
                  ghost_offsets=None):
         self.alias = alias
-        self.dimensions = dimensions
+        self.dimensions = tuple(i.parent if i.is_Derived else i for i in dimensions)
 
         self.aliased = aliased or []
         self.distances = distances or []
@@ -261,9 +261,28 @@ class Alias(object):
         return handle
 
     @property
+    def distance_map(self):
+        return [tuple(zip(self.dimensions, i)) for i in self.distances]
+
+    @property
+    def diameter(self):
+        """Return a map telling the min/max offsets in each dimension for this alias."""
+        return OrderedDict((d, (min(i), max(i)))
+                           for d, i in zip(self.dimensions, zip(*self.distances)))
+
+    @property
+    def relaxed_diameter(self):
+        """Return a map telling the min/max offsets in each dimension for this alias.
+        The extremes are potentially larger than those provided by ``self.diameter``,
+        as here we're also taking into account any ghost offsets provided at Alias
+        construction time.."""
+        return OrderedDict((k, (min(v), max(v))) for k, v in self.anti_stencil.items())
+
+    @property
     def with_distance(self):
-        return [(i, OrderedDict(zip(self.dimensions, j)))
-                for i, j in zip(self.aliased, self.distances)]
+        """Return a tuple associating each aliased expression with its distance from
+        ``self.alias``."""
+        return tuple(zip(self.aliased, self.distance_map))
 
     def extend(self, aliased, distances):
         assert len(aliased) == len(distances)

@@ -27,19 +27,27 @@ class Search(object):
         'all': List
     }
 
-    def __init__(self, query, mode):
+    def __init__(self, query, mode, deep=False):
         """
         Search objects in an expression. This is much quicker than the more
         general SymPy's find.
 
         :param query: Any query from the ``queries`` module.
         :param mode: Either 'unique' or 'all' (catch all instances).
+        :param deep: (Optional) defaults to False, meaning that the search does
+                     not propagate within an Indexed' indices.
         """
         self.query = query
         self.collection = self.modes[mode]
+        self.deep = deep
 
     def _next(self, expr):
-        return [] if q_leaf(expr) else expr.args
+        if self.deep is True and expr.is_Indexed:
+            return expr.indices
+        elif q_leaf(expr):
+            return ()
+        else:
+            return expr.args
 
     def dfs(self, expr):
         """
@@ -82,7 +90,7 @@ class Search(object):
         return found
 
 
-def search(expr, query, mode='unique', visit='dfs'):
+def search(expr, query, mode='unique', visit='dfs', deep=False):
     """
     Interface to Search.
     """
@@ -90,7 +98,7 @@ def search(expr, query, mode='unique', visit='dfs'):
     assert mode in Search.modes, "Unknown mode"
     assert visit in ['dfs', 'bfs', 'bfs_first_hit'], "Unknown visit type"
 
-    searcher = Search(query, mode)
+    searcher = Search(query, mode, deep)
     if visit == 'dfs':
         return searcher.dfs(expr)
     elif visit == 'bfs':
@@ -102,11 +110,11 @@ def search(expr, query, mode='unique', visit='dfs'):
 # Shorthands
 
 
-def retrieve_indexed(expr, mode='unique'):
+def retrieve_indexed(expr, mode='unique', deep=False):
     """
     Shorthand to retrieve :class:`Indexed` objects in ``expr``.
     """
-    return search(expr, q_indexed, mode, 'dfs')
+    return search(expr, q_indexed, mode, 'dfs', deep)
 
 
 def retrieve_functions(expr, mode='unique'):
@@ -116,11 +124,11 @@ def retrieve_functions(expr, mode='unique'):
     return search(expr, q_function, mode, 'dfs')
 
 
-def retrieve_terminals(expr, mode='unique'):
+def retrieve_terminals(expr, mode='unique', deep=False):
     """
     Shorthand to retrieve :class:`Indexed` and :class:`Symbol` objects in ``expr``.
     """
-    return search(expr, q_terminal, mode, 'dfs')
+    return search(expr, q_terminal, mode, 'dfs', deep)
 
 
 def retrieve_trigonometry(expr):

@@ -33,11 +33,9 @@ def test_tti(shape, space_order):
 
     # Two layer model for true velocity
     model = demo_model('layers-isotropic', ratio=3, shape=shape,
-                       spacing=spacing, nbpml=nbpml,
-                       epsilon=np.zeros(shape),
-                       delta=np.zeros(shape),
-                       theta=np.zeros(shape),
-                       phi=np.zeros(shape))
+                       spacing=spacing, nbpml=nbpml, space_order=space_order,
+                       epsilon=np.zeros(shape), delta=np.zeros(shape),
+                       theta=np.zeros(shape), phi=np.zeros(shape))
 
     # Define seismic data and parameters
     f0 = .010

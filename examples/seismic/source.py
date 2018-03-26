@@ -20,6 +20,7 @@ class PointSource(SparseTimeFunction):
     :param data: (Optional) Data values to initialise point data
     :param ntime: (Optional) Number of timesteps for which to allocate data
     :param npoint: (Optional) Number of sparse points represented by this source
+    :param time_order: (Optional) Time discretization order (defaults to 2)
     :param dimension: :(Optional) class:`Dimension` object for
                        representing the number of points in this source
 
@@ -30,6 +31,7 @@ class PointSource(SparseTimeFunction):
     def __new__(cls, name, grid, ntime=None, npoint=None, data=None,
                 coordinates=None, **kwargs):
         p_dim = kwargs.get('dimension', Dimension(name='p_%s' % name))
+        time_order = kwargs.get('time_order', 2)
         npoint = npoint or coordinates.shape[0]
         if data is None:
             if ntime is None:
@@ -41,7 +43,7 @@ class PointSource(SparseTimeFunction):
         # Create the underlying SparseTimeFunction object
         obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,
                                          dimensions=[grid.time_dim, p_dim],
-                                         npoint=npoint, nt=ntime,
+                                         npoint=npoint, nt=ntime, time_order=time_order,
                                          coordinates=coordinates, **kwargs)
 
         # If provided, copy initial data into the allocated buffer

@@ -156,29 +156,25 @@ class DevitoRewriter(BasicRewriter):
 
                 # Build Iteration over blocks
                 dim = blocked.setdefault(i, Dimension(name=name))
-                block_size = dim.symbolic_size
-                iter_size = i.dim.symbolic_extent
-                start = i.limits[0] + i.offsets[0]
-                finish = i.dim.symbolic_end + i.offsets[1]
-                innersize = iter_size + (-i.offsets[0] + i.offsets[1])
-                finish = finish - (innersize % block_size)
-                inter_block = Iteration([], dim, [start, finish, block_size],
-                                        properties=PARALLEL)
+                bsize = dim.symbolic_size
+                bstart = i.limits[0]
+                binnersize = i.dim.symbolic_extent + (i.offsets[1] - i.offsets[0])
+                bfinish = i.dim.symbolic_end - (binnersize % bsize) - 1
+                inter_block = Iteration([], dim, [bstart, bfinish, bsize],
+                                        offsets=i.offsets, properties=PARALLEL)
                 inter_blocks.append(inter_block)
 
                 # Build Iteration within a block
-                start = inter_block.dim
-                finish = start + block_size
-                intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None,
+                limits = (dim, dim + bsize - 1, 1)
+                intra_block = i._rebuild([], limits=limits, offsets=(0, 0),
                                          properties=i.properties + (TAG, ELEMENTAL))
                 intra_blocks.append(intra_block)
 
                 # Build unitary-increment Iteration over the 'leftover' region.
                 # This will be used for remainder loops, executed when any
                 # dimension size is not a multiple of the block size.
-                start = inter_block.limits[1]
-                finish = i.dim.symbolic_end + i.offsets[1]
-                remainder = i._rebuild([], limits=[start, finish, 1], offsets=None)
+                remainder = i._rebuild([], limits=[bfinish + 1, i.dim.symbolic_end, 1],
+                                       offsets=(i.offsets[1], i.offsets[1]))
                 remainders.append(remainder)
 
             # Build blocked Iteration nest
@@ -334,6 +330,9 @@ class DevitoRewriter(BasicRewriter):
         Reshape temporary tensors and adjust loop trip counts to prevent as many
         compiler-generated remainder loops as possible.
         """
+        # The innermost dimension is the one that might get padded
+        p_dim = -1
+
         mapper = {}
         for tree in retrieve_iteration_tree(nodes):
             vector_iterations = [i for i in tree if i.is_Vectorizable]
@@ -357,7 +356,8 @@ class DevitoRewriter(BasicRewriter):
             if len(set(padding)) == 1:
                 padding = padding[0]
                 for i in writes:
-                    i.update(shape=i.shape[:-1] + (i.shape[-1] + padding,))
+                    padded = (i._padding[p_dim][0], i._padding[p_dim][1] + padding)
+                    i.update(padding=i._padding[:p_dim] + (padded,))
             else:
                 # Padding must be uniform -- not the case, so giving up
                 continue
@@ -367,12 +367,13 @@ class DevitoRewriter(BasicRewriter):
             if not endpoint.is_Symbol:
                 continue
             condition = []
-            externals = set(i.symbolic_shape[-1] for i in FindSymbols().visit(root))
+            externals = set(i.symbolic_shape[-1] for i in FindSymbols().visit(root)
+                            if i.is_Tensor)
             for i in root.uindices:
                 for j in externals:
                     condition.append(root.end_symbolic + padding < j)
-            condition = ' || '.join(ccode(i) for i in condition)
-            endpoint_padded = endpoint.func(name='_%s' % endpoint.name)
+            condition = ' && '.join(ccode(i) for i in condition)
+            endpoint_padded = endpoint.func('_%s' % endpoint.name)
             init = cgen.Initializer(
                 cgen.Value("const int", endpoint_padded),
                 cgen.Line('(%s) ? %s : %s' % (condition,

@@ -37,16 +37,16 @@ def autotune(operator, arguments, tunable):
         timesteps = 1
     elif len(steppers) == 1:
         stepper = steppers[0]
-        start = 0
-        timesteps = stepper.extent(start=start, finish=options['at_squeezer'])
+        start = at_arguments[stepper.dim.min_name]
+        timesteps = stepper.extent(start=start, finish=options['at_squeezer']) - 1
         if timesteps < 0:
-            timesteps = options['at_squeezer'] - timesteps + 1
+            timesteps = options['at_squeezer'] - timesteps
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)
-        at_arguments[stepper.dim.start_name] = start
-        at_arguments[stepper.dim.end_name] = timesteps
+        at_arguments[stepper.dim.min_name] = start
+        at_arguments[stepper.dim.max_name] = timesteps
         if stepper.dim.is_Stepping:
-            at_arguments[stepper.dim.parent.start_name] = start
-            at_arguments[stepper.dim.parent.end_name] = timesteps
+            at_arguments[stepper.dim.parent.min_name] = start
+            at_arguments[stepper.dim.parent.max_name] = timesteps
     else:
         info_at("Couldn't understand loop structure, giving up auto-tuning")
         return arguments
@@ -68,7 +68,7 @@ def autotune(operator, arguments, tunable):
     # Will drop block sizes that might lead to a stack overflow
     functions = FindSymbols('symbolics').visit(operator.body +
                                                operator.elemental_functions)
-    stack_shapes = [i.shape for i in functions if i.is_Array and i._mem_stack]
+    stack_shapes = [i.symbolic_shape for i in functions if i.is_Array and i._mem_stack]
     stack_space = sum(reduce(mul, i, 1) for i in stack_shapes)*operator.dtype().itemsize
 
     # Note: there is only a single loop over 'blocksize' because only
@@ -168,7 +168,7 @@ def more_heuristic_attempts(blocksizes):
 
 
 options = {
-    'at_squeezer': 5,
+    'at_squeezer': 4,
     'at_blocksize': sorted({8, 16, 24, 32, 40, 64, 128}),
     'at_stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }

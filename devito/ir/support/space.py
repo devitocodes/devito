@@ -1,9 +1,11 @@
 import abc
 from collections import OrderedDict
 
+from frozendict import frozendict
+
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
+__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
            'Forward', 'Backward', 'Any']
 
 
@@ -45,11 +47,16 @@ class AbstractInterval(object):
     def union(self, o):
         return self._rebuild()
 
+    merge = union
+
     def subtract(self, o):
         return self._rebuild()
 
     def negate(self):
         return self._rebuild()
+
+    zero = negate
+    flip = negate
 
     @abc.abstractmethod
     def overlap(self, o):
@@ -69,6 +76,9 @@ class NullInterval(AbstractInterval):
     def __repr__(self):
         return "%s[Null]" % self.dim
 
+    def __hash__(self):
+        return hash(self.dim)
+
     def _rebuild(self):
         return NullInterval(self.dim)
 
@@ -77,6 +87,8 @@ class NullInterval(AbstractInterval):
             return o._rebuild()
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
+
+    merge = union
 
     def overlap(self, o):
         return False
@@ -106,6 +118,9 @@ class Interval(AbstractInterval):
     def __repr__(self):
         return "%s[%s, %s]" % (self.dim, self.lower, self.upper)
 
+    def __hash__(self):
+        return hash((self.dim, self.limits))
+
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper)
 
@@ -127,6 +142,12 @@ class Interval(AbstractInterval):
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
 
+    def merge(self, o):
+        if self.dim != o.dim or o.is_Null:
+            return self._rebuild()
+        else:
+            return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper))
+
     def subtract(self, o):
         if self.dim != o.dim or o.is_Null:
             return self._rebuild()
@@ -135,6 +156,12 @@ class Interval(AbstractInterval):
 
     def negate(self):
         return Interval(self.dim, -self.lower, -self.upper)
+
+    def zero(self):
+        return Interval(self.dim, 0, 0)
+
+    def flip(self):
+        return Interval(self.dim, self.upper, self.lower)
 
     def overlap(self, o):
         if self.dim != o.dim:
@@ -152,9 +179,6 @@ class Interval(AbstractInterval):
         return super(Interval, self).__eq__(o) and\
             self.lower == o.lower and self.upper == o.upper
 
-    def __hash__(self):
-        return hash((self.dim.name, self.lower, self.upper))
-
 
 class IntervalGroup(tuple):
 
@@ -167,6 +191,9 @@ class IntervalGroup(tuple):
 
     def __repr__(self):
         return "IntervalGroup[%s]" % (', '.join([repr(i) for i in self]))
+
+    def __hash__(self):
+        return hash(i for i in self)
 
     @property
     def dimensions(self):
@@ -223,6 +250,10 @@ class IntervalGroup(tuple):
     def negate(self):
         return IntervalGroup([i.negate() for i in self])
 
+    def zero(self, d=None):
+        d = self.dimensions if d is None else as_tuple(d)
+        return IntervalGroup([i.zero() if i.dim in d else i for i in self])
+
     def __getitem__(self, key):
         if isinstance(key, (slice, int)):
             return super(IntervalGroup, self).__getitem__(key)
@@ -231,6 +262,7 @@ class IntervalGroup(tuple):
         for i in self:
             if i.dim == key:
                 return i
+        return NullInterval(key)
 
 
 class IterationDirection(object):
@@ -262,11 +294,104 @@ Any = IterationDirection('*')
 """Wildcard direction (both '++' and '--' would be OK)."""
 
 
-class IterationSpace(object):
+class Space(object):
+
+    """
+    A representation of a compact N-dimensional space as a sequence of
+    :class:`Interval`s along N :class:`Dimension`s.
+
+    :param intervals: A sequence of :class:`Interval`s describing the space.
+    """
+
+    def __init__(self, intervals):
+        self._intervals = IntervalGroup(as_tuple(intervals))
+
+    def __repr__(self):
+        return "%s[%s]" % (self.__class__.__name__,
+                           ", ".join(repr(i) for i in self.intervals))
+
+    def __eq__(self, other):
+        return self.intervals == other.intervals
+
+    def __hash__(self):
+        return hash(self.intervals)
+
+    @property
+    def intervals(self):
+        return self._intervals
+
+    @property
+    def size(self):
+        return len(self.intervals)
+
+    @property
+    def empty(self):
+        """Return True if this space has no intervals (no matter whether they
+        are defined or null intervals), False otherwise."""
+        return self.size == 0
+
+    @property
+    def dimensions(self):
+        return filter_ordered(self.intervals.dimensions)
+
+
+class DataSpace(Space):
+
+    """
+    A representation of a data space.
+
+    :param intervals: A sequence of :class:`Interval`s describing the data space.
+    :param parts: A mapper from :class:`Function`s to iterables of :class:`Interval`
+                  describing the individual components of the data space.
+    """
+
+    def __init__(self, intervals, parts):
+        super(DataSpace, self).__init__(intervals)
+        self._parts = frozendict(parts)
+
+    def __eq__(self, other):
+        return self.intervals == other.intervals and self.parts == other.parts
+
+    def __hash__(self):
+        return hash((super(DataSpace, self).__hash__(), self.parts))
+
+    @classmethod
+    def merge(cls, *others):
+        if not others:
+            return DataSpace(IntervalGroup(), {})
+        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
+        parts = {}
+        for i in others:
+            for k, v in i.parts.items():
+                parts.setdefault(k, []).append(v)
+        parts = {k: IntervalGroup.generate('merge', *v) for k, v in parts.items()}
+        return DataSpace(intervals, parts)
+
+    @property
+    def parts(self):
+        return self._parts
+
+    def __getitem__(self, key):
+        ret = self.intervals[key]
+        if ret.is_Null:
+            try:
+                ret = self._parts[key]
+            except KeyError:
+                ret = IntervalGroup()
+        return ret
+
+    def zero(self, d=None):
+        intervals = self.intervals.zero(d)
+        parts = {k: v.zero(d) for k, v in self.parts.items()}
+        return DataSpace(intervals, parts)
+
+
+class IterationSpace(Space):
 
     """
     A representation of an iteration space and its traversal through
-    :class:`Interval`s and :class:`IterationDirection`s.
+    :class:`Interval`s and :class:`IterationDirection`s. For each interval,
+    an arbitrary number of (sub-)iterators may be specified (see below).
 
     :param intervals: An ordered sequence of :class:`Interval`s defining the
                       iteration space.
@@ -279,9 +404,9 @@ class IterationSpace(object):
     """
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
-        self.intervals = IntervalGroup(as_tuple(intervals))
-        self.sub_iterators = sub_iterators or {}
-        self.directions = directions or {}
+        super(IterationSpace, self).__init__(intervals)
+        self._sub_iterators = frozendict(sub_iterators or {})
+        self._directions = frozendict(directions or {})
 
     def __repr__(self):
         ret = ', '.join(["%s%s" % (repr(i), repr(self.directions[i.dim]))
@@ -291,6 +416,10 @@ class IterationSpace(object):
     def __eq__(self, other):
         return self.intervals == other.intervals and self.directions == other.directions
 
+    def __hash__(self):
+        return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
+                     self.directions))
+
     def is_compatible(self, other):
         """A relaxed version of ``__eq__``, in which only non-derived dimensions
         are compared for equality."""
@@ -298,16 +427,16 @@ class IterationSpace(object):
             self.nonderived_directions == other.nonderived_directions
 
     @property
+    def sub_iterators(self):
+        return self._sub_iterators
+
+    @property
+    def directions(self):
+        return self._directions
+
+    @property
     def args(self):
         return (self.intervals, self.sub_iterators, self.directions)
-
-    @property
-    def size(self):
-        return len(self.intervals)
-
-    @property
-    def empty(self):
-        return self.size == 0
 
     @property
     def dimensions(self):

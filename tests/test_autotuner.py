@@ -66,9 +66,8 @@ def test_at_is_actually_working(shape, expected):
 def test_timesteps_per_at_run():
     """
     Check that each autotuning run (ie with a given block shape) takes
-    ``autotuning.options['at_squeezer'] - data.time_order`` timesteps.
-    in an operator performing an increment such as
-    ``a[t + timeorder, ...] = f(a[t, ...], ...)``.
+    ``autotuning.options['at_squeezer']`` timesteps, for an operator
+    performing the increment ``a[t + timeorder, ...] = f(a[t, ...], ...)``.
     """
 
     buffer = StringIO()
@@ -92,7 +91,8 @@ def test_timesteps_per_at_run():
     assert all('in 1 time steps' in i for i in out)
     buffer.truncate(0)
 
-    # TimeFunction with increasing time order
+    # TimeFunction with increasing time order; increasing the time order
+    # shouldn't affect how many iterations the autotuner is gonna run
     for to in [1, 2, 4]:
         infield = TimeFunction(name='infield', grid=grid, time_order=to)
         infield.data[:] = np.arange(reduce(mul, infield.shape),
@@ -103,9 +103,8 @@ def test_timesteps_per_at_run():
         op = Operator(stencil, dle=('blocking', {'blockalways': True}))
         op(infield=infield, outfield=outfield, t=2, autotune=True)
         out = [i for i in buffer.getvalue().split('\n') if 'AutoTuner:' in i]
-        expected = options['at_squeezer'] - to
         assert len(out) == 4
-        assert all('in %d time steps' % expected in i for i in out)
+        assert all('in %d time steps' % options['at_squeezer'] in i for i in out)
         buffer.truncate(0)
 
     logger.removeHandler(temporary_handler)
