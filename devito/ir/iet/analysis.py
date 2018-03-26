@@ -80,8 +80,9 @@ def mark_parallel(analysis):
             # (d_1, ..., d_i) = 0
             is_sequential = False
             for dep in analysis.scopes[i].d_all:
-                if not ((dims[:-1] and any(dep.is_carried(d) for d in dims[:-1])) or
-                        all(dep.is_independent(d) for d in dims)):
+                test0 = dims[:-1] and any(dep.is_carried(d) for d in dims[:-1])
+                test1 = all(dep.is_independent(d) for d in dims)
+                if not (test0 or test1):
                     is_sequential = True
                     break
             properties[i] = SEQUENTIAL if is_sequential else PARALLEL
