@@ -1014,6 +1014,7 @@ class SparseFunction(TensorFunction):
         args.update(self.coordinates._arg_defaults(alias=key.coordinates))
         return args
 
+
 class SparseTimeFunction(SparseFunction):
     """
     A time-dependent :class:`SparseFunction`.
