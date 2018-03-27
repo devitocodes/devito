@@ -3,7 +3,7 @@ from collections import Iterable, OrderedDict, namedtuple
 import sympy
 from sympy import Number, Indexed, Symbol, LM, LC
 
-from devito.symbolics.extended_sympy import Add, Mul, Eq
+from devito.symbolics.extended_sympy import Add, Mul, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
@@ -28,7 +28,11 @@ def freeze_expression(expr):
         return Mul(*rebuilt_args, evaluate=False)
     elif expr.is_Equality:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
-        return Eq(*rebuilt_args, evaluate=False)
+        if isinstance(expr, FrozenExpr):
+            # Avoid dropping metadata associated with /expr/
+            return expr.func(*rebuilt_args)
+        else:
+            return Eq(*rebuilt_args, evaluate=False)
     else:
         return expr.func(*[freeze_expression(e) for e in expr.args])
 

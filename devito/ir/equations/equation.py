@@ -135,7 +135,7 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
 
     """
     ClusterizedEq(expr, ispace, dspace)
-    ClusterizedEq(lhs, rhs, ispace=IterationSpace, dspace=DataSpace)
+    ClusterizedEq(lhs, rhs, stamp=ClusterizedEq)
 
     A SymPy equation with associated :class:`IterationSpace` and
     :class:`DataSpace`.
@@ -154,23 +154,24 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
     """
 
     def __new__(cls, *args, **kwargs):
-        if len(args) == 3:
+        if len(args) == 2:
+            # origin: ClusterizedEq(lhs, rhs, stamp=...)
+            stamp = kwargs.pop('stamp')
+            assert isinstance(stamp, ClusterizedEq)
+            expr = Eq.__new__(cls, *args, evaluate=False)
+            expr.is_Increment = stamp.is_Increment
+            expr._ispace, expr._dspace = stamp.ispace, stamp.dspace
+        elif len(args) == 3:
             # origin: ClusterizedEq(expr, ispace, dspace)
             input_expr, ispace, dspace = args
             assert isinstance(ispace, IterationSpace) and isinstance(dspace, DataSpace)
             expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
             expr.is_Increment = input_expr.is_Increment
-            expr._dspace = dspace
-            expr._ispace = ispace
+            expr._ispace, expr._dspace = ispace, dspace
         else:
-            # origin: ClusterizedEq(lhs, rhs, ispace=..., dspace=...)
-            assert len(args) == 2
-            expr = Eq.__new__(cls, *args, evaluate=False)
-            expr.is_Increment = kwargs.get('is_Increment', False)
-            expr._dspace = kwargs['dspace']
-            expr._ispace = kwargs['ispace']
+            raise ValueError("Cannot construct ClusterizedEq from args=%s "
+                             "and kwargs=%s" % (str(args), str(kwargs)))
         return expr
 
     def func(self, *args, **kwargs):
-        return super(ClusterizedEq, self).func(*args, dspace=self._dspace,
-                                               ispace=self._ispace)
+        return super(ClusterizedEq, self).func(*args, stamp=self)
