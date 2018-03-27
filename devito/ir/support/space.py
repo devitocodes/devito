@@ -294,6 +294,35 @@ Any = IterationDirection('*')
 """Wildcard direction (both '++' and '--' would be OK)."""
 
 
+class IterationInterval(object):
+
+    """
+    An :class:`Interval` associated with an :class:`IterationDirection`.
+    """
+
+    def __init__(self, interval, direction):
+        self.interval = interval
+        self.direction = direction
+
+    def __repr__(self):
+        return "%s%s" % (self.interval, self.direction)
+
+    def __eq__(self, other):
+        return isinstance(other, IterationInterval) and\
+            self.interval == other.interval and self.direction == other.direction
+
+    def __hash__(self):
+        return hash((self.interval, self.direction))
+
+    @property
+    def dim(self):
+        return self.interval.dim
+
+    @property
+    def limits(self):
+        return self.interval.limits
+
+
 class Space(object):
 
     """
@@ -469,6 +498,10 @@ class IterationSpace(Space):
     @property
     def directions(self):
         return self._directions
+
+    @property
+    def iteration_intervals(self):
+        return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
 
     @property
     def args(self):
