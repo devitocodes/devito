@@ -129,6 +129,9 @@ class Operator(Callable):
         args = ReducerMap()
         args.update([p._arg_values(**kwargs) for p in self.input if p.name in kwargs])
         args.update([p._arg_defaults() for p in self.input if p.name not in args])
+        for p in self.dimensions:
+            if p.name not in args:
+                args.update(p._arg_defaults())
         args = args.reduce_all()
 
         # Handle dimensions (first adjust data-carriers-induced defaults, then overrides)

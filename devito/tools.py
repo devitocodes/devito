@@ -628,7 +628,7 @@ class ReducerMap(MultiDict):
 
         :param key: Key for which to retrieve a unique value
         """
-        candidates = self.getall(key)
+        candidates = [x for x in self.getall(key) if x is not None]
 
         def compare_to_first(v):
             first = candidates[0]
