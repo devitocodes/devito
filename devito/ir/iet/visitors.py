@@ -538,8 +538,9 @@ class IsPerfectIteration(Visitor):
         return all(self.visit(i, **kwargs) for i in o)
 
     def visit_Node(self, o, found=False, **kwargs):
-        # Assume all nodes are in a perfect loop if they're in a loop.
-        return found
+        if not found:
+            return False
+        return all(self.visit(i, found=found, **kwargs) for i in o.children)
 
     def visit_Iteration(self, o, found=False, multi=False):
         if found and multi:
