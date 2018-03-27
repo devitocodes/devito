@@ -275,7 +275,7 @@ class IterationDirection(object):
         self._name = name
 
     def __eq__(self, other):
-        return self._name == other._name
+        return isinstance(other, IterationDirection) and self._name == other._name
 
     def __repr__(self):
         return self._name
@@ -340,7 +340,7 @@ class Space(object):
                            ", ".join(repr(i) for i in self.intervals))
 
     def __eq__(self, other):
-        return self.intervals == other.intervals
+        return isinstance(other, Space) and self.intervals == other.intervals
 
     def __hash__(self):
         return hash(self.intervals)
@@ -379,7 +379,8 @@ class DataSpace(Space):
         self._parts = frozendict(parts)
 
     def __eq__(self, other):
-        return self.intervals == other.intervals and self.parts == other.parts
+        return isinstance(other, DataSpace) and\
+            self.intervals == other.intervals and self.parts == other.parts
 
     def __hash__(self):
         return hash((super(DataSpace, self).__hash__(), self.parts))
@@ -443,7 +444,8 @@ class IterationSpace(Space):
         return "IterationSpace[%s]" % ret
 
     def __eq__(self, other):
-        return self.intervals == other.intervals and self.directions == other.directions
+        return isinstance(other, IterationSpace) and\
+            self.intervals == other.intervals and self.directions == other.directions
 
     def __hash__(self):
         return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
