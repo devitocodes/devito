@@ -61,16 +61,16 @@ def iet_make(clusters, dtype):
             continue
 
         root = None
-        intervals = cluster.ispace.intervals
+        itintervals = cluster.ispace.iteration_intervals
 
         # Can I reuse any of the previously scheduled Iterations ?
         index = 0
-        for i0, i1 in zip(intervals, list(schedule)):
+        for i0, i1 in zip(itintervals, list(schedule)):
             if i0 != i1 or i0.dim in cluster.atomics:
                 break
             root = schedule[i1]
             index += 1
-        needed = intervals[index:]
+        needed = itintervals[index:]
 
         # Build Expressions
         body = [Expression(e, np.int32 if cluster.trace.is_index(e.lhs) else dtype)
@@ -81,9 +81,6 @@ def iet_make(clusters, dtype):
         # Build Iterations
         scheduling = []
         for i in reversed(needed):
-            # Retrieve the iteration direction
-            direction = cluster.ispace.directions[i.dim]
-
             # Update IET and scheduling
             if i.dim in cluster.guards:
                 # Must wrap within an if-then scope
@@ -92,7 +89,7 @@ def iet_make(clusters, dtype):
                 # be reused by the next cluster
                 scheduling.insert(0, (None, None))
             iteration = Iteration(body, i.dim, i.dim.limits, offsets=i.limits,
-                                  direction=direction)
+                                  direction=i.direction)
             scheduling.insert(0, (i, iteration))
 
             # Prepare for next dimension
@@ -122,7 +119,7 @@ def iet_make(clusters, dtype):
     mapper = {}
     for k, v in shared.items():
         uindices = []
-        ispace = IterationSpace.merge(*[i.ispace for i in v])
+        ispace = IterationSpace.merge(*[i.ispace.project([k.dim]) for i in v])
         for j, offs in ispace.sub_iterators.get(k.dim, []):
             modulo = len(offs)
             for n, o in enumerate(filter_ordered(offs)):
