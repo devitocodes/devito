@@ -76,12 +76,12 @@ def test_precomputed_interpolation():
     #  because we interpolate across 2 neighbouring points in each dimension
 
     def init(data):
-        for i in range(shape[0]):
-            for j in range(shape[1]):
+        for i in range(data.shape[0]):
+            for j in range(data.shape[1]):
                 data[i, j] = sin(grid.spacing[0]*i) + sin(grid.spacing[1]*j)
         return data
 
-    m = Function(name='m', grid=grid, initializer=init)
+    m = Function(name='m', grid=grid, initializer=init, space_order=0)
 
     gridpoints, coefficients = precompute_linear_interpolation(points, grid, origin)
 
