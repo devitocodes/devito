@@ -192,6 +192,11 @@ def force_directions(mapper, key):
             assert k in clashes
             directions[k] = key(k)
 
+    # Derived dimensions enforce a direction on the parent
+    for k, v1 in list(directions.items()):
+        if k.is_Derived and directions.get(k.parent) == Any:
+            directions[k.parent] = v1
+
     return directions, clashes
 
 
