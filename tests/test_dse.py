@@ -6,7 +6,7 @@ import pytest
 from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator  # noqa
-from devito.ir import Stencil, FlowGraph
+from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
@@ -150,6 +150,29 @@ def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
 
 
 # DSE manipulation
+
+
+@skipif_yask
+def test_scheduling_after_rewrite():
+    """Tests loop scheduling after DSE-induced expression hoisting."""
+    grid = Grid((10, 10))
+    u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
+    u2 = TimeFunction(name="u2", grid=grid, time_order=2)
+    sf1 = SparseFunction(name='sf1', grid=grid, npoint=1, ntime=10)
+    const = Function(name="const", grid=grid, space_order=2)
+
+    # Deliberately inject into u1, rather than u1.forward, to create a WAR
+    eqn1 = Eq(u1.forward, u1 + sin(const))
+    eqn2 = sf1.inject(u1.forward, expr=sf1)
+    eqn3 = Eq(u2.forward, u2 - u1.dt2 + sin(const))
+
+    op = Operator([eqn1] + eqn2 + [eqn3])
+    trees = retrieve_iteration_tree(op)
+
+    # Check loop nest structure
+    assert len(trees) == 4
+    assert all(i.dim == j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
 
 
 @skipif_yask
