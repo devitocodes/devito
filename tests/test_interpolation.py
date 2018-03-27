@@ -94,6 +94,25 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
 ])
+def test_interpolate_array(shape, coords, npoints=20):
+    """Test generic point interpolation testing the x-coordinate of an
+    abitrary set of points going across the grid.
+    """
+    a = unit_box(shape=shape)
+    p = points(a.grid, coords, npoints=npoints)
+    xcoords = p.coordinates.data[:, 0]
+
+    expr = p.interpolate(a)
+    Operator(expr)(a=a, points=p.data[:])
+
+    assert np.allclose(p.data[:], xcoords, rtol=1e-6)
+
+
+@skipif_yask
+@pytest.mark.parametrize('shape, coords', [
+    ((11, 11), [(.05, .9), (.01, .8)]),
+    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
+])
 def test_interpolate_custom(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid.
@@ -127,6 +146,29 @@ def test_inject(shape, coords, result, npoints=19):
     expr = p.inject(a, FLOAT(1.))
 
     Operator(expr)(a=a)
+
+    indices = [slice(4, 6, 1) for _ in coords]
+    indices[0] = slice(1, -1, 1)
+    assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+
+@skipif_yask
+@pytest.mark.parametrize('shape, coords, result', [
+    ((11, 11), [(.05, .95), (.45, .45)], 1.),
+    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
+])
+def test_inject_array(shape, coords, result, npoints=19):
+    """Test point injection with a set of points forming a line
+    through the middle of the grid.
+    """
+    a = unit_box(shape=shape)
+    a.data[:] = 0.
+    p = points(a.grid, ranges=coords, npoints=npoints)
+    p2 = points(a.grid, ranges=coords, npoints=npoints, name='p2')
+    p2.data[:] = 1.
+    expr = p.inject(a, p)
+
+    Operator(expr)(a=a, points=p2.data[:])
 
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)

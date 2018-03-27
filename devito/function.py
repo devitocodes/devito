@@ -299,7 +299,6 @@ class TensorFunction(AbstractCachedFunction):
             new = kwargs.pop(self.name)
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
-                values[key.name] = new._data_buffer
                 values.update(new._arg_defaults(alias=key).reduce_all())
             else:
                 # We've been provided a pure-data replacement (array)
@@ -1014,27 +1013,6 @@ class SparseFunction(TensorFunction):
         args = super(SparseFunction, self)._arg_defaults(alias=alias)
         args.update(self.coordinates._arg_defaults(alias=key.coordinates))
         return args
-
-    def _arg_values(self, alias=None, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
-        """
-        # Take a copy of the replacement before super pops it from kwargs
-        new = kwargs.get(self.name)
-        key = alias or self
-
-        if new is not None and isinstance(new, SparseFunction):
-            # If we've been replaced with a SparseFunction,
-            # we need to re-derive defaults and values...
-            values = new._arg_defaults(alias=key).reduce_all()
-        else:
-            # ..., but if not, we simply need to recurse over children.
-            values = self.coordinates._arg_values(alias=key, **kwargs)
-
-        return values
 
 
 class SparseTimeFunction(SparseFunction):
