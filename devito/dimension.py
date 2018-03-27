@@ -252,7 +252,6 @@ class DefaultDimension(Dimension):
         dim = alias or self
         size = size or dim.default_value
         return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
-    
 
 
 class DerivedDimension(Dimension):

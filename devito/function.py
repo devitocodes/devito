@@ -747,6 +747,8 @@ class TimeFunction(Function):
 
 
 class AbstractSparseFunction(TensorFunction):
+    # Symbols that are encapsulated within this symbol (e.g. coordinates)
+    child_functions = []
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -772,9 +774,6 @@ class AbstractSparseFunction(TensorFunction):
             # Padding region
             self._padding = tuple((0, 0) for i in range(self.ndim))
 
-            # Symbols that are encapsulated within this symbol (e.g. coordinates)
-            self.child_functions = []
-
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """
@@ -798,14 +797,15 @@ class AbstractSparseFunction(TensorFunction):
         """
         key = alias or self
         args = super(AbstractSparseFunction, self)._arg_defaults(alias=alias)
-        for child in self.child_functions:
-            args.update(child._arg_defaults(alias=getattr(key, child.name).name))
+        for child_name in self.child_functions:
+            child = getattr(self, child_name)
+            args.update(child._arg_defaults(alias=getattr(key, child_name)))
         return args
 
     @property
     def _arg_names(self):
         """Return a tuple of argument names introduced by this function."""
-        return tuple([self.name] + [x.name for x in self.child_functions])
+        return tuple([self.name] + [x for x in self.child_functions])
 
 
 class SparseFunction(AbstractSparseFunction):
@@ -836,6 +836,7 @@ class SparseFunction(AbstractSparseFunction):
     """
 
     is_SparseFunction = True
+    child_functions = ['coordinates']
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1096,6 +1097,7 @@ class SparseTimeFunction(SparseFunction):
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
     is_PrecomputedSparseFunction = True
+    child_functions = ['gridpoints', 'coefficients']
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
