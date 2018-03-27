@@ -479,9 +479,18 @@ class IterationSpace(Space):
                         ofs.update(se.ofs)
         return IterationSpace(intervals, sub_iterators, directions)
 
-    def project(self, func):
-        """Return a new ``IterationSpace`` in which only the :class:`Dimension`s
-        ``d`` in ``self`` for which ``func(d)`` gives True are retained."""
+    def project(self, cond):
+        """Return a new ``IterationSpace`` in which only some :class:`Dimension`s
+        in ``self`` are retained. In particular, a dimension ``d`` in ``self`` is
+        retained if: ::
+
+            * either ``cond(d)`` is true (``cond`` is a callable),
+            * or ``d in cond`` is true (``cond`` is an iterable)
+        """
+        if callable(cond):
+            func = cond
+        else:
+            func = lambda i: i in cond
         intervals = [i for i in self.intervals if func(i.dim)]
         sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
         directions = {k: v for k, v in self.directions.items() if func(k)}
