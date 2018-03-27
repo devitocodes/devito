@@ -773,7 +773,7 @@ class AbstractSparseFunction(TensorFunction):
             self._padding = tuple((0, 0) for i in range(self.ndim))
 
             # Symbols that are encapsulated within this symbol (e.g. coordinates)
-            self.child_symbols = []
+            self.child_functions = []
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -790,44 +790,22 @@ class AbstractSparseFunction(TensorFunction):
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('npoint'),))
 
-    def argument_defaults(self, alias=None):
+    def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
-        args = super(AbstractSparseFunction, self).argument_defaults(alias=alias)
-        for child in self.children:
-            args.update(child.argument_defaults(alias=getattr(key, child.name).name))
+        args = super(AbstractSparseFunction, self)._arg_defaults(alias=alias)
+        for child in self.child_functions:
+            args.update(child._arg_defaults(alias=getattr(key, child.name).name))
         return args
 
-    def argument_values(self, alias=None, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
-        """
-        # Take a copy of the replacement before super pops it from kwargs
-
-        new = kwargs.get(self.name)
-        key = alias or self.name
-
-        values = super(AbstractSparseFunction, self).argument_values(alias=key, **kwargs)
-
-        if new is not None and isinstance(new, AbstractSparseFunction):
-            # If we've been replaced with a *SparseFunction,
-            # we need to re-derive defaults and values...
-            values.update(new.argument_defaults(alias=key).reduce_all())
-            for child in self.children:
-                values.update(getattr(new,
-                                      child.name).argument_defaults(alias=child.name))
-        else:
-            # ..., but if not, we simply need to recurse over children.
-            for child in self.children:
-                values.update(child.argument_values(alias=key, **kwargs))
-        return values
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this function."""
+        return tuple([self.name] + [x.name for x in self.child_functions])
 
 
 class SparseFunction(AbstractSparseFunction):
@@ -1053,23 +1031,6 @@ class SparseFunction(AbstractSparseFunction):
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
-
-    @property
-    def _arg_names(self):
-        """Return a tuple of argument names introduced by this function."""
-        return (self.name, self.coordinates.name)
-
-    def _arg_defaults(self, alias=None):
-        """
-        Returns a map of default argument values defined by this symbol.
-
-        :param alias: (Optional) name under which to store values.
-        """
-        key = alias or self
-
-        args = super(SparseFunction, self)._arg_defaults(alias=alias)
-        args.update(self.coordinates._arg_defaults(alias=key.coordinates))
-        return args
 
 
 class SparseTimeFunction(SparseFunction):
