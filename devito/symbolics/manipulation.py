@@ -51,9 +51,8 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
 
     :param exprs: The target SymPy expression, or a collection of SymPy expressions.
     :param make: Either a mapper M: K -> V, indicating how to replace an expression
-                 in K with a symbol in V, or a function, used to construct new, unique
-                 symbols. Such a function should take as input a parameter, used to
-                 enumerate the new symbols.
+                 in K with a symbol in V, or a function with internal state that,
+                 when called, returns unique symbols.
     :param rule: The matching rule (a lambda function). May be left unspecified if
                  ``make`` is a mapper.
     :param costmodel: The cost model (a lambda function, optional).
@@ -72,14 +71,10 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
 
         def replace(expr):
             temporary = found.get(expr)
-            if temporary:
-                return temporary
-            else:
-                temporary = make(replace.c)
+            if not temporary:
+                temporary = make()
                 found[expr] = temporary
-                replace.c += 1
-                return temporary
-        replace.c = 0  # Unique identifier for new temporaries
+            return temporary
 
     def run(expr):
         if expr.is_Atom or expr.is_Indexed:

@@ -27,7 +27,7 @@ class AdvancedRewriter(BasicRewriter):
         """
 
         # Extract time invariants
-        make = lambda i: Scalar(name=template(i)).indexify()
+        make = lambda: Scalar(name=template()).indexify()
         rule = iq_timeinvariant(cluster.trace)
         costmodel = costmodel or (lambda e: estimate_cost(e) > 0)
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
@@ -36,7 +36,6 @@ class AdvancedRewriter(BasicRewriter):
             leaves = [i for i in processed if i not in found]
 
             # Search for common sub-expressions amongst them (and only them)
-            make = lambda i: Scalar(name=template(i + len(found))).indexify()
             found = common_subexprs_elimination(found, make)
 
             # Some temporaries may be droppable at this point
@@ -129,7 +128,7 @@ class AdvancedRewriter(BasicRewriter):
         # for the new temporaries
         alias_clusters = ClusterGroup()
         rules = OrderedDict()
-        for c, (origin, alias) in enumerate(aliases.items()):
+        for origin, alias in aliases.items():
             if all(i not in candidates for i in alias.aliased):
                 continue
             # Construct an iteration space suitable for /alias/
@@ -146,7 +145,7 @@ class AdvancedRewriter(BasicRewriter):
             intervals = ispace.intervals
             shape = tuple(i.symbolic_size for i in indices)
             halo = [(abs(intervals[i].lower), abs(intervals[i].upper)) for i in indices]
-            function = Array(name=template(c), shape=shape, dimensions=indices, halo=halo)
+            function = Array(name=template(), shape=shape, dimensions=indices, halo=halo)
             access = tuple(i - intervals[i].lower for i in indices)
             expression = Eq(Indexed(function.indexed, *access), origin)
 

@@ -50,6 +50,19 @@ def is_integer(value):
     return isinstance(value, int) or isinstance(value, np.integer)
 
 
+def generator():
+    """
+    Return a function ``f`` that generates integer numbers starting at 0
+    with stepping 1.
+    """
+    def f():
+        ret = f.counter
+        f.counter += 1
+        return ret
+    f.counter = 0
+    return f
+
+
 def grouper(iterable, n):
     """Split an interable into groups of size n, plus a reminder"""
     args = [iter(iterable)] * n

@@ -5,7 +5,7 @@ from time import time
 from devito.symbolics import estimate_cost, freeze_expression, pow_to_mul
 
 from devito.logger import dse
-from devito.tools import flatten
+from devito.tools import flatten, generator
 
 __all__ = ['AbstractRewriter', 'State', 'dse_pass']
 
@@ -13,18 +13,9 @@ __all__ = ['AbstractRewriter', 'State', 'dse_pass']
 def dse_pass(func):
 
     def wrapper(self, state, **kwargs):
-        # A template to construct temporaries
-        tempname = self.conventions.get(func.__name__)
-        if tempname:
-            start = kwargs.get('start')
-            tempname += '%d' if start is None else (('_%d_' % start) + '%d')
-            template = lambda i: tempname % i
-        else:
-            template = None
-
-        # Invoke the DSE pass
+        # Invoke the DSE pass on each Cluster
         tic = time()
-        state.update(flatten([func(self, c, template, **kwargs)
+        state.update(flatten([func(self, c, state.template, **kwargs)
                               for c in state.clusters]))
         toc = time()
 
@@ -43,6 +34,10 @@ class State(object):
     def __init__(self, cluster):
         self.clusters = [cluster]
 
+        # Used to build temporaries
+        counter = generator()
+        self.template = lambda: "r%d" % counter()
+
     def update(self, clusters):
         self.clusters = clusters or self.clusters
 
@@ -54,17 +49,6 @@ class AbstractRewriter(object):
     """
 
     __metaclass__ = abc.ABCMeta
-
-    """
-    Name conventions for new temporaries.
-    """
-    conventions = {
-        '_extract_sum_of_products': 'sop',
-        '_extract_time_invariants': 'ti',
-        '_extract_time_varying': 'td',
-        '_eliminate_intra_stencil_redundancies': 'tcse',
-        '_eliminate_inter_stencil_redundancies': 'r'
-    }
 
     """
     Bag of thresholds, to be used to trigger or prevent certain transformations.

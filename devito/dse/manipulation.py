@@ -87,8 +87,6 @@ def common_subexprs_elimination(exprs, make, mode='default'):
 
     :param exprs: The target SymPy expression, or a collection of SymPy expressions.
     :param make: A function to construct symbols used for replacement.
-                 The function takes as input an integer ID; ID is computed internally
-                 and used as a unique identifier for the constructed symbols.
     """
 
     # Note: not defaulting to SymPy's CSE() function for three reasons:
@@ -111,7 +109,7 @@ def common_subexprs_elimination(exprs, make, mode='default'):
         # Create temporaries
         hit = max(targets.values())
         picked = [k for k, v in targets.items() if v == hit]
-        mapper = OrderedDict([(e, make(len(mapped) + i)) for i, e in enumerate(picked)])
+        mapper = OrderedDict([(e, make()) for i, e in enumerate(picked)])
 
         # Apply repleacements
         processed = [e.xreplace(mapper) for e in processed]
