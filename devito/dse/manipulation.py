@@ -111,7 +111,7 @@ def common_subexprs_elimination(exprs, make, mode='default'):
         picked = [k for k, v in targets.items() if v == hit]
         mapper = OrderedDict([(e, make()) for i, e in enumerate(picked)])
 
-        # Apply repleacements
+        # Apply replacements
         processed = [e.xreplace(mapper) for e in processed]
         mapped = [e.xreplace(mapper) for e in mapped]
         mapped = [Eq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
