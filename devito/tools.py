@@ -630,6 +630,9 @@ class ReducerMap(MultiDict):
         """
         candidates = [x for x in self.getall(key) if x is not None]
 
+        if len(candidates) == 0:
+            return None
+
         def compare_to_first(v):
             first = candidates[0]
             if isinstance(first, np.ndarray) or isinstance(v, np.ndarray):
