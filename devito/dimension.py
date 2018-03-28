@@ -241,14 +241,6 @@ class DefaultDimension(Dimension):
         return newobj
 
     def _arg_defaults(self, start=None, size=None, alias=None):
-        """
-        Returns a map of default argument values defined by this dimension.
-
-        :param start: (Optional) known starting point as provided by
-                      data-carrying symbols.
-        :param size: (Optional) known size as provided by data-carrying symbols.
-        :param alias: (Optional) name under which to store values.
-        """
         dim = alias or self
         size = size or dim.default_value
         return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
@@ -504,6 +496,7 @@ class LoweredDimension(Dimension):
 def dimensions(names):
     """
     Shortcut for: ::
+
         dimensions('i j k') -> [Dimension('i'), Dimension('j'), Dimension('k')]
     """
     assert type(names) == str

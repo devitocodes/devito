@@ -747,8 +747,14 @@ class TimeFunction(Function):
 
 
 class AbstractSparseFunction(TensorFunction):
+    """
+    An abstract class to define behaviours common to any kind of sparse
+    functions, whether using precomputed coefficients or computing them
+    on the fly. This is an internal class only and should never be
+    instantiated.
+    """
     # Symbols that are encapsulated within this symbol (e.g. coordinates)
-    child_functions = []
+    _child_functions = []
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -797,7 +803,7 @@ class AbstractSparseFunction(TensorFunction):
         """
         key = alias or self
         args = super(AbstractSparseFunction, self)._arg_defaults(alias=alias)
-        for child_name in self.child_functions:
+        for child_name in self._child_functions:
             child = getattr(self, child_name)
             args.update(child._arg_defaults(alias=getattr(key, child_name)))
         return args
@@ -805,7 +811,7 @@ class AbstractSparseFunction(TensorFunction):
     @property
     def _arg_names(self):
         """Return a tuple of argument names introduced by this function."""
-        return tuple([self.name] + [x for x in self.child_functions])
+        return tuple([self.name] + [x for x in self._child_functions])
 
 
 class SparseFunction(AbstractSparseFunction):
@@ -836,7 +842,7 @@ class SparseFunction(AbstractSparseFunction):
     """
 
     is_SparseFunction = True
-    child_functions = ['coordinates']
+    _child_functions = ['coordinates']
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1097,7 +1103,7 @@ class SparseTimeFunction(SparseFunction):
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
     is_PrecomputedSparseFunction = True
-    child_functions = ['gridpoints', 'coefficients']
+    _child_functions = ['gridpoints', 'coefficients']
 
     def __init__(self, *args, **kwargs):
         if not self._cached():

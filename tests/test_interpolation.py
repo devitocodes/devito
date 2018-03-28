@@ -53,6 +53,10 @@ def custom_points(grid, ranges, npoints, name='points'):
 
 
 def precompute_linear_interpolation(points, grid, origin):
+    """ Sample precompute function that, given point and grid information
+        precomputes gridpoints and coefficients according to a linear
+        scheme to be used in PrecomputedSparseFunction.
+    """
     gridpoints = [tuple(floor((point[i]-origin[i])/grid.spacing[i])
                         for i in range(len(point))) for point in points]
 
@@ -66,7 +70,11 @@ def precompute_linear_interpolation(points, grid, origin):
     return gridpoints, coefficients
 
 
+@skipif_yask
 def test_precomputed_interpolation():
+    """ Test interpolation with PrecomputedSparseFunction which accepts
+        precomputed values for coefficients
+    """
     shape = (101, 101)
     points = [(.05, .9), (.01, .8), (0.07, 0.84)]
     origin = (0, 0)
