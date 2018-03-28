@@ -121,7 +121,9 @@ class Dimension(AbstractSymbol):
         :param alias: (Optional) name under which to store values.
         """
         dim = alias or self
-        return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
+        values = {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
+        values = {k: values[k] for k in values if values[k] is not None}
+        return values
 
     def _arg_infers(self, args, interval, **kwargs):
         """
@@ -137,12 +139,19 @@ class Dimension(AbstractSymbol):
         :param kwargs: Dictionary of user-provided argument overrides.
         """
         infs = {}
+        defaults = self._arg_defaults()
 
         if not interval:
             return infs
 
+        if self.min_name not in args and self.min_name in defaults:
+            args[self.min_name] = defaults[self.min_name]
+
         if self.min_name in args:
             infs[self.min_name] = args[self.min_name] - min(interval.lower, 0)
+
+        if self.max_name not in args and self.max_name in defaults:
+            args[self.max_name] = defaults[self.max_name]
 
         if self.max_name in args:
             infs[self.max_name] = args[self.max_name] - (1 + max(interval.upper, 0))

@@ -628,10 +628,7 @@ class ReducerMap(MultiDict):
 
         :param key: Key for which to retrieve a unique value
         """
-        candidates = [x for x in self.getall(key) if x is not None]
-
-        if len(candidates) == 0:
-            return None
+        candidates = self.getall(key)
 
         def compare_to_first(v):
             first = candidates[0]
@@ -669,7 +666,3 @@ class ReducerMap(MultiDict):
         Returns a dictionary with reduced/unique values for all keys.
         """
         return {k: self.reduce(key=k) for k in self}
-
-    def extend(self, mapping):
-        filtered = {k: mapping[k] for k in mapping if mapping[k] is not None}
-        super(ReducerMap, self).extend(filtered)
