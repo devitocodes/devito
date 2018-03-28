@@ -284,14 +284,14 @@ class IterationInstance(Vector):
         if view is None:
             return distance
         else:
-            proj = [i for i, d in zip(distance, self.findices) if d in as_tuple(view)]
+            proj = [d for d, i in zip(distance, self.findices) if i in as_tuple(view)]
             return Vector(*proj)
 
     def section(self, findices):
         """Return a view of ``self`` in which the slots corresponding to the
         provided ``findices`` have been zeroed."""
-        return Vector(*[i if d not in as_tuple(findices) else 0
-                        for i, d in zip(self, self.findices)])
+        return Vector(*[d if i not in as_tuple(findices) else 0
+                        for d, i in zip(self, self.findices)])
 
 
 class Access(IterationInstance):
