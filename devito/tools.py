@@ -669,3 +669,7 @@ class ReducerMap(MultiDict):
         Returns a dictionary with reduced/unique values for all keys.
         """
         return {k: self.reduce(key=k) for k in self}
+
+    def extend(self, mapping):
+        filtered = {k: mapping[k] for k in mapping if mapping[k] is not None}
+        super(ReducerMap, self).extend(filtered)
