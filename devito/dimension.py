@@ -102,6 +102,10 @@ class Dimension(AbstractSymbol):
         return super(Dimension, self)._hashable_content() + (self.spacing,)
 
     @property
+    def _defines(self):
+        return {self}
+
+    @property
     def _arg_names(self):
         """Return a tuple of argument names introduced by this dimension."""
         return (self.name, self.size_name, self.ext_name, self.max_name, self.min_name)
@@ -257,6 +261,10 @@ class DerivedDimension(Dimension):
 
     def _hashable_content(self):
         return (self.parent._hashable_content(),)
+
+    @property
+    def _defines(self):
+        return {self} | self.parent._defines
 
     @property
     def _arg_names(self):

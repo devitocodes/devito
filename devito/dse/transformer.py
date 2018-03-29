@@ -2,10 +2,10 @@ from __future__ import absolute_import
 
 from devito.ir.clusters import ClusterGroup, groupby
 from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
-                                 AggressiveRewriter, CustomRewriter)
-from devito.exceptions import DSEException
+                                 AggressiveRewriter)
 from devito.logger import dse_warning
 from devito.parameters import configuration
+from devito.tools import flatten
 
 __all__ = ['rewrite']
 
@@ -50,22 +50,19 @@ def rewrite(clusters, mode='advanced'):
 
     if mode is None or mode == 'noop':
         return clusters
+    elif mode not in modes:
+        dse_warning("Unknown rewrite mode(s) %s" % mode)
+        return clusters
 
-    processed = ClusterGroup()
-    for cluster in clusters:
-        if cluster.is_dense:
-            if mode in modes:
-                processed.extend(modes[mode]().run(cluster))
-            else:
-                try:
-                    processed.extend(CustomRewriter().run(cluster))
-                except DSEException:
-                    dse_warning("Unknown rewrite mode(s) %s" % mode)
-                    processed.append(cluster)
-        else:
-            # Downgrade sparse clusters to basic rewrite mode since it's
-            # pointless to expose loop-redundancies when the iteration space
-            # only consists of a few points
-            processed.extend(BasicRewriter(False).run(cluster))
+    # Separate rewriters for dense and sparse clusters; sparse clusters have
+    # non-affine index functions, thus making it basically impossible, in general,
+    # to apply the more advanced DSE passes.
+    # Note: the sparse rewriter uses the same template for temporaries as
+    # the dense rewriter, thus temporaries are globally unique
+    rewriter = modes[mode]()
+    fallback = BasicRewriter(False, rewriter.template)
+
+    processed = ClusterGroup(flatten(rewriter.run(c) if c.is_dense else fallback.run(c)
+                                     for c in clusters))
 
     return groupby(processed).finalize()

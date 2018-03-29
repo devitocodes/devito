@@ -275,7 +275,7 @@ class IterationDirection(object):
         self._name = name
 
     def __eq__(self, other):
-        return self._name == other._name
+        return isinstance(other, IterationDirection) and self._name == other._name
 
     def __repr__(self):
         return self._name
@@ -292,6 +292,35 @@ Backward = IterationDirection('--')
 
 Any = IterationDirection('*')
 """Wildcard direction (both '++' and '--' would be OK)."""
+
+
+class IterationInterval(object):
+
+    """
+    An :class:`Interval` associated with an :class:`IterationDirection`.
+    """
+
+    def __init__(self, interval, direction):
+        self.interval = interval
+        self.direction = direction
+
+    def __repr__(self):
+        return "%s%s" % (self.interval, self.direction)
+
+    def __eq__(self, other):
+        return isinstance(other, IterationInterval) and\
+            self.interval == other.interval and self.direction == other.direction
+
+    def __hash__(self):
+        return hash((self.interval, self.direction))
+
+    @property
+    def dim(self):
+        return self.interval.dim
+
+    @property
+    def limits(self):
+        return self.interval.limits
 
 
 class Space(object):
@@ -311,7 +340,7 @@ class Space(object):
                            ", ".join(repr(i) for i in self.intervals))
 
     def __eq__(self, other):
-        return self.intervals == other.intervals
+        return isinstance(other, Space) and self.intervals == other.intervals
 
     def __hash__(self):
         return hash(self.intervals)
@@ -350,7 +379,8 @@ class DataSpace(Space):
         self._parts = frozendict(parts)
 
     def __eq__(self, other):
-        return self.intervals == other.intervals and self.parts == other.parts
+        return isinstance(other, DataSpace) and\
+            self.intervals == other.intervals and self.parts == other.parts
 
     def __hash__(self):
         return hash((super(DataSpace, self).__hash__(), self.parts))
@@ -414,11 +444,57 @@ class IterationSpace(Space):
         return "IterationSpace[%s]" % ret
 
     def __eq__(self, other):
-        return self.intervals == other.intervals and self.directions == other.directions
+        return isinstance(other, IterationSpace) and\
+            self.intervals == other.intervals and self.directions == other.directions
 
     def __hash__(self):
         return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
                      self.directions))
+
+    @classmethod
+    def merge(cls, *others):
+        if not others:
+            return IterationSpace(IntervalGroup())
+        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
+        directions = {}
+        for i in others:
+            for k, v in i.directions.items():
+                if directions.get(k, Any) in (Any, v):
+                    # No direction yet, or Any, or simply identical to /v/
+                    directions[k] = v
+                elif v is not Any:
+                    # Clash detected
+                    raise ValueError("Cannot merge `IterationSpace`s with "
+                                     "incompatible directions")
+        sub_iterators = {}
+        for i in others:
+            for k, v in i.sub_iterators.items():
+                cv = [j.copy() for j in v]
+                ret = sub_iterators.setdefault(k, cv)
+                for se in cv:
+                    ofs = dict(ret).get(se.dim)
+                    if ofs is None:
+                        ret.append(se)
+                    else:
+                        ofs.update(se.ofs)
+        return IterationSpace(intervals, sub_iterators, directions)
+
+    def project(self, cond):
+        """Return a new ``IterationSpace`` in which only some :class:`Dimension`s
+        in ``self`` are retained. In particular, a dimension ``d`` in ``self`` is
+        retained if: ::
+
+            * either ``cond(d)`` is true (``cond`` is a callable),
+            * or ``d in cond`` is true (``cond`` is an iterable)
+        """
+        if callable(cond):
+            func = cond
+        else:
+            func = lambda i: i in cond
+        intervals = [i for i in self.intervals if func(i.dim)]
+        sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
+        directions = {k: v for k, v in self.directions.items() if func(k)}
+        return IterationSpace(intervals, sub_iterators, directions)
 
     def is_compatible(self, other):
         """A relaxed version of ``__eq__``, in which only non-derived dimensions
@@ -433,6 +509,10 @@ class IterationSpace(Space):
     @property
     def directions(self):
         return self._directions
+
+    @property
+    def iteration_intervals(self):
+        return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
 
     @property
     def args(self):

@@ -276,7 +276,7 @@ def find_offloadable_trees(nodes):
         if not parallel:
             # Cannot offload non-parallel loops
             continue
-        if not (IsPerfectIteration().visit(tree) and
+        if not (IsPerfectIteration().visit(parallel[0]) and
                 all(i.is_Expression for i in tree[-1].nodes)):
             # Don't know how to offload this Iteration/Expression to YASK
             continue

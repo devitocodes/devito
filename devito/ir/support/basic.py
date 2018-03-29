@@ -223,11 +223,18 @@ class IterationInstance(Vector):
     def index_mode(self):
         index_mode = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i):
-                index_mode.append('regular')
-            elif q_affine(i, fi):
+            if is_integer(i) or q_affine(i, fi):
                 index_mode.append('regular')
             else:
+                dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
+                try:
+                    # There's still hope it's regular if a DerivedDimension is used
+                    candidate = dims.pop()
+                    if candidate.parent == fi and q_affine(i, candidate):
+                        index_mode.append('regular')
+                        continue
+                except (KeyError, AttributeError):
+                    pass
                 index_mode.append('irregular')
         return tuple(index_mode)
 
@@ -252,9 +259,16 @@ class IterationInstance(Vector):
     def is_irregular(self):
         return not self.is_regular
 
-    def distance(self, other, findex=None):
-        """Compute vector distance from ``self`` to ``other``. If ``findex`` is
-        supplied, compute the vector distance up to and including ``findex``."""
+    def distance(self, other, findex=None, view=None):
+        """Compute the distance from ``self`` to ``other``.
+
+        :param other: The :class:`IterationInstance` from which the distance
+                      is computed.
+        :param findex: (Optional) if supplied, compute the distance only up to
+                       and including ``findex`` (defaults to None).
+        :param view: (Optional) an iterable of ``findices`` (defaults to None); if
+                     supplied, project the distance along these dimensions.
+        """
         if not isinstance(other, IterationInstance):
             raise TypeError("Cannot compute distance from obj of type %s", type(other))
         if self.findices != other.findices:
@@ -266,13 +280,18 @@ class IterationInstance(Vector):
                 raise TypeError("Cannot compute distance as `findex` not in `findices`")
         else:
             limit = self.rank
-        return super(IterationInstance, self).distance(other)[:limit]
+        distance = super(IterationInstance, self).distance(other)[:limit]
+        if view is None:
+            return distance
+        else:
+            proj = [d for d, i in zip(distance, self.findices) if i in as_tuple(view)]
+            return Vector(*proj)
 
     def section(self, findices):
         """Return a view of ``self`` in which the slots corresponding to the
         provided ``findices`` have been zeroed."""
-        return Vector(*[i if d not in as_tuple(findices) else 0
-                        for i, d in zip(self, self.findices)])
+        return Vector(*[d if i not in as_tuple(findices) else 0
+                        for d, i in zip(self, self.findices)])
 
 
 class Access(IterationInstance):
@@ -477,7 +496,10 @@ class Dependence(object):
     def is_carried(self, dim=None):
         """Return True if a dimension-carried dependence, False otherwise."""
         try:
-            return (self.distance > 0) if dim is None else self.cause == dim
+            if dim is None:
+                return self.distance > 0
+            else:
+                return any(i == self.cause for i in dim._defines)
         except TypeError:
             # Conservatively assume this is a carried dependence
             return True
@@ -488,7 +510,7 @@ class Dependence(object):
             if dim is None or self.source.is_irregular or self.sink.is_irregular:
                 return self.distance == 0
             else:
-                return self.cause != dim
+                return all(i != self.cause for i in dim._defines)
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False

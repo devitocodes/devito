@@ -127,11 +127,17 @@ def detect_flow_directions(exprs):
             if not dimensions:
                 continue
             for d in dimensions:
+                distance = None
+                for i in d._defines:
+                    try:
+                        distance = w.distance(r, i, view=i)
+                    except TypeError:
+                        pass
                 try:
-                    if w.distance(r, d) > 0:
+                    if distance > 0:
                         mapper[d].add(Forward)
                         break
-                    elif w.distance(r, d) < 0:
+                    elif distance < 0:
                         mapper[d].add(Backward)
                         break
                     else:
@@ -185,6 +191,11 @@ def force_directions(mapper, key):
         else:
             assert k in clashes
             directions[k] = key(k)
+
+    # Derived dimensions enforce a direction on the parent
+    for k, v1 in list(directions.items()):
+        if k.is_Derived and directions.get(k.parent) == Any:
+            directions[k.parent] = v1
 
     return directions, clashes
 

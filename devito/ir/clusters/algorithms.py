@@ -32,9 +32,15 @@ def groupby(clusters):
         for candidate in reversed(list(processed)):
             # Collect all relevant data dependences
             scope = Scope(exprs=candidate.exprs + c.exprs)
+
+            # Collect anti-dependences preventing grouping
             anti = scope.d_anti.carried() - scope.d_anti.increment
-            flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
             funcs = [i.function for i in anti]
+
+            # Collect flow-dependences breaking the search
+            flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
+            flow = {i.cause for i in flow}
+
             if candidate.ispace.is_compatible(c.ispace) and\
                     all(is_local(i, candidate, c, clusters) for i in funcs):
                 # /c/ will be fused into /candidate/. All fusion-induced anti

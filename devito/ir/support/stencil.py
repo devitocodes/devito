@@ -126,3 +126,4 @@ class Stencil(DefaultOrderedDict):
 
 
 StencilEntry = namedtuple('StencilEntry', 'dim ofs')
+StencilEntry.copy = lambda i: StencilEntry(i.dim, set(i.ofs))

@@ -22,7 +22,7 @@ class BasicRewriter(AbstractRewriter):
         skip = [e for e in cluster.exprs if e.lhs.base.function.is_Array]
         candidates = [e for e in cluster.exprs if e not in skip]
 
-        make = lambda i: Scalar(name=template(i)).indexify()
+        make = lambda: Scalar(name=template()).indexify()
 
         processed = common_subexprs_elimination(candidates, make)
 

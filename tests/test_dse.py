@@ -5,12 +5,13 @@ import numpy as np
 import pytest
 from conftest import x, y, z, time, skipif_yask  # noqa
 
-from devito import Eq  # noqa
-from devito.ir import Stencil, FlowGraph
+from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator  # noqa
+from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
 from devito.types import Scalar
+from devito.tools import generator
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, RickerSource, GaborSource, Receiver
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -150,6 +151,30 @@ def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
 
 # DSE manipulation
 
+
+@skipif_yask
+def test_scheduling_after_rewrite():
+    """Tests loop scheduling after DSE-induced expression hoisting."""
+    grid = Grid((10, 10))
+    u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
+    u2 = TimeFunction(name="u2", grid=grid, time_order=2)
+    sf1 = SparseFunction(name='sf1', grid=grid, npoint=1, ntime=10)
+    const = Function(name="const", grid=grid, space_order=2)
+
+    # Deliberately inject into u1, rather than u1.forward, to create a WAR
+    eqn1 = Eq(u1.forward, u1 + sin(const))
+    eqn2 = sf1.inject(u1.forward, expr=sf1)
+    eqn3 = Eq(u2.forward, u2 - u1.dt2 + sin(const))
+
+    op = Operator([eqn1] + eqn2 + [eqn3])
+    trees = retrieve_iteration_tree(op)
+
+    # Check loop nest structure
+    assert len(trees) == 4
+    assert all(i.dim == j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
+
+
 @skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # simple
@@ -167,7 +192,8 @@ def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
 def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
                                               exprs, expected):
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
-    make = lambda i: Scalar(name='r%d' % i).indexify()
+    counter = generator()
+    make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed, found = xreplace_constrained(exprs, make,
                                             iq_timeinvariant(FlowGraph(exprs)),
                                             lambda i: estimate_cost(i) > 0)
@@ -193,7 +219,8 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
 def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
                                            exprs, expected):
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
-    make = lambda i: Scalar(name='r%d' % i).indexify()
+    counter = generator()
+    make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed, found = xreplace_constrained(exprs, make,
                                             iq_timevarying(FlowGraph(exprs)),
                                             lambda i: estimate_cost(i) > 0)
@@ -215,7 +242,8 @@ def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
                        ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'])),
 ])
 def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
-    make = lambda i: Scalar(name='r%d' % i).indexify()
+    counter = generator()
+    make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed = common_subexprs_elimination(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1),
                                             make)
     assert len(processed) == len(expected)
