@@ -18,7 +18,7 @@ from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
 from devito.ir.iet import (Block, Expression, Iteration, List,
                            PARALLEL, ELEMENTAL, REMAINDER, tagger,
-                           FindSymbols, IsPerfectIteration, Transformer,
+                           FindNodes, FindSymbols, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree, filter_iterations)
 from devito.logger import dle_warning
 from devito.tools import as_tuple, grouper
@@ -277,7 +277,7 @@ class DevitoRewriter(BasicRewriter):
         groups = OrderedDict()
         for tree in retrieve_iteration_tree(nodes):
             # Determine the number of consecutive parallelizable Iterations
-            key = lambda i: i.is_Parallel and\
+            key = lambda i: i.is_ParallelRelaxed and\
                 not (i.is_Elementizable or i.is_Vectorizable)
             candidates = filter_iterations(tree, key=key, stop='asap')
             if not candidates:
@@ -305,7 +305,16 @@ class DevitoRewriter(BasicRewriter):
                 else:
                     parallel = omplang['collapse'](nparallel)
 
-                mapper[root] = root._rebuild(pragmas=root.pragmas + (parallel,))
+                # Introduce the `omp parallel` pragma
+                if root.is_ParallelAtomic:
+                    # Introduce the `omp atomic` pragmas
+                    exprs = FindNodes(Expression).visit(root)
+                    subs = {i: List(header=omplang['atomic'], body=i)
+                            for i in exprs if i.is_increment}
+                    handle = Transformer(subs).visit(root)
+                    mapper[root] = handle._rebuild(pragmas=root.pragmas + (parallel,))
+                else:
+                    mapper[root] = root._rebuild(pragmas=root.pragmas + (parallel,))
 
                 # Track the thread-private and thread-shared variables
                 private.extend([i for i in FindSymbols('symbolics').visit(root)
