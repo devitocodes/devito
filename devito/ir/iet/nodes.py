@@ -265,6 +265,13 @@ class Expression(Node):
         return not self.is_scalar
 
     @property
+    def is_increment(self):
+        """
+        Return True if the write is actually an associative and commutative increment.
+        """
+        return self.expr.is_Increment
+
+    @property
     def shape(self):
         """
         Return the shape of the written LHS.
