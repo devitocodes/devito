@@ -11,9 +11,8 @@ import cgen as c
 from sympy import Eq, Indexed, Symbol
 
 from devito.cgen_utils import ccode
-from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL,
-                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
-                           tagger, ntags)
+from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, tagger, ntags)
 from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
 from devito.symbolics import as_symbol
@@ -358,6 +357,14 @@ class Iteration(Node):
     @property
     def is_Parallel(self):
         return PARALLEL in self.properties
+
+    @property
+    def is_ParallelAtomic(self):
+        return PARALLEL_IF_ATOMIC in self.properties
+
+    @property
+    def is_ParallelRelaxed(self):
+        return self.is_Parallel or self.is_ParallelAtomic
 
     @property
     def is_Vectorizable(self):
