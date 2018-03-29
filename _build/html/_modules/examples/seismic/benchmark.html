@@ -212,8 +212,8 @@
                      <span class="n">help</span><span class="o">=</span><span class="s1">&#39;End time of the simulation in ms&#39;</span><span class="p">),</span>
     <span class="p">]</span>
     <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">options</span><span class="p">):</span>
-        <span class="n">f</span> <span class="o">=</span> <span class="n">option</span><span class="p">(</span><span class="n">f</span><span class="p">)</span></div>
-    <span class="k">return</span> <span class="n">f</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">option</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span></div>
 
 
 <div class="viewcode-block" id="option_performance"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.benchmark.option_performance">[docs]</a><span class="k">def</span> <span class="nf">option_performance</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
@@ -259,8 +259,8 @@
                      <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Switch auto tuning on/off&#39;</span><span class="p">),</span>
     <span class="p">]</span>
     <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">options</span><span class="p">):</span>
-        <span class="n">f</span> <span class="o">=</span> <span class="n">option</span><span class="p">(</span><span class="n">f</span><span class="p">)</span></div>
-    <span class="k">return</span> <span class="n">f</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">option</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span></div>
 
 
 <span class="nd">@benchmark</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;run&#39;</span><span class="p">)</span>
@@ -279,8 +279,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">run</span> <span class="o">=</span> <span class="n">tti_run</span> <span class="k">if</span> <span class="n">problem</span> <span class="o">==</span> <span class="s1">&#39;tti&#39;</span> <span class="k">else</span> <span class="n">acoustic_run</span>
     <span class="n">time_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;time_order&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
-    <span class="n">run</span><span class="p">(</span><span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">run</span><span class="p">(</span><span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
 <span class="nd">@benchmark</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;test&#39;</span><span class="p">)</span>
@@ -308,8 +308,8 @@
         <span class="k">if</span> <span class="n">last_res</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">last_res</span> <span class="o">=</span> <span class="n">res</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)):</span></div>
-                <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">last_res</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)):</span>
+                <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">last_res</span><span class="p">[</span><span class="n">i</span><span class="p">])</span></div>
 
 
 <span class="nd">@benchmark</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;bench&#39;</span><span class="p">)</span>
@@ -338,8 +338,8 @@
     <span class="n">bench</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">get_ob_exec</span><span class="p">(</span><span class="n">run</span><span class="p">),</span> <span class="n">warmups</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">repeats</span><span class="o">=</span><span class="n">repeats</span><span class="p">)</span>
     <span class="n">bench</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
 
-    <span class="c1"># Final clean up, just in case the benchmarker is used from external Python modules</span></div>
-    <span class="n">clear_cache</span><span class="p">()</span>
+    <span class="c1"># Final clean up, just in case the benchmarker is used from external Python modules</span>
+    <span class="n">clear_cache</span><span class="p">()</span></div>
 
 
 <span class="nd">@benchmark</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;plot&#39;</span><span class="p">)</span>
@@ -458,8 +458,8 @@
                 <span class="n">perf_annotate</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;xytext&#39;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)}</span>
 
             <span class="n">plot</span><span class="o">.</span><span class="n">add_point</span><span class="p">(</span><span class="n">gflops</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">oi</span><span class="o">=</span><span class="n">oi_value</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="n">marker</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span>
-                           <span class="n">oi_line</span><span class="o">=</span><span class="n">oi_line</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">perf_annotate</span><span class="o">=</span><span class="n">perf_annotate</span><span class="p">,</span></div>
-                           <span class="n">oi_annotate</span><span class="o">=</span><span class="n">oi_annotate</span><span class="p">,</span> <span class="n">point_annotate</span><span class="o">=</span><span class="n">point_annotate</span><span class="p">)</span>
+                           <span class="n">oi_line</span><span class="o">=</span><span class="n">oi_line</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">perf_annotate</span><span class="o">=</span><span class="n">perf_annotate</span><span class="p">,</span>
+                           <span class="n">oi_annotate</span><span class="o">=</span><span class="n">oi_annotate</span><span class="p">,</span> <span class="n">point_annotate</span><span class="o">=</span><span class="n">point_annotate</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="get_ob_bench"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.benchmark.get_ob_bench">[docs]</a><span class="k">def</span> <span class="nf">get_ob_bench</span><span class="p">(</span><span class="n">problem</span><span class="p">,</span> <span class="n">resultsdir</span><span class="p">,</span> <span class="n">parameters</span><span class="p">):</span>
@@ -485,8 +485,8 @@
             <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;at&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span> <span class="ow">and</span>
                                    <span class="n">configuration</span><span class="o">.</span><span class="n">backend</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">])</span>
             <span class="k">return</span> <span class="s1">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">[</span><span class="si">%s</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">devito_params</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
-</div>
-    <span class="k">return</span> <span class="n">DevitoBenchmark</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">problem</span><span class="p">,</span> <span class="n">resultsdir</span><span class="o">=</span><span class="n">resultsdir</span><span class="p">,</span> <span class="n">parameters</span><span class="o">=</span><span class="n">parameters</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">DevitoBenchmark</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">problem</span><span class="p">,</span> <span class="n">resultsdir</span><span class="o">=</span><span class="n">resultsdir</span><span class="p">,</span> <span class="n">parameters</span><span class="o">=</span><span class="n">parameters</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="get_ob_exec"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.benchmark.get_ob_exec">[docs]</a><span class="k">def</span> <span class="nf">get_ob_exec</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
@@ -512,8 +512,8 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">gflopss</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">measure</span><span class="o">=</span><span class="s2">&quot;gflopss&quot;</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">oi</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">measure</span><span class="o">=</span><span class="s2">&quot;oi&quot;</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">timings</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">measure</span><span class="o">=</span><span class="s2">&quot;timings&quot;</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
-</div>
-    <span class="k">return</span> <span class="n">DevitoExecutor</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">DevitoExecutor</span><span class="p">(</span><span class="n">func</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="get_ob_plotter"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.benchmark.get_ob_plotter">[docs]</a><span class="k">def</span> <span class="nf">get_ob_plotter</span><span class="p">():</span>
@@ -523,8 +523,8 @@
         <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s1">&#39;Could not import opescibench utility package.</span><span class="se">\n</span><span class="s1">&#39;</span>
                           <span class="s1">&#39;Please install https://github.com/opesci/opescibench&#39;</span>
                           <span class="s1">&#39;To plot performance results, make sure to have the&#39;</span>
-                          <span class="s1">&#39;Matplotlib package installed&#39;</span><span class="p">)</span></div>
-    <span class="k">return</span> <span class="n">RooflinePlotter</span>
+                          <span class="s1">&#39;Matplotlib package installed&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">RooflinePlotter</span></div>
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>

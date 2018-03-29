@@ -194,8 +194,8 @@
                 <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
                     <span class="n">off</span> <span class="o">+=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span>
             <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">mapper</span><span class="p">[</span><span class="n">f</span><span class="p">][</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">off</span> <span class="ow">or</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span></div>
-    <span class="k">return</span> <span class="n">mapper</span>
+                <span class="n">mapper</span><span class="p">[</span><span class="n">f</span><span class="p">][</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">off</span> <span class="ow">or</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">mapper</span></div>
 
 
 <div class="viewcode-block" id="detect_oobs"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_oobs">[docs]</a><span class="k">def</span> <span class="nf">detect_oobs</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
@@ -217,8 +217,8 @@
                 <span class="c1"># Unable to detect presence of OOB accesses</span>
                 <span class="c1"># (/p/ not in /f._offset_domain/, typical of indirect</span>
                 <span class="c1"># accesses such as A[B[i]])</span>
-                <span class="k">pass</span></div>
-    <span class="k">return</span> <span class="n">found</span> <span class="o">|</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">found</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">}</span>
+                <span class="k">pass</span>
+    <span class="k">return</span> <span class="n">found</span> <span class="o">|</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">found</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">}</span></div>
 
 
 <div class="viewcode-block" id="build_intervals"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.build_intervals">[docs]</a><span class="k">def</span> <span class="nf">build_intervals</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
@@ -242,8 +242,8 @@
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">iterators</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">offs</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">ofs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">])</span>
         <span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">offs</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">offs</span><span class="p">)))</span>
-</div>
-    <span class="k">return</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">iterators</span>
+
+    <span class="k">return</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">iterators</span></div>
 
 
 <div class="viewcode-block" id="align_accesses"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.align_accesses">[docs]</a><span class="k">def</span> <span class="nf">align_accesses</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -261,8 +261,8 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">:</span>
             <span class="k">continue</span>
         <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="n">shift</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">left</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">)}</span>
-        <span class="n">mapper</span><span class="p">[</span><span class="n">indexed</span><span class="p">]</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span></div>
-    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="p">[</span><span class="n">indexed</span><span class="p">]</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="detect_flow_directions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_flow_directions">[docs]</a><span class="k">def</span> <span class="nf">detect_flow_directions</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
@@ -288,11 +288,17 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="n">dimensions</span><span class="p">:</span>
                 <span class="k">continue</span>
             <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">:</span>
+                <span class="n">distance</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">_defines</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">distance</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">view</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="k">pass</span>
                 <span class="k">try</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">w</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">distance</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                         <span class="n">mapper</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Forward</span><span class="p">)</span>
                         <span class="k">break</span>
-                    <span class="k">elif</span> <span class="n">w</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">elif</span> <span class="n">distance</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
                         <span class="n">mapper</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Backward</span><span class="p">)</span>
                         <span class="k">break</span>
                     <span class="k">else</span><span class="p">:</span>
@@ -312,8 +318,8 @@
     <span class="c1"># Add in derived-dimensions parents, in case they haven&#39;t been detected yet</span>
     <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
                    <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Derived</span> <span class="ow">and</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">{</span><span class="n">Any</span><span class="p">})</span> <span class="o">==</span> <span class="p">{</span><span class="n">Any</span><span class="p">}})</span>
-</div>
-    <span class="k">return</span> <span class="n">mapper</span>
+
+    <span class="k">return</span> <span class="n">mapper</span></div>
 
 
 <div class="viewcode-block" id="force_directions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.force_directions">[docs]</a><span class="k">def</span> <span class="nf">force_directions</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
@@ -346,8 +352,13 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">assert</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">clashes</span>
             <span class="n">directions</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">key</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
-</div>
-    <span class="k">return</span> <span class="n">directions</span><span class="p">,</span> <span class="n">clashes</span>
+
+    <span class="c1"># Derived dimensions enforce a direction on the parent</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v1</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">directions</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Derived</span> <span class="ow">and</span> <span class="n">directions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span> <span class="o">==</span> <span class="n">Any</span><span class="p">:</span>
+            <span class="n">directions</span><span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">]</span> <span class="o">=</span> <span class="n">v1</span>
+
+    <span class="k">return</span> <span class="n">directions</span><span class="p">,</span> <span class="n">clashes</span></div>
 
 
 <div class="viewcode-block" id="group_expressions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.group_expressions">[docs]</a><span class="k">def</span> <span class="nf">group_expressions</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
@@ -383,8 +394,8 @@
 
     <span class="c1"># Sanity check</span>
     <span class="k">assert</span> <span class="nb">max</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span>
-</div>
-    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="detect_io"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_io">[docs]</a><span class="k">def</span> <span class="nf">detect_io</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">relax</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -423,8 +434,8 @@
             <span class="k">continue</span>
         <span class="k">if</span> <span class="n">rule</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
             <span class="n">writes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-</div>
-    <span class="k">return</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">reads</span><span class="p">),</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">reads</span><span class="p">),</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

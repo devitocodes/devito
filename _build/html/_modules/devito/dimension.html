@@ -263,6 +263,10 @@
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">,)</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return a tuple of argument names introduced by this dimension.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ext_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">)</span>
@@ -354,8 +358,8 @@
                                                                  <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]))</span>
 
         <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]:</span>
-                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal max=</span><span class="si">%s</span><span class="s2"> &lt; min=</span><span class="si">%s</span><span class="s2">&quot;</span></div>
-                                      <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]))</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal max=</span><span class="si">%s</span><span class="s2"> &lt; min=</span><span class="si">%s</span><span class="s2">&quot;</span>
+                                      <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]))</span></div>
 
 
 <div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
@@ -369,8 +373,8 @@
 <span class="sd">    symbols.</span>
 
 <span class="sd">    :param name: Name of the dimension symbol.</span>
-<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span></div>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="TimeDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.TimeDimension">[docs]</a><span class="k">class</span> <span class="nc">TimeDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
@@ -383,8 +387,8 @@
 <span class="sd">    time dimensions should inherit from :class:`TimeDimension`.</span>
 
 <span class="sd">    :param name: Name of the dimension symbol.</span>
-<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span></div>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 
 
 <span class="k">class</span> <span class="nc">DerivedDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
@@ -418,6 +422,10 @@
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="p">}</span> <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_defines</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -467,8 +475,8 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
             <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">size_name</span><span class="p">]</span> <span class="o">-</span>\
                 <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lower</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">upper</span><span class="p">)</span>
-</div>
-        <span class="k">return</span> <span class="n">infs</span>
+
+        <span class="k">return</span> <span class="n">infs</span></div>
 
 
 <div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -517,8 +525,8 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A :class:`ConditionalDimension` provides no arguments, so there&#39;s</span>
 <span class="sd">        no check to be performed.</span>
-<span class="sd">        &quot;&quot;&quot;</span></div>
-        <span class="k">return</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span></div>
 
 
 <div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -602,8 +610,8 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :raises InvalidArgument: If any of the ``self``-related runtime arguments</span>
 <span class="sd">                                 in ``args`` will cause an out-of-bounds access.</span>
-<span class="sd">        &quot;&quot;&quot;</span></div>
-        <span class="k">return</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span></div>
 
 
 <span class="k">class</span> <span class="nc">LoweredDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
@@ -636,8 +644,8 @@
 
 <span class="sd">        dimensions(&#39;i j k&#39;) -&gt; [Dimension(&#39;i&#39;), Dimension(&#39;j&#39;), Dimension(&#39;k&#39;)]</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">==</span> <span class="nb">str</span></div>
-    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Dimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">names</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">==</span> <span class="nb">str</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Dimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">names</span><span class="o">.</span><span class="n">split</span><span class="p">())</span></div>
 </pre></div>
 
            </div>

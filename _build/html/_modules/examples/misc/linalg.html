@@ -263,37 +263,37 @@
 <div class="viewcode-block" id="mat_vec"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.mat_vec">[docs]</a><span class="k">def</span> <span class="nf">mat_vec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;``Ax = b``.&quot;&quot;&quot;</span>
     <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">x</span><span class="p">),</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
-    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
-    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `Ax = b`&#39;</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `Ax = b`&#39;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="transpose_mat_vec"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.transpose_mat_vec">[docs]</a><span class="k">def</span> <span class="nf">transpose_mat_vec</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;``A -&gt; A^T, A^Tx = b``.&quot;&quot;&quot;</span>
     <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">indices</span>
     <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">A</span><span class="o">.</span><span class="n">indexed</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">x</span><span class="p">)],</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
-    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
-    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `A^Tx = b`&#39;</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `A^Tx = b`&#39;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="mat_mat"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.mat_mat">[docs]</a><span class="k">def</span> <span class="nf">mat_mat</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;``AB = C``.&quot;&quot;&quot;</span>
     <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">B</span><span class="p">),</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
-    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
-    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB = C`&#39;</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB = C`&#39;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="mat_mat_sum"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.mat_mat_sum">[docs]</a><span class="k">def</span> <span class="nf">mat_mat_sum</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;``AB + AC = D``.&quot;&quot;&quot;</span>
     <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">D</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">B</span> <span class="o">+</span> <span class="n">A</span><span class="o">*</span><span class="n">C</span><span class="p">),</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
-    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
-    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB + AC = D`&#39;</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB + AC = D`&#39;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="chain_contractions"><a class="viewcode-back" href="../../../examples.misc.html#examples.misc.linalg.chain_contractions">[docs]</a><span class="k">def</span> <span class="nf">chain_contractions</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">E</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">optimize</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;``AB + AC = D, DE = F``.&quot;&quot;&quot;</span>
     <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">D</span><span class="p">,</span> <span class="n">A</span><span class="o">*</span><span class="n">B</span> <span class="o">+</span> <span class="n">A</span><span class="o">*</span><span class="n">C</span><span class="p">),</span> <span class="n">Eq</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">D</span><span class="o">*</span><span class="n">E</span><span class="p">)],</span> <span class="n">dle</span><span class="o">=</span><span class="n">optimize</span><span class="p">)</span>
-    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
-    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB + AC = D, DE = F`&#39;</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+    <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Executed `AB + AC = D, DE = F`&#39;</span><span class="p">)</span></div>
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>

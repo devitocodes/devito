@@ -663,9 +663,8 @@ all of <code class="docutils literal notranslate"><span class="pre">a</span></co
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>exprs</strong> – The target SymPy expression, or a collection of SymPy expressions.</li>
 <li><strong>make</strong> – Either a mapper M: K -&gt; V, indicating how to replace an expression
-in K with a symbol in V, or a function, used to construct new, unique
-symbols. Such a function should take as input a parameter, used to
-enumerate the new symbols.</li>
+in K with a symbol in V, or a function with internal state that,
+when called, returns unique symbols.</li>
 <li><strong>rule</strong> – The matching rule (a lambda function). May be left unspecified if
 <code class="docutils literal notranslate"><span class="pre">make</span></code> is a mapper.</li>
 <li><strong>costmodel</strong> – The cost model (a lambda function, optional).</li>

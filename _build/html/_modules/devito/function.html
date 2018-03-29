@@ -255,8 +255,8 @@
             <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
                 <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Data type </span><span class="si">%s</span><span class="s2"> of runtime value `</span><span class="si">%s</span><span class="s2">` does not match the &quot;</span>
                         <span class="s2">&quot;Constant data type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span></div>
-            <span class="k">pass</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span></div>
 
 
 <span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">):</span>
@@ -270,6 +270,11 @@
 <span class="sd">        Users should not instantiate this class. Use :class:`Function` or</span>
 <span class="sd">        :class:`SparseFunction` (or their subclasses) instead.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Required by SymPy, otherwise the presence of __getitem__ will make SymPy</span>
+    <span class="c1"># think that a TensorFunction is actually iterable, thus breaking many of</span>
+    <span class="c1"># its key routines (e.g., solve)</span>
+    <span class="n">_iterable</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="n">is_Input</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_TensorFunction</span> <span class="o">=</span> <span class="kc">True</span>
@@ -289,6 +294,10 @@
                 <span class="k">assert</span><span class="p">(</span><span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first_touch&#39;</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Shortcut for ``self.indexed[index]``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Allocate memory as a :class:`Data`.&quot;&quot;&quot;</span>
@@ -702,8 +711,8 @@
         <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span>
         <span class="n">first</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">second_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">d</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">])</span>
-        <span class="k">return</span> <span class="nb">sum</span><span class="p">([</span><span class="n">second_derivative</span><span class="p">(</span><span class="n">first</span> <span class="o">*</span> <span class="n">weight</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">d</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span></div></div>
-                    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">])</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">([</span><span class="n">second_derivative</span><span class="p">(</span><span class="n">first</span> <span class="o">*</span> <span class="n">weight</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">d</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">])</span></div></div>
 
 
 <div class="viewcode-block" id="TimeFunction"><a class="viewcode-back" href="../../devito.html#devito.function.TimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TimeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -894,8 +903,8 @@
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Incorrect value encountered, save should be </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
                                 <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">)</span>
 
-        <span class="n">values</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_values</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
-        <span class="k">return</span> <span class="n">values</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_values</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">values</span></div>
 
 
 <div class="viewcode-block" id="SparseFunction"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
@@ -1116,8 +1125,8 @@
         <span class="n">lhs</span> <span class="o">=</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">p_t</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">p_t</span><span class="p">)</span>
 
         <span class="n">rhs</span> <span class="o">=</span> <span class="n">rhs</span> <span class="o">+</span> <span class="n">lhs</span> <span class="k">if</span> <span class="n">cummulative</span> <span class="ow">is</span> <span class="kc">True</span> <span class="k">else</span> <span class="n">rhs</span>
-</div>
-        <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span></div>
 
 <div class="viewcode-block" id="SparseFunction.inject"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction.inject">[docs]</a>    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for injection of an expression onto a grid</span>
@@ -1155,8 +1164,8 @@
         <span class="c1"># Substitute coordinate base symbols into the coefficients</span>
         <span class="n">subs</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">point_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_bases</span><span class="p">))</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">Inc</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">),</span>
-                    <span class="n">field</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">+</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">))</span></div>
-                <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">vsub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">,</span> <span class="n">idx_subs</span><span class="p">)]</span>
+                    <span class="n">field</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">+</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">vsub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">,</span> <span class="n">idx_subs</span><span class="p">)]</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1172,8 +1181,8 @@
         <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
 
         <span class="n">args</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">SparseFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">)</span>
-        <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="o">.</span><span class="n">coordinates</span><span class="p">))</span></div>
-        <span class="k">return</span> <span class="n">args</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="o">.</span><span class="n">coordinates</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">args</span></div>
 
 
 <div class="viewcode-block" id="SparseTimeFunction"><a class="viewcode-back" href="../../devito.html#devito.function.SparseTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseTimeFunction</span><span class="p">(</span><span class="n">SparseFunction</span><span class="p">):</span>
@@ -1233,8 +1242,8 @@
             <span class="k">return</span> <span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;grid&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]))</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span></div>
-        <span class="k">return</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nt&#39;</span><span class="p">),</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;npoint&#39;</span><span class="p">),))</span>
+    <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nt&#39;</span><span class="p">),</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;npoint&#39;</span><span class="p">),))</span></div>
 </pre></div>
 
            </div>

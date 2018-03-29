@@ -210,8 +210,8 @@
                 <span class="n">get_simd_flag</span><span class="o">.</span><span class="n">flag</span> <span class="o">=</span> <span class="n">i</span>
                 <span class="k">return</span> <span class="n">i</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># &quot;Cached&quot; because calls to cpuingo are expensive</span></div>
-        <span class="k">return</span> <span class="n">get_simd_flag</span><span class="o">.</span><span class="n">flag</span>
+        <span class="c1"># &quot;Cached&quot; because calls to cpuingo are expensive</span>
+        <span class="k">return</span> <span class="n">get_simd_flag</span><span class="o">.</span><span class="n">flag</span></div>
 <span class="n">get_simd_flag</span><span class="o">.</span><span class="n">flag</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># noqa</span>
 
 
@@ -220,8 +220,8 @@
 <span class="sd">    register on the current architecture.&quot;&quot;&quot;</span>
 
     <span class="n">simd_size</span> <span class="o">=</span> <span class="n">simdinfo</span><span class="p">[</span><span class="n">get_simd_flag</span><span class="p">()]</span>
-    <span class="k">assert</span> <span class="n">simd_size</span> <span class="o">%</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">==</span> <span class="mi">0</span></div>
-    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">simd_size</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">simd_size</span> <span class="o">%</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">simd_size</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

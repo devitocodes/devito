@@ -12,7 +12,6 @@ Subpackages
     devito.foreign
     devito.ir
     devito.symbolics
-    devito.yask
 
 Submodules
 ----------

@@ -185,8 +185,8 @@
         <span class="k">return</span> <span class="n">obj</span>
 
 <div class="viewcode-block" id="Eq.xreplace"><a class="viewcode-back" href="../../devito.html#devito.equation.Eq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span></div></div>
-                         <span class="n">region</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_region</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span>
+                         <span class="n">region</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_region</span><span class="p">)</span></div></div>
 
 
 <div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../devito.html#devito.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
@@ -194,8 +194,8 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A :class:`Eq` performing a linear increment.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-</div>
-    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
 <span class="k">class</span> <span class="nc">Region</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>

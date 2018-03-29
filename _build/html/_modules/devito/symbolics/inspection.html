@@ -180,8 +180,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
-        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;bfs&#39;</span><span class="p">)))</span></div>
-    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;bfs&#39;</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="estimate_cost"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.estimate_cost">[docs]</a><span class="k">def</span> <span class="nf">estimate_cost</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">estimate_functions</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -223,8 +223,8 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">flops</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">op</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="kc">True</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">op</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">flops</span>
-    <span class="k">except</span><span class="p">:</span></div>
-        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Cannot estimate cost of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Cannot estimate cost of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="estimate_memory"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.estimate_memory">[docs]</a><span class="k">def</span> <span class="nf">estimate_memory</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;realistic&#39;</span><span class="p">):</span>
@@ -270,8 +270,8 @@
     <span class="n">writes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">access</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">writes</span> <span class="k">if</span> <span class="nb">filter</span><span class="p">(</span><span class="n">s</span><span class="p">)])</span>
     <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;ideal&#39;</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">writes</span><span class="p">))</span>
-    <span class="k">else</span><span class="p">:</span></div>
-        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="dimension_sort"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.dimension_sort">[docs]</a><span class="k">def</span> <span class="nf">dimension_sort</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -306,8 +306,8 @@
     <span class="n">derived</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ordering</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">]</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">derived</span><span class="p">:</span>
         <span class="n">ordering</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">ordering</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
-</div>
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">ordering</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Time</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">ordering</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Time</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

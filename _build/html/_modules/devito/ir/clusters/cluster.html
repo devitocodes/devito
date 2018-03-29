@@ -164,7 +164,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">ClusterizedEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters.graph</span> <span class="k">import</span> <span class="n">FlowGraph</span>
-<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">DataSpace</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">DataSpace</span><span class="p">,</span> <span class="n">IterationSpace</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Cluster&quot;</span><span class="p">,</span> <span class="s2">&quot;ClusterGroup&quot;</span><span class="p">]</span>
 
@@ -236,7 +236,7 @@
 
     <span class="nd">@ispace</span><span class="o">.</span><span class="n">setter</span>
     <span class="k">def</span> <span class="nf">ispace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">AttributeError</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">val</span>
 
     <span class="nd">@dspace</span><span class="o">.</span><span class="n">setter</span>
     <span class="k">def</span> <span class="nf">dspace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
@@ -250,6 +250,7 @@
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">is_compatible</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">exprs</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dspace</span> <span class="o">=</span> <span class="n">DataSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">dspace</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Cluster"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster">[docs]</a><span class="k">class</span> <span class="nc">Cluster</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">):</span>
@@ -281,15 +282,23 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Build a new cluster with expressions ``exprs`` having same iteration</span>
 <span class="sd">        space and atomics as ``self``.</span>
-<span class="sd">        &quot;&quot;&quot;</span></div>
-        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span></div>
 
     <span class="nd">@PartialCluster</span><span class="o">.</span><span class="n">exprs</span><span class="o">.</span><span class="n">setter</span>
     <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">AttributeError</span>
 
-<div class="viewcode-block" id="Cluster.squash"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.squash">[docs]</a>    <span class="k">def</span> <span class="nf">squash</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span></div></div>
+    <span class="nd">@PartialCluster</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">ispace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">AttributeError</span>
+
+    <span class="nd">@PartialCluster</span><span class="o">.</span><span class="n">dspace</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">dspace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span>
+
+<div class="viewcode-block" id="Cluster.squash"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.squash">[docs]</a>    <span class="k">def</span> <span class="nf">squash</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span></div></div>
 
 
 <div class="viewcode-block" id="ClusterGroup"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup">[docs]</a><span class="k">class</span> <span class="nc">ClusterGroup</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
@@ -301,8 +310,8 @@
 <span class="sd">        Return a new ClusterGroup in which all of ``self``&#39;s Clusters have</span>
 <span class="sd">        been promoted to PartialClusters. Any metadata attached to self is lost.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">ClusterGroup</span><span class="p">([</span><span class="n">PartialCluster</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Cluster</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span></div>
-                             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">ClusterGroup</span><span class="p">([</span><span class="n">PartialCluster</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Cluster</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span>
+                             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span></div>
 
 <div class="viewcode-block" id="ClusterGroup.finalize"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup.finalize">[docs]</a>    <span class="k">def</span> <span class="nf">finalize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -315,13 +324,13 @@
                 <span class="n">cluster</span> <span class="o">=</span> <span class="n">Cluster</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
                 <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cluster</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span></div>
-        <span class="k">return</span> <span class="n">clusters</span>
+                <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">clusters</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dspace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return the cumulative :class:`DataSpace` of this ClusterGroup.&quot;&quot;&quot;</span></div>
-        <span class="k">return</span> <span class="n">DataSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dspace</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
+        <span class="sd">&quot;&quot;&quot;Return the cumulative :class:`DataSpace` of this ClusterGroup.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dspace</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span></div>
 </pre></div>
 
            </div>

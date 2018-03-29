@@ -183,8 +183,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">shape</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">)</span>
         <span class="n">alignment</span> <span class="o">=</span> <span class="s2">&quot;__attribute__((aligned(64)))&quot;</span>
-        <span class="n">handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stack</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())</span></div>
-        <span class="n">handle</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">alignment</span><span class="p">))</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stack</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())</span>
+        <span class="n">handle</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">alignment</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="Allocator.push_heap"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.Allocator.push_heap">[docs]</a>    <span class="k">def</span> <span class="nf">push_heap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -203,16 +203,16 @@
         <span class="n">alloc</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="n">alloc</span><span class="p">)</span>
 
         <span class="n">free</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;free(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-</div>
-        <span class="bp">self</span><span class="o">.</span><span class="n">heap</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">decl</span><span class="p">,</span> <span class="n">alloc</span><span class="p">,</span> <span class="n">free</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">heap</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">decl</span><span class="p">,</span> <span class="n">alloc</span><span class="p">,</span> <span class="n">free</span><span class="p">)</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">onstack</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stack</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">onheap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">heap</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">onheap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">heap</span><span class="o">.</span><span class="n">values</span><span class="p">()</span></div>
 
 
 <span class="c1"># Utils to print C strings</span>
@@ -313,8 +313,8 @@
     <span class="k">def</span> <span class="nf">_print_ListInitializer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;{</span><span class="si">%s</span><span class="s2">}&quot;</span> <span class="o">%</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">params</span><span class="p">])</span>
 
-    <span class="k">def</span> <span class="nf">_print_IntDiv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span></div>
-        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_print_IntDiv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="ccode"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.ccode">[docs]</a><span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
@@ -323,8 +323,8 @@
 <span class="sd">    :param expr: The expression</span>
 <span class="sd">    :param settings: A dictionary of settings for code printing</span>
 <span class="sd">    :returns: The resulting code as a string. If it fails, then it returns the expr</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
-    <span class="k">return</span> <span class="n">CodePrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">CodePrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
 
 
 <span class="n">blankline</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>

@@ -309,8 +309,8 @@
             <span class="n">configuration</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">configuration</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">keys</span><span class="p">)</span>
-</div>
-    <span class="n">configuration</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+
+    <span class="n">configuration</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="add_sub_configuration"><a class="viewcode-back" href="../../devito.html#devito.parameters.add_sub_configuration">[docs]</a><span class="k">def</span> <span class="nf">add_sub_configuration</span><span class="p">(</span><span class="n">sub_configuration</span><span class="p">,</span> <span class="n">sub_env_vars_mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -318,8 +318,8 @@
     <span class="c1"># For use from within a backend (i.e., inside Devito)</span>
     <span class="nb">setattr</span><span class="p">(</span><span class="n">configuration</span><span class="p">,</span> <span class="n">sub_configuration</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">sub_configuration</span><span class="p">)</span>
     <span class="c1"># For use in user code, when the backend is a runtime choice and some</span>
-    <span class="c1"># options are in common between the supported backends</span></div>
-    <span class="nb">setattr</span><span class="p">(</span><span class="n">configuration</span><span class="p">,</span> <span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="n">sub_configuration</span><span class="p">)</span>
+    <span class="c1"># options are in common between the supported backends</span>
+    <span class="nb">setattr</span><span class="p">(</span><span class="n">configuration</span><span class="p">,</span> <span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="n">sub_configuration</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="print_defaults"><a class="viewcode-back" href="../../devito.html#devito.parameters.print_defaults">[docs]</a><span class="k">def</span> <span class="nf">print_defaults</span><span class="p">():</span>
@@ -327,15 +327,15 @@
 <span class="sd">    as well as all of the accepted values.&quot;&quot;&quot;</span>
     <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env_vars_mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">. Default: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="n">v</span><span class="p">],</span></div>
-                                      <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="n">v</span><span class="p">]))</span>
+        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">. Default: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="n">v</span><span class="p">],</span>
+                                      <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="n">v</span><span class="p">]))</span></div>
 
 
 <div class="viewcode-block" id="print_state"><a class="viewcode-back" href="../../devito.html#devito.parameters.print_state">[docs]</a><span class="k">def</span> <span class="nf">print_state</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;Print the current configuration state.&quot;&quot;&quot;</span>
     <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">():</span></div>
-        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span></div>
 </pre></div>
 
            </div>

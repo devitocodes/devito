@@ -7,6 +7,7 @@ Subpackages
 .. toctree::
 
     examples.cfd
+    examples.misc
     examples.seismic
 
 Module contents

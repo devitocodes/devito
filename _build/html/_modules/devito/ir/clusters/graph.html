@@ -327,8 +327,8 @@
                 <span class="n">queue</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">scalars</span><span class="p">]</span> <span class="o">+</span>
                                     <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">queue</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
         <span class="k">if</span> <span class="n">strict</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
-            <span class="n">found</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span></div>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">values</span><span class="p">())</span></div>
 
 <div class="viewcode-block" id="FlowGraph.time_invariant"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.time_invariant">[docs]</a>    <span class="k">def</span> <span class="nf">time_invariant</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -366,8 +366,8 @@
                     <span class="c1"># cannot determine if time-invariant; assume time-varying</span>
                     <span class="k">return</span> <span class="kc">False</span>
                 <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-            <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">temporaries</span><span class="p">])</span></div>
-        <span class="k">return</span> <span class="kc">True</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">temporaries</span><span class="p">])</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
 
 <div class="viewcode-block" id="FlowGraph.is_index"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.is_index">[docs]</a>    <span class="k">def</span> <span class="nf">is_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -380,8 +380,8 @@
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
                 <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">match</span> <span class="ow">in</span> <span class="n">idx</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
-                    <span class="k">return</span> <span class="kc">True</span></div>
-        <span class="k">return</span> <span class="kc">False</span>
+                    <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
 
 <div class="viewcode-block" id="FlowGraph.extract"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.extract">[docs]</a>    <span class="k">def</span> <span class="nf">extract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -416,8 +416,8 @@
         <span class="n">found</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">match</span><span class="p">:</span>
-                <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span></div>
-        <span class="k">return</span> <span class="n">found</span>
+                <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">found</span></div>
 
     <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
@@ -455,8 +455,8 @@
                 <span class="n">found</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="p">[])</span>
                 <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
                     <span class="c1"># Not using sets to preserve order</span>
-                    <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span></div>
-        <span class="k">return</span> <span class="n">mapper</span>
+                    <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mapper</span></div>
 </pre></div>
 
            </div>

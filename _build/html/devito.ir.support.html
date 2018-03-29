@@ -290,9 +290,24 @@ is accessed.</li>
 
 <dl class="method">
 <dt id="devito.ir.support.basic.IterationInstance.distance">
-<code class="descname">distance</code><span class="sig-paren">(</span><em>other</em>, <em>findex=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/basic.html#IterationInstance.distance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.distance" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute vector distance from <code class="docutils literal notranslate"><span class="pre">self</span></code> to <code class="docutils literal notranslate"><span class="pre">other</span></code>. If <code class="docutils literal notranslate"><span class="pre">findex</span></code> is
-supplied, compute the vector distance up to and including <code class="docutils literal notranslate"><span class="pre">findex</span></code>.</p>
+<code class="descname">distance</code><span class="sig-paren">(</span><em>other</em>, <em>findex=None</em>, <em>view=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/basic.html#IterationInstance.distance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.distance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the distance from <code class="docutils literal notranslate"><span class="pre">self</span></code> to <code class="docutils literal notranslate"><span class="pre">other</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>other</strong> – The <a class="reference internal" href="#devito.ir.support.basic.IterationInstance" title="devito.ir.support.basic.IterationInstance"><code class="xref py py-class docutils literal notranslate"><span class="pre">IterationInstance</span></code></a> from which the distance
+is computed.</li>
+<li><strong>findex</strong> – (Optional) if supplied, compute the distance only up to
+and including <code class="docutils literal notranslate"><span class="pre">findex</span></code> (defaults to None).</li>
+<li><strong>view</strong> – (Optional) an iterable of <code class="docutils literal notranslate"><span class="pre">findices</span></code> (defaults to None); if
+supplied, project the distance along these dimensions.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="attribute">
@@ -408,8 +423,23 @@ w = an object of type Dimension</p>
 <dl class="method">
 <dt id="devito.ir.support.basic.TimedAccess.distance">
 <code class="descname">distance</code><span class="sig-paren">(</span><em>other</em>, <em>findex=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/basic.html#TimedAccess.distance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.basic.TimedAccess.distance" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute vector distance from <code class="docutils literal notranslate"><span class="pre">self</span></code> to <code class="docutils literal notranslate"><span class="pre">other</span></code>. If <code class="docutils literal notranslate"><span class="pre">findex</span></code> is
-supplied, compute the vector distance up to and including <code class="docutils literal notranslate"><span class="pre">findex</span></code>.</p>
+<dd><p>Compute the distance from <code class="docutils literal notranslate"><span class="pre">self</span></code> to <code class="docutils literal notranslate"><span class="pre">other</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>other</strong> – The <a class="reference internal" href="#devito.ir.support.basic.IterationInstance" title="devito.ir.support.basic.IterationInstance"><code class="xref py py-class docutils literal notranslate"><span class="pre">IterationInstance</span></code></a> from which the distance
+is computed.</li>
+<li><strong>findex</strong> – (Optional) if supplied, compute the distance only up to
+and including <code class="docutils literal notranslate"><span class="pre">findex</span></code> (defaults to None).</li>
+<li><strong>view</strong> – (Optional) an iterable of <code class="docutils literal notranslate"><span class="pre">findices</span></code> (defaults to None); if
+supplied, project the distance along these dimensions.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
@@ -701,9 +731,31 @@ are compared for equality.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.ir.support.space.IterationSpace.iteration_intervals">
+<code class="descname">iteration_intervals</code><a class="headerlink" href="#devito.ir.support.space.IterationSpace.iteration_intervals" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.ir.support.space.IterationSpace.merge">
+<em class="property">classmethod </em><code class="descname">merge</code><span class="sig-paren">(</span><em>*others</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IterationSpace.merge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IterationSpace.merge" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.support.space.IterationSpace.nonderived_directions">
 <code class="descname">nonderived_directions</code><a class="headerlink" href="#devito.ir.support.space.IterationSpace.nonderived_directions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.space.IterationSpace.project">
+<code class="descname">project</code><span class="sig-paren">(</span><em>cond</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IterationSpace.project"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IterationSpace.project" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a new <code class="docutils literal notranslate"><span class="pre">IterationSpace</span></code> in which only some <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span>
+<span class="pre">in</span> <span class="pre">``self`</span></code> are retained. In particular, a dimension <code class="docutils literal notranslate"><span class="pre">d</span></code> in <code class="docutils literal notranslate"><span class="pre">self</span></code> is
+retained if:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* either ``cond(d)`` is true (``cond`` is a callable),
+* or ``d in cond`` is true (``cond`` is an iterable)
+</pre></div>
+</div>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.support.space.IterationSpace.sub_iterators">

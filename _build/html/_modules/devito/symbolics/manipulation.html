@@ -164,7 +164,7 @@
 <span class="kn">import</span> <span class="nn">sympy</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Number</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">LM</span><span class="p">,</span> <span class="n">LC</span>
 
-<span class="kn">from</span> <span class="nn">devito.symbolics.extended_sympy</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Eq</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics.extended_sympy</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">FrozenExpr</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_functions</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
@@ -189,9 +189,13 @@
         <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt_args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span><span class="p">:</span>
         <span class="n">rebuilt_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt_args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span></div>
-        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
+            <span class="c1"># Avoid dropping metadata associated with /expr/</span>
+            <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt_args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="o">*</span><span class="n">rebuilt_args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span></div>
 
 
 <div class="viewcode-block" id="xreplace_constrained"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.xreplace_constrained">[docs]</a><span class="k">def</span> <span class="nf">xreplace_constrained</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">make</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">costmodel</span><span class="o">=</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -212,9 +216,8 @@
 
 <span class="sd">    :param exprs: The target SymPy expression, or a collection of SymPy expressions.</span>
 <span class="sd">    :param make: Either a mapper M: K -&gt; V, indicating how to replace an expression</span>
-<span class="sd">                 in K with a symbol in V, or a function, used to construct new, unique</span>
-<span class="sd">                 symbols. Such a function should take as input a parameter, used to</span>
-<span class="sd">                 enumerate the new symbols.</span>
+<span class="sd">                 in K with a symbol in V, or a function with internal state that,</span>
+<span class="sd">                 when called, returns unique symbols.</span>
 <span class="sd">    :param rule: The matching rule (a lambda function). May be left unspecified if</span>
 <span class="sd">                 ``make`` is a mapper.</span>
 <span class="sd">    :param costmodel: The cost model (a lambda function, optional).</span>
@@ -233,14 +236,10 @@
 
         <span class="k">def</span> <span class="nf">replace</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
             <span class="n">temporary</span> <span class="o">=</span> <span class="n">found</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">temporary</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">temporary</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">temporary</span> <span class="o">=</span> <span class="n">make</span><span class="p">(</span><span class="n">replace</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">temporary</span><span class="p">:</span>
+                <span class="n">temporary</span> <span class="o">=</span> <span class="n">make</span><span class="p">()</span>
                 <span class="n">found</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">temporary</span>
-                <span class="n">replace</span><span class="o">.</span><span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
-                <span class="k">return</span> <span class="n">temporary</span>
-        <span class="n">replace</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Unique identifier for new temporaries</span>
+            <span class="k">return</span> <span class="n">temporary</span>
 
     <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
@@ -290,8 +289,8 @@
 
     <span class="c1"># Post-process the output</span>
     <span class="n">found</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">found</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
-</div>
-    <span class="k">return</span> <span class="n">found</span> <span class="o">+</span> <span class="n">rebuilt</span><span class="p">,</span> <span class="n">found</span>
+
+    <span class="k">return</span> <span class="n">found</span> <span class="o">+</span> <span class="n">rebuilt</span><span class="p">,</span> <span class="n">found</span></div>
 
 
 <div class="viewcode-block" id="xreplace_indices"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.xreplace_indices">[docs]</a><span class="k">def</span> <span class="nf">xreplace_indices</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">candidates</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">only_rhs</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -305,8 +304,8 @@
     <span class="k">if</span> <span class="n">candidates</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">]</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]))</span>
-    <span class="n">replaced</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">)]</span></div>
-    <span class="k">return</span> <span class="n">replaced</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="k">else</span> <span class="n">replaced</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">replaced</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">replaced</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="k">else</span> <span class="n">replaced</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
 
 
 <div class="viewcode-block" id="pow_to_mul"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.pow_to_mul">[docs]</a><span class="k">def</span> <span class="nf">pow_to_mul</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -319,8 +318,8 @@
             <span class="k">return</span> <span class="n">expr</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">base</span><span class="p">]</span><span class="o">*</span><span class="n">exp</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span></div>
-        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">pow_to_mul</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">],</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">pow_to_mul</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">],</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="as_symbol"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.as_symbol">[docs]</a><span class="k">def</span> <span class="nf">as_symbol</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -339,8 +338,8 @@
         <span class="k">return</span> <span class="n">expr</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span>
-    <span class="k">else</span><span class="p">:</span></div>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot extract symbol from type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot extract symbol from type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="split_affine"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.split_affine">[docs]</a><span class="k">def</span> <span class="nf">split_affine</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -357,8 +356,8 @@
         <span class="k">return</span> <span class="n">AffineFunction</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
     <span class="n">poly</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_poly</span><span class="p">()</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">is_univariate</span> <span class="ow">and</span> <span class="n">poly</span><span class="o">.</span><span class="n">is_linear</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">LM</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span></div>
-    <span class="k">return</span> <span class="n">AffineFunction</span><span class="p">(</span><span class="n">LM</span><span class="p">(</span><span class="n">poly</span><span class="p">),</span> <span class="n">LC</span><span class="p">(</span><span class="n">poly</span><span class="p">),</span> <span class="n">poly</span><span class="o">.</span><span class="n">TC</span><span class="p">())</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span>
+    <span class="k">return</span> <span class="n">AffineFunction</span><span class="p">(</span><span class="n">LM</span><span class="p">(</span><span class="n">poly</span><span class="p">),</span> <span class="n">LC</span><span class="p">(</span><span class="n">poly</span><span class="p">),</span> <span class="n">poly</span><span class="o">.</span><span class="n">TC</span><span class="p">())</span></div>
 
 
 <div class="viewcode-block" id="indexify"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.indexify">[docs]</a><span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -373,8 +372,8 @@
             <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_AbstractFunction</span><span class="p">:</span>
                 <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="k">pass</span></div>
-    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+            <span class="k">pass</span>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="convert_to_SSA"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.convert_to_SSA">[docs]</a><span class="k">def</span> <span class="nf">convert_to_SSA</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
@@ -401,8 +400,8 @@
             <span class="n">mapper</span><span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">ssa_lhs</span>
             <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)))</span></div>
-    <span class="k">return</span> <span class="n">processed</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">processed</span></div>
 </pre></div>
 
            </div>

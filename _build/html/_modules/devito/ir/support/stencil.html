@@ -207,8 +207,8 @@
         <span class="n">output</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dicts</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">|=</span> <span class="n">v</span></div>
-        <span class="k">return</span> <span class="n">output</span>
+                <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">|=</span> <span class="n">v</span>
+        <span class="k">return</span> <span class="n">output</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">empty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -235,8 +235,8 @@
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">o</span><span class="p">:</span>
-                <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">-=</span> <span class="n">o</span><span class="p">[</span><span class="n">k</span><span class="p">]</span></div>
-        <span class="k">return</span> <span class="n">output</span>
+                <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">-=</span> <span class="n">o</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">output</span></div>
 
 <div class="viewcode-block" id="Stencil.add"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.add">[docs]</a>    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -247,15 +247,15 @@
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">o</span><span class="p">:</span>
-                <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">|=</span> <span class="n">o</span><span class="p">[</span><span class="n">k</span><span class="p">]</span></div>
-        <span class="k">return</span> <span class="n">output</span>
+                <span class="n">output</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">|=</span> <span class="n">o</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">output</span></div>
 
 <div class="viewcode-block" id="Stencil.get"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Stencil</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span></div>
-        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">obj</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Stencil</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">obj</span></div>
 
-<div class="viewcode-block" id="Stencil.entry"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.entry">[docs]</a>    <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span></div>
-        <span class="k">return</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+<div class="viewcode-block" id="Stencil.entry"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.entry">[docs]</a>    <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="Stencil.prefix"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.prefix">[docs]</a>    <span class="k">def</span> <span class="nf">prefix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -266,14 +266,14 @@
             <span class="k">if</span> <span class="n">k1</span> <span class="o">==</span> <span class="n">k2</span> <span class="ow">and</span> <span class="n">v1</span> <span class="o">==</span> <span class="n">v2</span><span class="p">:</span>
                 <span class="n">output</span><span class="p">[</span><span class="n">k1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">v1</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="k">break</span></div>
-        <span class="k">return</span> <span class="n">output</span>
+                <span class="k">break</span>
+        <span class="k">return</span> <span class="n">output</span></div>
 
 <div class="viewcode-block" id="Stencil.copy"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.stencil.Stencil.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return a deep copy of the Stencil.</span>
-<span class="sd">        &quot;&quot;&quot;</span></div>
-        <span class="k">return</span> <span class="n">Stencil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="p">)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Stencil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">entries</span>
@@ -282,11 +282,12 @@
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
-        <span class="n">entry</span> <span class="o">=</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>  <span class="c1"># Type checking</span></div>
-        <span class="nb">super</span><span class="p">(</span><span class="n">Stencil</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">ofs</span><span class="p">)</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>  <span class="c1"># Type checking</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Stencil</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">ofs</span><span class="p">)</span></div>
 
 
 <span class="n">StencilEntry</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;StencilEntry&#39;</span><span class="p">,</span> <span class="s1">&#39;dim ofs&#39;</span><span class="p">)</span>
+<span class="n">StencilEntry</span><span class="o">.</span><span class="n">copy</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">ofs</span><span class="p">))</span>
 </pre></div>
 
            </div>

@@ -193,9 +193,15 @@
         <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">processed</span><span class="p">)):</span>
             <span class="c1"># Collect all relevant data dependences</span>
             <span class="n">scope</span> <span class="o">=</span> <span class="n">Scope</span><span class="p">(</span><span class="n">exprs</span><span class="o">=</span><span class="n">candidate</span><span class="o">.</span><span class="n">exprs</span> <span class="o">+</span> <span class="n">c</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span>
+
+            <span class="c1"># Collect anti-dependences preventing grouping</span>
             <span class="n">anti</span> <span class="o">=</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_anti</span><span class="o">.</span><span class="n">carried</span><span class="p">()</span> <span class="o">-</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_anti</span><span class="o">.</span><span class="n">increment</span>
-            <span class="n">flow</span> <span class="o">=</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span> <span class="o">-</span> <span class="p">(</span><span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">inplace</span><span class="p">()</span> <span class="o">+</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">increment</span><span class="p">)</span>
             <span class="n">funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">anti</span><span class="p">]</span>
+
+            <span class="c1"># Collect flow-dependences breaking the search</span>
+            <span class="n">flow</span> <span class="o">=</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span> <span class="o">-</span> <span class="p">(</span><span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">inplace</span><span class="p">()</span> <span class="o">+</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">increment</span><span class="p">)</span>
+            <span class="n">flow</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">flow</span><span class="p">}</span>
+
             <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">is_compatible</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span> <span class="ow">and</span>\
                     <span class="nb">all</span><span class="p">(</span><span class="n">is_local</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">candidate</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">clusters</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">funcs</span><span class="p">):</span>
                 <span class="c1"># /c/ will be fused into /candidate/. All fusion-induced anti</span>
@@ -223,8 +229,8 @@
         <span class="c1"># Fallback</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">fused</span><span class="p">:</span>
             <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
-</div>
-    <span class="k">return</span> <span class="n">processed</span>
+
+    <span class="k">return</span> <span class="n">processed</span></div>
 
 
 <span class="k">def</span> <span class="nf">guard</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
@@ -414,8 +420,8 @@
 
     <span class="c1"># Introduce conditional PartialClusters</span>
     <span class="n">clusters</span> <span class="o">=</span> <span class="n">guard</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
-</div>
-    <span class="k">return</span> <span class="n">clusters</span><span class="o">.</span><span class="n">finalize</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">clusters</span><span class="o">.</span><span class="n">finalize</span><span class="p">()</span></div>
 </pre></div>
 
            </div>
