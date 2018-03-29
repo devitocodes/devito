@@ -25,14 +25,20 @@ class Constant(function.Constant):
     def data(self, val):
         self._value = DataScalar(val)
 
-    def _arg_defaults(self):
-        args = super(Constant, self)._arg_defaults()
-        args[namespace['code-grid-name'](self.name)] = None
+    def _arg_defaults(self, alias=None):
+        args = super(Constant, self)._arg_defaults(alias=alias)
+
+        key = alias or self
+        args[namespace['code-grid-name'](key.name)] = None
+
         return args
 
-    def _arg_values(self, alias=None, **kwargs):
+    def _arg_values(self, **kwargs):
         values = super(Constant, self)._arg_values(**kwargs)
+
+        # Necessary when there's a scalar (i.e., non-Constant) override
         values[namespace['code-grid-name'](self.name)] = None
+
         return values
 
 
@@ -130,22 +136,12 @@ class Function(function.Function):
         raise NotImplementedError
 
     def _arg_defaults(self, alias=None):
-        args = super(Function, self)._arg_defaults(alias)
+        args = super(Function, self)._arg_defaults(alias=alias)
 
-        key = alias or self.name
-        args[namespace['code-grid-name'](key)] = self.data.rawpointer
+        key = alias or self
+        args[namespace['code-grid-name'](key.name)] = self.data.rawpointer
 
         return args
-
-    def _arg_values(self, alias=None, **kwargs):
-        new = kwargs.get(self.name)
-        values = super(Function, self)._arg_values(alias=alias, **kwargs)
-
-        key = alias or self.name
-        if key in values and isinstance(new, Function):
-            values[namespace['code-grid-name'](key)] = new.data.rawpointer
-
-        return values
 
 
 class TimeFunction(function.TimeFunction, Function):
