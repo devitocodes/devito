@@ -10,6 +10,7 @@ dependencies:
   - scipy
   - matplotlib
   - pytest
+  - pytest-xdist
   - flake8>=2.1.0
   - parso==0.1.0
   - nbval
