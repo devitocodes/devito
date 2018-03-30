@@ -246,12 +246,12 @@ class DefaultDimension(Dimension):
     def __new__(cls, name, **kwargs):
         newobj = sympy.Symbol.__new__(cls, name)
         newobj._spacing = kwargs.get('spacing', Scalar(name='h_%s' % name))
-        newobj.default_value = kwargs.get('default_value', None)
+        newobj._default_value = kwargs.get('default_value', None)
         return newobj
 
     def _arg_defaults(self, start=None, size=None, alias=None):
         dim = alias or self
-        size = size or dim.default_value
+        size = size or dim._default_value
         return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
 
 

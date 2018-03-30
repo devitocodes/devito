@@ -1102,6 +1102,45 @@ class SparseTimeFunction(SparseFunction):
 
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
+    """
+    A specialised type of SparseFunction where the interpolation is externally defined.
+    Currently, this means that the grid points and associated coefficients for each
+    sparse point is precomputed at the time this object is being created.
+
+    :param name: Name of the function.
+    :param nt: Size of the time dimension for point data.
+    :param npoint: Number of points to sample.
+    :param grid: :class:`Grid` object defining the computational domain.
+    :param r: The number of gridpoints in each dimension to interpolate a single sparse
+              point to. e.g. 2 for linear interpolation.
+    :param gridpoints: The *reference* grid point corresponding to each sparse point.
+                       Of all the gridpoints that one sparse point would be interpolated
+                       to, this is the grid point closest to the origin, i.e. the one
+                       with the lowest value of each coordinate dimension. Must be a
+                       two-dimensional array of shape [npoint][grid.ndim].
+    :param coefficients: An array containing the coefficient for each of the r^2 (2D) or
+                         r^3 (3D) gridpoints that each sparsefunction will be interpolated
+                         to. The coefficient is split across the n dimensions such that
+                         the contribution of the point (i, j, k) will be multiplied by
+                         coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
+                         for r=6, we will store 18 coefficients per sparse point (instead
+                         of potentially 216). Shape must be [npoint][grid.ndim][r].
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param space_order: (Optional) Discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) Discretisation order for time derivatives.
+                       Default to 1.
+    :param dtype: (Optional) Data type of the buffered data.
+    :param initializer: (Optional) A callable to initialize the data
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
+    """
     is_PrecomputedSparseFunction = True
     _child_functions = ['gridpoints', 'coefficients']
 
@@ -1134,6 +1173,9 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             assert(coefficients_data is not None)
             coefficients.data[:] = coefficients_data[:]
             self.coefficients = coefficients
+            warning("Ensure that the provided coefficient and grid point values are " +
+                    "computed on the final grid that will be used for other " +
+                    "computations.")
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
