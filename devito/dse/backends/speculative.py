@@ -32,8 +32,7 @@ class SpeculativeRewriter(AdvancedRewriter):
 class AggressiveRewriter(SpeculativeRewriter):
 
     def _pipeline(self, state):
-        """Three CSRE phases, progressively searching for less structure."""
-
+        # Three CIRE phases, progressively searching for less structure
         self._extract_time_varying(state)
         self._extract_time_invariants(state, with_cse=False,
                                       costmodel=lambda e: e.is_Function)

@@ -36,11 +36,11 @@ def rewrite(clusters, mode='advanced'):
          * 'basic': Apply common sub-expressions elimination.
          * 'advanced': Apply all transformations that will reduce the
                        operation count w/ minimum increase to the memory pressure,
-                       namely 'basic', factorization, CSRE for time-invariants only.
-         * 'speculative': Like 'advanced', but apply CSRE also to time-varying
+                       namely 'basic', factorization, CIRE for time-invariants only.
+         * 'speculative': Like 'advanced', but apply CIRE also to time-varying
                           sub-expressions, which might further increase the memory
                           pressure.
-         * 'aggressive': Like 'speculative', but apply CSRE to any non-trivial
+         * 'aggressive': Like 'speculative', but apply CIRE to any non-trivial
                          sub-expression (i.e., anything that is at least in a
                          sum-of-products form). This may substantially increase
                          the memory pressure.
