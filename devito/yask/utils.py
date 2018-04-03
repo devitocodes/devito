@@ -45,7 +45,7 @@ def make_grid_accesses(node):
             processed = Element(c.Statement(ccode(handle)))
         else:
             # Writing to a scalar temporary
-            processed = Expression(e.expr.func(lhs, rhs), dtype=e.dtype)
+            processed = Expression(e.expr.func(lhs, rhs))
 
         mapper.update({e: processed})
 

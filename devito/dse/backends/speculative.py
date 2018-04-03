@@ -21,7 +21,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         derivatives through finite differences.
         """
 
-        make = lambda: Scalar(name=template()).indexify()
+        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = iq_timevarying(cluster.trace)
         costmodel = lambda i: estimate_cost(i) > 0
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
@@ -50,7 +50,7 @@ class AggressiveRewriter(SpeculativeRewriter):
         """
         Extract sub-expressions in sum-of-product form, and assign them to temporaries.
         """
-        make = lambda: Scalar(name=template()).indexify()
+        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = q_sum_of_product
         costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)

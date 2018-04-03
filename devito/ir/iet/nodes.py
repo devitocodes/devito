@@ -8,16 +8,16 @@ from cached_property import cached_property
 from collections import Iterable, OrderedDict, namedtuple
 
 import cgen as c
-from sympy import Eq, Indexed, Symbol
 
 from devito.cgen_utils import ccode
+from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, tagger, ntags)
 from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
 from devito.symbolics import as_symbol
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
-import devito.types as types
+from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
@@ -180,7 +180,7 @@ class Call(Node):
     @property
     def functions(self):
         """Return all :class:`Symbol` objects used by this :class:`Call`."""
-        return tuple(p for p in self.params if isinstance(p, types.AbstractFunction))
+        return tuple(p for p in self.params if isinstance(p, AbstractFunction))
 
     @cached_property
     def free_symbols(self):
@@ -198,15 +198,14 @@ class Call(Node):
 
 class Expression(Node):
 
-    """A node encapsulating a single SymPy equation."""
+    """A node encapsulating a SymPy equation."""
 
     is_Expression = True
 
-    def __init__(self, expr, dtype=None):
-        assert isinstance(expr, Eq)
+    def __init__(self, expr):
+        assert isinstance(expr, ClusterizedEq)
         assert isinstance(expr.lhs, (Symbol, Indexed))
         self.expr = expr
-        self.dtype = dtype
 
         self._functions = tuple(filter_ordered(flatten(detect_io(expr, relax=True))))
 
@@ -224,6 +223,10 @@ class Expression(Node):
                               the stored expression.
         """
         self.expr = self.expr.xreplace(substitutions)
+
+    @property
+    def dtype(self):
+        return self.expr.dtype
 
     @property
     def output(self):
@@ -700,13 +703,8 @@ class PointerCast(Node):
 class LocalExpression(Expression):
 
     """
-    A node encapsulating a single SymPy equation with known data type,
-    represented as a NumPy data type.
+    A node encapsulating a SymPy equation which also defines its LHS.
     """
-
-    def __init__(self, expr, dtype):
-        super(LocalExpression, self).__init__(expr)
-        self.dtype = dtype
 
     @property
     def defines(self):

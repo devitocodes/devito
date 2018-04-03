@@ -1,3 +1,4 @@
+import numpy as np
 from cached_property import cached_property
 from frozendict import frozendict
 
@@ -68,6 +69,26 @@ class PartialCluster(object):
     @property
     def tensors(self):
         return self.trace.tensors
+
+    @property
+    def dtype(self):
+        """Return the arithmetic data type of this Cluster. If the Cluster is
+        performing floating point arithmetic, then any equation performing
+        integer arithmetic is ignored, assuming that they are only carrying
+        out array index calculations. If two equations are performing floating
+        point calculations with mixed precision, return the data type with
+        highest precision."""
+        dtypes = {i.dtype for i in self.exprs}
+        fdtypes = {i for i in dtypes if np.issubdtype(i, np.float)}
+        if len(fdtypes) > 1:
+            raise NotImplementedError("Unsupported Cluster with mixed floating "
+                                      "point arithmetic %s" % str(fdtypes))
+        elif len(fdtypes) == 1:
+            return fdtypes.pop()
+        elif len(dtypes) == 1:
+            return dtypes.pop()
+        else:
+            raise ValueError("Unsupported Cluster [mixed integer arithmetic ?]")
 
     @exprs.setter
     def exprs(self, val):
@@ -170,3 +191,28 @@ class ClusterGroup(list):
     def dspace(self):
         """Return the cumulative :class:`DataSpace` of this ClusterGroup."""
         return DataSpace.merge(*[i.dspace for i in self])
+
+    @property
+    def dtype(self):
+        """Return the arithmetic data type of this ClusterGroup. If at least one
+        Cluster is performing floating point arithmetic, then any Cluster performing
+        integer arithmetic is ignored. If two Clusters are performing floating
+        point calculations with different precision, return the data type with
+        highest precision."""
+        dtypes = {i.dtype for i in self}
+        fdtypes = {i for i in dtypes if np.issubdtype(i, np.float)}
+        if len(fdtypes) > 1:
+            raise NotImplementedError("Unsupported ClusterGroup with mixed floating "
+                                      "point arithmetic %s" % str(fdtypes))
+        elif len(fdtypes) == 1:
+            return fdtypes.pop()
+        elif len(dtypes) == 1:
+            return dtypes.pop()
+        else:
+            raise ValueError("Unsupported ClusterGroup [mixed integer arithmetic ?]")
+
+    @property
+    def meta(self):
+        """Return the metadata carried by this ClusterGroup, a 2-tuple consisting
+        of data type and data space."""
+        return (self.dtype, self.dspace)

@@ -11,20 +11,20 @@ from conftest import EVAL
 
 from devito.dle import transform
 from devito import Grid, Function, TimeFunction, Eq, Operator
-from devito.ir.equations import LoweredEq
+from devito.ir.equations import DummyEq
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
                            Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)
 
 
 @pytest.fixture(scope="module")
 def exprs(a, b, c, d, a_dense, b_dense):
-    return [Expression(Eq(a, a + b + 5.)),
-            Expression(Eq(a, b*d - a*c)),
-            Expression(Eq(b, a + b*b + 3)),
-            Expression(Eq(a, a*b*d*c)),
-            Expression(Eq(a, 4 * ((b + d) * (a + c)))),
-            Expression(Eq(a, (6. / b) + (8. * a))),
-            Expression(Eq(a_dense, a_dense + b_dense + 5.))]
+    return [Expression(DummyEq(a, a + b + 5.)),
+            Expression(DummyEq(a, b*d - a*c)),
+            Expression(DummyEq(b, a + b*b + 3)),
+            Expression(DummyEq(a, a*b*d*c)),
+            Expression(DummyEq(a, 4 * ((b + d) * (a + c)))),
+            Expression(DummyEq(a, (6. / b) + (8. * a))),
+            Expression(DummyEq(a_dense, a_dense + b_dense + 5.))]
 
 
 @pytest.fixture(scope="module")
@@ -378,7 +378,7 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
 ])
 def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
     scope = [fa, fb, fc, fd, t0, t1, t2, t3]
-    node_exprs = [Expression(LoweredEq(EVAL(i, *scope))) for i in exprs]
+    node_exprs = [Expression(DummyEq(EVAL(i, *scope))) for i in exprs]
     ast = iters[6](iters[7](node_exprs))
 
     ast = iet_analyze(ast)
