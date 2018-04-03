@@ -14,6 +14,7 @@ class BasicRewriter(AbstractRewriter):
     def _pipeline(self, state):
         self._eliminate_intra_stencil_redundancies(state)
         self._extract_nonaffine_indices(state)
+        self._extract_increments(state)
 
     @dse_pass
     def _extract_nonaffine_indices(self, cluster, template, **kwargs):
@@ -31,6 +32,24 @@ class BasicRewriter(AbstractRewriter):
 
         processed = [Eq(v, k) for k, v in mapper.items()]
         processed.extend([e.xreplace(mapper) for e in cluster.exprs])
+
+        return cluster.rebuild(processed)
+
+    @dse_pass
+    def _extract_increments(self, cluster, template, **kwargs):
+        """
+        Extract the RHS of non-local tensor expressions performing an associative
+        and commutative increment, and assign them to temporaries.
+        """
+        processed = []
+        for e in cluster.exprs:
+            if e.is_Increment and e.lhs.function.is_Input:
+                handle = Scalar(name=template(), dtype=e.dtype).indexify()
+                extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
+                processed.extend([Eq(handle, extracted),
+                                  e.func(e.lhs, handle + e.lhs)])
+            else:
+                processed.append(e)
 
         return cluster.rebuild(processed)
 
