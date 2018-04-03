@@ -1,9 +1,11 @@
+from collections import OrderedDict
+
+import numpy as np
 from sympy import cos, sin
 
 from devito.dse.backends import AbstractRewriter, dse_pass
-from devito.symbolics import bhaskara_cos, bhaskara_sin
 from devito.dse.manipulation import common_subexprs_elimination
-
+from devito.symbolics import Eq, bhaskara_cos, bhaskara_sin, retrieve_indexed, q_affine
 from devito.types import Scalar
 
 
@@ -11,6 +13,26 @@ class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, state):
         self._eliminate_intra_stencil_redundancies(state)
+        self._extract_nonaffine_indices(state)
+
+    @dse_pass
+    def _extract_nonaffine_indices(self, cluster, template, **kwargs):
+        """
+        Extract non-affine array indices, and assign them to temporaries.
+        """
+        make = lambda: Scalar(name=template(), dtype=np.int32).indexify()
+
+        mapper = OrderedDict()
+        for e in cluster.exprs:
+            for indexed in retrieve_indexed(e):
+                for i, d in zip(indexed.indices, indexed.base.function.indices):
+                    if not (q_affine(i, d) or i.is_Number):
+                        mapper[i] = make()
+
+        processed = [Eq(v, k) for k, v in mapper.items()]
+        processed.extend([e.xreplace(mapper) for e in cluster.exprs])
+
+        return cluster.rebuild(processed)
 
     @dse_pass
     def _eliminate_intra_stencil_redundancies(self, cluster, template, **kwargs):
