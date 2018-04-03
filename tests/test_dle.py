@@ -10,7 +10,6 @@ from sympy import solve
 from conftest import EVAL
 
 from devito.dle import transform
-from devito.dle.backends import DevitoRewriter as Rewriter
 from devito import Grid, Function, TimeFunction, Eq, Operator
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
@@ -50,19 +49,6 @@ def simple_function_with_paddable_arrays(a_dense, b_dense, exprs, iters):
     #         expr0
     symbols = [i.base.function for i in [a_dense, b_dense]]
     body = iters[0](iters[1](iters[2](exprs[6])))
-    return Callable('foo', body, 'void', symbols, ())
-
-
-@pytest.fixture(scope="module")
-def simple_function_fissionable(a, b, exprs, iters):
-    # void foo(a, b)
-    #   for i
-    #     for j
-    #       for k
-    #         expr0
-    #         expr2
-    symbols = [i.base.function for i in [a, b]]
-    body = iters[0](iters[1](iters[2]([exprs[0], exprs[2]])))
     return Callable('foo', body, 'void', symbols, ())
 
 
@@ -411,49 +397,6 @@ def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
         else:
             for k in pragmas:
                 assert 'omp for' not in k.value
-
-
-@skipif_yask
-def test_loop_nofission(simple_function):
-    old = Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission']
-    Rewriter.thresholds['max_fission'], Rewriter.thresholds['min_fission'] = 0, 1
-    handle = transform(simple_function, mode='fission')
-    assert """\
-  for (int i = 0; i <= 3; i += 1)
-  {
-    for (int j = 0; j <= 5; j += 1)
-    {
-      for (int k = 0; k <= 7; k += 1)
-      {
-        a[i] = a[i] + b[i] + 5.0F;
-        a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
-      }
-    }
-  }""" in str(handle.nodes)
-    Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission'] = old
-
-
-@skipif_yask
-def test_loop_fission(simple_function_fissionable):
-    old = Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission']
-    Rewriter.thresholds['max_fission'], Rewriter.thresholds['min_fission'] = 0, 1
-    handle = transform(simple_function_fissionable, mode='fission')
-    assert """\
- for (int i = 0; i <= 3; i += 1)
-  {
-    for (int j = 0; j <= 5; j += 1)
-    {
-      for (int k = 0; k <= 7; k += 1)
-      {
-        a[i] = a[i] + b[i] + 5.0F;
-      }
-      for (int k = 0; k <= 7; k += 1)
-      {
-        b[i] = a[i] + pow(b[i], 2) + 3;
-      }
-    }
-  }""" in str(handle.nodes)
-    Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission'] = old
 
 
 @skipif_yask

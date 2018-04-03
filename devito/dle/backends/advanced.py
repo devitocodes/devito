@@ -14,85 +14,25 @@ from devito.dimension import Dimension
 from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
-from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
 from devito.ir.iet import (Block, Expression, Iteration, List,
                            PARALLEL, ELEMENTAL, REMAINDER, tagger,
                            FindNodes, FindSymbols, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree, filter_iterations)
 from devito.logger import dle_warning
-from devito.tools import as_tuple, grouper
+from devito.tools import as_tuple
 
 
 class DevitoRewriter(BasicRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._loop_fission(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
             self._ompize(state)
         self._create_elemental_functions(state)
         self._minimize_remainders(state)
-
-    @dle_pass
-    def _loop_fission(self, nodes, state):
-        """
-        Apply loop fission to innermost :class:`Iteration` objects. This pass
-        is not applied if the number of statements in an Iteration's body is
-        lower than ``self.thresholds['fission'].``
-        """
-
-        mapper = {}
-        for tree in retrieve_iteration_tree(nodes):
-            if len(tree) <= 1:
-                # Heuristically avoided
-                continue
-
-            candidate = tree[-1]
-            expressions = [e for e in candidate.nodes if e.is_Expression]
-
-            if len(expressions) < self.thresholds['max_fission']:
-                # Heuristically avoided
-                continue
-            if len(expressions) != len(candidate.nodes):
-                # Dangerous for correctness
-                continue
-
-            functions = list(set.union(*[set(e.functions) for e in expressions]))
-            wrapped = [e.expr for e in expressions]
-
-            if not functions or not wrapped:
-                # Heuristically avoided
-                continue
-
-            # Promote temporaries from scalar to tensors
-            handle = functions[0]
-            dim = handle.indices[-1]
-            size = handle.shape[-1]
-            if any(dim != i.indices[-1] for i in functions):
-                # Dangerous for correctness
-                continue
-
-            wrapped = promote_scalar_expressions(wrapped, (size,), (dim,), True)
-
-            assert len(wrapped) == len(expressions)
-            rebuilt = [Expression(s, e.dtype) for s, e in zip(wrapped, expressions)]
-
-            # Group statements
-            # TODO: Need a heuristic here to maximize reuse
-            args_frozen = candidate.args_frozen
-            properties = as_tuple(args_frozen['properties']) + (ELEMENTAL,)
-            args_frozen['properties'] = properties
-            n = self.thresholds['min_fission']
-            fissioned = [Iteration(g, **args_frozen) for g in grouper(rebuilt, n)]
-
-            mapper[candidate] = List(body=fissioned)
-
-        processed = Transformer(mapper).visit(nodes)
-
-        return processed, {}
 
     @dle_pass
     def _loop_blocking(self, nodes, state):
@@ -408,7 +348,6 @@ class DevitoRewriterSafeMath(DevitoRewriter):
     """
     This Rewriter is slightly less aggressive than :class:`DevitoRewriter`, as it
     doesn't drop denormal numbers, which may sometimes harm the numerical precision.
-    Loop fission is also avoided (to avoid reassociation of operations).
     """
 
     def _pipeline(self, state):
@@ -424,7 +363,6 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._loop_fission(state)
         self._loop_blocking(state)
         self._simdize(state)
         self._nontemporal_stores(state)
@@ -469,7 +407,6 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
         'blocking': DevitoSpeculativeRewriter._loop_blocking,
         'openmp': DevitoSpeculativeRewriter._ompize,
         'simd': DevitoSpeculativeRewriter._simdize,
-        'fission': DevitoSpeculativeRewriter._loop_fission,
         'split': DevitoSpeculativeRewriter._create_elemental_functions
     }
 

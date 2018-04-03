@@ -4,36 +4,9 @@ from sympy import collect, collect_const
 
 from devito.ir import FlowGraph
 from devito.symbolics import Eq, count, estimate_cost, q_op, q_leaf, xreplace_constrained
-from devito.types import Indexed, Array
 from devito.tools import flatten
 
-__all__ = ['promote_scalar_expressions', 'collect_nested',
-           'common_subexprs_elimination', 'compact_temporaries']
-
-
-def promote_scalar_expressions(exprs, shape, indices, onstack):
-    """
-    Transform a collection of scalar expressions into tensor expressions.
-    """
-    processed = []
-
-    # Fist promote the LHS
-    mapper = {}
-    for k, v in FlowGraph(exprs).items():
-        if v.is_scalar:
-            # Create a new function symbol
-            data = Array(name=k.name, shape=shape,
-                         dimensions=indices, onstack=onstack)
-            indexed = Indexed(data.indexed, *indices)
-            mapper[k] = indexed
-            processed.append(Eq(indexed, v.rhs))
-        else:
-            processed.append(Eq(k, v.rhs))
-
-    # Propagate the transformed LHS through the expressions
-    processed = [Eq(n.lhs, n.rhs.xreplace(mapper)) for n in processed]
-
-    return processed
+__all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries']
 
 
 def collect_nested(expr, aggressive=False):
