@@ -167,8 +167,8 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">Scalar</span><span class="p">,</span> <span class="n">Symbol</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;SubDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ConditionalDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;DefaultDimension&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ConditionalDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
@@ -177,6 +177,7 @@
     <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">False</span>
 
+    <span class="n">is_Default</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Derived</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">False</span>
@@ -281,7 +282,9 @@
 <span class="sd">        :param alias: (Optional) name under which to store values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">dim</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">start</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">{</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">start</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">values</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">values</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">}</span>
+        <span class="k">return</span> <span class="n">values</span>
 
     <span class="k">def</span> <span class="nf">_arg_infers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -297,12 +300,19 @@
 <span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">infs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">defaults</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">()</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">interval</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">infs</span>
 
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">args</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">defaults</span><span class="p">:</span>
+            <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span>
+
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
             <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">-</span> <span class="nb">min</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">args</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">defaults</span><span class="p">:</span>
+            <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">defaults</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
             <span class="n">infs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
@@ -389,6 +399,21 @@
 <span class="sd">    :param name: Name of the dimension symbol.</span>
 <span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="DefaultDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.DefaultDimension">[docs]</a><span class="k">class</span> <span class="nc">DefaultDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+    <span class="n">is_Default</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_spacing</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;h_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">))</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_default_value</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;default_value&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">size</span> <span class="ow">or</span> <span class="n">dim</span><span class="o">.</span><span class="n">_default_value</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">start</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span></div>
 
 
 <span class="k">class</span> <span class="nc">DerivedDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>

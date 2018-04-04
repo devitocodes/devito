@@ -811,9 +811,8 @@ data points.</p>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
-<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
-Defaults to 0.</li>
-<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
+<li><strong>space_order</strong> – Discretisation order for space derivatives.</li>
+<li><strong>dtype</strong> – Data type of the buffered data.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
 </ul>
 </td>
@@ -1250,6 +1249,11 @@ reference that is needed only for the call to free.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Default">
+<code class="descname">is_Default</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Default" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Derived">
 <code class="descname">is_Derived</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Derived" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1415,6 +1419,22 @@ time dimensions should inherit from <a class="reference internal" href="#devito.
 </tbody>
 </table>
 </dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.dimension.DefaultDimension">
+<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">DefaultDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#DefaultDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.DefaultDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.Dimension</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.dimension.DefaultDimension.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.DefaultDimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.DefaultDimension.is_Default">
+<code class="descname">is_Default</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.DefaultDimension.is_Default" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
@@ -2113,7 +2133,7 @@ derived time dimensions symbol. For example:</p>
 <dl class="class">
 <dt id="devito.function.SparseFunction">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">SparseFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.TensorFunction</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.AbstractSparseFunction</span></code></p>
 <p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code> representing a set of sparse point
 objects that are not aligned with the computational grid.</p>
 <p>A <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a> provides symbolic interpolation routines
@@ -2131,9 +2151,8 @@ data points.</p>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
-<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
-Defaults to 0.</li>
-<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
+<li><strong>space_order</strong> – Discretisation order for space derivatives.</li>
+<li><strong>dtype</strong> – Data type of the buffered data.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
 </ul>
 </td>

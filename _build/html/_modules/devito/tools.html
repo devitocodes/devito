@@ -166,7 +166,7 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">Hashable</span><span class="p">,</span> <span class="n">Mapping</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span><span class="p">,</span> <span class="n">wraps</span><span class="p">,</span> <span class="n">reduce</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span><span class="p">,</span> <span class="n">combinations</span><span class="p">,</span> <span class="n">product</span><span class="p">,</span> <span class="n">zip_longest</span>
-<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span><span class="p">,</span> <span class="n">mul</span>
 <span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">DEVNULL</span><span class="p">,</span> <span class="n">PIPE</span><span class="p">,</span> <span class="n">Popen</span><span class="p">,</span> <span class="n">CalledProcessError</span><span class="p">,</span> <span class="n">check_output</span>
 <span class="kn">import</span> <span class="nn">cpuinfo</span>
 <span class="kn">from</span> <span class="nn">distutils</span> <span class="k">import</span> <span class="n">version</span>
@@ -177,6 +177,10 @@
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;memoized_func&#39;</span><span class="p">,</span> <span class="s1">&#39;memoized_meth&#39;</span><span class="p">,</span> <span class="s1">&#39;infer_cpu&#39;</span><span class="p">,</span> <span class="s1">&#39;sweep&#39;</span><span class="p">,</span> <span class="s1">&#39;silencio&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">prod</span><span class="p">(</span><span class="n">iterable</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">iterable</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">as_tuple</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
