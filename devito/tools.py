@@ -5,7 +5,7 @@ import inspect
 from collections import Callable, Iterable, OrderedDict, Hashable, Mapping
 from functools import partial, wraps, reduce
 from itertools import chain, combinations, product, zip_longest
-from operator import attrgetter
+from operator import attrgetter, mul
 from subprocess import DEVNULL, PIPE, Popen, CalledProcessError, check_output
 import cpuinfo
 from distutils import version
@@ -16,6 +16,10 @@ from devito.logger import error
 from devito.parameters import configuration
 
 __all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
+
+
+def prod(iterable):
+    return reduce(mul, iterable, 1)
 
 
 def as_tuple(item, type=None, length=None):

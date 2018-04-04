@@ -6,8 +6,8 @@ from devito.exceptions import InvalidArgument
 from devito.logger import warning
 from devito.types import AbstractSymbol, Scalar, Symbol
 
-__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension',
-           'SubDimension', 'ConditionalDimension', 'dimensions']
+__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
+           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
 
 
 class Dimension(AbstractSymbol):
@@ -16,6 +16,7 @@ class Dimension(AbstractSymbol):
     is_Space = False
     is_Time = False
 
+    is_Default = False
     is_Derived = False
     is_NonlinearDerived = False
     is_Sub = False
@@ -120,7 +121,9 @@ class Dimension(AbstractSymbol):
         :param alias: (Optional) name under which to store values.
         """
         dim = alias or self
-        return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
+        values = {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
+        values = {k: values[k] for k in values if values[k] is not None}
+        return values
 
     def _arg_infers(self, args, interval, **kwargs):
         """
@@ -136,12 +139,19 @@ class Dimension(AbstractSymbol):
         :param kwargs: Dictionary of user-provided argument overrides.
         """
         infs = {}
+        defaults = self._arg_defaults()
 
         if not interval:
             return infs
 
+        if self.min_name not in args and self.min_name in defaults:
+            args[self.min_name] = defaults[self.min_name]
+
         if self.min_name in args:
             infs[self.min_name] = args[self.min_name] - min(interval.lower, 0)
+
+        if self.max_name not in args and self.max_name in defaults:
+            args[self.max_name] = defaults[self.max_name]
 
         if self.max_name in args:
             infs[self.max_name] = args[self.max_name] - (1 + max(interval.upper, 0))
@@ -228,6 +238,21 @@ class TimeDimension(Dimension):
     :param name: Name of the dimension symbol.
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
+
+
+class DefaultDimension(Dimension):
+    is_Default = True
+
+    def __new__(cls, name, **kwargs):
+        newobj = sympy.Symbol.__new__(cls, name)
+        newobj._spacing = kwargs.get('spacing', Scalar(name='h_%s' % name))
+        newobj._default_value = kwargs.get('default_value', None)
+        return newobj
+
+    def _arg_defaults(self, start=None, size=None, alias=None):
+        dim = alias or self
+        size = size or dim._default_value
+        return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
 
 
 class DerivedDimension(Dimension):

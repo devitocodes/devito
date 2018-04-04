@@ -68,6 +68,7 @@ class Basic(object):
     is_TimeFunction = False
     is_SparseTimeFunction = False
     is_SparseFunction = False
+    is_PrecomputedSparseFunction = False
 
     # Basic symbolic object properties
     is_Scalar = False
