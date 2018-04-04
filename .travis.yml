@@ -95,7 +95,7 @@ before_script:
 
 script:
   - flake8 --builtins=ArgumentError .
-  - py.test -vs --cov devito tests/
+  - for file in tests/test*.py; do py.test -n 16 -vs --cov devito $file; done
 
   # Additional seismic operator tests
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign; fi
