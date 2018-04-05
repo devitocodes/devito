@@ -1,5 +1,6 @@
 from collections import OrderedDict
 
+import numpy as np
 import cgen as c
 from mpmath.libmp import prec_to_dps, to_str
 from sympy import Function
@@ -58,7 +59,7 @@ class Allocator(object):
 
 class CodePrinter(C99CodePrinter):
 
-    custom_functions = {'INT': '(int)', 'FLOAT': '(float)'}
+    custom_functions = {'INT': '(int)', 'FLOAT': '(float)', 'DOUBLE': '(double)'}
 
     """Decorator for sympy.printing.ccode.CCodePrinter.
 
@@ -171,3 +172,6 @@ printmark = lambda i: c.Line('printf("Here: %s\\n"); fflush(stdout);' % i)
 printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i, i))
 INT = Function('INT')
 FLOAT = Function('FLOAT')
+DOUBLE = Function('DOUBLE')
+
+cast_mapper = {np.float32: FLOAT, float: DOUBLE, np.float64: DOUBLE}

@@ -5,7 +5,7 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 
-from devito.cgen_utils import INT, FLOAT
+from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
@@ -939,7 +939,7 @@ class SparseFunction(AbstractSparseFunction):
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
         indices = self.grid.dimensions
-        return tuple([FLOAT(c - o - idx * i.spacing)
+        return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
                       for c, o, idx, i in zip(self.coordinate_symbols,
                                               self.grid.origin,
                                               self.coordinate_indices,
