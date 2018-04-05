@@ -109,8 +109,8 @@ script:
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/checkpointing/checkpointing_example.py; fi
 
   # Test tutorial notebooks for the website using nbval
-  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
   - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/cfd; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
 
   # Code coverage
   - codecov

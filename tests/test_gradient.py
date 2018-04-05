@@ -51,7 +51,7 @@ def test_gradientFWI(shape, kernel, space_order):
     F0 = .5*linalg.norm(rec0.data - rec.data)**2
     # Gradient: <J^T \delta d, dm>
     residual = Receiver(name='rec', grid=wave.model.grid, data=rec0.data - rec.data,
-                        coordinates=rec0.coordinates.data)
+                        time_range=rec.time_range, coordinates=rec0.coordinates.data)
     gradient, _ = wave.gradient(residual, u0, m=m0)
     G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
 
@@ -108,7 +108,8 @@ def test_gradientJ(shape, kernel, space_order):
     m0 = Function(name='m0', grid=wave.model.m.grid, space_order=space_order)
     m0.data[:] = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float64(wave.model.m.data - m0.data)
-    linrec = Receiver(name='rec', grid=wave.model.grid, ntime=wave.receiver.nt,
+    linrec = Receiver(name='rec', grid=wave.model.grid,
+                      time_range=wave.receiver.time_range,
                       coordinates=wave.receiver.coordinates.data)
 
     # Compute receiver data and full wavefield for the smooth velocity
