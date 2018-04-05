@@ -6,7 +6,7 @@ import numpy as np
 from psutil import virtual_memory
 
 from devito.cgen_utils import INT, cast_mapper
-from devito.data import Data, first_touch
+from devito.data import ALLOC_FLAT, Data, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
@@ -147,7 +147,8 @@ class TensorFunction(AbstractCachedFunction):
         def wrapper(self):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
-                self._data = Data(self.shape_allocated, self.indices, self.dtype)
+                self._data = Data(self.shape_allocated, self.indices, self.dtype,
+                                  allocator=ALLOC_FLAT)
                 if self._first_touch:
                     first_touch(self)
                 if self.initializer is not None:

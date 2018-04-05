@@ -1,16 +1,120 @@
 from __future__ import absolute_import
 
-import ctypes
-from ctypes.util import find_library
+import abc
 from functools import reduce
 from operator import mul
 
 import numpy as np
 from sympy import Eq
+import ctypes
+from ctypes.util import find_library
 
 from devito.logger import error
 from devito.tools import as_tuple, numpy_to_ctypes
 import devito
+
+__all__ = ['Data', 'ALLOC_FLAT', 'ALLOC_NUMA_FAST', 'ALLOC_NUMA_SLOW']
+
+
+class MemoryAllocator(object):
+
+    """Abstract class defining the interface to memory allocators."""
+
+    __metaclass__ = abc.ABCMeta
+
+    _library_name = None
+
+    def __init__(self):
+        handle = find_library(self._library_name)
+        if handle is not None:
+            self.lib = ctypes.CDLL(handle)
+
+    @abc.abstractmethod
+    def alloc(self, shape, dtype):
+        """
+        Allocate memory.
+
+        :param shape: Shape of the array to allocate
+        :param dtype: Numpy datatype to allocate. Default to np.float32
+
+        :returns (pointer, c_pointer): the first element of the tuple is the reference
+                                       that can be used to access the data as a ctypes
+                                       object. The second element is the low-level
+                                       reference that is needed only for the call to free.
+        """
+        return
+
+    @abc.abstractmethod
+    def free(self, c_pointer):
+        """
+        Free memory previously allocated with ``self.alloc``.
+
+        :param c_pointer: the pointer to the memory region to be freed.
+        """
+        return
+
+
+class PosixAllocator(MemoryAllocator):
+
+    """
+    Memory allocator based on ``posix`` functions. The allocated memory is
+    aligned to page boundaries.
+    """
+
+    _library_name = 'c'
+
+    def alloc(self, shape, dtype):
+        c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.POINTER(ctypes.c_float))
+        arraysize = int(reduce(mul, shape))
+        ctype = numpy_to_ctypes(dtype)
+        alignment = self.lib.getpagesize()
+
+        ret = self.lib.posix_memalign(ctypes.byref(c_pointer), alignment,
+                                      ctypes.c_ulong(arraysize * ctypes.sizeof(ctype)))
+        if not ret == 0:
+            error("Unable to allocate memory for shape %s", str(shape))
+            return None
+
+        c_pointer = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype,
+                                                                  shape=shape))
+
+        pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
+        return (pointer, c_pointer)
+
+    def free(self, c_pointer):
+        self.lib.free(c_pointer)
+
+
+class NumaAllocator(MemoryAllocator):
+
+    """
+    Memory allocator based on ``libnuma`` functions. The allocated memory is
+    aligned to page boundaries. Through the argument ``preferred`` it is possible
+    to specify a NUMA domain in which memory allocation should be attempted first
+    (``libnuma`` will fall back to an arbitrary NUMA domain if not enough memory
+    is available on the preferred domain).
+
+    :param preferred: either ``'fast'`` or ``'slow'``. Internally, the NumaAllocator
+                      will pick the most suitable NUMA domain based on the platform
+                      on which the process is running.
+    """
+
+    _library_name = 'numa'
+
+    def __init__(self, preferred):
+        super(NumaAllocator, self).__init__()
+        self._preferred = preferred
+
+    def alloc(self, shape, dtype):
+        pass
+
+    def free(pointer):
+        pass
+
+
+ALLOC_FLAT = PosixAllocator()
+ALLOC_NUMA_FAST = NumaAllocator('fast')
+ALLOC_NUMA_SLOW = NumaAllocator('slow')
 
 
 class Data(np.ndarray):
@@ -26,6 +130,8 @@ class Data(np.ndarray):
     :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
                        of the ``Data``.
     :param dtype: A ``numpy.dtype`` for the raw data.
+    :param allocator: (Optional) a :class:`MemoryAllocator` to specialize memory
+                      allocation. Defaults to ``ALLOC_FLAT``.
 
     .. note::
 
@@ -40,10 +146,11 @@ class Data(np.ndarray):
         performing logical indexing is lost.
     """
 
-    def __new__(cls, shape, dimensions, dtype):
+    def __new__(cls, shape, dimensions, dtype, allocator=ALLOC_FLAT):
         assert len(shape) == len(dimensions)
-        ndarray, c_pointer = malloc_aligned(shape, dtype)
+        ndarray, c_pointer = allocator.alloc(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
+        obj._allocator = allocator
         obj._c_pointer = c_pointer
         obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
         return obj
@@ -51,7 +158,7 @@ class Data(np.ndarray):
     def __del__(self):
         if self._c_pointer is None:
             return
-        free(self._c_pointer)
+        self._allocator.free(self._c_pointer)
         self._c_pointer = None
 
     def __array_finalize__(self, obj):
@@ -121,52 +228,6 @@ class Data(np.ndarray):
         Set all grid entries to 0.
         """
         self[:] = 0.0
-
-
-"""
-Pre-load ``libc`` to explicitly manage C memory
-"""
-libc = ctypes.CDLL(find_library('c'))
-
-
-def malloc_aligned(shape, dtype=np.float32, alignment=None):
-    """
-    Allocate memory using the C function ``malloc_aligned``.
-
-    :param shape: Shape of the array to allocate
-    :param dtype: Numpy datatype to allocate. Default to np.float32
-    :param alignment: number of bytes to align to. Defaults to
-                      page size if not set.
-
-    :returns (pointer, c_pointer): the first element of the tuple is the reference
-                                   that can be used to access the data as a ctypes
-                                   object. The second element is the low-level
-                                   reference that is needed only for the call to free.
-    """
-    c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.POINTER(ctypes.c_float))
-    arraysize = int(reduce(mul, shape))
-    ctype = numpy_to_ctypes(dtype)
-    if alignment is None:
-        alignment = libc.getpagesize()
-
-    ret = libc.posix_memalign(ctypes.byref(c_pointer), alignment,
-                              ctypes.c_ulong(arraysize * ctypes.sizeof(ctype)))
-    if not ret == 0:
-        error("Unable to allocate memory for shape %s", str(shape))
-        return None
-
-    c_pointer = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype, shape=shape))
-
-    pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
-    return (pointer, c_pointer)
-
-
-def free(c_pointer):
-    """
-    Use the C function free to free the memory allocated for the
-    given pointer.
-    """
-    libc.free(c_pointer)
 
 
 def first_touch(array):
