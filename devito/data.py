@@ -23,18 +23,9 @@ class MemoryAllocator(object):
 
     __metaclass__ = abc.ABCMeta
 
-    _library_name = None
-
-    def __init__(self):
-        handle = find_library(self._library_name)
-        if handle is not None:
-            self.lib = ctypes.CDLL(handle)
-        else:
-            self.lib = None
-
-    @property
-    def initialized(self):
-        return self.lib is not None
+    @classmethod
+    def initialized(cls):
+        return cls.lib is not None
 
     def alloc(self, shape, dtype):
         """
@@ -95,7 +86,11 @@ class PosixAllocator(MemoryAllocator):
     aligned to page boundaries.
     """
 
-    _library_name = 'c'
+    handle = find_library('c')
+    if handle is not None:
+        lib = ctypes.CDLL(handle)
+    else:
+        lib = None
 
     def _alloc_C_libcall(self, size, ctype):
         c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
@@ -125,20 +120,21 @@ class NumaAllocator(MemoryAllocator):
                       on which the process is running.
     """
 
-    _library_name = 'numa'
+    handle = find_library('numa')
+    if handle is not None:
+        lib = ctypes.CDLL(handle)
+    else:
+        lib = None
+    if lib.numa_available() != -1:
+        # We are indeed on a NUMA system
+        lib.numa_alloc_local.restype = ctypes.c_void_p
+        lib.numa_alloc.restype = ctypes.c_void_p
+    else:
+        lib = None
 
     def __init__(self, preferred):
         super(NumaAllocator, self).__init__()
-
-        self.lib.numa_alloc_local.restype = ctypes.c_void_p
-        self.lib.numa_alloc.restype = ctypes.c_void_p
-
         self._preferred = preferred
-
-    @property
-    def initialized(self):
-        # Make sure to be on a NUMA architecture
-        return super(NumaAllocator, self).initialized and self.lib.numa_available() != -1
 
     def _alloc_C_libcall(self, size, ctype):
         c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
@@ -149,7 +145,7 @@ class NumaAllocator(MemoryAllocator):
         if c_pointer == 0:
             return None
         else:
-            return ctypes.cast(c_pointer, ctypes.POINTER(size*ctype))
+            return c_pointer
 
     def free(self, c_pointer, size):
         self.lib.numa_free(c_pointer, size)
@@ -187,7 +183,7 @@ def default_allocator():
           data should go to the closest NUMA domain);
         * Otherwise, return ALLOC_FLAT.
     """
-    if ALLOC_NUMA_FAST.initialized:
+    if ALLOC_NUMA_FAST.initialized():
         # At this point, for sure we are on a NUMA system.
         # Also, we can only be on an Intel Xeon or XeonPhi (the only supported
         # ones by Devito, currently; see /configuration._accepted['platform']/
