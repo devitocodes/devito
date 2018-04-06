@@ -6,7 +6,7 @@ import numpy as np
 from psutil import virtual_memory
 
 from devito.cgen_utils import INT, cast_mapper
-from devito.data import ALLOC_FLAT, Data, first_touch
+from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
@@ -137,6 +137,7 @@ class TensorFunction(AbstractCachedFunction):
                 assert(callable(self.initializer))
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data = None
+            self._allocator = kwargs.get('allocator', default_allocator())
 
     def __getitem__(self, index):
         """Shortcut for ``self.indexed[index]``."""
@@ -148,7 +149,7 @@ class TensorFunction(AbstractCachedFunction):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
                 self._data = Data(self.shape_allocated, self.indices, self.dtype,
-                                  allocator=ALLOC_FLAT)
+                                  allocator=self._allocator)
                 if self._first_touch:
                     first_touch(self)
                 if self.initializer is not None:
@@ -374,6 +375,10 @@ class Function(TensorFunction):
                     raised if such tuple has fewer entries then the number of space
                     dimensions.
     :param initializer: (Optional) A callable to initialize the data
+    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+                      specify where to allocate the function data when running
+                      on a NUMA architecture. Refer to ``default_allocator()``'s
+                      __doc__ for more information about possible allocators.
 
     .. note::
 
@@ -599,6 +604,10 @@ class TimeFunction(Function):
                     raised if such tuple has fewer entries then the number of
                     space dimensions.
     :param initializer: (Optional) A callable to initialize the data
+    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+                      specify where to allocate the function data when running
+                      on a NUMA architecture. Refer to ``default_allocator()``'s
+                      __doc__ for more information about possible allocators.
 
     .. note::
 
@@ -823,6 +832,10 @@ class SparseFunction(AbstractSparseFunction):
     :param space_order: Discretisation order for space derivatives.
     :param dtype: Data type of the buffered data.
     :param initializer: (Optional) A callable to initialize the data
+    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+                      specify where to allocate the function data when running
+                      on a NUMA architecture. Refer to ``default_allocator()``'s
+                      __doc__ for more information about possible allocators.
 
     .. note::
 
@@ -1048,6 +1061,10 @@ class SparseTimeFunction(SparseFunction):
                        Default to 1.
     :param dtype: (Optional) Data type of the buffered data.
     :param initializer: (Optional) A callable to initialize the data
+    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+                      specify where to allocate the function data when running
+                      on a NUMA architecture. Refer to ``default_allocator()``'s
+                      __doc__ for more information about possible allocators.
 
     .. note::
 
