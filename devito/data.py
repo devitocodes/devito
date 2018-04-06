@@ -13,7 +13,8 @@ from devito.logger import error
 from devito.tools import as_tuple, numpy_to_ctypes
 import devito
 
-__all__ = ['Data', 'ALLOC_FLAT', 'ALLOC_NUMA_FAST', 'ALLOC_NUMA_SLOW']
+__all__ = ['Data', 'ALLOC_FLAT', 'ALLOC_NUMA_FAST', 'ALLOC_NUMA_SLOW',
+           'default_allocator']
 
 
 class MemoryAllocator(object):
@@ -28,8 +29,13 @@ class MemoryAllocator(object):
         handle = find_library(self._library_name)
         if handle is not None:
             self.lib = ctypes.CDLL(handle)
+        else:
+            self.lib = None
 
-    @abc.abstractmethod
+    @property
+    def initialized(self):
+        return self.lib is not None
+
     def alloc(self, shape, dtype):
         """
         Allocate memory.
@@ -37,19 +43,47 @@ class MemoryAllocator(object):
         :param shape: Shape of the array to allocate
         :param dtype: Numpy datatype to allocate. Default to np.float32
 
-        :returns (pointer, c_pointer): the first element of the tuple is the reference
+        :returns (pointer, c_pointer): The first element of the tuple is the reference
                                        that can be used to access the data as a ctypes
                                        object. The second element is the low-level
                                        reference that is needed only for the call to free.
         """
+        size = int(reduce(mul, shape))
+        ctype = numpy_to_ctypes(dtype)
+
+        c_pointer = self._alloc_C_libcall(size, ctype)
+        if c_pointer is None:
+            error("Unable to allocate %d elements in memory", str(size))
+            return (None, None)
+
+        c_pointer = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype,
+                                                                  shape=shape))
+        pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
+
+        return (pointer, c_pointer)
+
+    @abc.abstractmethod
+    def _alloc_C_libcall(self):
+        """
+        Perform the actual memory allocation by calling a C function.
+
+        .. note::
+
+            This method should be implemented by a subclass.
+        """
         return
 
     @abc.abstractmethod
-    def free(self, c_pointer):
+    def free(self, c_pointer, size):
         """
         Free memory previously allocated with ``self.alloc``.
 
-        :param c_pointer: the pointer to the memory region to be freed.
+        :param c_pointer: The pointer to the memory region to be freed.
+        :param size: The amount of memory to be freed, in bytes.
+
+        .. note::
+
+            This method should be implemented by a subclass.
         """
         return
 
@@ -63,25 +97,17 @@ class PosixAllocator(MemoryAllocator):
 
     _library_name = 'c'
 
-    def alloc(self, shape, dtype):
-        c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.POINTER(ctypes.c_float))
-        arraysize = int(reduce(mul, shape))
-        ctype = numpy_to_ctypes(dtype)
+    def _alloc_C_libcall(self, size, ctype):
+        c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
+        c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.c_void_p)
         alignment = self.lib.getpagesize()
-
-        ret = self.lib.posix_memalign(ctypes.byref(c_pointer), alignment,
-                                      ctypes.c_ulong(arraysize * ctypes.sizeof(ctype)))
-        if not ret == 0:
-            error("Unable to allocate memory for shape %s", str(shape))
+        ret = self.lib.posix_memalign(ctypes.byref(c_pointer), alignment, c_bytesize)
+        if ret == 0:
+            return c_pointer
+        else:
             return None
 
-        c_pointer = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype,
-                                                                  shape=shape))
-
-        pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
-        return (pointer, c_pointer)
-
-    def free(self, c_pointer):
+    def free(self, c_pointer, size):
         self.lib.free(c_pointer)
 
 
@@ -103,18 +129,71 @@ class NumaAllocator(MemoryAllocator):
 
     def __init__(self, preferred):
         super(NumaAllocator, self).__init__()
+
+        self.lib.numa_alloc_local.restype = ctypes.c_void_p
+        self.lib.numa_alloc.restype = ctypes.c_void_p
+
         self._preferred = preferred
 
-    def alloc(self, shape, dtype):
-        pass
+    @property
+    def initialized(self):
+        # Make sure to be on a NUMA architecture
+        return super(NumaAllocator, self).initialized and self.lib.numa_available() != -1
 
-    def free(pointer):
-        pass
+    def _alloc_C_libcall(self, size, ctype):
+        c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
+        if self._preferred == 'fast':
+            c_pointer = self.lib.numa_alloc_local(c_bytesize)
+        else:
+            c_pointer = self.lib.numa_alloc(c_bytesize)
+        if c_pointer == 0:
+            return None
+        else:
+            return ctypes.cast(c_pointer, ctypes.POINTER(size*ctype))
+
+    def free(self, c_pointer, size):
+        self.lib.numa_free(c_pointer, size)
 
 
 ALLOC_FLAT = PosixAllocator()
 ALLOC_NUMA_FAST = NumaAllocator('fast')
 ALLOC_NUMA_SLOW = NumaAllocator('slow')
+
+
+def default_allocator():
+    """
+    Return a :class:`MemoryAllocator` for the architecture on which the
+    process is running. Possible allocators are: ::
+
+        * ALLOC_FLAT: align memory to page boundaries using the posix function
+                      ``posix_memalign``
+        * ALLOC_NUMA_FAST: allocate memory on the "fastest" memory region available
+                           in the system. "Fastest" should be interpreted as the
+                           best compromise between bandwidth and latency. This
+                           only makes sense on a NUMA architecture. For example,
+                           on a Knights Landing platform, ALLOC_NUMA_FAST will
+                           attempt data allocation in the MCDRAM, falling back
+                           to DRAM only if not enough space is available.
+        * ALLOC_NUMA_SLOW: this is the opposite of ALLOC_NUMA_FAST.
+
+    The default allocator is chosen based on the following algorithm: ::
+
+        * If ``libnuma`` is not available on the system, return ALLOC_FLAT (though
+          it typically is available, at least on relatively recent Linux distributions);
+        * If on a Knights Landing platform (codename ``knl``, see ``print_defaults()``)
+          return ALLOC_NUMA_FAST (i.e., data should go to MCDRAM as long as there's
+          enough space);
+        * If on a multi-socket Intel Xeon platform, return ALLOC_NUMA_FAST (i.e.,
+          data should go to the closest NUMA domain);
+        * Otherwise, return ALLOC_FLAT.
+    """
+    if ALLOC_NUMA_FAST.initialized:
+        # At this point, for sure we are on a NUMA system.
+        # Also, we can only be on an Intel Xeon or XeonPhi (the only supported
+        # ones by Devito, currently; see /configuration._accepted['platform']/
+        return ALLOC_NUMA_FAST
+    else:
+        return ALLOC_FLAT
 
 
 class Data(np.ndarray):
@@ -158,7 +237,7 @@ class Data(np.ndarray):
     def __del__(self):
         if self._c_pointer is None:
             return
-        self._allocator.free(self._c_pointer)
+        self._allocator.free(self._c_pointer, self.nbytes)
         self._c_pointer = None
 
     def __array_finalize__(self, obj):
