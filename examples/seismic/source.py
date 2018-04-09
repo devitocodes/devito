@@ -17,7 +17,7 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
            'RickerSource', 'GaborSource', 'TimeAxis']
 
 
-class TimeAxis:
+class TimeAxis(object):
     """ Data object to store the time axis. Exactly three of the four key arguments
         must be prescribed. Because of remainder values it is not possible to create
         a time axis that exactly adhears to the inputs therefore start, stop, step
