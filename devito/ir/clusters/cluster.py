@@ -79,7 +79,7 @@ class PartialCluster(object):
         point calculations with mixed precision, return the data type with
         highest precision."""
         dtypes = {i.dtype for i in self.exprs}
-        fdtypes = {i for i in dtypes if np.issubdtype(i, np.float)}
+        fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
         if len(fdtypes) > 1:
             raise NotImplementedError("Unsupported Cluster with mixed floating "
                                       "point arithmetic %s" % str(fdtypes))
@@ -200,7 +200,7 @@ class ClusterGroup(list):
         point calculations with different precision, return the data type with
         highest precision."""
         dtypes = {i.dtype for i in self}
-        fdtypes = {i for i in dtypes if np.issubdtype(i, np.float)}
+        fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
         if len(fdtypes) > 1:
             raise NotImplementedError("Unsupported ClusterGroup with mixed floating "
                                       "point arithmetic %s" % str(fdtypes))
