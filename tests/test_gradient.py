@@ -144,4 +144,4 @@ def test_gradientJ(shape, kernel, space_order):
 
 
 if __name__ == "__main__":
-    test_gradientFWI(shape=(60, 70), kernel='OT2', space_order=4)
+    test_gradientFWI(shape=(70, 80), kernel='OT2', space_order=4)

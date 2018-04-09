@@ -12,7 +12,8 @@ class GradientExample(object):
                  kernel='OT2', space_order=4, nbpml=10):
         self.kernel = kernel
         self.space_order = space_order
-        self._setup_model_and_acquisition(space_order, shape, spacing, nbpml, tn)
+        self._setup_model_and_acquisition(space_order, shape, spacing,
+                                          nbpml+int(space_order/2), tn)
         self._true_data()
 
     @cached_property
@@ -27,6 +28,7 @@ class GradientExample(object):
         self.model = model
         t0 = 0.0
         time_range = TimeAxis(start=t0, stop=tn, step=self.dt)
+        self.nt = time_range.num
 
         # Define source geometry (center of domain, just below surface)
         src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
@@ -150,11 +152,6 @@ class GradientExample(object):
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-
-        print("error2 = ", error2)
-        print ("p2=", p2)
-
-        print("slope = ", (np.log(error2[1:])-np.log(error2[:-1]))/(np.log(H[1:])-np.log(H[:-1])))
 
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
