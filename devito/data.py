@@ -10,11 +10,12 @@ import ctypes
 from ctypes.util import find_library
 
 from devito.logger import error
+from devito.parameters import configuration
 from devito.tools import as_tuple, numpy_to_ctypes
 import devito
 
-__all__ = ['Data', 'ALLOC_FLAT', 'ALLOC_NUMA_FAST', 'ALLOC_NUMA_SLOW',
-           'default_allocator']
+__all__ = ['Data', 'ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
+           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'default_allocator']
 
 
 class MemoryAllocator(object):
@@ -110,14 +111,12 @@ class NumaAllocator(MemoryAllocator):
 
     """
     Memory allocator based on ``libnuma`` functions. The allocated memory is
-    aligned to page boundaries. Through the argument ``preferred`` it is possible
-    to specify a NUMA domain in which memory allocation should be attempted first
-    (``libnuma`` will fall back to an arbitrary NUMA domain if not enough memory
-    is available on the preferred domain).
+    aligned to page boundaries. Through the argument ``node`` it is possible
+    to specify a NUMA node in which memory allocation should be attempted first
+    (will fall back to an arbitrary NUMA domain if not enough memory is available)
 
-    :param preferred: either ``'fast'`` or ``'slow'``. Internally, the NumaAllocator
-                      will pick the most suitable NUMA domain based on the platform
-                      on which the process is running.
+    :param node: Either an integer, indicating a specific NUMA node, or the special
+                 keywords ``'local'`` or ``'any'``.
     """
 
     handle = find_library('numa')
@@ -127,18 +126,24 @@ class NumaAllocator(MemoryAllocator):
         lib = None
     if lib.numa_available() != -1:
         # We are indeed on a NUMA system
+        # Allow the kernel to allocate memory on other NUMA nodes when there isn't
+        # enough free on the target node
+        lib.numa_set_bind_policy(0)
+        # Required because numa_alloc* functions return pointers
         lib.numa_alloc_local.restype = ctypes.c_void_p
         lib.numa_alloc.restype = ctypes.c_void_p
     else:
         lib = None
 
-    def __init__(self, preferred):
+    def __init__(self, node):
         super(NumaAllocator, self).__init__()
-        self._preferred = preferred
+        self._node = node
 
     def _alloc_C_libcall(self, size, ctype):
         c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
-        if self._preferred == 'fast':
+        if isinstance(self._node, int):
+            c_pointer = self.lib.numa_alloc_onnode(c_bytesize, self._node)
+        elif self._node == 'local':
             c_pointer = self.lib.numa_alloc_local(c_bytesize)
         else:
             c_pointer = self.lib.numa_alloc(c_bytesize)
@@ -152,8 +157,10 @@ class NumaAllocator(MemoryAllocator):
 
 
 ALLOC_FLAT = PosixAllocator()
-ALLOC_NUMA_FAST = NumaAllocator('fast')
-ALLOC_NUMA_SLOW = NumaAllocator('slow')
+ALLOC_KNL_DRAM = NumaAllocator(0)
+ALLOC_KNL_MCDRAM = NumaAllocator(1)
+ALLOC_NUMA_ANY = NumaAllocator('any')
+ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
 
 def default_allocator():
@@ -161,33 +168,31 @@ def default_allocator():
     Return a :class:`MemoryAllocator` for the architecture on which the
     process is running. Possible allocators are: ::
 
-        * ALLOC_FLAT: align memory to page boundaries using the posix function
+        * ALLOC_FLAT: Align memory to page boundaries using the posix function
                       ``posix_memalign``
-        * ALLOC_NUMA_FAST: allocate memory on the "fastest" memory region available
-                           in the system. "Fastest" should be interpreted as the
-                           best compromise between bandwidth and latency. This
-                           only makes sense on a NUMA architecture. For example,
-                           on a Knights Landing platform, ALLOC_NUMA_FAST will
-                           attempt data allocation in the MCDRAM, falling back
-                           to DRAM only if not enough space is available.
-        * ALLOC_NUMA_SLOW: this is the opposite of ALLOC_NUMA_FAST.
+        * ALLOC_NUMA_LOCAL: Allocate memory in the "closest" NUMA node. This only
+                            makes sense on a NUMA architecture. Falls back to
+                            allocation in an arbitrary NUMA node if there isn't
+                            enough space.
+        * ALLOC_NUMA_ANY: Allocate memory in an arbitrary NUMA node.
+        * ALLOC_KNL_MCDRAM: On a Knights Landing platform, allocate memory in MCDRAM.
+                            Falls back to DRAM if there isn't enough space.
+        * ALLOC_KNL_DRAM: On a Knights Landing platform, allocate memory in DRAM.
 
     The default allocator is chosen based on the following algorithm: ::
 
         * If ``libnuma`` is not available on the system, return ALLOC_FLAT (though
           it typically is available, at least on relatively recent Linux distributions);
         * If on a Knights Landing platform (codename ``knl``, see ``print_defaults()``)
-          return ALLOC_NUMA_FAST (i.e., data should go to MCDRAM as long as there's
-          enough space);
-        * If on a multi-socket Intel Xeon platform, return ALLOC_NUMA_FAST (i.e.,
-          data should go to the closest NUMA domain);
+          return ALLOC_KNL_MCDRAM;
+        * If on a multi-socket Intel Xeon platform, return ALLOC_NUMA_LOCAL;
         * Otherwise, return ALLOC_FLAT.
     """
-    if ALLOC_NUMA_FAST.initialized():
-        # At this point, for sure we are on a NUMA system.
-        # Also, we can only be on an Intel Xeon or XeonPhi (the only supported
-        # ones by Devito, currently; see /configuration._accepted['platform']/
-        return ALLOC_NUMA_FAST
+    if NumaAllocator.initialized():
+        if configuration['platform'] == 'knl':
+            return ALLOC_KNL_MCDRAM
+        else:
+            return ALLOC_NUMA_LOCAL
     else:
         return ALLOC_FLAT
 
