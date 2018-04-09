@@ -134,7 +134,7 @@ def test_forward_with_breaks(shape, kernel, space_order):
     wrap_rev = CheckpointOperator(example.gradient_operator, u=example.forward_field,
                                   v=example.adjoint_field, m=m0, rec=example.rec_g,
                                   grad=example.grad, dt=example.dt)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-time_order)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.src._time_range.num-time_order)
     example.forward_operator.apply(u=example.forward_field, rec=example.rec, m=m0,
                                    src=example.src, dt=example.dt)
     u_temp = np.copy(example.forward_field.data)
