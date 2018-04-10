@@ -117,23 +117,29 @@ class PointSource(SparseTimeFunction):
     def time_range(self):
         return self._time_range
 
-    def resample(self, dt, window=None):
+    def resample(self, dt):
         start, stop = self._time_range.start, self._time_range.stop
 
-        nintervals = int((stop - start)/dt)
+        npad = 2**int(np.log2(self._time_range.num)+1)
+
+        new_num = 1+int(np.ceil((stop - start)/dt))
 
         if self.data is None:
             error("resample called but there is no data.")
 
         # Create resampled data.
         npoint = self.coordinates.shape[0]
-        data = np.zeros((nintervals, npoint))
+        data = np.zeros((new_num, npoint))
+        scratch = np.zeros(npad)
+        stop_pad = npad * self._time_range.step
+        pintervals = int((stop_pad - start)/dt)
         for i in range(npoint):
-            data[:, i], t = signal.resample(self.data[:, i], nintervals,
-                                            t=self._time_range.time_values,
-                                            window=window)
+            scratch[0:self.data.shape[0]] = self.data[:, i]
+            sampled = signal.resample(scratch, pintervals)
 
-        new_time_range = TimeAxis(start=start, step=t[1]-t[0], num=t.size)
+            data[:, i] = sampled[:new_num]
+
+        new_time_range = TimeAxis(start=start, step=dt, num=new_num)
 
         # Return new object
         return PointSource(self.name, self.grid, data=data, time_range=new_time_range,

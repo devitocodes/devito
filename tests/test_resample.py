@@ -1,6 +1,5 @@
 import numpy as np
 from examples.seismic import TimeAxis, RickerSource, demo_model
-from scipy.interpolate import CubicSpline
 
 
 def test_resample():
@@ -25,16 +24,11 @@ def test_resample():
 
     src_c = src_b.resample(dt=src_a._time_range.step)
 
-    # dt can be slightly different between src_a and src_c (couldn't figure out why)
-    # so using cubic interpolation to calculate the error norm
-    src_c_spline = CubicSpline(src_c._time_range.time_values, src_c.data,
-                               extrapolate=True)
-    num = min(src_a.data.size, src_c.data.size)
-    src_c_interpolated = src_c_spline(src_a._time_range.time_values)[:num]
+    assert src_a.data.size == src_c.data.size
 
-    assert np.isclose(src_a.data[:num], src_c_interpolated).any()
-    assert np.isclose(np.linalg.norm(src_a.data[:num] - src_c_interpolated), 0,
-                      rtol=1e-6, atol=1e-6)
+    assert np.isclose(src_a.data, src_c.data).any()
+    assert np.isclose(np.linalg.norm(src_a.data - src_c.data), 0,
+                      rtol=1e-7, atol=1e-7)
 
 
 if __name__ == "__main__":
