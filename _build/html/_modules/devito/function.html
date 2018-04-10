@@ -224,28 +224,32 @@
         <span class="sd">&quot;&quot;&quot;Return a tuple of argument names introduced by this symbol.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,)</span>
 
-    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of default argument values defined by this symbol.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">}</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of argument values after evaluating user input.</span>
+<span class="sd">        Returns a map of argument values after evaluating user input. If no</span>
+<span class="sd">        user input is provided, return a default value.</span>
 
 <span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
             <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-            <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">data</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">Constant</span><span class="p">)</span> <span class="k">else</span> <span class="n">new</span>
-        <span class="k">return</span> <span class="n">values</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">Constant</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">new</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">new</span><span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">dspace</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        :raises InvalidArgument: If, given the runtime arguments ``args``, an</span>
-<span class="sd">                                 out-of-bounds access will be performed.</span>
+<span class="sd">        Check that ``args`` contains legal runtime values bound to ``self``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;No runtime value for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
@@ -454,33 +458,35 @@
             <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="n">k</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">args</span>
 
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of argument values after evaluating user input.</span>
+<span class="sd">        Returns a map of argument values after evaluating user input. If no</span>
+<span class="sd">        user input is provided, return a default value.</span>
 
 <span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
-<span class="sd">        :param alias: (Optional) name under which to store values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
-
-        <span class="c1"># Add value override for own data if it is provided</span>
+        <span class="c1"># Add value override for own data if it is provided, otherwise</span>
+        <span class="c1"># use defaults</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
             <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">TensorFunction</span><span class="p">):</span>
                 <span class="c1"># Set new values and re-derive defaults</span>
-                <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">())</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># We&#39;ve been provided a pure-data replacement (array)</span>
-                <span class="n">values</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">new</span><span class="p">}</span>
                 <span class="c1"># Add value overrides for all associated dimensions</span>
                 <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">new</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">):</span>
                     <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="o">-</span><span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">i</span><span class="p">])))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
 
         <span class="k">return</span> <span class="n">values</span>
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">intervals</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check that ``args`` contains legal runtime values bound to ``self``.</span>
+
 <span class="sd">        :raises InvalidArgument: If, given the runtime arguments ``args``, an</span>
 <span class="sd">                                 out-of-bounds access will be performed.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -887,24 +893,7 @@
         <span class="n">width_t</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
         <span class="n">indt</span> <span class="o">=</span> <span class="p">[(</span><span class="n">_t</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">_t</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width_t</span><span class="p">,</span> <span class="n">width_t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indt</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of argument values after evaluating user input.</span>
-
-<span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
-<span class="sd">        :param alias: (Optional) name under which to store values.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Check if data has the right dimension</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">TimeFunction</span><span class="p">)</span> <span class="ow">and</span> <span class="n">new</span><span class="o">.</span><span class="n">save</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Incorrect value encountered, save should be </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
-                                <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">)</span>
-
-        <span class="n">values</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_values</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">values</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indt</span><span class="p">)</span></div>
 
 
 <span class="k">class</span> <span class="nc">AbstractSparseFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
