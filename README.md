@@ -3,7 +3,7 @@
 ![Build Status](https://travis-ci.org/opesci/devito.svg?branch=master)
 ![Code Coverage](https://codecov.io/gh/opesci/devito/branch/master/graph/badge.svg)
 
-[Devito](http://www.opesci.org/devito-public) is a software to
+[Devito](http://www.devitoproject.org) is a software to
 implement optimised finite difference (FD) computation from
 high-level symbolic problem definitions. Starting from symbolic
 equations defined in [SymPy](http://www.sympy.org/en/index.html),
@@ -12,8 +12,8 @@ compilation to execute FD kernels on multiple computer platforms.
 
 Devito is part of the [OPESCI](http://www.opesci.org) seismic imaging
 project. A general overview of Devito features and capabilities can be
-found [here](http://www.opesci.org/devito-public), including a
-detailed [API documentation](http://www.opesci.org/devito).
+found [here](http://www.devitoproject.org), including a
+detailed [API documentation](http://www.devitoproject.org).
 
 ## Get in touch
 

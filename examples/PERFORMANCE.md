@@ -183,8 +183,8 @@ on how auto-tuning is getting along.
    reader is invited to get in touch with the development team if struggling
    with this matter.
  * The DSE `aggressive` mode will not work with backend compilers that are not
-   Intel. This is a known bug in GCC, which breaks when trying to compile the
-   legal OpenMP code that Devito generates. This is issue #320 on GitHub.
+   Intel. This is a known
+   issue[https://github.com/opesci/devito/issues/320] in devito.
 
 # Do not hesitate to contact us
 
