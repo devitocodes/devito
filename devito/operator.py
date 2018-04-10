@@ -20,7 +20,8 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
-from devito.tools import ReducerMap, as_tuple, flatten, filter_sorted, numpy_to_ctypes
+from devito.tools import (ReducerMap, as_tuple, flatten, filter_sorted, numpy_to_ctypes,
+                          split)
 from devito.types import Object
 
 
@@ -125,17 +126,18 @@ class Operator(Callable):
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
-        # Handle data-carriers (first overrides, then defaults)
+        # Process data-carriers (first overrides, then fill up with whatever is needed)
         args = ReducerMap()
         args.update([p._arg_values(**kwargs) for p in self.input if p.name in kwargs])
-        args.update([p._arg_defaults() for p in self.input if p.name not in args])
+        args.update([p._arg_values() for p in self.input if p.name not in args])
         args = args.reduce_all()
 
-        # Handle dimensions (first adjust data-carriers-induced defaults, then overrides)
-        for p in self.dimensions:
-            args.update(p._arg_infers(args, self._dspace[p], **kwargs))
-        for p in self.dimensions:
-            args.update(p._arg_values(**kwargs))
+        # Process dimensions (derived go after as they might need/affect their parents)
+        derived, main = split(self.dimensions, lambda i: i.is_Derived)
+        for p in main:
+            args.update(p._arg_values(args, self._dspace[p], **kwargs))
+        for p in derived:
+            args.update(p._arg_values(args, self._dspace[p], **kwargs))
 
         # Sanity check
         for p in self.input:

@@ -73,6 +73,15 @@ def grouper(iterable, n):
     return ([e for e in t if e is not None] for t in zip_longest(*args))
 
 
+def split(iterable, f):
+    """Split an iterable ``I`` into two iterables ``I1`` and ``I2`` of the
+    same type as ``I``. ``I1`` contains all elements ``e`` in ``I`` for
+    which ``f(e)`` returns True; ``I2`` is the complement of ``I1``."""
+    i1 = type(iterable)(i for i in iterable if f(i))
+    i2 = type(iterable)(i for i in iterable if not f(i))
+    return i1, i2
+
+
 def roundm(x, y):
     """Return x rounded up to the closest multiple of y."""
     return x if x % y == 0 else x + y - x % y
