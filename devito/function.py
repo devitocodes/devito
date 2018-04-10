@@ -63,28 +63,32 @@ class Constant(AbstractCachedSymbol):
         """Return a tuple of argument names introduced by this symbol."""
         return (self.name,)
 
-    def _arg_defaults(self):
+    def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
         """
-        return {self.name: self.data}
+        key = alias or self
+        return {key.name: self.data}
 
     def _arg_values(self, **kwargs):
         """
-        Returns a map of argument values after evaluating user input.
+        Returns a map of argument values after evaluating user input. If no
+        user input is provided, return a default value.
 
         :param kwargs: Dictionary of user-provided argument overrides.
         """
-        values = {}
         if self.name in kwargs:
             new = kwargs.pop(self.name)
-            values[self.name] = new.data if isinstance(new, Constant) else new
-        return values
+            if isinstance(new, Constant):
+                return new._arg_defaults(alias=self)
+            else:
+                return {self.name: new}
+        else:
+            return self._arg_defaults()
 
     def _arg_check(self, args, dspace):
         """
-        :raises InvalidArgument: If, given the runtime arguments ``args``, an
-                                 out-of-bounds access will be performed.
+        Check that ``args`` contains legal runtime values bound to ``self``.
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for %s" % self.name)
@@ -293,33 +297,35 @@ class TensorFunction(AbstractCachedFunction):
             args.update(i._arg_defaults(start=0, size=s+o, alias=k))
         return args
 
-    def _arg_values(self, alias=None, **kwargs):
+    def _arg_values(self, **kwargs):
         """
-        Returns a map of argument values after evaluating user input.
+        Returns a map of argument values after evaluating user input. If no
+        user input is provided, return a default value.
 
         :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
         """
-        values = {}
-        key = alias or self
-
-        # Add value override for own data if it is provided
+        # Add value override for own data if it is provided, otherwise
+        # use defaults
         if self.name in kwargs:
             new = kwargs.pop(self.name)
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
-                values.update(new._arg_defaults(alias=key).reduce_all())
+                values = new._arg_defaults(alias=self).reduce_all()
             else:
                 # We've been provided a pure-data replacement (array)
-                values[key.name] = new
+                values = {self.name: new}
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
                     values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
+        else:
+            values = self._arg_defaults(alias=self).reduce_all()
 
         return values
 
     def _arg_check(self, args, intervals):
         """
+        Check that ``args`` contains legal runtime values bound to ``self``.
+
         :raises InvalidArgument: If, given the runtime arguments ``args``, an
                                  out-of-bounds access will be performed.
         """
@@ -727,23 +733,6 @@ class TimeFunction(Function):
         indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
 
         return self.diff(_t, _t).as_finite_difference(indt)
-
-    def _arg_values(self, alias=None, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
-        """
-        # Check if data has the right dimension
-        if self.name in kwargs:
-            new = kwargs.get(self.name)
-            if isinstance(new, TimeFunction) and new.save != self.save:
-                raise TypeError("Incorrect value encountered, save should be %s" %
-                                self.save)
-
-        values = super(TimeFunction, self)._arg_values(alias=alias, **kwargs)
-        return values
 
 
 class AbstractSparseFunction(TensorFunction):
