@@ -244,7 +244,7 @@ class DerivedDimension(Dimension):
     Dimension symbol derived from a ``parent`` Dimension.
 
     :param name: Name of the dimension symbol.
-    :param parent: Parent dimension from which the ``SubDimension`` is
+    :param parent: Parent dimension from which the ``DerivedDimension`` is
                    created.
     """
 
@@ -287,32 +287,71 @@ class SubDimension(DerivedDimension):
 
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension from which the SubDimension is created.
-    :param lower: Lower offset from the ``parent`` dimension.
-    :param upper: Upper offset from the ``parent`` dimension.
+    :param lower: Lower offset from the ``parent`` dimension's minimum
+    :param upper: Upper offset from the ``parent`` dimension's maximum
+    :param lower_symbolic: Symbolic expression to provide the lower bound
+    :param upper_symbolic: Symbolic expression to provide the upper bound
     """
 
-    def __new__(cls, name, parent, lower, upper, **kwargs):
+    def __new__(cls, name, parent, lower=None, upper=None,
+                lower_symbolic=None,
+                upper_symbolic=None, **kwargs):
         newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
-        newobj._lower = lower
-        newobj._upper = upper
+        assert (lower is None) ^ (lower_symbolic is None)
+        assert (upper is None) ^ (upper_symbolic is None)
+
+        if lower_symbolic is None:
+            lower_symbolic = parent.symbolic_start + lower
+        if upper_symbolic is None:
+            upper_symbolic = parent.symbolic_end + upper
+
+        newobj._interval = sympy.Interval(lower_symbolic, upper_symbolic)
         return newobj
 
-    @property
-    def lower(self):
-        return self._lower
+    @classmethod
+    def left(cls, name, parent, thickness):
+        return cls(name, parent,
+                   lower_symbolic=parent.symbolic_start,
+                   upper_symbolic=parent.symbolic_start+thickness-1)
+
+    @classmethod
+    def right(cls, name, parent, thickness):
+        return cls(name, parent,
+                   lower_symbolic=parent.symbolic_end-thickness+1,
+                   upper_symbolic=parent.symbolic_end)
+
+    @classmethod
+    def middle(cls, name, parent, thickness_left, thickness_right):
+        return cls(name, parent,
+                   lower_symbolic=parent.symbolic_start+thickness_left,
+                   upper_symbolic=parent.symbolic_end-thickness_right)
 
     @property
-    def upper(self):
-        return self._upper
+    def symbolic_start(self):
+        return self._interval.left
+
+    @property
+    def symbolic_end(self):
+        return self._interval.right
 
     def _hashable_content(self):
-        return (self.parent._hashable_content(), self.lower, self.upper)
+        return (self.parent._hashable_content(), self._interval)
 
     def _arg_values(self, args, interval, **kwargs):
         values = {}
-        values[self.min_name] = args[self.parent.min_name] + self.lower
-        values[self.max_name] = args[self.parent.max_name] + self.upper
-        values[self.size_name] = args[self.parent.size_name] - (self.lower + self.upper)
+
+        # This works for expressions involving devito.types.Scalar
+        # and sympy types, since _subs is overridden in
+        # devito.types.Scalar
+        evaluated_interval = self._interval.subs(args)
+        if evaluated_interval.left.is_Integer:
+            values[self.min_name] = evaluated_interval.left
+        if evaluated_interval.right.is_Integer:
+            values[self.max_name] = evaluated_interval.right
+        if (evaluated_interval.right-evaluated_interval.left).is_Integer:
+            values[self.size_name] = (
+                evaluated_interval.right-evaluated_interval.left + 1)
+
         return values
 
 
