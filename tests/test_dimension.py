@@ -114,9 +114,12 @@ class TestSubDimension(object):
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
 
 
+@skipif_yask
 class TestConditionalDimension(object):
 
-    @skipif_yask
+    """A collection of tests to check the correct functioning of
+    :class:`ConditionalDimension`s."""
+
     def test_basic(self):
         nt = 19
         grid = Grid(shape=(11, 11))
@@ -142,7 +145,36 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
 
-    @skipif_yask
+    def test_laplace(self):
+        grid = Grid(shape=(20, 20, 20))
+        x, y, z = grid.dimensions
+        time = grid.time_dim
+        t = grid.stepping_dim
+        tsave = ConditionalDimension(name='tsave', parent=time, factor=2)
+
+        u = TimeFunction(name='u', grid=grid, save=None, time_order=2)
+        usave = TimeFunction(name='usave', grid=grid, time_dim=tsave,
+                             time_order=0, space_order=0)
+
+        steps = []
+        # save of snapshot
+        steps.append(Eq(usave, u))
+        # standard laplace-like thing
+        steps.append(Eq(u[t+1, x, y, z],
+                        u[t, x, y, z] - u[t-1, x, y, z]
+                        + u[t, x-1, y, z] + u[t, x+1, y, z]
+                        + u[t, x, y-1, z] + u[t, x, y+1, z]
+                        + u[t, x, y, z-1] + u[t, x, y, z+1]))
+
+        op = Operator(steps)
+
+        u.data[:] = 0.0
+        u.data[0, 10, 10, 10] = 1.0
+        op.apply(time_m=0, time_M=0)
+        assert np.sum(u.data[0, :, :, :]) == 1.0
+        assert np.sum(u.data[1, :, :, :]) == 7.0
+        assert np.all(usave.data[0, :, :, :] == u.data[0, :, :, :])
+
     def test_as_expr(self):
         nt = 19
         grid = Grid(shape=(11, 11))
@@ -169,7 +201,6 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(usave.data[i], i*factor*i)
                       for i in range((nt+factor-1)//factor)])
 
-    @skipif_yask
     def test_shifted(self):
         nt = 19
         grid = Grid(shape=(11, 11))
