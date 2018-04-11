@@ -632,6 +632,14 @@ class Indexed(sympy.Indexed):
     def _hashable_content(self):
         return super(Indexed, self)._hashable_content() + (self.base.function,)
 
+    @property
+    def function(self):
+        return self.base.function
+
+    @property
+    def dtype(self):
+        return self.function.dtype
+
 
 # Utilities
 

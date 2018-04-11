@@ -12,7 +12,8 @@ omplang = {
     'par-region': lambda i: c.Pragma('omp parallel %s' % i),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
     'simd-for': c.Pragma('omp simd'),
-    'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j))
+    'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
+    'atomic': c.Pragma('omp atomic update')
 }
 
 """

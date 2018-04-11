@@ -7,7 +7,7 @@ from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGrou
                                build_intervals, detect_flow_directions)
 from devito.symbolics import FrozenExpr, dimension_sort
 
-__all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
+__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
 
 class IREq(object):
@@ -43,6 +43,10 @@ class IREq(object):
     @property
     def directions(self):
         return self.ispace.directions
+
+    @property
+    def dtype(self):
+        return self.lhs.dtype
 
 
 class LoweredEq(Eq, IREq):
@@ -175,3 +179,25 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
 
     def func(self, *args, **kwargs):
         return super(ClusterizedEq, self).func(*args, stamp=self)
+
+
+class DummyEq(ClusterizedEq):
+
+    """
+    DummyEq(expr)
+    DummyEq(lhs, rhs)
+
+    A special :class:`ClusterizedEq` that should never be used except for
+    writing tests, when there is no need to know the iteration/data spaces.
+    """
+
+    def __new__(cls, *args):
+        if len(args) == 1:
+            input_expr = args[0]
+            assert isinstance(input_expr, Eq)
+            obj = LoweredEq(input_expr)
+        elif len(args) == 2:
+            obj = LoweredEq(Eq(*args, evaluate=False))
+        else:
+            raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
+        return ClusterizedEq.__new__(cls, obj, obj.ispace, obj.dspace)

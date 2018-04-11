@@ -15,14 +15,14 @@ from devito.types import Scalar
 __all__ = ['iet_build', 'iet_insert_C_decls']
 
 
-def iet_build(clusters, dtype):
+def iet_build(clusters):
     """
     Create an Iteration/Expression tree (IET) given an iterable of :class:`Cluster`s.
     The nodes in the returned IET are decorated with properties deriving from
     data dependence analysis.
     """
     # Clusters -> Iteration/Expression tree
-    iet = iet_make(clusters, dtype)
+    iet = iet_make(clusters)
 
     # Data dependency analysis. Properties are attached directly to nodes
     iet = iet_analyze(iet)
@@ -39,12 +39,11 @@ def iet_build(clusters, dtype):
     return iet
 
 
-def iet_make(clusters, dtype):
+def iet_make(clusters):
     """
     Create an Iteration/Expression tree (IET) given an iterable of :class:`Cluster`s.
 
     :param clusters: The iterable :class:`Cluster`s for which the IET is built.
-    :param dtype: The data type of the scalar expressions.
     """
     # {Iteration -> [c0, c1, ...]}, shared clusters
     shared = {}
@@ -55,9 +54,11 @@ def iet_make(clusters, dtype):
 
     # Build IET
     for cluster in clusters:
+        body = [Expression(e) for e in cluster.exprs]
+
         if cluster.ispace.empty:
             # No Iterations are needed
-            processed.extend([Expression(e, dtype) for e in cluster.exprs])
+            processed.extend(body)
             continue
 
         root = None
@@ -73,8 +74,6 @@ def iet_make(clusters, dtype):
         needed = itintervals[index:]
 
         # Build Expressions
-        body = [Expression(e, np.int32 if cluster.trace.is_index(e.lhs) else dtype)
-                for e in cluster.exprs]
         if not needed:
             body = List(body=body)
 

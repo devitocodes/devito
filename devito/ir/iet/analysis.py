@@ -8,8 +8,9 @@ perform actual data dependence analysis.
 from collections import OrderedDict
 from functools import cmp_to_key
 
-from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, VECTOR, WRAPPABLE,
-                           MapIteration, NestedTransformer, retrieve_iteration_tree)
+from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+                           VECTOR, WRAPPABLE, MapIteration, NestedTransformer,
+                           retrieve_iteration_tree)
 from devito.ir.support import Scope
 from devito.tools import as_tuple, filter_ordered, flatten
 
@@ -76,17 +77,32 @@ def mark_parallel(analysis):
             prev = flatten(dims[:-1])
             # Get all dimensions up to and including Iteration /i/
             dims = flatten(dims)
+
             # The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):
-            # (d_1, ..., d_{i-1}) > 0, OR
-            # (d_1, ..., d_i) = 0
-            is_sequential = False
+            # test0 - (d_1, ..., d_{i-1}) > 0, OR
+            # test1 - (d_1, ..., d_i) = 0
+            is_parallel = True
+
+            # The i-th Iteration is PARALLEL_IF_ATOMIC if for all dependeces:
+            # test0 OR test1 OR the write is an associative and commutative increment
+            is_atomic_parallel = True
+
             for dep in analysis.scopes[i].d_all:
                 test0 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
                 test1 = all(dep.is_independent(d) for d in dims)
                 if not (test0 or test1):
-                    is_sequential = True
-                    break
-            properties[i] = SEQUENTIAL if is_sequential else PARALLEL
+                    is_parallel = False
+                    if not dep.is_increment:
+                        is_atomic_parallel = False
+                        break
+
+            if is_parallel:
+                properties[i] = PARALLEL
+            elif is_atomic_parallel:
+                properties[i] = PARALLEL_IF_ATOMIC
+            else:
+                properties[i] = SEQUENTIAL
+
     analysis.update(properties)
 
 

@@ -25,9 +25,7 @@ class AdvancedRewriter(BasicRewriter):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
-
-        # Extract time invariants
-        make = lambda: Scalar(name=template()).indexify()
+        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = iq_timeinvariant(cluster.trace)
         costmodel = costmodel or (lambda e: estimate_cost(e) > 0)
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)

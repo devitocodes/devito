@@ -5,7 +5,7 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 
-from devito.cgen_utils import INT, FLOAT
+from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
@@ -838,7 +838,7 @@ class SparseFunction(AbstractSparseFunction):
             super(SparseFunction, self).__init__(*args, **kwargs)
 
             # Set up coordinates of sparse points
-            coordinates = Function(name='%s_coords' % self.name,
+            coordinates = Function(name='%s_coords' % self.name, dtype=self.dtype,
                                    dimensions=(self.indices[-1], Dimension(name='d')),
                                    shape=(self.npoint, self.grid.dim), space_order=0)
             coordinate_data = kwargs.get('coordinates')
@@ -939,7 +939,7 @@ class SparseFunction(AbstractSparseFunction):
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
         indices = self.grid.dimensions
-        return tuple([FLOAT(c - o - idx * i.spacing)
+        return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
                       for c, o, idx, i in zip(self.coordinate_symbols,
                                               self.grid.origin,
                                               self.coordinate_indices,
@@ -1143,17 +1143,16 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                 raise ValueError('Interpolation requires parameter `r` (>0)')
             self.r = r
 
-            gridpoints = Function(name="%s_gridpoints" % self.name,
+            gridpoints = Function(name="%s_gridpoints" % self.name, dtype=np.int32,
                                   dimensions=(self.indices[-1], Dimension(name='d')),
-                                  shape=(self.npoint, self.grid.dim), space_order=0,
-                                  dtype=np.int32)
+                                  shape=(self.npoint, self.grid.dim), space_order=0)
 
             gridpoints_data = kwargs.get('gridpoints', None)
             assert(gridpoints_data is not None)
             gridpoints.data[:] = gridpoints_data[:]
             self.gridpoints = gridpoints
 
-            coefficients = Function(name="%s_coefficients" % self.name,
+            coefficients = Function(name="%s_coefficients" % self.name, dtype=self.dtype,
                                     dimensions=(self.indices[-1], Dimension(name='d'),
                                                 Dimension(name='i')),
                                     shape=(self.npoint, self.grid.dim, self.r),
