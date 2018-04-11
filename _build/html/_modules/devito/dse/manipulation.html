@@ -165,36 +165,9 @@
 
 <span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">FlowGraph</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_leaf</span><span class="p">,</span> <span class="n">xreplace_constrained</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Array</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;promote_scalar_expressions&#39;</span><span class="p">,</span> <span class="s1">&#39;collect_nested&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;common_subexprs_elimination&#39;</span><span class="p">,</span> <span class="s1">&#39;compact_temporaries&#39;</span><span class="p">]</span>
-
-
-<div class="viewcode-block" id="promote_scalar_expressions"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.promote_scalar_expressions">[docs]</a><span class="k">def</span> <span class="nf">promote_scalar_expressions</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">onstack</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Transform a collection of scalar expressions into tensor expressions.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="c1"># Fist promote the LHS</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">FlowGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
-            <span class="c1"># Create a new function symbol</span>
-            <span class="n">data</span> <span class="o">=</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
-                         <span class="n">dimensions</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="n">onstack</span><span class="p">)</span>
-            <span class="n">indexed</span> <span class="o">=</span> <span class="n">Indexed</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">)</span>
-            <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">indexed</span>
-            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">indexed</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
-
-    <span class="c1"># Propagate the transformed LHS through the expressions</span>
-    <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
-
-    <span class="k">return</span> <span class="n">processed</span></div>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;collect_nested&#39;</span><span class="p">,</span> <span class="s1">&#39;common_subexprs_elimination&#39;</span><span class="p">,</span> <span class="s1">&#39;compact_temporaries&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="collect_nested"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.collect_nested">[docs]</a><span class="k">def</span> <span class="nf">collect_nested</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">aggressive</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>

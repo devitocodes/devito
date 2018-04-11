@@ -351,14 +351,19 @@ appears in this list are treated as traversable fields.</p>
 
 <dl class="class">
 <dt id="devito.ir.iet.nodes.Expression">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Expression</code><span class="sig-paren">(</span><em>expr</em>, <em>dtype=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Expression" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Expression</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Expression" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Node" title="devito.ir.iet.nodes.Node"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.Node</span></code></a></p>
-<p>A node encapsulating a single SymPy equation.</p>
+<p>A node encapsulating a SymPy equation.</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Expression.defines">
 <code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.defines" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return any symbols an <a class="reference internal" href="#devito.ir.iet.nodes.Expression" title="devito.ir.iet.nodes.Expression"><code class="xref py py-class docutils literal notranslate"><span class="pre">Expression</span></code></a> may define.</p>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Expression.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.dtype" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Expression.free_symbols">
@@ -376,6 +381,12 @@ appears in this list are treated as traversable fields.</p>
 <dt id="devito.ir.iet.nodes.Expression.is_Expression">
 <code class="descname">is_Expression</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Expression.is_Expression" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Expression.is_increment">
+<code class="descname">is_increment</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.is_increment" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if the write is actually an associative and commutative increment.</p>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Expression.is_scalar">
@@ -648,6 +659,16 @@ this <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.is_ParallelAtomic">
+<code class="descname">is_ParallelAtomic</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_ParallelAtomic" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.is_ParallelRelaxed">
+<code class="descname">is_ParallelRelaxed</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_ParallelRelaxed" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Iteration.is_Remainder">
 <code class="descname">is_Remainder</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Remainder" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -715,10 +736,9 @@ an internally generated tag is used.</p>
 
 <dl class="class">
 <dt id="devito.ir.iet.nodes.LocalExpression">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">LocalExpression</code><span class="sig-paren">(</span><em>expr</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#LocalExpression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.LocalExpression" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">LocalExpression</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#LocalExpression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.LocalExpression" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Expression" title="devito.ir.iet.nodes.Expression"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.Expression</span></code></a></p>
-<p>A node encapsulating a single SymPy equation with known data type,
-represented as a NumPy data type.</p>
+<p>A node encapsulating a SymPy equation which also defines its LHS.</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.LocalExpression.defines">
 <code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.LocalExpression.defines" title="Permalink to this definition">¶</a></dt>
@@ -852,6 +872,13 @@ defines the data, as well as the dimension sizes.</p>
 </dd></dl>
 
 <dl class="data">
+<dt id="devito.ir.iet.properties.PARALLEL_IF_ATOMIC">
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">PARALLEL_IF_ATOMIC</code><em class="property"> = Property: parallel_if_atomic</em><a class="headerlink" href="#devito.ir.iet.properties.PARALLEL_IF_ATOMIC" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Iteration can be executed in parallel as long as all increments are
+guaranteed to be atomic.</p>
+</dd></dl>
+
+<dl class="data">
 <dt id="devito.ir.iet.properties.REMAINDER">
 <code class="descclassname">devito.ir.iet.properties.</code><code class="descname">REMAINDER</code><em class="property"> = Property: remainder</em><a class="headerlink" href="#devito.ir.iet.properties.REMAINDER" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration implements a remainder/peeler loop.</p>
@@ -892,7 +919,7 @@ u[t+1, …] = f(u[t, …], u[t-1, …]) –&gt; u[t-1, …] = f(u[t, …], u[t-1
 <span id="devito-ir-iet-scheduler-module"></span><h2>devito.ir.iet.scheduler module<a class="headerlink" href="#module-devito.ir.iet.scheduler" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="devito.ir.iet.scheduler.iet_build">
-<code class="descclassname">devito.ir.iet.scheduler.</code><code class="descname">iet_build</code><span class="sig-paren">(</span><em>clusters</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/scheduler.html#iet_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.scheduler.iet_build" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.scheduler.</code><code class="descname">iet_build</code><span class="sig-paren">(</span><em>clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/scheduler.html#iet_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.scheduler.iet_build" title="Permalink to this definition">¶</a></dt>
 <dd><p>Create an Iteration/Expression tree (IET) given an iterable of :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Cluster`s.
 The nodes in the returned IET are decorated with properties deriving from
 data dependence analysis.</p>
@@ -1018,7 +1045,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x1535c86a6620&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x1535c86a6598&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x15472a2f3c80&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x15472a2f3bf8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1100,7 +1127,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x1535c86a6268&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x1535c86a61e0&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x1535c86a60d0&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x1535c86a6158&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x15472a2f38c8&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x15472a2f3840&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x15472a2f3730&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x15472a2f37b8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">

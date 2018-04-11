@@ -168,10 +168,10 @@
                                <span class="n">build_intervals</span><span class="p">,</span> <span class="n">detect_flow_directions</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">FrozenExpr</span><span class="p">,</span> <span class="n">dimension_sort</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;LoweredEq&#39;</span><span class="p">,</span> <span class="s1">&#39;ClusterizedEq&#39;</span><span class="p">,</span> <span class="s1">&#39;IREq&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;LoweredEq&#39;</span><span class="p">,</span> <span class="s1">&#39;ClusterizedEq&#39;</span><span class="p">,</span> <span class="s1">&#39;DummyEq&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="IREq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.IREq">[docs]</a><span class="k">class</span> <span class="nc">IREq</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">IREq</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A mixin providing operations common to all :mod:`ir` equation types.</span>
@@ -203,7 +203,11 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">directions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">directions</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">directions</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">dtype</span>
 
 
 <div class="viewcode-block" id="LoweredEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.LoweredEq">[docs]</a><span class="k">class</span> <span class="nc">LoweredEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">IREq</span><span class="p">):</span>
@@ -336,6 +340,28 @@
 
 <div class="viewcode-block" id="ClusterizedEq.func"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.ClusterizedEq.func">[docs]</a>    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">stamp</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="DummyEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.DummyEq">[docs]</a><span class="k">class</span> <span class="nc">DummyEq</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    DummyEq(expr)</span>
+<span class="sd">    DummyEq(lhs, rhs)</span>
+
+<span class="sd">    A special :class:`ClusterizedEq` that should never be used except for</span>
+<span class="sd">    writing tests, when there is no need to know the iteration/data spaces.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">input_expr</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">LoweredEq</span><span class="p">(</span><span class="n">input_expr</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">LoweredEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot construct DummyEq from args=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">ClusterizedEq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">dspace</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

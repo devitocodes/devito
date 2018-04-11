@@ -994,7 +994,7 @@ derived time dimensions symbol. For example:</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.printing.ccode.C99CodePrinter</span></code></p>
 <dl class="attribute">
 <dt id="devito.cgen_utils.CodePrinter.custom_functions">
-<code class="descname">custom_functions</code><em class="property"> = {'FLOAT': '(float)', 'INT': '(int)'}</em><a class="headerlink" href="#devito.cgen_utils.CodePrinter.custom_functions" title="Permalink to this definition">¶</a></dt>
+<code class="descname">custom_functions</code><em class="property"> = {'DOUBLE': '(double)', 'FLOAT': '(float)', 'INT': '(int)'}</em><a class="headerlink" href="#devito.cgen_utils.CodePrinter.custom_functions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Decorator for sympy.printing.ccode.CCodePrinter.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1005,6 +1005,17 @@ derived time dimensions symbol. For example:</p>
 </tbody>
 </table>
 </dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.cgen_utils.DOUBLE">
+<em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">DOUBLE</code><a class="headerlink" href="#devito.cgen_utils.DOUBLE" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.function.AppliedUndef</span></code></p>
+<dl class="attribute">
+<dt id="devito.cgen_utils.DOUBLE.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.cgen_utils.DOUBLE.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
@@ -2640,14 +2651,6 @@ to run).</p>
 </dd></dl>
 
 <dl class="function">
-<dt id="devito.operator.retrieve_dtype">
-<code class="descclassname">devito.operator.</code><code class="descname">retrieve_dtype</code><span class="sig-paren">(</span><em>expressions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#retrieve_dtype"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.retrieve_dtype" title="Permalink to this definition">¶</a></dt>
-<dd><p>Retrieve the data type of a set of expressions. Raise an error if there
-is no common data type (ie, if at least one expression differs in the
-data type).</p>
-</dd></dl>
-
-<dl class="function">
 <dt id="devito.operator.set_dle_mode">
 <code class="descclassname">devito.operator.</code><code class="descname">set_dle_mode</code><span class="sig-paren">(</span><em>mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#set_dle_mode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.set_dle_mode" title="Permalink to this definition">¶</a></dt>
 <dd><p>Transform <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a> input in a format understandable by the DLE.</p>
@@ -2837,6 +2840,16 @@ or value lists.</p>
 <dl class="attribute">
 <dt id="devito.types.Indexed.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {'commutative': True}</em><a class="headerlink" href="#devito.types.Indexed.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.types.Indexed.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#devito.types.Indexed.dtype" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.types.Indexed.function">
+<code class="descname">function</code><a class="headerlink" href="#devito.types.Indexed.function" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">

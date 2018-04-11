@@ -290,11 +290,28 @@ accordingly.</p>
 <dd><p>Return the cumulative <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code> of this ClusterGroup.</p>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.ClusterGroup.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.dtype" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the arithmetic data type of this ClusterGroup. If at least one
+Cluster is performing floating point arithmetic, then any Cluster performing
+integer arithmetic is ignored. If two Clusters are performing floating
+point calculations with different precision, return the data type with
+highest precision.</p>
+</dd></dl>
+
 <dl class="method">
 <dt id="devito.ir.clusters.cluster.ClusterGroup.finalize">
 <code class="descname">finalize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/cluster.html#ClusterGroup.finalize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.finalize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a new ClusterGroup in which all of <code class="docutils literal notranslate"><span class="pre">self</span></code>’s PartialClusters
 have been turned into actual Clusters.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.clusters.cluster.ClusterGroup.meta">
+<code class="descname">meta</code><a class="headerlink" href="#devito.ir.clusters.cluster.ClusterGroup.meta" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the metadata carried by this ClusterGroup, a 2-tuple consisting
+of data type and data space.</p>
 </dd></dl>
 
 <dl class="method">

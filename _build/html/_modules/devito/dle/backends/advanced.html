@@ -175,85 +175,25 @@
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">fold_blockable_tree</span><span class="p">,</span> <span class="n">unfold_blocked_tree</span>
 <span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">BlockingArg</span><span class="p">,</span> <span class="n">dle_pass</span><span class="p">,</span> <span class="n">omplang</span><span class="p">,</span>
                                  <span class="n">simdinfo</span><span class="p">,</span> <span class="n">get_simd_flag</span><span class="p">,</span> <span class="n">get_simd_items</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">promote_scalar_expressions</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
                            <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span>
-                           <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
+                           <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
                            <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">grouper</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
 
 <div class="viewcode-block" id="DevitoRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-
-    <span class="nd">@dle_pass</span>
-    <span class="k">def</span> <span class="nf">_loop_fission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Apply loop fission to innermost :class:`Iteration` objects. This pass</span>
-<span class="sd">        is not applied if the number of statements in an Iteration&#39;s body is</span>
-<span class="sd">        lower than ``self.thresholds[&#39;fission&#39;].``</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="c1"># Heuristically avoided</span>
-                <span class="k">continue</span>
-
-            <span class="n">candidate</span> <span class="o">=</span> <span class="n">tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-            <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">candidate</span><span class="o">.</span><span class="n">nodes</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Expression</span><span class="p">]</span>
-
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;max_fission&#39;</span><span class="p">]:</span>
-                <span class="c1"># Heuristically avoided</span>
-                <span class="k">continue</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">nodes</span><span class="p">):</span>
-                <span class="c1"># Dangerous for correctness</span>
-                <span class="k">continue</span>
-
-            <span class="n">functions</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]))</span>
-            <span class="n">wrapped</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
-
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">functions</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">wrapped</span><span class="p">:</span>
-                <span class="c1"># Heuristically avoided</span>
-                <span class="k">continue</span>
-
-            <span class="c1"># Promote temporaries from scalar to tensors</span>
-            <span class="n">handle</span> <span class="o">=</span> <span class="n">functions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="n">dim</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-            <span class="n">size</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">dim</span> <span class="o">!=</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span><span class="p">):</span>
-                <span class="c1"># Dangerous for correctness</span>
-                <span class="k">continue</span>
-
-            <span class="n">wrapped</span> <span class="o">=</span> <span class="n">promote_scalar_expressions</span><span class="p">(</span><span class="n">wrapped</span><span class="p">,</span> <span class="p">(</span><span class="n">size</span><span class="p">,),</span> <span class="p">(</span><span class="n">dim</span><span class="p">,),</span> <span class="kc">True</span><span class="p">)</span>
-
-            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">wrapped</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
-            <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[</span><span class="n">Expression</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">wrapped</span><span class="p">,</span> <span class="n">expressions</span><span class="p">)]</span>
-
-            <span class="c1"># Group statements</span>
-            <span class="c1"># TODO: Need a heuristic here to maximize reuse</span>
-            <span class="n">args_frozen</span> <span class="o">=</span> <span class="n">candidate</span><span class="o">.</span><span class="n">args_frozen</span>
-            <span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">args_frozen</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">])</span> <span class="o">+</span> <span class="p">(</span><span class="n">ELEMENTAL</span><span class="p">,)</span>
-            <span class="n">args_frozen</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">properties</span>
-            <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;min_fission&#39;</span><span class="p">]</span>
-            <span class="n">fissioned</span> <span class="o">=</span> <span class="p">[</span><span class="n">Iteration</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="o">**</span><span class="n">args_frozen</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grouper</span><span class="p">(</span><span class="n">rebuilt</span><span class="p">,</span> <span class="n">n</span><span class="p">)]</span>
-
-            <span class="n">mapper</span><span class="p">[</span><span class="n">candidate</span><span class="p">]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">fissioned</span><span class="p">)</span>
-
-        <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{}</span>
 
     <span class="nd">@dle_pass</span>
     <span class="k">def</span> <span class="nf">_loop_blocking</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
@@ -438,7 +378,7 @@
         <span class="n">groups</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
             <span class="c1"># Determine the number of consecutive parallelizable Iterations</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span> <span class="ow">and</span>\
+            <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ParallelRelaxed</span> <span class="ow">and</span>\
                 <span class="ow">not</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_Elementizable</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">)</span>
             <span class="n">candidates</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="s1">&#39;asap&#39;</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">candidates</span><span class="p">:</span>
@@ -466,7 +406,16 @@
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">parallel</span> <span class="o">=</span> <span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;collapse&#39;</span><span class="p">](</span><span class="n">nparallel</span><span class="p">)</span>
 
-                <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
+                <span class="c1"># Introduce the `omp parallel` pragma</span>
+                <span class="k">if</span> <span class="n">root</span><span class="o">.</span><span class="n">is_ParallelAtomic</span><span class="p">:</span>
+                    <span class="c1"># Introduce the `omp atomic` pragmas</span>
+                    <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+                    <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;atomic&#39;</span><span class="p">],</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+                            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_increment</span><span class="p">}</span>
+                    <span class="n">handle</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+                    <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
 
                 <span class="c1"># Track the thread-private and thread-shared variables</span>
                 <span class="n">private</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
@@ -560,7 +509,6 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This Rewriter is slightly less aggressive than :class:`DevitoRewriter`, as it</span>
 <span class="sd">    doesn&#39;t drop denormal numbers, which may sometimes harm the numerical precision.</span>
-<span class="sd">    Loop fission is also avoided (to avoid reassociation of operations).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
@@ -576,7 +524,6 @@
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_nontemporal_stores</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
@@ -621,7 +568,6 @@
         <span class="s1">&#39;blocking&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">,</span>
         <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_ompize</span><span class="p">,</span>
         <span class="s1">&#39;simd&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_simdize</span><span class="p">,</span>
-        <span class="s1">&#39;fission&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">,</span>
         <span class="s1">&#39;split&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_create_elemental_functions</span>
     <span class="p">}</span>
 

@@ -208,7 +208,7 @@
 <dl class="class">
 <dt id="devito.ir.equations.equation.LoweredEq">
 <em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">LoweredEq</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#LoweredEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.ir.equations.equation.IREq" title="devito.ir.equations.equation.IREq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code></p>
 <p>LoweredEq(expr, ispace, dspace, reads, writes)
 LoweredEq(lhs, rhs, stamp=LoweredEq)</p>
 <p>A SymPy equation with associated <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code> and
@@ -301,7 +301,7 @@ but xreplace does:</p>
 <dl class="class">
 <dt id="devito.ir.equations.equation.ClusterizedEq">
 <em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">ClusterizedEq</code><span class="sig-paren">(</span><em>expr</em>, <em>ispace</em>, <em>dspace</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#ClusterizedEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.ClusterizedEq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <a class="reference internal" href="#devito.ir.equations.equation.IREq" title="devito.ir.equations.equation.IREq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code></a>, <a class="reference internal" href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code>, <a class="reference internal" href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
 <p>ClusterizedEq(lhs, rhs, stamp=ClusterizedEq)</p>
 <p>A SymPy equation with associated <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code> and
 <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code>.</p>
@@ -346,38 +346,15 @@ ClusterizedEq:</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.ir.equations.equation.IREq">
-<em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">IREq</code><a class="reference internal" href="_modules/devito/ir/equations/equation.html#IREq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.IREq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>A mixin providing operations common to all <code class="xref py py-mod docutils literal notranslate"><span class="pre">ir</span></code> equation types.</p>
+<dt id="devito.ir.equations.equation.DummyEq">
+<em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">DummyEq</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#DummyEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.DummyEq" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.equations.equation.ClusterizedEq" title="devito.ir.equations.equation.ClusterizedEq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.ClusterizedEq</span></code></a></p>
+<p>DummyEq(lhs, rhs)</p>
+<p>A special <a class="reference internal" href="#devito.ir.equations.equation.ClusterizedEq" title="devito.ir.equations.equation.ClusterizedEq"><code class="xref py py-class docutils literal notranslate"><span class="pre">ClusterizedEq</span></code></a> that should never be used except for
+writing tests, when there is no need to know the iteration/data spaces.</p>
 <dl class="attribute">
-<dt id="devito.ir.equations.equation.IREq.dimensions">
-<code class="descname">dimensions</code><a class="headerlink" href="#devito.ir.equations.equation.IREq.dimensions" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.equations.equation.IREq.directions">
-<code class="descname">directions</code><a class="headerlink" href="#devito.ir.equations.equation.IREq.directions" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.equations.equation.IREq.dspace">
-<code class="descname">dspace</code><a class="headerlink" href="#devito.ir.equations.equation.IREq.dspace" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.equations.equation.IREq.is_Scalar">
-<code class="descname">is_Scalar</code><a class="headerlink" href="#devito.ir.equations.equation.IREq.is_Scalar" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.equations.equation.IREq.is_Tensor">
-<code class="descname">is_Tensor</code><a class="headerlink" href="#devito.ir.equations.equation.IREq.is_Tensor" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.equations.equation.IREq.ispace">
-<code class="descname">ispace</code><a class="headerlink" href="#devito.ir.equations.equation.IREq.ispace" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.equations.equation.DummyEq.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.ir.equations.equation.DummyEq.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

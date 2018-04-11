@@ -238,7 +238,6 @@
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
         <span class="c1"># Expression analysis</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">retrieve_dtype</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">reads</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">writes</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">))</span>
@@ -247,10 +246,10 @@
         <span class="c1"># and apply the Devito Symbolic Engine (DSE) for flop optimization</span>
         <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
         <span class="n">clusters</span> <span class="o">=</span> <span class="n">rewrite</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">set_dse_mode</span><span class="p">(</span><span class="n">dse</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">clusters</span><span class="o">.</span><span class="n">dspace</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">clusters</span><span class="o">.</span><span class="n">meta</span>
 
         <span class="c1"># Lower Clusters to an Iteration/Expression tree (IET)</span>
-        <span class="n">nodes</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 
         <span class="c1"># Introduce C-level profiling infrastructure</span>
         <span class="n">nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_sections</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
@@ -518,7 +517,7 @@
 
     <span class="k">def</span> <span class="nf">_profile_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return a performance summary of the profiled sections.&quot;&quot;&quot;</span>
-        <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">bar</span><span class="p">():</span>
             <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">summary</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&lt;</span><span class="si">%s</span><span class="s1">&gt;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">itershape</span><span class="p">))</span>
@@ -532,20 +531,6 @@
         <span class="n">nodes</span><span class="p">,</span> <span class="n">profiler</span> <span class="o">=</span> <span class="n">create_profile</span><span class="p">(</span><span class="s1">&#39;timers&#39;</span><span class="p">,</span> <span class="n">nodes</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_globals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">cdef</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">profiler</span></div>
-
-
-<span class="c1"># Functions collecting information from a bag of expressions</span>
-
-<div class="viewcode-block" id="retrieve_dtype"><a class="viewcode-back" href="../../devito.html#devito.operator.retrieve_dtype">[docs]</a><span class="k">def</span> <span class="nf">retrieve_dtype</span><span class="p">(</span><span class="n">expressions</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Retrieve the data type of a set of expressions. Raise an error if there</span>
-<span class="sd">    is no common data type (ie, if at least one expression differs in the</span>
-<span class="sd">    data type).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">lhss</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">dtype</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">])</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lhss</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Expression types mismatch.&quot;</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">lhss</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span></div>
 
 
 <span class="c1"># Misc helpers</span>

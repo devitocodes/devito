@@ -200,6 +200,10 @@
 <span class="n">PARALLEL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;parallel&#39;</span><span class="p">)</span>
 <span class="sd">&quot;&quot;&quot;The Iteration can be executed in parallel w/o need for synchronization.&quot;&quot;&quot;</span>
 
+<span class="n">PARALLEL_IF_ATOMIC</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;parallel_if_atomic&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Iteration can be executed in parallel as long as all increments are</span>
+<span class="sd">guaranteed to be atomic.&quot;&quot;&quot;</span>
+
 <span class="n">VECTOR</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;vector-dim&#39;</span><span class="p">)</span>
 <span class="sd">&quot;&quot;&quot;The Iteration can be SIMD-vectorized.&quot;&quot;&quot;</span>
 

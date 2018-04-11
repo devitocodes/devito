@@ -161,6 +161,7 @@
   <h1>Source code for devito.cgen_utils</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
 <span class="kn">from</span> <span class="nn">mpmath.libmp</span> <span class="k">import</span> <span class="n">prec_to_dps</span><span class="p">,</span> <span class="n">to_str</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span>
@@ -219,7 +220,7 @@
 
 <div class="viewcode-block" id="CodePrinter"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CodePrinter</span><span class="p">(</span><span class="n">C99CodePrinter</span><span class="p">):</span>
 
-    <span class="n">custom_functions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;INT&#39;</span><span class="p">:</span> <span class="s1">&#39;(int)&#39;</span><span class="p">,</span> <span class="s1">&#39;FLOAT&#39;</span><span class="p">:</span> <span class="s1">&#39;(float)&#39;</span><span class="p">}</span>
+    <span class="n">custom_functions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;INT&#39;</span><span class="p">:</span> <span class="s1">&#39;(int)&#39;</span><span class="p">,</span> <span class="s1">&#39;FLOAT&#39;</span><span class="p">:</span> <span class="s1">&#39;(float)&#39;</span><span class="p">,</span> <span class="s1">&#39;DOUBLE&#39;</span><span class="p">:</span> <span class="s1">&#39;(double)&#39;</span><span class="p">}</span>
 
     <span class="sd">&quot;&quot;&quot;Decorator for sympy.printing.ccode.CCodePrinter.</span>
 
@@ -332,6 +333,9 @@
 <span class="n">printvar</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;printf(&quot;</span><span class="si">%s</span><span class="s1">=</span><span class="si">%%</span><span class="s1">s</span><span class="se">\\</span><span class="s1">n&quot;, </span><span class="si">%s</span><span class="s1">); fflush(stdout);&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
 <span class="n">INT</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;INT&#39;</span><span class="p">)</span>
 <span class="n">FLOAT</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;FLOAT&#39;</span><span class="p">)</span>
+<span class="n">DOUBLE</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;DOUBLE&#39;</span><span class="p">)</span>
+
+<span class="n">cast_mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">:</span> <span class="n">FLOAT</span><span class="p">,</span> <span class="nb">float</span><span class="p">:</span> <span class="n">DOUBLE</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">:</span> <span class="n">DOUBLE</span><span class="p">}</span>
 </pre></div>
 
            </div>

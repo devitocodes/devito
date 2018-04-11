@@ -197,11 +197,11 @@
 <span class="sd">         * &#39;basic&#39;: Apply common sub-expressions elimination.</span>
 <span class="sd">         * &#39;advanced&#39;: Apply all transformations that will reduce the</span>
 <span class="sd">                       operation count w/ minimum increase to the memory pressure,</span>
-<span class="sd">                       namely &#39;basic&#39;, factorization, CSRE for time-invariants only.</span>
-<span class="sd">         * &#39;speculative&#39;: Like &#39;advanced&#39;, but apply CSRE also to time-varying</span>
+<span class="sd">                       namely &#39;basic&#39;, factorization, CIRE for time-invariants only.</span>
+<span class="sd">         * &#39;speculative&#39;: Like &#39;advanced&#39;, but apply CIRE also to time-varying</span>
 <span class="sd">                          sub-expressions, which might further increase the memory</span>
 <span class="sd">                          pressure.</span>
-<span class="sd">         * &#39;aggressive&#39;: Like &#39;speculative&#39;, but apply CSRE to any non-trivial</span>
+<span class="sd">         * &#39;aggressive&#39;: Like &#39;speculative&#39;, but apply CIRE to any non-trivial</span>
 <span class="sd">                         sub-expression (i.e., anything that is at least in a</span>
 <span class="sd">                         sum-of-products form). This may substantially increase</span>
 <span class="sd">                         the memory pressure.</span>

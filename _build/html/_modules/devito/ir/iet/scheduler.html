@@ -176,14 +176,14 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;iet_build&#39;</span><span class="p">,</span> <span class="s1">&#39;iet_insert_C_decls&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="iet_build"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.scheduler.iet_build">[docs]</a><span class="k">def</span> <span class="nf">iet_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+<div class="viewcode-block" id="iet_build"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.scheduler.iet_build">[docs]</a><span class="k">def</span> <span class="nf">iet_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create an Iteration/Expression tree (IET) given an iterable of :class:`Cluster`s.</span>
 <span class="sd">    The nodes in the returned IET are decorated with properties deriving from</span>
 <span class="sd">    data dependence analysis.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Clusters -&gt; Iteration/Expression tree</span>
-    <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_make</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_make</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 
     <span class="c1"># Data dependency analysis. Properties are attached directly to nodes</span>
     <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_analyze</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
@@ -200,12 +200,11 @@
     <span class="k">return</span> <span class="n">iet</span></div>
 
 
-<span class="k">def</span> <span class="nf">iet_make</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">iet_make</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create an Iteration/Expression tree (IET) given an iterable of :class:`Cluster`s.</span>
 
 <span class="sd">    :param clusters: The iterable :class:`Cluster`s for which the IET is built.</span>
-<span class="sd">    :param dtype: The data type of the scalar expressions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># {Iteration -&gt; [c0, c1, ...]}, shared clusters</span>
     <span class="n">shared</span> <span class="o">=</span> <span class="p">{}</span>
@@ -216,9 +215,11 @@
 
     <span class="c1"># Build IET</span>
     <span class="k">for</span> <span class="n">cluster</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="p">[</span><span class="n">Expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">]</span>
+
         <span class="k">if</span> <span class="n">cluster</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
             <span class="c1"># No Iterations are needed</span>
-            <span class="n">processed</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">Expression</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">])</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
             <span class="k">continue</span>
 
         <span class="n">root</span> <span class="o">=</span> <span class="kc">None</span>
@@ -234,8 +235,6 @@
         <span class="n">needed</span> <span class="o">=</span> <span class="n">itintervals</span><span class="p">[</span><span class="n">index</span><span class="p">:]</span>
 
         <span class="c1"># Build Expressions</span>
-        <span class="n">body</span> <span class="o">=</span> <span class="p">[</span><span class="n">Expression</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int32</span> <span class="k">if</span> <span class="n">cluster</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">is_index</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span> <span class="k">else</span> <span class="n">dtype</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">]</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">needed</span><span class="p">:</span>
             <span class="n">body</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
 
