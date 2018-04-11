@@ -1,12 +1,10 @@
 from scipy import signal
-
+from scipy.interpolate import CubicSpline
 from devito import Dimension
 from devito.function import SparseTimeFunction
-from devito.logger import error
 
 from cached_property import cached_property
 
-from copy import copy
 import numpy as np
 try:
     import matplotlib.pyplot as plt
@@ -65,6 +63,9 @@ class TimeAxis(object):
         return "TimeAxis: start=%g, stop=%g, step=%g, num=%g" % \
                (self.start, self.stop, self.step, self.num)
 
+    def _rebuild(self):
+        return TimeAxis(start=self.start, stop=self.stop, num=self.num)
+
     @cached_property
     def time_values(self):
         return np.linspace(self.start, self.stop, self.num)
@@ -97,7 +98,7 @@ class PointSource(SparseTimeFunction):
                                          time_order=time_order,
                                          coordinates=coordinates, **kwargs)
 
-        obj._time_range = copy(time_range)
+        obj._time_range = time_range._rebuild()
 
         # If provided, copy initial data into the allocated buffer
         if data is not None:
@@ -117,32 +118,46 @@ class PointSource(SparseTimeFunction):
     def time_range(self):
         return self._time_range
 
-    def resample(self, dt):
+    def resample(self, dt=None, num=None, rtol=1e-5):
+        # Only one of dt or num may be set.
+        if dt is None:
+            assert num is not None
+        else:
+            assert num is None
+
         start, stop = self._time_range.start, self._time_range.stop
+        dt0 = self._time_range.step
 
-        npad = 2**int(np.log2(self._time_range.num)+1)
+        if dt is None:
+            new_time_range = TimeAxis(start=start, stop=stop, num=num)
+            dt = new_time_range.step
+        else:
+            new_time_range = TimeAxis(start=start, stop=stop, step=dt)
 
-        new_num = 1+int(np.ceil((stop - start)/dt))
-
-        if self.data is None:
-            error("resample called but there is no data.")
+        npad = int(np.ceil(np.log2(self._time_range.num)))
+        for n in range(npad, 28):
+            if abs(2**n*dt0/np.ceil(2**n*dt0/dt) - dt)/dt < rtol:
+                npad = 2**n
+                break
 
         # Create resampled data.
         npoint = self.coordinates.shape[0]
-        data = np.zeros((new_num, npoint))
+        new_data = np.zeros((new_time_range.num, npoint))
         scratch = np.zeros(npad)
-        stop_pad = npad * self._time_range.step
-        pintervals = int((stop_pad - start)/dt)
+        scratch_time_range = TimeAxis(start=start, step=self._time_range.step, num=npad)
         for i in range(npoint):
             scratch[0:self.data.shape[0]] = self.data[:, i]
-            sampled = signal.resample(scratch, pintervals)
+            resample_num = int(round((scratch_time_range.stop -
+                                      scratch_time_range.start)/dt))
+            approx_data, t = signal.resample(scratch, resample_num,
+                                             t=scratch_time_range.time_values)
 
-            data[:, i] = sampled[:new_num]
+            spline = CubicSpline(t, approx_data, extrapolate=True)
 
-        new_time_range = TimeAxis(start=start, step=dt, num=new_num)
+            new_data[:, i] = spline(new_time_range.time_values)
 
         # Return new object
-        return PointSource(self.name, self.grid, data=data, time_range=new_time_range,
+        return PointSource(self.name, self.grid, data=new_data, time_range=new_time_range,
                            coordinates=self.coordinates.data)
 
 
