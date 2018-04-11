@@ -23,7 +23,7 @@ from devito.logger import dle_warning
 from devito.tools import as_tuple
 
 
-class DevitoRewriter(BasicRewriter):
+class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
@@ -343,10 +343,10 @@ class DevitoRewriter(BasicRewriter):
         return processed, {}
 
 
-class DevitoRewriterSafeMath(DevitoRewriter):
+class AdvancedRewriterSafeMath(AdvancedRewriter):
 
     """
-    This Rewriter is slightly less aggressive than :class:`DevitoRewriter`, as it
+    This Rewriter is slightly less aggressive than :class:`AdvancedRewriter`, as it
     doesn't drop denormal numbers, which may sometimes harm the numerical precision.
     """
 
@@ -359,7 +359,7 @@ class DevitoRewriterSafeMath(DevitoRewriter):
         self._minimize_remainders(state)
 
 
-class DevitoSpeculativeRewriter(DevitoRewriter):
+class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
@@ -400,14 +400,14 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         return processed, {'flags': 'ntstores'}
 
 
-class DevitoCustomRewriter(DevitoSpeculativeRewriter):
+class CustomRewriter(SpeculativeRewriter):
 
     passes_mapper = {
-        'denormals': DevitoSpeculativeRewriter._avoid_denormals,
-        'blocking': DevitoSpeculativeRewriter._loop_blocking,
-        'openmp': DevitoSpeculativeRewriter._ompize,
-        'simd': DevitoSpeculativeRewriter._simdize,
-        'split': DevitoSpeculativeRewriter._create_elemental_functions
+        'denormals': SpeculativeRewriter._avoid_denormals,
+        'blocking': SpeculativeRewriter._loop_blocking,
+        'openmp': SpeculativeRewriter._ompize,
+        'simd': SpeculativeRewriter._simdize,
+        'split': SpeculativeRewriter._create_elemental_functions
     }
 
     def __init__(self, nodes, passes, params):
@@ -415,11 +415,11 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
             passes = passes.split(',')
         except AttributeError:
             # Already in tuple format
-            if not all(i in DevitoCustomRewriter.passes_mapper for i in passes):
+            if not all(i in CustomRewriter.passes_mapper for i in passes):
                 raise DLEException
         self.passes = passes
-        super(DevitoCustomRewriter, self).__init__(nodes, params)
+        super(CustomRewriter, self).__init__(nodes, params)
 
     def _pipeline(self, state):
         for i in self.passes:
-            DevitoCustomRewriter.passes_mapper[i](self, state)
+            CustomRewriter.passes_mapper[i](self, state)

@@ -1,7 +1,6 @@
 from devito.ir.iet import Node
-from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
-                                 DevitoRewriter, DevitoRewriterSafeMath,
-                                 DevitoSpeculativeRewriter)
+from devito.dle.backends import (State, BasicRewriter, CustomRewriter, AdvancedRewriter,
+                                 AdvancedRewriterSafeMath, SpeculativeRewriter)
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 from devito.parameters import configuration
@@ -11,9 +10,9 @@ __all__ = ['transform', 'modes', 'default_options']
 
 modes = {
     'basic': BasicRewriter,
-    'advanced': DevitoRewriter,
-    'advanced-safemath': DevitoRewriterSafeMath,
-    'speculative': DevitoSpeculativeRewriter
+    'advanced': AdvancedRewriter,
+    'advanced-safemath': AdvancedRewriterSafeMath,
+    'speculative': SpeculativeRewriter
 }
 """The DLE transformation modes."""
 
@@ -84,7 +83,7 @@ def transform(node, mode='basic', options=None):
         return State(node)
     elif mode not in modes:
         try:
-            rewriter = DevitoCustomRewriter(node, mode, params)
+            rewriter = CustomRewriter(node, mode, params)
             return rewriter.run()
         except DLEException:
             dle_warning("Unknown transformer mode(s) %s" % mode)
