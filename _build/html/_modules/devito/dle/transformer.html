@@ -160,35 +160,41 @@
             
   <h1>Source code for devito.dle.transformer</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Node</span>
-<span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">State</span><span class="p">,</span> <span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">DevitoCustomRewriter</span><span class="p">,</span>
-                                 <span class="n">DevitoRewriter</span><span class="p">,</span> <span class="n">DevitoRewriterSafeMath</span><span class="p">,</span>
-                                 <span class="n">DevitoSpeculativeRewriter</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="n">State</span><span class="p">,</span> <span class="n">CustomRewriter</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">,</span> <span class="s1">&#39;modes&#39;</span><span class="p">,</span> <span class="s1">&#39;default_options&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;init_dle&#39;</span><span class="p">,</span> <span class="s1">&#39;transform&#39;</span><span class="p">]</span>
 
 
-<span class="n">modes</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;basic&#39;</span><span class="p">:</span> <span class="n">BasicRewriter</span><span class="p">,</span>
-    <span class="s1">&#39;advanced&#39;</span><span class="p">:</span> <span class="n">DevitoRewriter</span><span class="p">,</span>
-    <span class="s1">&#39;advanced-safemath&#39;</span><span class="p">:</span> <span class="n">DevitoRewriterSafeMath</span><span class="p">,</span>
-    <span class="s1">&#39;speculative&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span>
+<span class="n">default_modes</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;basic&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="s1">&#39;advanced&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="s1">&#39;advanced-safemath&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="s1">&#39;speculative&#39;</span><span class="p">:</span> <span class="kc">None</span>
 <span class="p">}</span>
-<span class="sd">&quot;&quot;&quot;The DLE transformation modes.&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;The DLE transformation modes.</span>
+<span class="sd">This dictionary may be modified at backend-initialization time.&quot;&quot;&quot;</span>
 
 <span class="n">default_options</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;blockinner&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
     <span class="s1">&#39;blockshape&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
     <span class="s1">&#39;blockalways&#39;</span><span class="p">:</span> <span class="kc">False</span>
 <span class="p">}</span>
-<span class="sd">&quot;&quot;&quot;Default values for the various optimization options.&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;Default values for the supported optimization options.</span>
+<span class="sd">This dictionary may be modified at backend-initialization time.&quot;&quot;&quot;</span>
 
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;dle&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">modes</span><span class="p">))</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;dle&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">default_modes</span><span class="p">))</span>
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;dle_options&#39;</span><span class="p">,</span>
                   <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">:</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">default_options</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span>
                   <span class="nb">list</span><span class="p">(</span><span class="n">default_options</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="init_dle"><a class="viewcode-back" href="../../../devito.dle.html#devito.dle.transformer.init_dle">[docs]</a><span class="k">def</span> <span class="nf">init_dle</span><span class="p">(</span><span class="n">backend_modes</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">default_modes</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">default_modes</span><span class="p">):</span>
+        <span class="n">default_modes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">backend_modes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span></div>
 
 
 <div class="viewcode-block" id="transform"><a class="viewcode-back" href="../../../devito.dle.html#devito.dle.transformer.transform">[docs]</a><span class="k">def</span> <span class="nf">transform</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -243,15 +249,15 @@
     <span class="c1"># Process the Iteration/Expression tree through the DLE</span>
     <span class="k">if</span> <span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;noop&#39;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">State</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">modes</span><span class="p">:</span>
+    <span class="k">elif</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">default_modes</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">rewriter</span> <span class="o">=</span> <span class="n">DevitoCustomRewriter</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+            <span class="n">rewriter</span> <span class="o">=</span> <span class="n">CustomRewriter</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">rewriter</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
         <span class="k">except</span> <span class="n">DLEException</span><span class="p">:</span>
             <span class="n">dle_warning</span><span class="p">(</span><span class="s2">&quot;Unknown transformer mode(s) </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">mode</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">State</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">rewriter</span> <span class="o">=</span> <span class="n">modes</span><span class="p">[</span><span class="n">mode</span><span class="p">](</span><span class="n">node</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+        <span class="n">rewriter</span> <span class="o">=</span> <span class="n">default_modes</span><span class="p">[</span><span class="n">mode</span><span class="p">](</span><span class="n">node</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">rewriter</span><span class="o">.</span><span class="n">run</span><span class="p">()</span></div>
 </pre></div>
 

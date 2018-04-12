@@ -38,6 +38,7 @@
 ./_build/html/_modules/devito/dle/backends/advanced.html
 ./_build/html/_modules/devito/dle/backends/basic.html
 ./_build/html/_modules/devito/dle/backends/common.html
+./_build/html/_modules/devito/dle/backends/parallelizer.html
 ./_build/html/_modules/devito/dle/backends/utils.html
 ./_build/html/_modules/devito/dle/blocking_utils.html
 ./_build/html/_modules/devito/dle/transformer.html

@@ -28,6 +28,14 @@ devito.dle.backends.common module
     :undoc-members:
     :show-inheritance:
 
+devito.dle.backends.parallelizer module
+---------------------------------------
+
+.. automodule:: devito.dle.backends.parallelizer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.dle.backends.utils module
 --------------------------------
 

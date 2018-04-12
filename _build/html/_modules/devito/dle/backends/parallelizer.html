@@ -1,0 +1,331 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dle.backends.parallelizer &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="Module code" href="../../../index.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+      <li>devito.dle.backends.parallelizer</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dle.backends.parallelizer</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
+<span class="kn">import</span> <span class="nn">psutil</span>
+
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">Block</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span>
+                           <span class="n">List</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Ompizer"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.parallelizer.Ompizer">[docs]</a><span class="k">class</span> <span class="nc">Ompizer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="n">COLLAPSE</span> <span class="o">=</span> <span class="mi">32</span>
+    <span class="sd">&quot;&quot;&quot;Use a collapse clause if the number of available physical cores is</span>
+<span class="sd">    greater than this threshold.&quot;&quot;&quot;</span>
+
+    <span class="n">lang</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for schedule(static)&#39;</span><span class="p">),</span>
+        <span class="s1">&#39;collapse&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for collapse(</span><span class="si">%d</span><span class="s1">) schedule(static)&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
+        <span class="s1">&#39;par-region&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
+        <span class="s1">&#39;par-for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel for schedule(static)&#39;</span><span class="p">),</span>
+        <span class="s1">&#39;simd-for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp simd&#39;</span><span class="p">),</span>
+        <span class="s1">&#39;simd-for-aligned&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp simd aligned(</span><span class="si">%s</span><span class="s1">:</span><span class="si">%d</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)),</span>
+        <span class="s1">&#39;atomic&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp atomic update&#39;</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shortcuts for the OpenMP language.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param key: A function returning True if ``v`` can be parallelized,</span>
+<span class="sd">                    False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="n">key</span>
+
+    <span class="k">def</span> <span class="nf">_make_omp_parallel_tree</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">candidates</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a mapper to parallelize the :class:`Iteration`s within /root/.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+
+        <span class="c1"># Heuristic: if at least two parallel loops are available and the</span>
+        <span class="c1"># physical core count is greater than COLLAPSE, then omp-collapse them</span>
+        <span class="n">nparallel</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(</span><span class="n">logical</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">Ompizer</span><span class="o">.</span><span class="n">COLLAPSE</span> <span class="ow">or</span>\
+                <span class="n">nparallel</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">parallel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;for&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">parallel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;collapse&#39;</span><span class="p">](</span><span class="n">nparallel</span><span class="p">)</span>
+
+        <span class="c1"># Introduce the `omp parallel` pragma</span>
+        <span class="k">if</span> <span class="n">root</span><span class="o">.</span><span class="n">is_ParallelAtomic</span><span class="p">:</span>
+            <span class="c1"># Introduce the `omp atomic` pragmas</span>
+            <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+            <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;atomic&#39;</span><span class="p">],</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_increment</span><span class="p">}</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
+
+        <span class="k">return</span> <span class="n">mapper</span>
+
+<div class="viewcode-block" id="Ompizer.make_omp_parallel_iet"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.parallelizer.Ompizer.make_omp_parallel_iet">[docs]</a>    <span class="k">def</span> <span class="nf">make_omp_parallel_iet</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Transform ``iet`` by decorating its parallel :class:`Iteration`s with</span>
+<span class="sd">        suitable ``#pragma omp ...`` triggering thread-level parallelism.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Group sequences of loops that should go within the same parallel region</span>
+        <span class="n">was_tagged</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">groups</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
+            <span class="c1"># Determine the number of consecutive parallelizable Iterations</span>
+            <span class="n">candidates</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="s1">&#39;asap&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">candidates</span><span class="p">:</span>
+                <span class="n">was_tagged</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">continue</span>
+            <span class="c1"># Consecutive tagged Iteration go in the same group</span>
+            <span class="n">is_tagged</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">tag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">)</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="n">is_tagged</span> <span class="o">&amp;</span> <span class="n">was_tagged</span><span class="p">)</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">groups</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())</span>
+            <span class="n">handle</span><span class="p">[</span><span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">candidates</span>
+            <span class="n">was_tagged</span> <span class="o">=</span> <span class="n">is_tagged</span>
+
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">private</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">candidates</span> <span class="ow">in</span> <span class="n">group</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_make_omp_parallel_tree</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">candidates</span><span class="p">))</span>
+
+                <span class="c1"># Track the thread-private and thread-shared variables</span>
+                <span class="n">private</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+                                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">])</span>
+
+            <span class="c1"># Build the parallel region</span>
+            <span class="n">private</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">private</span><span class="p">]))</span>
+            <span class="n">private</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;private(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">private</span><span class="p">))</span> <span class="k">if</span> <span class="n">private</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+            <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
+            <span class="n">par_region</span> <span class="o">=</span> <span class="n">Block</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;par-region&#39;</span><span class="p">](</span><span class="n">private</span><span class="p">),</span> <span class="n">body</span><span class="o">=</span><span class="n">rebuilt</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
+                    <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Remainder</span> <span class="k">else</span> <span class="n">par_region</span>
+
+        <span class="k">return</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

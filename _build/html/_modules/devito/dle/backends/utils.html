@@ -165,19 +165,6 @@
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">A dictionary to quickly access standard OpenMP pragmas</span>
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="n">omplang</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for schedule(static)&#39;</span><span class="p">),</span>
-    <span class="s1">&#39;collapse&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for collapse(</span><span class="si">%d</span><span class="s1">) schedule(static)&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
-    <span class="s1">&#39;par-region&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
-    <span class="s1">&#39;par-for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel for schedule(static)&#39;</span><span class="p">),</span>
-    <span class="s1">&#39;simd-for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp simd&#39;</span><span class="p">),</span>
-    <span class="s1">&#39;simd-for-aligned&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp simd aligned(</span><span class="si">%s</span><span class="s1">:</span><span class="si">%d</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)),</span>
-    <span class="s1">&#39;atomic&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp atomic update&#39;</span><span class="p">)</span>
-<span class="p">}</span>
-
-<span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Compiler-specific language</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="n">complang_ALL</span> <span class="o">=</span> <span class="p">{</span>

@@ -168,30 +168,30 @@
 
 <span class="kn">import</span> <span class="nn">cgen</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">psutil</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">fold_blockable_tree</span><span class="p">,</span> <span class="n">unfold_blocked_tree</span>
-<span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">BlockingArg</span><span class="p">,</span> <span class="n">dle_pass</span><span class="p">,</span> <span class="n">omplang</span><span class="p">,</span>
+<span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">BlockingArg</span><span class="p">,</span> <span class="n">Ompizer</span><span class="p">,</span> <span class="n">dle_pass</span><span class="p">,</span>
                                  <span class="n">simdinfo</span><span class="p">,</span> <span class="n">get_simd_flag</span><span class="p">,</span> <span class="n">get_simd_items</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
-                           <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span>
-                           <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
-                           <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span>
+                           <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">compose_nodes</span><span class="p">,</span>
+                           <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
 
-<div class="viewcode-block" id="DevitoRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
+<div class="viewcode-block" id="AdvancedRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.AdvancedRewriter">[docs]</a><span class="k">class</span> <span class="nc">AdvancedRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
+
+    <span class="n">_parallelizer</span> <span class="o">=</span> <span class="n">Ompizer</span>
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parallelize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
 
@@ -357,11 +357,11 @@
                 <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
                     <span class="n">aligned</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">if</span> <span class="n">aligned</span><span class="p">:</span>
-                    <span class="n">simd</span> <span class="o">=</span> <span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;simd-for-aligned&#39;</span><span class="p">]</span>
+                    <span class="n">simd</span> <span class="o">=</span> <span class="n">Ompizer</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;simd-for-aligned&#39;</span><span class="p">]</span>
                     <span class="n">simd</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">simd</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">j</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">aligned</span><span class="p">]),</span>
                                     <span class="n">simdinfo</span><span class="p">[</span><span class="n">get_simd_flag</span><span class="p">()]))</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">simd</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;simd-for&#39;</span><span class="p">])</span>
+                    <span class="n">simd</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">Ompizer</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;simd-for&#39;</span><span class="p">])</span>
                 <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="n">ignore_deps</span> <span class="o">+</span> <span class="n">simd</span><span class="p">)</span>
 
         <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
@@ -369,70 +369,13 @@
         <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{}</span>
 
     <span class="nd">@dle_pass</span>
-    <span class="k">def</span> <span class="nf">_ompize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_parallelize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Group by outer loop so that we can embed within the same parallel region</span>
-        <span class="n">was_tagged</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">groups</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
-            <span class="c1"># Determine the number of consecutive parallelizable Iterations</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ParallelRelaxed</span> <span class="ow">and</span>\
-                <span class="ow">not</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_Elementizable</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">)</span>
-            <span class="n">candidates</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="s1">&#39;asap&#39;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">candidates</span><span class="p">:</span>
-                <span class="n">was_tagged</span> <span class="o">=</span> <span class="kc">False</span>
-                <span class="k">continue</span>
-            <span class="c1"># Consecutive tagged Iteration go in the same group</span>
-            <span class="n">is_tagged</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">tag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">)</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="n">is_tagged</span> <span class="o">&amp;</span> <span class="n">was_tagged</span><span class="p">)</span>
-            <span class="n">handle</span> <span class="o">=</span> <span class="n">groups</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())</span>
-            <span class="n">handle</span><span class="p">[</span><span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">candidates</span>
-            <span class="n">was_tagged</span> <span class="o">=</span> <span class="n">is_tagged</span>
-
-        <span class="c1"># Handle parallelizable loops</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">private</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">group</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="c1"># Heuristic: if at least two parallel loops are available and the</span>
-                <span class="c1"># physical core count is greater than self.thresholds[&#39;collapse&#39;],</span>
-                <span class="c1"># then omp-collapse the loops</span>
-                <span class="n">nparallel</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(</span><span class="n">logical</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;collapse&#39;</span><span class="p">]</span> <span class="ow">or</span>\
-                        <span class="n">nparallel</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
-                    <span class="n">parallel</span> <span class="o">=</span> <span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;for&#39;</span><span class="p">]</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">parallel</span> <span class="o">=</span> <span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;collapse&#39;</span><span class="p">](</span><span class="n">nparallel</span><span class="p">)</span>
-
-                <span class="c1"># Introduce the `omp parallel` pragma</span>
-                <span class="k">if</span> <span class="n">root</span><span class="o">.</span><span class="n">is_ParallelAtomic</span><span class="p">:</span>
-                    <span class="c1"># Introduce the `omp atomic` pragmas</span>
-                    <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-                    <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;atomic&#39;</span><span class="p">],</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
-                            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_increment</span><span class="p">}</span>
-                    <span class="n">handle</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-                    <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
-
-                <span class="c1"># Track the thread-private and thread-shared variables</span>
-                <span class="n">private</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-                                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">])</span>
-
-            <span class="c1"># Build the parallel region</span>
-            <span class="n">private</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">private</span><span class="p">]))</span>
-            <span class="n">private</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;private(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">private</span><span class="p">))</span> <span class="k">if</span> <span class="n">private</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
-            <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
-            <span class="n">par_region</span> <span class="o">=</span> <span class="n">Block</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;par-region&#39;</span><span class="p">](</span><span class="n">private</span><span class="p">),</span> <span class="n">body</span><span class="o">=</span><span class="n">rebuilt</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
-                    <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Remainder</span> <span class="k">else</span> <span class="n">par_region</span>
-
-        <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{}</span>
+        <span class="k">def</span> <span class="nf">key</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ParallelRelaxed</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_Elementizable</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parallelizer</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">make_omp_parallel_iet</span><span class="p">(</span><span class="n">iet</span><span class="p">),</span> <span class="p">{}</span>
 
     <span class="nd">@dle_pass</span>
     <span class="k">def</span> <span class="nf">_minimize_remainders</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
@@ -504,10 +447,10 @@
         <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{}</span></div>
 
 
-<div class="viewcode-block" id="DevitoRewriterSafeMath"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoRewriterSafeMath">[docs]</a><span class="k">class</span> <span class="nc">DevitoRewriterSafeMath</span><span class="p">(</span><span class="n">DevitoRewriter</span><span class="p">):</span>
+<div class="viewcode-block" id="AdvancedRewriterSafeMath"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.AdvancedRewriterSafeMath">[docs]</a><span class="k">class</span> <span class="nc">AdvancedRewriterSafeMath</span><span class="p">(</span><span class="n">AdvancedRewriter</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    This Rewriter is slightly less aggressive than :class:`DevitoRewriter`, as it</span>
+<span class="sd">    This Rewriter is slightly less aggressive than :class:`AdvancedRewriter`, as it</span>
 <span class="sd">    doesn&#39;t drop denormal numbers, which may sometimes harm the numerical precision.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -515,12 +458,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parallelize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="DevitoSpeculativeRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoSpeculativeRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoSpeculativeRewriter</span><span class="p">(</span><span class="n">DevitoRewriter</span><span class="p">):</span>
+<div class="viewcode-block" id="SpeculativeRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.SpeculativeRewriter">[docs]</a><span class="k">class</span> <span class="nc">SpeculativeRewriter</span><span class="p">(</span><span class="n">AdvancedRewriter</span><span class="p">):</span>
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
@@ -528,7 +471,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_nontemporal_stores</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parallelize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
 
@@ -561,14 +504,14 @@
         <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;flags&#39;</span><span class="p">:</span> <span class="s1">&#39;ntstores&#39;</span><span class="p">}</span></div>
 
 
-<div class="viewcode-block" id="DevitoCustomRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoCustomRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoCustomRewriter</span><span class="p">(</span><span class="n">DevitoSpeculativeRewriter</span><span class="p">):</span>
+<div class="viewcode-block" id="CustomRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.CustomRewriter">[docs]</a><span class="k">class</span> <span class="nc">CustomRewriter</span><span class="p">(</span><span class="n">SpeculativeRewriter</span><span class="p">):</span>
 
     <span class="n">passes_mapper</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;denormals&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">,</span>
-        <span class="s1">&#39;blocking&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">,</span>
-        <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_ompize</span><span class="p">,</span>
-        <span class="s1">&#39;simd&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_simdize</span><span class="p">,</span>
-        <span class="s1">&#39;split&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_create_elemental_functions</span>
+        <span class="s1">&#39;denormals&#39;</span><span class="p">:</span> <span class="n">SpeculativeRewriter</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">,</span>
+        <span class="s1">&#39;blocking&#39;</span><span class="p">:</span> <span class="n">SpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">,</span>
+        <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">SpeculativeRewriter</span><span class="o">.</span><span class="n">_parallelize</span><span class="p">,</span>
+        <span class="s1">&#39;simd&#39;</span><span class="p">:</span> <span class="n">SpeculativeRewriter</span><span class="o">.</span><span class="n">_simdize</span><span class="p">,</span>
+        <span class="s1">&#39;split&#39;</span><span class="p">:</span> <span class="n">SpeculativeRewriter</span><span class="o">.</span><span class="n">_create_elemental_functions</span>
     <span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">passes</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
@@ -576,14 +519,14 @@
             <span class="n">passes</span> <span class="o">=</span> <span class="n">passes</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
             <span class="c1"># Already in tuple format</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">DevitoCustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">passes</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">CustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">passes</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="n">DLEException</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">passes</span> <span class="o">=</span> <span class="n">passes</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">DevitoCustomRewriter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CustomRewriter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">passes</span><span class="p">:</span>
-            <span class="n">DevitoCustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></div>
+            <span class="n">CustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></div>
 </pre></div>
 
            </div>
