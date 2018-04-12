@@ -7,30 +7,30 @@ from itertools import combinations
 
 import cgen
 import numpy as np
-import psutil
 
 from devito.cgen_utils import ccode
 from devito.dimension import Dimension
 from devito.dle import fold_blockable_tree, unfold_blocked_tree
-from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
+from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Block, Expression, Iteration, List,
-                           PARALLEL, ELEMENTAL, REMAINDER, tagger,
-                           FindNodes, FindSymbols, IsPerfectIteration, Transformer,
-                           compose_nodes, retrieve_iteration_tree, filter_iterations)
+from devito.ir.iet import (Iteration, List, PARALLEL, ELEMENTAL, REMAINDER, tagger,
+                           FindSymbols, IsPerfectIteration, Transformer, compose_nodes,
+                           retrieve_iteration_tree)
 from devito.logger import dle_warning
 from devito.tools import as_tuple
 
 
-class DevitoRewriter(BasicRewriter):
+class AdvancedRewriter(BasicRewriter):
+
+    _parallelizer = Ompizer
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
-            self._ompize(state)
+            self._parallelize(state)
         self._create_elemental_functions(state)
         self._minimize_remainders(state)
 
@@ -196,11 +196,11 @@ class DevitoRewriter(BasicRewriter):
                 except KeyError:
                     aligned = []
                 if aligned:
-                    simd = omplang['simd-for-aligned']
+                    simd = Ompizer.lang['simd-for-aligned']
                     simd = as_tuple(simd(','.join([j.name for j in aligned]),
                                     simdinfo[get_simd_flag()]))
                 else:
-                    simd = as_tuple(omplang['simd-for'])
+                    simd = as_tuple(Ompizer.lang['simd-for'])
                 mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
 
         processed = Transformer(mapper).visit(nodes)
@@ -208,70 +208,13 @@ class DevitoRewriter(BasicRewriter):
         return processed, {}
 
     @dle_pass
-    def _ompize(self, nodes, state):
+    def _parallelize(self, iet, state):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code
         """
-        # Group by outer loop so that we can embed within the same parallel region
-        was_tagged = False
-        groups = OrderedDict()
-        for tree in retrieve_iteration_tree(nodes):
-            # Determine the number of consecutive parallelizable Iterations
-            key = lambda i: i.is_ParallelRelaxed and\
-                not (i.is_Elementizable or i.is_Vectorizable)
-            candidates = filter_iterations(tree, key=key, stop='asap')
-            if not candidates:
-                was_tagged = False
-                continue
-            # Consecutive tagged Iteration go in the same group
-            is_tagged = any(i.tag is not None for i in tree)
-            key = len(groups) - (is_tagged & was_tagged)
-            handle = groups.setdefault(key, OrderedDict())
-            handle[candidates[0]] = candidates
-            was_tagged = is_tagged
-
-        # Handle parallelizable loops
-        mapper = OrderedDict()
-        for group in groups.values():
-            private = []
-            for root, tree in group.items():
-                # Heuristic: if at least two parallel loops are available and the
-                # physical core count is greater than self.thresholds['collapse'],
-                # then omp-collapse the loops
-                nparallel = len(tree)
-                if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
-                        nparallel < 2:
-                    parallel = omplang['for']
-                else:
-                    parallel = omplang['collapse'](nparallel)
-
-                # Introduce the `omp parallel` pragma
-                if root.is_ParallelAtomic:
-                    # Introduce the `omp atomic` pragmas
-                    exprs = FindNodes(Expression).visit(root)
-                    subs = {i: List(header=omplang['atomic'], body=i)
-                            for i in exprs if i.is_increment}
-                    handle = Transformer(subs).visit(root)
-                    mapper[root] = handle._rebuild(pragmas=root.pragmas + (parallel,))
-                else:
-                    mapper[root] = root._rebuild(pragmas=root.pragmas + (parallel,))
-
-                # Track the thread-private and thread-shared variables
-                private.extend([i for i in FindSymbols('symbolics').visit(root)
-                                if i.is_Array and i._mem_stack])
-
-            # Build the parallel region
-            private = sorted(set([i.name for i in private]))
-            private = ('private(%s)' % ','.join(private)) if private else ''
-            rebuilt = [v for k, v in mapper.items() if k in group]
-            par_region = Block(header=omplang['par-region'](private), body=rebuilt)
-            for k, v in list(mapper.items()):
-                if isinstance(v, Iteration):
-                    mapper[k] = None if v.is_Remainder else par_region
-
-        processed = Transformer(mapper).visit(nodes)
-
-        return processed, {}
+        def key(i):
+            return i.is_ParallelRelaxed and not (i.is_Elementizable or i.is_Vectorizable)
+        return self._parallelizer(key).make_omp_parallel_iet(iet), {}
 
     @dle_pass
     def _minimize_remainders(self, nodes, state):
@@ -343,10 +286,10 @@ class DevitoRewriter(BasicRewriter):
         return processed, {}
 
 
-class DevitoRewriterSafeMath(DevitoRewriter):
+class AdvancedRewriterSafeMath(AdvancedRewriter):
 
     """
-    This Rewriter is slightly less aggressive than :class:`DevitoRewriter`, as it
+    This Rewriter is slightly less aggressive than :class:`AdvancedRewriter`, as it
     doesn't drop denormal numbers, which may sometimes harm the numerical precision.
     """
 
@@ -354,12 +297,12 @@ class DevitoRewriterSafeMath(DevitoRewriter):
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
-            self._ompize(state)
+            self._parallelize(state)
         self._create_elemental_functions(state)
         self._minimize_remainders(state)
 
 
-class DevitoSpeculativeRewriter(DevitoRewriter):
+class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
@@ -367,7 +310,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         self._simdize(state)
         self._nontemporal_stores(state)
         if self.params['openmp'] is True:
-            self._ompize(state)
+            self._parallelize(state)
         self._create_elemental_functions(state)
         self._minimize_remainders(state)
 
@@ -400,14 +343,14 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         return processed, {'flags': 'ntstores'}
 
 
-class DevitoCustomRewriter(DevitoSpeculativeRewriter):
+class CustomRewriter(SpeculativeRewriter):
 
     passes_mapper = {
-        'denormals': DevitoSpeculativeRewriter._avoid_denormals,
-        'blocking': DevitoSpeculativeRewriter._loop_blocking,
-        'openmp': DevitoSpeculativeRewriter._ompize,
-        'simd': DevitoSpeculativeRewriter._simdize,
-        'split': DevitoSpeculativeRewriter._create_elemental_functions
+        'denormals': SpeculativeRewriter._avoid_denormals,
+        'blocking': SpeculativeRewriter._loop_blocking,
+        'openmp': SpeculativeRewriter._parallelize,
+        'simd': SpeculativeRewriter._simdize,
+        'split': SpeculativeRewriter._create_elemental_functions
     }
 
     def __init__(self, nodes, passes, params):
@@ -415,11 +358,11 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
             passes = passes.split(',')
         except AttributeError:
             # Already in tuple format
-            if not all(i in DevitoCustomRewriter.passes_mapper for i in passes):
+            if not all(i in CustomRewriter.passes_mapper for i in passes):
                 raise DLEException
         self.passes = passes
-        super(DevitoCustomRewriter, self).__init__(nodes, params)
+        super(CustomRewriter, self).__init__(nodes, params)
 
     def _pipeline(self, state):
         for i in self.passes:
-            DevitoCustomRewriter.passes_mapper[i](self, state)
+            CustomRewriter.passes_mapper[i](self, state)

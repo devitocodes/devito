@@ -209,12 +209,15 @@ def group_expressions(exprs):
     # Partion based on data dependences
     mapper = OrderedDict()
     ngroups = 0
-    for i, e1 in enumerate(exprs):
+    for e1 in exprs:
         if e1 in mapper:
+            # Optimization: we know already that a group for `e1` has been found
             continue
         found = False
-        for e2 in exprs[i+1:]:
-            if Scope([e1, e2]).has_dep:
+        for e2 in exprs:
+            if e1 is e2:
+                continue
+            elif Scope([e1, e2]).has_dep:
                 v = mapper.get(e1, mapper.get(e2))
                 if v is None:
                     ngroups += 1

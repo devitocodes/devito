@@ -35,7 +35,6 @@ class Operator(OperatorRunnable):
     _default_includes = OperatorRunnable._default_includes + ['yask_kernel_api.hpp']
 
     def __init__(self, expressions, **kwargs):
-        kwargs['dle'] = ('denormals',) + (('openmp',) if configuration['openmp'] else ())
         super(Operator, self).__init__(expressions, **kwargs)
         # Each YASK Operator needs to have its own compiler (hence the copy()
         # below) because Operator-specific shared object will be added to the
