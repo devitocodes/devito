@@ -4,7 +4,8 @@ import cgen as c
 import psutil
 
 from devito.ir.iet import (FindSymbols, FindNodes, Transformer, Block, Expression,
-                           List, Iteration, retrieve_iteration_tree, filter_iterations)
+                           List, Iteration, retrieve_iteration_tree, filter_iterations,
+                           IsPerfectIteration)
 
 
 class Ompizer(object):
@@ -42,8 +43,9 @@ class Ompizer(object):
         # Heuristic: if at least two parallel loops are available and the
         # physical core count is greater than COLLAPSE, then omp-collapse them
         nparallel = len(candidates)
-        if psutil.cpu_count(logical=False) < Ompizer.COLLAPSE or\
-                nparallel < 2:
+        if (psutil.cpu_count(logical=False) < Ompizer.COLLAPSE
+                or nparallel < 2
+                or not IsPerfectIteration().visit(root)):
             parallel = self.lang['for']
         else:
             parallel = self.lang['collapse'](nparallel)
