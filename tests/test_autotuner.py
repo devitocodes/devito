@@ -15,7 +15,6 @@ import numpy as np
 
 from devito import Grid, Function, TimeFunction, Eq, Operator, configuration, silencio
 from devito.logger import logger, logging
-from devito.core.autotuning import options
 
 
 @silencio(log_level='DEBUG')
@@ -66,9 +65,10 @@ def test_at_is_actually_working(shape, expected):
 def test_timesteps_per_at_run():
     """
     Check that each autotuning run (ie with a given block shape) takes
-    ``autotuning.options['at_squeezer']`` timesteps, for an operator
+    ``autotuning.core.options['at_squeezer']`` timesteps, for an operator
     performing the increment ``a[t + timeorder, ...] = f(a[t, ...], ...)``.
     """
+    from devito.core.autotuning import options
 
     buffer = StringIO()
     temporary_handler = logging.StreamHandler(buffer)
