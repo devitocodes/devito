@@ -508,25 +508,38 @@ object. Optionally also includes point markers for sources and receivers.</p>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> – Name of the symbol representing this source</li>
+<li><strong>name</strong> – Name of the symbol representing this source.</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
-<li><strong>coordinates</strong> – Point coordinates for this source</li>
-<li><strong>data</strong> – (Optional) Data values to initialise point data</li>
-<li><strong>ntime</strong> – (Optional) Number of timesteps for which to allocate data</li>
-<li><strong>npoint</strong> – (Optional) Number of sparse points represented by this source</li>
-<li><strong>time_order</strong> – (Optional) Time discretization order (defaults to 2)</li>
+<li><strong>coordinates</strong> – Point coordinates for this source.</li>
+<li><strong>time_range</strong> – <a class="reference internal" href="#examples.seismic.source.TimeAxis" title="examples.seismic.source.TimeAxis"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeAxis</span></code></a> TimeAxis(start, step, num) object.</li>
+<li><strong>data</strong> – (Optional) Data values to initialise point data.</li>
+<li><strong>npoint</strong> – (Optional) Number of sparse points represented by this source.</li>
+<li><strong>time_order</strong> – (Optional) Time discretization order (defaults to 2).</li>
 <li><strong>dimension</strong> – :(Optional) class:<cite>Dimension</cite> object for
-representing the number of points in this source</li>
+representing the number of points in this source.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
-<p>Note, either the dimensions <cite>ntime</cite> and <cite>npoint</cite> or the fully
-initialised <cite>data</cite> array need to be provided.</p>
 <dl class="attribute">
 <dt id="examples.seismic.source.PointSource.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#examples.seismic.source.PointSource.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.source.PointSource.resample">
+<code class="descname">resample</code><span class="sig-paren">(</span><em>dt=None</em>, <em>num=None</em>, <em>rtol=1e-05</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#PointSource.resample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.PointSource.resample" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.source.PointSource.time_range">
+<code class="descname">time_range</code><a class="headerlink" href="#examples.seismic.source.PointSource.time_range" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.source.PointSource.time_values">
+<code class="descname">time_values</code><a class="headerlink" href="#examples.seismic.source.PointSource.time_values" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -544,9 +557,73 @@ initialised <cite>data</cite> array need to be provided.</p>
 </dd></dl>
 
 <dl class="class">
+<dt id="examples.seismic.source.WaveletSource">
+<em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">WaveletSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#WaveletSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.WaveletSource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#examples.seismic.source.PointSource" title="examples.seismic.source.PointSource"><code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.PointSource</span></code></a></p>
+<p>Abstract base class for symbolic objects that encapsulate a set of
+sources with a pre-defined source signal wavelet.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name for the resulting symbol</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>f0</strong> – Peak frequency for Ricker wavelet in kHz</li>
+<li><strong>time_values</strong> – Discretized values of time in ms</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="examples.seismic.source.WaveletSource.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#examples.seismic.source.WaveletSource.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.source.WaveletSource.show">
+<code class="descname">show</code><span class="sig-paren">(</span><em>idx=0</em>, <em>wavelet=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#WaveletSource.show"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.WaveletSource.show" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot the wavelet of the specified source.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>idx</strong> – Index of the source point for which to plot wavelet</li>
+<li><strong>wavelet</strong> – Prescribed wavelet instead of one from this symbol</li>
+<li><strong>time</strong> – Prescribed time instead of time from this symbol</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.source.WaveletSource.wavelet">
+<code class="descname">wavelet</code><span class="sig-paren">(</span><em>f0</em>, <em>t</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#WaveletSource.wavelet"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.WaveletSource.wavelet" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines a wavelet with a peak frequency f0 at time t.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>f0</strong> – Peak frequency in kHz</li>
+<li><strong>t</strong> – Discretized values of time in ms</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
 <dt id="examples.seismic.source.RickerSource">
 <em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">RickerSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#RickerSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.RickerSource" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.WaveletSource</span></code></p>
+<dd><p>Bases: <a class="reference internal" href="#examples.seismic.source.WaveletSource" title="examples.seismic.source.WaveletSource"><code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.WaveletSource</span></code></a></p>
 <p>Symbolic object that encapsulate a set of sources with a
 pre-defined Ricker wavelet:</p>
 <p><a class="reference external" href="http://subsurfwiki.org/wiki/Ricker_wavelet">http://subsurfwiki.org/wiki/Ricker_wavelet</a></p>
@@ -592,7 +669,7 @@ pre-defined Ricker wavelet:</p>
 <dl class="class">
 <dt id="examples.seismic.source.GaborSource">
 <em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">GaborSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#GaborSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.GaborSource" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.WaveletSource</span></code></p>
+<dd><p>Bases: <a class="reference internal" href="#examples.seismic.source.WaveletSource" title="examples.seismic.source.WaveletSource"><code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.source.WaveletSource</span></code></a></p>
 <p>Symbolic object that encapsulate a set of sources with a
 pre-defined Gabor wavelet:</p>
 <p><a class="reference external" href="https://en.wikipedia.org/wiki/Gabor_wavelet">https://en.wikipedia.org/wiki/Gabor_wavelet</a></p>
@@ -632,6 +709,45 @@ pre-defined Gabor wavelet:</p>
 </tbody>
 </table>
 </dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="examples.seismic.source.TimeAxis">
+<em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">TimeAxis</code><span class="sig-paren">(</span><em>start=None</em>, <em>step=None</em>, <em>num=None</em>, <em>stop=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#TimeAxis"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.TimeAxis" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="docutils">
+<dt>Data object to store the time axis. Exactly three of the four key arguments</dt>
+<dd><p class="first">must be prescribed. Because of remainder values it is not possible to create
+a time axis that exactly adhears to the inputs therefore start, stop, step
+and num values should be taken from the TimeAxis object rather than relying
+upon the input values.</p>
+<p>The four possible cases are:
+start is None: start = step*(1 - num) + stop
+step is None: step = (stop - start)/(num - 1)
+num is None: num = ceil((stop - start + step)/step);</p>
+<blockquote>
+<div>because of remainder stop = step*(num - 1) + start</div></blockquote>
+<p class="last">stop is None: stop = step*(num - 1) + start</p>
+</dd>
+</dl>
+<p>:param start:(Optional) Start of time axis.
+:param step: (Optional) Time interval.
+:param: num: (Optional) Number of values (Note: this is the number of intervals + 1).</p>
+<blockquote>
+<div>stop value is reset to correct for remainder.</div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>stop</strong> – (Optional) End time.</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="examples.seismic.source.TimeAxis.time_values">
+<code class="descname">time_values</code><a class="headerlink" href="#examples.seismic.source.TimeAxis.time_values" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 

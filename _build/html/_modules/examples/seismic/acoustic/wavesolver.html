@@ -249,7 +249,7 @@
         <span class="c1"># Create a new receiver object to store the result</span>
         <span class="k">if</span> <span class="n">rec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">rec</span> <span class="o">=</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                           <span class="n">ntime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                           <span class="n">time_range</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">time_range</span><span class="p">,</span>
                            <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
 
         <span class="c1"># Create the forward wavefield if not provided</span>
@@ -284,7 +284,7 @@
         <span class="c1"># Create a new adjoint source and receiver symbol</span>
         <span class="k">if</span> <span class="n">srca</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">srca</span> <span class="o">=</span> <span class="n">PointSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;srca&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                               <span class="n">ntime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                               <span class="n">time_range</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">time_range</span><span class="p">,</span>
                                <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
 
         <span class="c1"># Create the adjoint wavefield if not provided</span>
@@ -349,7 +349,7 @@
         <span class="c1"># Create a new receiver object to store the result</span>
         <span class="k">if</span> <span class="n">rec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">rec</span> <span class="o">=</span> <span class="n">rec</span> <span class="ow">or</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                                  <span class="n">ntime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span>
+                                  <span class="n">time_range</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">time_range</span><span class="p">,</span>
                                   <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
 
         <span class="c1"># Create the forward wavefields u and U if not provided</span>
