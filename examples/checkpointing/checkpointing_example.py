@@ -38,7 +38,7 @@ class CheckpointingExample(GradientExample):
                                       v=self.adjoint_field, m=m0, rec=self.rec_g,
                                       grad=self.grad, dt=self.dt)
         # Subtracting 2 in the following line assuming time_order=2
-        wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, self.nt-2)
+        wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, self.src._time_range.num-2)
 
         wrp.apply_forward()
 

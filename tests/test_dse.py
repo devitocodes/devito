@@ -3,7 +3,7 @@ from conftest import EVAL
 from sympy import sin  # noqa
 import numpy as np
 import pytest
-from conftest import x, y, z, time, skipif_yask  # noqa
+from conftest import x, y, z, skipif_yask  # noqa
 
 from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator  # noqa
 from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
@@ -13,7 +13,7 @@ from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevar
 from devito.types import Scalar
 from devito.tools import generator
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, RickerSource, GaborSource, Receiver
+from examples.seismic import demo_model, TimeAxis, RickerSource, GaborSource, Receiver
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
@@ -33,16 +33,15 @@ def run_acoustic_forward(dse=None):
 
     # Derive timestepping from model spacing
     dt = model.critical_dt
-    nt = int(1 + (tn-t0) / dt)  # Number of timesteps
-    time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+    time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = 20.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -78,16 +77,15 @@ def tti_operator(dse=False, space_order=4):
     # Derive timestepping from model spacing
     # Derive timestepping from model spacing
     dt = model.critical_dt
-    nt = int(1 + (tn-t0) / dt)  # Number of timesteps
-    time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+    time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
     # Define source geometry (center of domain, just below surface)
-    src = GaborSource(name='src', grid=model.grid, f0=0.01, time=time_values)
+    src = GaborSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
     # Define receiver geometry (spread across x, lust below surface)
-    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
+    rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
