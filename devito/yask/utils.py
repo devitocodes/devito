@@ -1,8 +1,7 @@
-import cgen as c
 import ctypes
 
-from devito.cgen_utils import INT, ccode
-from devito.ir.iet import Element, Expression, FindNodes, Transformer
+from devito.cgen_utils import INT
+from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
 from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
 
 from devito.yask import namespace
@@ -42,7 +41,7 @@ def make_grid_accesses(node):
             args = [rhs]
             args += [ListInitializer([INT(make_grid_gets(i)) for i in lhs.indices])]
             handle = make_sharedptr_funcall(namespace['code-grid-put'], args, name)
-            processed = Element(c.Statement(ccode(handle)))
+            processed = ForeignExpression(handle, e.dtype, is_Increment=e.is_increment)
         else:
             # Writing to a scalar temporary
             processed = Expression(e.expr.func(lhs, rhs))

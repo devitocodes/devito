@@ -51,7 +51,7 @@ class Operator(OperatorRunnable):
                           e.reads, e.writes)
                 for e in expressions]
 
-    def _specialize_iet(self, nodes):
+    def _specialize_iet(self, iet):
         """Transform the Iteration/Expression tree to offload the computation of
         one or more loop nests onto YASK. This involves calling the YASK compiler
         to generate YASK code. Such YASK code is then called from within the
@@ -61,7 +61,7 @@ class Operator(OperatorRunnable):
         self.context = YaskNullContext()
         self.yk_soln = YaskNullKernel()
 
-        offloadable = find_offloadable_trees(nodes)
+        offloadable = find_offloadable_trees(iet)
         if len(offloadable) == 0:
             log("No offloadable trees found")
         elif len(offloadable) == 1:
@@ -79,7 +79,7 @@ class Operator(OperatorRunnable):
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'], ['time'],
                                                  namespace['code-soln-name'])
                 funcall = Element(c.Statement(ccode(funcall)))
-                nodes = Transformer({tree[1]: funcall}).visit(nodes)
+                iet = Transformer({tree[1]: funcall}).visit(iet)
 
                 # Track /funcall/ as an external function call
                 self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
@@ -102,20 +102,20 @@ class Operator(OperatorRunnable):
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
-        nodes = make_grid_accesses(nodes)
+        iet = make_grid_accesses(iet)
 
         log("Specialization successfully performed!")
 
-        return nodes
+        return iet
 
-    def _build_parameters(self, nodes):
-        parameters = super(Operator, self)._build_parameters(nodes)
+    def _build_parameters(self, iet):
+        parameters = super(Operator, self)._build_parameters(iet)
         # Add parameters "disappeared" due to offloading
         parameters += tuple(i for i in self.input if i not in parameters)
         return parameters
 
-    def _build_casts(self, nodes):
-        nodes = super(Operator, self)._build_casts(nodes)
+    def _build_casts(self, iet):
+        iet = super(Operator, self)._build_casts(iet)
 
         # Add YASK solution pointer for use in C-land
         soln_obj = Object(namespace['code-soln-name'], namespace['type-solution'])
@@ -127,7 +127,7 @@ class Operator(OperatorRunnable):
         # Build pointer casts
         casts = [PointerCast(soln_obj)] + [PointerCast(i) for i in grid_objs]
 
-        return List(body=casts + [nodes])
+        return List(body=casts + [iet])
 
     def arguments(self, **kwargs):
         args = {}
@@ -261,16 +261,16 @@ class sympy2yask(object):
         return run(expr)
 
 
-def find_offloadable_trees(nodes):
+def find_offloadable_trees(iet):
     """
-    Return the trees within ``nodes`` that can be computed by YASK.
+    Return the trees within ``iet`` that can be computed by YASK.
 
     A tree is "offloadable to YASK" if it is embedded in a time stepping loop
     *and* all of the grids accessed by the enclosed equations are homogeneous
     (i.e., same dimensions and data type).
     """
     offloadable = []
-    for tree in retrieve_iteration_tree(nodes):
+    for tree in retrieve_iteration_tree(iet):
         parallel = filter_iterations(tree, lambda i: i.is_Parallel)
         if not parallel:
             # Cannot offload non-parallel loops

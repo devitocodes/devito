@@ -53,6 +53,7 @@ namespace['code-grid-type'] = 'yask::yk_grid'
 namespace['code-grid-name'] = lambda i: "grid_%s" % str(i)
 namespace['code-grid-get'] = 'get_element'
 namespace['code-grid-put'] = 'set_element'
+namespace['code-grid-add'] = 'add_to_element'
 namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
 namespace['type-grid'] = ctypes_pointer('yask::yk_grid_ptr')
 
