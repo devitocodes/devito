@@ -10,7 +10,7 @@ from devito.dle import BasicRewriter, init_dle
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
-from devito.tools import ctypes_pointer, infer_cpu
+from devito.tools import ctypes_pointer
 
 from devito.yask.dle import YaskRewriter
 
@@ -83,22 +83,7 @@ yask_configuration.add('clustering', (), callback=callback)
 yask_configuration.add('options', None)
 yask_configuration.add('dump', None)
 
-
-# In develop-mode, no optimizations are applied to the generated code (e.g., SIMD).
-# When switching to non-develop-mode, optimizations are automatically switched on,
-# sniffing the highest Instruction Set Architecture level available on the architecture
-def switch_cpu(develop_mode):
-    if bool(develop_mode) is False:
-        isa, platform = infer_cpu()
-        configuration['isa'] = os.environ.get('DEVITO_ISA', isa)
-        configuration['platform'] = os.environ.get('DEVITO_PLATFORM', platform)
-    else:
-        configuration['isa'] = 'cpp'
-        configuration['platform'] = 'intel64'
-yask_configuration.add('develop-mode', True, [False, True], switch_cpu)  # noqa
-
 env_vars_mapper = {
-    'DEVITO_YASK_DEVELOP': 'develop-mode',
     'DEVITO_YASK_AUTOTUNING': 'autotuning',
     'DEVITO_YASK_FOLDING': 'folding',
     'DEVITO_YASK_BLOCKING': 'blockshape',

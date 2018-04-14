@@ -29,7 +29,7 @@ def setup_module(module):
 def reset_isa():
     """Force back to NO-SIMD after each test, as some tests may optionally
     switch on SIMD."""
-    configuration.yask['develop-mode'] = True
+    configuration['develop-mode'] = True
 
 
 class TestOperatorSimple(object):
@@ -70,7 +70,7 @@ class TestOperatorSimple(object):
         And so on and so forth.
         """
         # SIMD on/off
-        configuration.yask['develop-mode'] = nosimd
+        configuration['develop-mode'] = nosimd
 
         grid = Grid(shape=(16, 16, 16))
         u = TimeFunction(name='yu4D', grid=grid, space_order=space_order)

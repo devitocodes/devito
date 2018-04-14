@@ -97,6 +97,7 @@ env_vars_mapper = {
     'DEVITO_ISA': 'isa',
     'DEVITO_PLATFORM': 'platform',
     'DEVITO_BACKEND': 'backend',
+    'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
     'DEVITO_DLE_OPTIONS': 'dle_options',

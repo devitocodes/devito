@@ -25,8 +25,8 @@ def benchmark():
     """
 
     # Make sure that with YASK we run in benchmarking mode
+    configuration['develop-mode'] = False
     if configuration['backend'] == 'yask':
-        configuration.yask['develop-mode'] = False
         configuration.yask['autotuning'] = 'preemptive'
 
 
