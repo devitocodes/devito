@@ -170,6 +170,32 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
 
+    def test_nothing_in_negative(self):
+        """Test the case where when the condition is false, there is nothing to do."""
+        nt = 4
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+        usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                             time_dim=time_subsampled)
+        assert(time_subsampled in usave.indices)
+
+        eqns = [Eq(usave, u)]
+        op = Operator(eqns)
+
+        u.data[:] = 1.0
+        usave.data[:] = 0.0
+        op.apply(time_m=1, time_M=1)
+        assert np.allclose(usave.data, 0.0)
+
+        op.apply(time_m=0, time_M=0)
+        assert np.allclose(usave.data, 1.0)
+
     def test_laplace(self):
         grid = Grid(shape=(20, 20, 20))
         x, y, z = grid.dimensions

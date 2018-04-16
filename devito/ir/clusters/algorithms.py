@@ -97,6 +97,13 @@ def guard(clusters):
             banned = flatten(v for k, v in mapper.items() if k not in dims)
             exprs = [e.xreplace({i: IntDiv(i.parent, i.factor) for i in mapper})
                      for e in c.exprs if e not in banned]
+
+            if not exprs:
+                # This prevents us from generating an empty cluster
+                # when there are no active expressions over the same iteration
+                # variables when the conditional is false
+                continue
+
             guards = [(i.parent, conditions[i]) for i in dims]
             guards.extend([(i.parent, negated[i]) for i in ndims])
             cluster = PartialCluster(exprs, c.ispace, c.dspace, c.atomics, dict(guards))
