@@ -160,11 +160,11 @@ def iet_insert_C_decls(iet, func_table):
         if k.is_scalar:
             # Inline declaration
             mapper[k] = LocalExpression(**k.args)
-        elif k.write._mem_external:
-            # Nothing to do, variable passed as kernel argument
+        elif k.write is None or k.write._mem_external:
+            # Nothing to do, e.g., variable passed as kernel argument
             continue
         elif k.write._mem_stack:
-            # On the stack, as established by the DLE
+            # On the stack
             key = lambda i: not i.is_Parallel
             site = filter_iterations(v, key=key, stop='asap') or [iet]
             allocator.push_stack(site[-1], k.write)
