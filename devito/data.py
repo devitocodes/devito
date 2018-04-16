@@ -14,8 +14,8 @@ from devito.parameters import configuration
 from devito.tools import as_tuple, numpy_to_ctypes
 import devito
 
-__all__ = ['Data', 'ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
-           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'default_allocator']
+__all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
+           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM']
 
 
 class MemoryAllocator(object):

@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import os
 
 from devito.base import *  # noqa
+from devito.data import *  # noqa
 from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
 from devito.finite_difference import *  # noqa
