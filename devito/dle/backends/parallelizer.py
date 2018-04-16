@@ -34,23 +34,25 @@ class Ompizer(object):
         """
         self.key = key
 
-    def _make_omp_parallel_tree(self, root, candidates):
-        """
-        Return a mapper to parallelize the :class:`Iteration`s within /root/.
-        """
-        mapper = OrderedDict()
-
+    def _pragma_for(self, root, candidates):
         # Heuristic: if at least two parallel loops are available and the
         # physical core count is greater than COLLAPSE, then omp-collapse them
         nparallel = len(candidates)
         if (psutil.cpu_count(logical=False) < Ompizer.COLLAPSE
                 or nparallel < 2
                 or not IsPerfectIteration().visit(root)):
-            parallel = self.lang['for']
+            return self.lang['for']
         else:
-            parallel = self.lang['collapse'](nparallel)
+            return self.lang['collapse'](nparallel)
 
-        # Introduce the `omp parallel` pragma
+    def _make_parallel_tree(self, root, candidates):
+        """
+        Return a mapper to parallelize the :class:`Iteration`s within /root/.
+        """
+        parallel = self._pragma_for(root, candidates)
+
+        # Introduce the `omp for` pragma
+        mapper = OrderedDict()
         if root.is_ParallelAtomic:
             # Introduce the `omp atomic` pragmas
             exprs = FindNodes(Expression).visit(root)
@@ -63,7 +65,7 @@ class Ompizer(object):
 
         return mapper
 
-    def make_omp_parallel_iet(self, iet):
+    def make_parallel(self, iet):
         """
         Transform ``iet`` by decorating its parallel :class:`Iteration`s with
         suitable ``#pragma omp ...`` triggering thread-level parallelism.
@@ -88,7 +90,7 @@ class Ompizer(object):
         for group in groups.values():
             private = []
             for root, candidates in group.items():
-                mapper.update(self._make_omp_parallel_tree(root, candidates))
+                mapper.update(self._make_parallel_tree(root, candidates))
 
                 # Track the thread-private and thread-shared variables
                 private.extend([i for i in FindSymbols('symbolics').visit(root)

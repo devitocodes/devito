@@ -1,14 +1,47 @@
-from devito.dle.backends import AdvancedRewriter, Ompizer, dle_pass
+from collections import OrderedDict
+
+from devito.dle.backends import AdvancedRewriter, Ompizer
+from devito.ir.iet import Expression, FindNodes, Transformer
+from devito.logger import yask_warning as warning
+
+from devito.yask.utils import namespace, split_increment
 
 __all__ = ['YaskRewriter']
 
 
 class YaskOmpizer(Ompizer):
-    # TODO: will need to specialize `_make_omp_parallel_tree` as soon as the
-    # necessary APIs will be ready in YASK (e.g., atomic incs required)
 
-    def key(self, v):
-        return v.is_Parallel and not (v.is_Elementizable or v.is_Vectorizable)
+    def _make_parallel_tree(self, root, candidates):
+        """
+        Return a mapper to parallelize the :class:`Iteration`s within /root/.
+        """
+        parallel = self._pragma_for(root, candidates)
+
+        yask_add = namespace['code-grid-add']
+
+        # Introduce the `omp for` pragma
+        mapper = OrderedDict()
+        if root.is_ParallelAtomic:
+            # Turn increments into atomic increments
+            subs = {}
+            for e in FindNodes(Expression).visit(root):
+                if not e.is_increment:
+                    continue
+                # Try getting the increment components
+                try:
+                    target, value, indices = split_increment(e.expr)
+                except (AttributeError, ValueError):
+                    warning("Found a parallelizable tree, but couldn't ompize it "
+                            "because couldn't understand the increment %s" % e.expr)
+                    return mapper
+                # All good, can atomicize the increment
+                subs[e] = e._rebuild(expr=e.expr.func(yask_add, target, (value, indices)))
+            handle = Transformer(subs).visit(root)
+            mapper[root] = handle._rebuild(pragmas=root.pragmas + (parallel,))
+        else:
+            mapper[root] = root._rebuild(pragmas=root.pragmas + (parallel,))
+
+        return mapper
 
 
 class YaskRewriter(AdvancedRewriter):
@@ -19,10 +52,3 @@ class YaskRewriter(AdvancedRewriter):
         self._avoid_denormals(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-
-    @dle_pass
-    def _parallelize(self, iet, state):
-        def key(i):
-            # TODO: ParallelRelaxed not supported yet (see TODO above)
-            return i.is_Parallel and not (i.is_Elementizable or i.is_Vectorizable)
-        return self._parallelizer(key).make_omp_parallel_iet(iet), {}
