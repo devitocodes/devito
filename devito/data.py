@@ -24,6 +24,9 @@ class MemoryAllocator(object):
 
     __metaclass__ = abc.ABCMeta
 
+    is_Posix = False
+    is_Numa = False
+
     @classmethod
     def initialized(cls):
         return cls.lib is not None
@@ -87,6 +90,8 @@ class PosixAllocator(MemoryAllocator):
     aligned to page boundaries.
     """
 
+    is_Posix = True
+
     handle = find_library('c')
     if handle is not None:
         lib = ctypes.CDLL(handle)
@@ -119,6 +124,8 @@ class NumaAllocator(MemoryAllocator):
                  keywords ``'local'`` or ``'any'``.
     """
 
+    is_Numa = True
+
     handle = find_library('numa')
     if handle is not None:
         lib = ctypes.CDLL(handle)
@@ -141,9 +148,9 @@ class NumaAllocator(MemoryAllocator):
 
     def _alloc_C_libcall(self, size, ctype):
         c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
-        if isinstance(self._node, int):
+        if self.put_onnode:
             c_pointer = self.lib.numa_alloc_onnode(c_bytesize, self._node)
-        elif self._node == 'local':
+        elif self.put_local:
             c_pointer = self.lib.numa_alloc_local(c_bytesize)
         else:
             c_pointer = self.lib.numa_alloc(c_bytesize)
@@ -154,6 +161,18 @@ class NumaAllocator(MemoryAllocator):
 
     def free(self, c_pointer, size):
         self.lib.numa_free(c_pointer, size)
+
+    @property
+    def node(self):
+        return self._node
+
+    @property
+    def put_onnode(self):
+        return isinstance(self._node, int)
+
+    @property
+    def put_local(self):
+        return self._node == 'local'
 
 
 ALLOC_FLAT = PosixAllocator()
