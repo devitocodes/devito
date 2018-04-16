@@ -181,14 +181,17 @@ def default_allocator():
 
     The default allocator is chosen based on the following algorithm: ::
 
+        * If running in DEVELOP mode (env var DEVITO_DEVELOP), return ALLOC_FLAT;
         * If ``libnuma`` is not available on the system, return ALLOC_FLAT (though
           it typically is available, at least on relatively recent Linux distributions);
         * If on a Knights Landing platform (codename ``knl``, see ``print_defaults()``)
           return ALLOC_KNL_MCDRAM;
         * If on a multi-socket Intel Xeon platform, return ALLOC_NUMA_LOCAL;
-        * Otherwise, return ALLOC_FLAT.
+        * In all other cases, return ALLOC_FLAT.
     """
-    if NumaAllocator.initialized():
+    if configuration['develop-mode']:
+        return ALLOC_FLAT
+    elif NumaAllocator.initialized():
         if configuration['platform'] == 'knl':
             return ALLOC_KNL_MCDRAM
         else:
