@@ -247,8 +247,17 @@ class YaskContext(object):
 
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
 
-        # Set up the YASK grid and allocate memory
+        # Create the YASK grid
         grid = self.yk_hook.new_grid(name, obj)
+
+        # Where should memory be allocated ?
+        alloc = obj._allocator
+        if alloc.is_Numa:
+            if alloc.put_onnode:
+                grid.set_numa_preferred(alloc.node)
+            elif alloc.put_local:
+                grid.set_numa_preferred(namespace['numa-put-local'])
+
         for i, s, h in zip(obj.indices, obj.shape_allocated, obj._extent_halo):
             if i.is_Time:
                 assert grid.is_dim_used(i.name)
