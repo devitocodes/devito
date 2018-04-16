@@ -1,8 +1,10 @@
+from collections import OrderedDict
 import ctypes
 
 from devito.cgen_utils import INT
 from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
 from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
+from devito.tools import ctypes_pointer
 
 from devito.yask import namespace
 
@@ -54,3 +56,22 @@ def make_grid_accesses(node):
 def rawpointer(obj):
     """Return a :class:`ctypes.c_void_p` pointing to ``obj``."""
     return ctypes.cast(int(obj), ctypes.c_void_p)
+
+
+# YASK conventions
+namespace = OrderedDict()
+namespace['jit-yc-hook'] = lambda i, j: 'devito_%s_yc_hook%d' % (i, j)
+namespace['jit-yk-hook'] = lambda i, j: 'devito_%s_yk_hook%d' % (i, j)
+namespace['jit-yc-soln'] = lambda i, j: 'devito_%s_yc_soln%d' % (i, j)
+namespace['jit-yk-soln'] = lambda i, j: 'devito_%s_yk_soln%d' % (i, j)
+namespace['kernel-filename'] = 'yask_stencil_code.hpp'
+namespace['code-soln-type'] = 'yask::yk_solution'
+namespace['code-soln-name'] = 'soln'
+namespace['code-soln-run'] = 'run_solution'
+namespace['code-grid-type'] = 'yask::yk_grid'
+namespace['code-grid-name'] = lambda i: "grid_%s" % str(i)
+namespace['code-grid-get'] = 'get_element'
+namespace['code-grid-put'] = 'set_element'
+namespace['code-grid-add'] = 'add_to_element'
+namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
+namespace['type-grid'] = ctypes_pointer('yask::yk_grid_ptr')

@@ -8,8 +8,8 @@ from devito.compiler import make
 from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log
 
-from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
-from devito.yask.utils import rawpointer
+from devito.yask import cfac, nfac, ofac, exit, configuration
+from devito.yask.utils import namespace, rawpointer
 
 
 class YaskKernel(object):

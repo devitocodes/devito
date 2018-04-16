@@ -3,16 +3,15 @@ The ``yask`` Devito backend uses the YASK stencil optimizer to generate,
 JIT-compile, and run kernels.
 """
 
-from collections import OrderedDict
 import os
 
 from devito.dle import BasicRewriter, init_dle
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
-from devito.tools import ctypes_pointer
 
 from devito.yask.dle import YaskRewriter
+from devito.yask.utils import namespace
 
 
 def exit(emsg):
@@ -33,29 +32,11 @@ except ImportError:
     exit("Python YASK compiler bindings")
 
 path = os.path.dirname(os.path.dirname(yc.__file__))
-
-# YASK conventions
-namespace = OrderedDict()
-namespace['jit-yc-hook'] = lambda i, j: 'devito_%s_yc_hook%d' % (i, j)
-namespace['jit-yk-hook'] = lambda i, j: 'devito_%s_yk_hook%d' % (i, j)
-namespace['jit-yc-soln'] = lambda i, j: 'devito_%s_yc_soln%d' % (i, j)
-namespace['jit-yk-soln'] = lambda i, j: 'devito_%s_yk_soln%d' % (i, j)
-namespace['kernel-filename'] = 'yask_stencil_code.hpp'
 namespace['path'] = path
 namespace['kernel-path'] = os.path.join(path, 'src', 'kernel')
 namespace['kernel-path-gen'] = os.path.join(namespace['kernel-path'], 'gen')
 namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
                                           namespace['kernel-filename'])
-namespace['code-soln-type'] = 'yask::yk_solution'
-namespace['code-soln-name'] = 'soln'
-namespace['code-soln-run'] = 'run_solution'
-namespace['code-grid-type'] = 'yask::yk_grid'
-namespace['code-grid-name'] = lambda i: "grid_%s" % str(i)
-namespace['code-grid-get'] = 'get_element'
-namespace['code-grid-put'] = 'set_element'
-namespace['code-grid-add'] = 'add_to_element'
-namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
-namespace['type-grid'] = ctypes_pointer('yask::yk_grid_ptr')
 
 
 # Need a custom compiler to compile YASK kernels

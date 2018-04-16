@@ -15,9 +15,10 @@ from devito.operator import OperatorRunnable
 from devito.tools import flatten
 from devito.types import Object
 
-from devito.yask import nfac, namespace, exit, configuration
+from devito.yask import nfac, exit, configuration
 from devito.yask.data import DataScalar
-from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
+from devito.yask.utils import (make_grid_accesses, make_sharedptr_funcall, rawpointer,
+                               namespace)
 from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
 from devito.yask.types import YaskGridObject
 
