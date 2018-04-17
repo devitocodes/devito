@@ -137,6 +137,7 @@ class NumaAllocator(MemoryAllocator):
         # enough free on the target node
         lib.numa_set_bind_policy(0)
         # Required because numa_alloc* functions return pointers
+        lib.numa_alloc_onnode.restype = ctypes.c_void_p
         lib.numa_alloc_local.restype = ctypes.c_void_p
         lib.numa_alloc.restype = ctypes.c_void_p
     else:
