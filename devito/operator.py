@@ -419,7 +419,18 @@ class OperatorRunnable(Operator):
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
-        self.cfunction(*arg_values)
+        try:
+            self.cfunction(*arg_values)
+        except ctypes.ArgumentError as e:
+            if e.args[0].startswith("argument "):
+                argnum = int(e.args[0][9:].split(':')[0]) - 1
+                newmsg = "error in argument '%s' with value '%s': %s" % (
+                    self.parameters[argnum].name,
+                    arg_values[argnum],
+                    e.args[0])
+                raise ctypes.ArgumentError(newmsg) from e
+            else:
+                raise
 
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
