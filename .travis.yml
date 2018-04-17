@@ -49,7 +49,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask
+      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
   allow_failures:
     - os: linux
       python: "2.7"
