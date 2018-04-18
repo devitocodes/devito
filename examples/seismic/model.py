@@ -320,6 +320,7 @@ class Model(object):
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
         self.shape = shape
+        self.space_order = space_order
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
 
@@ -331,7 +332,7 @@ class Model(object):
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
-            self.m = Function(name="m", grid=self.grid, space_order=space_order)
+            self.m = Function(name="m", grid=self.grid, space_order=self.space_order)
         else:
             self.m = Constant(name="m", value=1/vp**2)
 
@@ -461,3 +462,33 @@ class Model(object):
             initialize_function(self.m, 1 / (self.vp * self.vp), self.nbpml)
         else:
             self.m.data = 1 / vp**2
+
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        state.pop('grid')
+        state.pop('damp')
+        state.pop('m')
+        state.pop('_vp')
+        dim = len(self.shape)
+        if dim == 1:
+            vp = np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml])
+        elif dim == 2:
+            vp = np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml,
+                                          self.nbpml:-self.nbpml])
+        elif dim == 3:
+            vp = np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml,
+                                          self.nbpml:-self.nbpml,
+                                          self.nbpml:-self.nbpml])
+        else:
+            raise ValueError("The programmer was an idiot...")
+
+        state['vp'] = np.array(vp)
+        state['spacing'] = self.spacing
+        state['dtype'] = self.dtype
+        return state
+
+    def __setstate__(self, state):
+        self.__init__(state['origin'], state['spacing'], state['shape'],
+                      state['space_order'], state['vp'], nbpml=state['nbpml'],
+                      dtype=state['dtype'], epsilon=state['epsilon'],
+                      delta=state['delta'], theta=state['theta'], phi=state['phi'])
