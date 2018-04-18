@@ -1,7 +1,7 @@
 from collections import OrderedDict, defaultdict
 from itertools import groupby
 
-from devito.dimension import Dimension
+from devito.dimension import Dimension, DerivedDimension
 from devito.ir.support.basic import Access, Scope
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
@@ -20,11 +20,23 @@ def detect_accesses(expr):
     to ``f`` within ``expr``.
     """
     mapper = defaultdict(Stencil)
+    terms = [e for e in retrieve_terminals(expr, deep=True)
+             if isinstance(e, DerivedDimension)]
+    ind_dims = [d for e in retrieve_indexed(expr, mode='all', deep=True)
+                for d in e.base.function.indices]
+    missed = [d for d in terms if d not in ind_dims]
     for e in retrieve_indexed(expr, mode='all', deep=True):
         f = e.base.function
         for a in e.indices:
             if isinstance(a, Dimension):
                 mapper[f][a].update([0])
+                for m in missed:
+                    if m.parent == a:
+                        mapper[f][m].update([0])
+            if isinstance(a, DerivedDimension):
+                for m in missed:
+                    if m.parent == a.parent:
+                        mapper[f][m].update([0])
             d = None
             off = []
             for i in a.args:
@@ -34,6 +46,7 @@ def detect_accesses(expr):
                     off += [int(i)]
             if d is not None:
                 mapper[f][d].update(off or [0])
+
     return mapper
 
 

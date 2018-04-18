@@ -4,7 +4,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito import (ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant,  # noqa
-                    DOMAIN, INTERIOR)
+                    DOMAIN, INTERIOR, Function)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
@@ -119,6 +119,29 @@ class TestConditionalDimension(object):
 
     """A collection of tests to check the correct functioning of
     :class:`ConditionalDimension`s."""
+
+    def test_no_index(self):
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        u2 = Function(name='energy', grid=grid)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        eqns = [Eq(u.forward, u + 1), Eq(u2, u2 + u*u*time_subsampled)]
+        op = Operator(eqns)
+        op.apply(t_M=nt-2)
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        # expected result is 1024
+        # u2 = u[0]**2 * 0 + u[4]**2 * 1 + u[8]**2 * 2 + u[12]**2 * 3 + u[16]**2 * 4
+        # with u[t] = t
+        # u2 = 16 * 1 + 64 * 2 + 144 * 3 + 256 * 4 = 1600
+        assert np.all(np.allclose(u2.data, 1600))
 
     def test_basic(self):
         nt = 19
