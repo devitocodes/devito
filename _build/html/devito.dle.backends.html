@@ -25,27 +25,19 @@
   
 
   
-  
     <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  
-
-  
-
-  
-        <link rel="index" title="Index"
-              href="genindex.html"/>
-        <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="Devito 1 documentation" href="index.html"/>
-        <link rel="up" title="devito.dle package" href="devito.dle.html"/>
-        <link rel="next" title="devito.dse package" href="devito.dse.html"/>
-        <link rel="prev" title="devito.dle package" href="devito.dle.html"/> 
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="devito.dse package" href="devito.dse.html" />
+    <link rel="prev" title="devito.dle package" href="devito.dle.html" /> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav" role="document">
+<body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
@@ -145,7 +137,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+      <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">Devito</a>
@@ -153,9 +145,10 @@
       </nav>
 
 
-      
       <div class="wy-nav-content">
+        
         <div class="rst-content">
+        
           
 
 
@@ -228,7 +221,7 @@ doesn’t drop denormal numbers, which may sometimes harm the numerical precisio
 <dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.SpeculativeRewriter" title="devito.dle.backends.advanced.SpeculativeRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.advanced.SpeculativeRewriter</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dle.backends.advanced.CustomRewriter.passes_mapper">
-<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14d10e29dea0&gt;, 'denormals': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14d10e29d6a8&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14d10e2ae158&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14d10e2ae048&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14d10e29d7b8&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.CustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
+<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x15364731bd90&gt;, 'denormals': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x15364731b598&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x15364732c048&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x15364731bea0&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x15364731b6a8&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.CustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -317,7 +310,7 @@ greater than this threshold.</p>
 
 <dl class="attribute">
 <dt id="devito.dle.backends.parallelizer.Ompizer.lang">
-<code class="descname">lang</code><em class="property"> = {'atomic': &lt;cgen.Pragma object at 0x14d10e2a5320&gt;, 'collapse': &lt;function Ompizer.&lt;lambda&gt; at 0x14d10e29d9d8&gt;, 'for': &lt;cgen.Pragma object at 0x14d10e2a5278&gt;, 'par-for': &lt;cgen.Pragma object at 0x14d10e2a52b0&gt;, 'par-region': &lt;function Ompizer.&lt;lambda&gt; at 0x14d10e29da60&gt;, 'simd-for': &lt;cgen.Pragma object at 0x14d10e2a52e8&gt;, 'simd-for-aligned': &lt;function Ompizer.&lt;lambda&gt; at 0x14d10e29dae8&gt;}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.lang" title="Permalink to this definition">¶</a></dt>
+<code class="descname">lang</code><em class="property"> = {'atomic': &lt;cgen.Pragma object at 0x153647323208&gt;, 'collapse': &lt;function Ompizer.&lt;lambda&gt; at 0x15364731b8c8&gt;, 'for': &lt;cgen.Pragma object at 0x153647323160&gt;, 'par-for': &lt;cgen.Pragma object at 0x153647323198&gt;, 'par-region': &lt;function Ompizer.&lt;lambda&gt; at 0x15364731b950&gt;, 'simd-for': &lt;cgen.Pragma object at 0x1536473231d0&gt;, 'simd-for-aligned': &lt;function Ompizer.&lt;lambda&gt; at 0x15364731b9d8&gt;}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.lang" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shortcuts for the OpenMP language.</p>
 </dd></dl>
 
@@ -354,9 +347,7 @@ register on the current architecture.</p>
 
 
            </div>
-           <div class="articleComments">
-            
-           </div>
+           
           </div>
           <footer>
   
@@ -378,7 +369,7 @@ register on the current architecture.</p>
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -397,6 +388,7 @@ register on the current architecture.</p>
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'./',
             VERSION:'1',
+            LANGUAGE:'en',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -415,14 +407,13 @@ register on the current architecture.</p>
     <script type="text/javascript" src="_static/js/theme.js"></script>
   
 
-  
-  
   <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.StickyNav.enable();
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
       });
-  </script>
-   
+  </script> 
 
 </body>
 </html>

@@ -135,6 +135,8 @@
 ./_build/html/_static/fonts/Inconsolata-Bold.ttf
 ./_build/html/_static/fonts/Inconsolata-Regular.ttf
 ./_build/html/_static/fonts/Lato-Bold.ttf
+./_build/html/_static/fonts/Lato-BoldItalic.ttf
+./_build/html/_static/fonts/Lato-Italic.ttf
 ./_build/html/_static/fonts/Lato-Regular.ttf
 ./_build/html/_static/fonts/RobotoSlab-Bold.ttf
 ./_build/html/_static/fonts/RobotoSlab-Regular.ttf
@@ -142,6 +144,7 @@
 ./_build/html/_static/fonts/fontawesome-webfont.svg
 ./_build/html/_static/fonts/fontawesome-webfont.ttf
 ./_build/html/_static/fonts/fontawesome-webfont.woff
+./_build/html/_static/fonts/fontawesome-webfont.woff2
 ./_build/html/_static/jquery-3.2.1.js
 ./_build/html/_static/jquery.js
 ./_build/html/_static/js/modernizr.min.js
