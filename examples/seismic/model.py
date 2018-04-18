@@ -304,6 +304,7 @@ class Model(object):
     :param shape: Number of grid points size in (x,y,z) order
     :param space_order: Order of the spatial stencil discretisation
     :param vp: Velocity in km/s
+    :param m: Slowness (1/vp**2)
     :param nbpml: The number of PML layers for boundary damping
     :param rho: Density in kg/cm^3 (rho=1 for water)
     :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
@@ -317,8 +318,11 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
+    def __init__(self, origin, spacing, shape, space_order, vp=None, m=None, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
+        if (vp is None and m is None) or (vp is not None and m is not None):
+            raise ValueError('One (and only one) of vp or m should be specified.')
+
         self.shape = shape
         self.space_order = space_order
         self.nbpml = int(nbpml)
@@ -330,14 +334,11 @@ class Model(object):
         self.grid = Grid(extent=extent, shape=shape_pml,
                          origin=origin, dtype=dtype)
 
-        # Create square slowness of the wave as symbol `m`
-        if isinstance(vp, np.ndarray):
+        if vp is None:
             self.m = Function(name="m", grid=self.grid, space_order=self.space_order)
+            self.m.data[:] = m
         else:
-            self.m = Constant(name="m", value=1/vp**2)
-
-        # Set model velocity, which will also set `m`
-        self.vp = vp
+            self.vp = vp
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
@@ -437,17 +438,37 @@ class Model(object):
         coeff = 0.38 if len(self.shape) == 3 else 0.42
         return self.dtype(coeff * np.min(self.spacing) / (self.scale*np.max(self.vp)))
 
+    def get_vp(self, exclude_pml=True):
+        """Returns the velocity model
+           :param exclude_pml : excludes the pml region if true.
+        """
+        if exclude_pml:
+            dim = len(self.shape)
+            if dim == 1:
+                return np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml])
+            elif dim == 2:
+                return np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml,
+                                                self.nbpml:-self.nbpml])
+            elif dim == 3:
+                return np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml,
+                                                self.nbpml:-self.nbpml,
+                                                self.nbpml:-self.nbpml])
+            else:
+                raise ValueError("The programmer was an idiot...")
+        else:
+            return np.sqrt(1. / self.m.data)
+
     @property
     def vp(self):
         """:class:`numpy.ndarray` holding the model velocity in km/s.
 
         .. note::
 
-        Updating the velocity field also updates the square slowness
+        Updating the velocity field updates the square slowness
         ``self.m``. However, only ``self.m`` should be used in seismic
         operators, since it is of type :class:`Function`.
         """
-        return self._vp
+        return self.get_vp(False)
 
     @vp.setter
     def vp(self, vp):
@@ -455,40 +476,25 @@ class Model(object):
 
         :param vp : new velocity in km/s
         """
-        self._vp = vp
-
         # Update the square slowness according to new value
         if isinstance(vp, np.ndarray):
-            initialize_function(self.m, 1 / (self.vp * self.vp), self.nbpml)
+            self.m = Function(name="m", grid=self.grid, space_order=self.space_order)
+            initialize_function(self.m, 1 / (vp * vp), self.nbpml)
         else:
+            self.m = Constant(name="m", value=1/vp**2)
             self.m.data = 1 / vp**2
 
     def __getstate__(self):
         state = dict(self.__dict__)
         state.pop('grid')
         state.pop('damp')
-        state.pop('m')
-        state.pop('_vp')
-        dim = len(self.shape)
-        if dim == 1:
-            vp = np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml])
-        elif dim == 2:
-            vp = np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml,
-                                          self.nbpml:-self.nbpml])
-        elif dim == 3:
-            vp = np.sqrt(1. / self.m.data[self.nbpml:-self.nbpml,
-                                          self.nbpml:-self.nbpml,
-                                          self.nbpml:-self.nbpml])
-        else:
-            raise ValueError("The programmer was an idiot...")
-
-        state['vp'] = np.array(vp)
+        state['m'] = np.array(self.m.data)
         state['spacing'] = self.spacing
         state['dtype'] = self.dtype
         return state
 
     def __setstate__(self, state):
         self.__init__(state['origin'], state['spacing'], state['shape'],
-                      state['space_order'], state['vp'], nbpml=state['nbpml'],
+                      state['space_order'], m=state['m'], nbpml=state['nbpml'],
                       dtype=state['dtype'], epsilon=state['epsilon'],
                       delta=state['delta'], theta=state['theta'], phi=state['phi'])
