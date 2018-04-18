@@ -27,9 +27,26 @@ class MemoryAllocator(object):
     is_Posix = False
     is_Numa = False
 
+    _attempted_init = False
+    lib = None
+
     @classmethod
-    def initialized(cls):
+    def available(cls):
+        if cls._attempted_init is False:
+            cls.initialize()
+            cls._attempted_init = True
         return cls.lib is not None
+
+    @classmethod
+    def initialize(cls):
+        """
+        Initialize the MemoryAllocator.
+
+        .. note::
+
+            This must be implemented by all subclasses of MemoryAllocator.
+        """
+        return
 
     def alloc(self, shape, dtype):
         """
@@ -92,13 +109,16 @@ class PosixAllocator(MemoryAllocator):
 
     is_Posix = True
 
-    handle = find_library('c')
-    if handle is not None:
-        lib = ctypes.CDLL(handle)
-    else:
-        lib = None
+    @classmethod
+    def initialize(cls):
+        handle = find_library('c')
+        if handle is not None:
+            cls.lib = ctypes.CDLL(handle)
 
     def _alloc_C_libcall(self, size, ctype):
+        if not self.available():
+            raise RuntimeError("Couldn't find `libc`'s `posix_memalign` to "
+                               "allocate memory")
         c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
         c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.c_void_p)
         alignment = self.lib.getpagesize()
@@ -126,12 +146,14 @@ class NumaAllocator(MemoryAllocator):
 
     is_Numa = True
 
-    handle = find_library('numa')
-    if handle is not None:
+    @classmethod
+    def initialize(cls):
+        handle = find_library('numa')
+        if handle is None:
+            return
         lib = ctypes.CDLL(handle)
-    else:
-        lib = None
-    if lib.numa_available() != -1:
+        if lib.numa_available() == -1:
+            return
         # We are indeed on a NUMA system
         # Allow the kernel to allocate memory on other NUMA nodes when there isn't
         # enough free on the target node
@@ -140,14 +162,16 @@ class NumaAllocator(MemoryAllocator):
         lib.numa_alloc_onnode.restype = ctypes.c_void_p
         lib.numa_alloc_local.restype = ctypes.c_void_p
         lib.numa_alloc.restype = ctypes.c_void_p
-    else:
-        lib = None
+        cls.lib = lib
 
     def __init__(self, node):
         super(NumaAllocator, self).__init__()
         self._node = node
 
     def _alloc_C_libcall(self, size, ctype):
+        if not self.available():
+            raise RuntimeError("Couldn't find `libnuma`'s `numa_alloc_*` to "
+                               "allocate memory")
         c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
         if self.put_onnode:
             c_pointer = self.lib.numa_alloc_onnode(c_bytesize, self._node)
@@ -211,7 +235,7 @@ def default_allocator():
     """
     if configuration['develop-mode']:
         return ALLOC_FLAT
-    elif NumaAllocator.initialized():
+    elif NumaAllocator.available():
         if configuration['platform'] == 'knl':
             return ALLOC_KNL_MCDRAM
         else:
