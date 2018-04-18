@@ -156,7 +156,8 @@
 <span class="kn">import</span> <span class="nn">psutil</span>
 
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">Block</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span>
-                           <span class="n">List</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
+                           <span class="n">List</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span>
+                           <span class="n">IsPerfectIteration</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Ompizer"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.parallelizer.Ompizer">[docs]</a><span class="k">class</span> <span class="nc">Ompizer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -194,8 +195,9 @@
         <span class="c1"># Heuristic: if at least two parallel loops are available and the</span>
         <span class="c1"># physical core count is greater than COLLAPSE, then omp-collapse them</span>
         <span class="n">nparallel</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(</span><span class="n">logical</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">Ompizer</span><span class="o">.</span><span class="n">COLLAPSE</span> <span class="ow">or</span>\
-                <span class="n">nparallel</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(</span><span class="n">logical</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">Ompizer</span><span class="o">.</span><span class="n">COLLAPSE</span>
+                <span class="ow">or</span> <span class="n">nparallel</span> <span class="o">&lt;</span> <span class="mi">2</span>
+                <span class="ow">or</span> <span class="ow">not</span> <span class="n">IsPerfectIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)):</span>
             <span class="n">parallel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;for&#39;</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">parallel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;collapse&#39;</span><span class="p">](</span><span class="n">nparallel</span><span class="p">)</span>
