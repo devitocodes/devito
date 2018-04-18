@@ -14,6 +14,7 @@ from devito import Grid, Function, TimeFunction, Eq, Operator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
                            Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)
+from unittest.mock import patch
 
 
 @pytest.fixture(scope="module")
@@ -406,3 +407,33 @@ def test_composite_transformation(shape):
     w_blocking, _ = _new_operator1(shape, dle='advanced')
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
+@skipif_yask
+@pytest.mark.parametrize('exprs,expected', [
+    # trivial 1D
+    (['Eq(fe[x,y,z], fe[x,y,z] + fe[x,y,z])'],
+     (True, False, False))
+])
+@patch("devito.dle.backends.parallelizer.Ompizer.COLLAPSE", 1)
+def test_loops_collapsed(fe, t0, t1, t2, t3, exprs, expected, iters):
+    scope = [fe, t0, t1, t2, t3]
+    node_exprs = [Expression(DummyEq(EVAL(i, *scope))) for i in exprs]
+    ast = iters[6](iters[7](iters[8](node_exprs)))
+
+    ast = iet_analyze(ast)
+
+    nodes = transform(ast, mode='openmp').nodes
+    iterations = FindNodes(Iteration).visit(nodes)
+    assert len(iterations) == len(expected)
+
+    # Check for presence of pragma omp
+    for i, j in zip(iterations, expected):
+        pragmas = i.pragmas
+        if j is True:
+            assert len(pragmas) == 1
+            pragma = pragmas[0]
+            assert 'omp for collapse' in pragma.value
+        else:
+            for k in pragmas:
+                assert 'omp for collapse' not in k.value
