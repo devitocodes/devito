@@ -4,7 +4,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito import (ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant,  # noqa
-                    DOMAIN, INTERIOR)
+                    DOMAIN, INTERIOR, Function)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
@@ -120,6 +120,29 @@ class TestConditionalDimension(object):
     """A collection of tests to check the correct functioning of
     :class:`ConditionalDimension`s."""
 
+    def test_no_index(self):
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        u2 = Function(name='energy', grid=grid)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        eqns = [Eq(u.forward, u + 1), Eq(u2, u2 + u*u*time_subsampled)]
+        op = Operator(eqns)
+        op.apply(t_M=nt-2)
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        # expected result is 1024
+        # u2 = u[0]**2 * 0 + u[4]**2 * 1 + u[8]**2 * 2 + u[12]**2 * 3 + u[16]**2 * 4
+        # with u[t] = t
+        # u2 = 16 * 1 + 64 * 2 + 144 * 3 + 256 * 4 = 1600
+        assert np.all(np.allclose(u2.data, 1600))
+
     def test_basic(self):
         nt = 19
         grid = Grid(shape=(11, 11))
@@ -144,6 +167,32 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
+
+    def test_nothing_in_negative(self):
+        """Test the case where when the condition is false, there is nothing to do."""
+        nt = 4
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+        usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                             time_dim=time_subsampled)
+        assert(time_subsampled in usave.indices)
+
+        eqns = [Eq(usave, u)]
+        op = Operator(eqns)
+
+        u.data[:] = 1.0
+        usave.data[:] = 0.0
+        op.apply(time_m=1, time_M=1)
+        assert np.allclose(usave.data, 0.0)
+
+        op.apply(time_m=0, time_M=0)
+        assert np.allclose(usave.data, 1.0)
 
     def test_laplace(self):
         grid = Grid(shape=(20, 20, 20))

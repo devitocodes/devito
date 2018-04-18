@@ -228,8 +228,6 @@ class CGen(Visitor):
             return c.If(ccode(o.condition), then_body)
 
     def visit_Iteration(self, o):
-        body = flatten(self.visit(i) for i in o.children)
-
         # Start
         if o.offsets[0] != 0:
             start = str(o.limits[0] + o.offsets[0])
@@ -261,11 +259,10 @@ class CGen(Visitor):
             loop_inc = '%s += %s' % (o.index, o.limits[2])
 
         # Append unbounded indices, if any
-        if o.uindices:
-            uinit = ['%s = %s' % (i.index, ccode(i.start)) for i in o.uindices]
-            loop_init = c.Line(', '.join([loop_init] + uinit))
-            ustep = ['%s = %s' % (i.index, ccode(i.step)) for i in o.uindices]
-            loop_inc = c.Line(', '.join([loop_inc] + ustep))
+        uindex_init = [c.Initializer(c.Value('int', i.index), ccode(i.step))
+                       for i in o.uindices]
+
+        body = uindex_init + flatten(self.visit(i) for i in o.children)
 
         # Create For header+body
         handle = c.For(loop_init, loop_cond, loop_inc, c.Block(body))
