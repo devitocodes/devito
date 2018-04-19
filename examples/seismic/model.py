@@ -336,7 +336,12 @@ class Model(object):
 
         if vp is None:
             self.m = Function(name="m", grid=self.grid, space_order=self.space_order)
-            self.m.data[:] = m
+            try:
+                # Assume m has not yet been padded.
+                initialize_function(self.m, m, self.nbpml)
+            except:
+                # In this case m has already been padded (eg unpickling)
+                self.m.data[:] = m
         else:
             self.vp = vp
 
@@ -479,7 +484,13 @@ class Model(object):
         # Update the square slowness according to new value
         if isinstance(vp, np.ndarray):
             self.m = Function(name="m", grid=self.grid, space_order=self.space_order)
-            initialize_function(self.m, 1 / (vp * vp), self.nbpml)
+            m = 1 / (vp * vp)
+            try:
+                # Assume m has not yet been padded.
+                initialize_function(self.m, m, self.nbpml)
+            except:
+                # In this case m has already been padded (eg unpickling)
+                self.m.data[:] = m
         else:
             self.m = Constant(name="m", value=1/vp**2)
             self.m.data = 1 / vp**2
