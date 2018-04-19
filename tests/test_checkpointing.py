@@ -1,6 +1,8 @@
 from examples.checkpointing.checkpointing_example import CheckpointingExample
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
+from examples.seismic.acoustic import smooth10
+from examples.seismic import Receiver
 from pyrevolve import Revolver
 import numpy as np
 from conftest import skipif_yask
@@ -132,7 +134,7 @@ def test_forward_with_breaks(shape, kernel, space_order):
     wrap_rev = CheckpointOperator(example.gradient_operator, u=example.forward_field,
                                   v=example.adjoint_field, m=m0, rec=example.rec_g,
                                   grad=example.grad, dt=example.dt)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.nt-time_order)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.src._time_range.num-time_order)
     example.forward_operator.apply(u=example.forward_field, rec=example.rec, m=m0,
                                    src=example.src, dt=example.dt)
     u_temp = np.copy(example.forward_field.data)
@@ -160,6 +162,42 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     last_time_step = (last_time_step) % (time_order + 1)
     assert(np.allclose(u.data[last_time_step, :, :], field_last_time_step))
     assert(np.allclose(rec.data, rec_bk))
+
+
+@silencio(log_level='WARNING')
+@skipif_yask
+@pytest.mark.parametrize('space_order', [4])
+@pytest.mark.parametrize('kernel', ['OT2'])
+@pytest.mark.parametrize('shape', [(70, 80), (50, 50, 50)])
+def test_checkpointed_vs_not_checkpointed(shape, kernel, space_order):
+    """
+    Verifies that the gradients with and without checkpointing are the SpaceDimension
+    """
+    spacing = tuple([15.0 for _ in shape])
+    tn = 500.
+    # checkpointing
+    example = CheckpointingExample(shape, spacing, tn, kernel, space_order)
+    m0, dm = example.initial_estimate()
+    gradient, rec = example.gradient(m0)
+
+    # No checkpointing
+    wave = acoustic_setup(shape=shape, spacing=spacing, dtype=np.float32,
+                          kernel=kernel, space_order=space_order,
+                          nbpml=10+space_order/2)
+
+    m0 = Function(name='m0', grid=wave.model.m.grid, space_order=space_order)
+    m0.data[:] = smooth10(wave.model.m.data, wave.model.m.shape_domain)
+    # Compute receiver data for the true velocity
+    rec, u, _ = wave.forward()
+    # Compute receiver data and full wavefield for the smooth velocity
+    rec0, u0, _ = wave.forward(m=m0, save=True)
+
+    # Gradient: <J^T \delta d, dm>
+    residual = Receiver(name='rec', grid=wave.model.grid, data=rec0.data - rec.data,
+                        time_range=rec.time_range, coordinates=rec0.coordinates.data)
+    grad, _ = wave.gradient(residual, u0, m=m0)
+
+    assert np.allclose(grad.data, gradient)
 
 
 @silencio(log_level='WARNING')
@@ -259,3 +297,7 @@ def test_index_alignment(const):
     wrp.apply_reverse()
     assert(np.allclose(v.data[0, :, :], 0))
     assert(np.allclose(prod.data, final_value))
+
+
+if __name__ == "__main__":
+    test_checkpointed_vs_not_checkpointed(shape=(70, 80), kernel='OT2', space_order=4)

@@ -6,11 +6,13 @@ JIT-compile, and run kernels.
 from collections import OrderedDict
 import os
 
-from devito import configuration
+from devito.dle import BasicRewriter, init_dle
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
-from devito.parameters import Parameters, add_sub_configuration
+from devito.parameters import Parameters, configuration, add_sub_configuration
 from devito.tools import ctypes_pointer, infer_cpu
+
+from devito.yask.dle import YaskRewriter
 
 
 def exit(emsg):
@@ -107,6 +109,12 @@ env_vars_mapper = {
 
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
+# Initialize the DLE
+modes = {'basic': BasicRewriter,
+         'advanced': YaskRewriter,
+         'advanced-safemath': YaskRewriter,
+         'speculative': YaskRewriter}
+init_dle(modes)
 
 # The following used by backends.backendSelector
 from devito.yask.function import Constant, Function, TimeFunction  # noqa

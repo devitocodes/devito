@@ -2,7 +2,7 @@ import cgen as c
 import pytest
 from conftest import skipif_yask
 
-from devito import Eq
+from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
                            NestedTransformer, printAST)
@@ -10,10 +10,10 @@ from devito.ir.iet import (Block, Expression, Callable, FindSections,
 
 @pytest.fixture(scope="module")
 def exprs(a, b):
-    return [Expression(Eq(a, a + b + 5.)),
-            Expression(Eq(a, b - a)),
-            Expression(Eq(a, 4 * (b * a))),
-            Expression(Eq(a, (6. / b) + (8. * a)))]
+    return [Expression(DummyEq(a, a + b + 5.)),
+            Expression(DummyEq(a, b - a)),
+            Expression(DummyEq(a, 4 * (b * a))),
+            Expression(DummyEq(a, (6. / b) + (8. * a)))]
 
 
 @pytest.fixture(scope="module")

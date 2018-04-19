@@ -92,15 +92,6 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    """
-    Bag of thresholds, to be used to trigger or prevent certain transformations.
-    """
-    thresholds = {
-        'collapse': 32,  # Available physical cores
-        'max_fission': 800,  # Statements
-        'min_fission': 20  # Statements
-    }
-
     def __init__(self, nodes, params):
         self.nodes = nodes
         self.params = params

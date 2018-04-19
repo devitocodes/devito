@@ -77,7 +77,6 @@ class Operator(Callable):
         expressions = self._specialize_exprs(expressions)
 
         # Expression analysis
-        self.dtype = retrieve_dtype(expressions)
         self.input = filter_sorted(flatten(e.reads for e in expressions))
         self.output = filter_sorted(flatten(e.writes for e in expressions))
         self.dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
@@ -86,10 +85,10 @@ class Operator(Callable):
         # and apply the Devito Symbolic Engine (DSE) for flop optimization
         clusters = clusterize(expressions)
         clusters = rewrite(clusters, mode=set_dse_mode(dse))
-        self._dspace = clusters.dspace
+        self._dtype, self._dspace = clusters.meta
 
         # Lower Clusters to an Iteration/Expression tree (IET)
-        nodes = iet_build(clusters, self.dtype)
+        nodes = iet_build(clusters)
 
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes)
@@ -357,7 +356,7 @@ class OperatorRunnable(Operator):
 
     def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
-        summary = self.profiler.summary(args, self.dtype)
+        summary = self.profiler.summary(args, self._dtype)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
@@ -371,20 +370,6 @@ class OperatorRunnable(Operator):
         nodes, profiler = create_profile('timers', nodes)
         self._globals.append(profiler.cdef)
         return nodes, profiler
-
-
-# Functions collecting information from a bag of expressions
-
-def retrieve_dtype(expressions):
-    """
-    Retrieve the data type of a set of expressions. Raise an error if there
-    is no common data type (ie, if at least one expression differs in the
-    data type).
-    """
-    lhss = set([s.lhs.base.function.dtype for s in expressions])
-    if len(lhss) != 1:
-        raise RuntimeError("Expression types mismatch.")
-    return lhss.pop()
 
 
 # Misc helpers

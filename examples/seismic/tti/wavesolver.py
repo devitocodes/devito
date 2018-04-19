@@ -63,7 +63,8 @@ class AnisotropicWaveSolver(object):
             src = self.source
         # Create a new receiver object to store the result
         if rec is None:
-            rec = Receiver(name='rec', grid=self.model.grid, ntime=self.receiver.nt,
+            rec = Receiver(name='rec', grid=self.model.grid,
+                           time_range=self.receiver.time_range,
                            coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield if not provided

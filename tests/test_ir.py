@@ -3,7 +3,7 @@ import pytest
 from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
 
 from devito import Eq, Grid, TimeFunction  # noqa
-from devito.ir.equations import LoweredEq
+from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.iet.nodes import Conditional, Expression
 from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
@@ -475,8 +475,8 @@ def test_intervals_subtract():
 
 @skipif_yask
 def test_iet_conditional(fc):
-    then_body = Expression(Eq(fc[x, y], fc[x, y] + 1))
-    else_body = Expression(Eq(fc[x, y], fc[x, y] + 2))
+    then_body = Expression(DummyEq(fc[x, y], fc[x, y] + 1))
+    else_body = Expression(DummyEq(fc[x, y], fc[x, y] + 2))
     conditional = Conditional(x < 3, then_body, else_body)
     assert str(conditional) == """\
 if (x < 3)

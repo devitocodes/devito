@@ -12,7 +12,7 @@ from devito.yask.wrappers import contexts  # noqa
 
 # For the acoustic wave test
 from examples.seismic.acoustic import AcousticWaveSolver, iso_stencil  # noqa
-from examples.seismic import demo_model, PointSource, RickerSource, Receiver  # noqa
+from examples.seismic import demo_model, TimeAxis, PointSource, RickerSource, Receiver  # noqa
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
@@ -359,8 +359,7 @@ class TestOperatorAcoustic(object):
         t0 = 0.0  # Start time
         tn = 500.  # Final time
         dt = model.critical_dt
-        nt = int(1 + (tn-t0) / dt)  # Number of timesteps
-        return t0, tn, nt
+        return t0, tn, dt
 
     @pytest.fixture
     def m(self, model):
@@ -385,20 +384,24 @@ class TestOperatorAcoustic(object):
         return iso_stencil(u, m, t.spacing, damp, kernel)
 
     @pytest.fixture
-    def src(self, model, time_params, dtype):
-        time_values = np.linspace(*time_params)  # Discretized time axis
+    def src(self, model, dtype):
+        t0, tn, dt = self.time_params(model)
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)  # Discretized time axis
         # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values,
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range,
                            dtype=dtype)
         src.coordinates.data[0, :] = np.array(model.domain_size) * .5
         src.coordinates.data[0, -1] = 30.
         return src
 
     @pytest.fixture
-    def rec(self, model, time_params, src, dtype):
+    def rec(self, model, src, dtype):
         nrec = 130  # Number of receivers
-        t0, tn, nt = time_params
-        rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec, dtype=dtype)
+        t0, tn, dt = self.time_params(model)
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+        rec = Receiver(name='rec', grid=model.grid,
+                       time_range=time_range,
+                       npoint=nrec, dtype=dtype)
         rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
         return rec
@@ -429,7 +432,8 @@ class TestOperatorAcoustic(object):
 
         op.apply(u=u, m=m, damp=damp, src=src, dt=dt)
 
-        exp_u = 153.25
+        exp_u = 159.94
+
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
 
     def test_acoustic_w_src_w_rec(self, model, eqn, m, damp, u, src, rec):
@@ -449,8 +453,9 @@ class TestOperatorAcoustic(object):
 
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.
-        exp_u = 153.25
-        exp_rec = 212.03
+        exp_u = 159.94
+        exp_rec = 212.15
+
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
         assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
 

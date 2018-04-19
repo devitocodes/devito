@@ -39,6 +39,10 @@ SEQUENTIAL = IterationProperty('sequential')
 PARALLEL = IterationProperty('parallel')
 """The Iteration can be executed in parallel w/o need for synchronization."""
 
+PARALLEL_IF_ATOMIC = IterationProperty('parallel_if_atomic')
+"""The Iteration can be executed in parallel as long as all increments are
+guaranteed to be atomic."""
+
 VECTOR = IterationProperty('vector-dim')
 """The Iteration can be SIMD-vectorized."""
 

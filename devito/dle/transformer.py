@@ -1,33 +1,39 @@
 from devito.ir.iet import Node
-from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
-                                 DevitoRewriter, DevitoRewriterSafeMath,
-                                 DevitoSpeculativeRewriter)
+from devito.dle.backends import State, CustomRewriter
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 from devito.parameters import configuration
 
-__all__ = ['transform', 'modes', 'default_options']
+__all__ = ['init_dle', 'transform']
 
 
-modes = {
-    'basic': BasicRewriter,
-    'advanced': DevitoRewriter,
-    'advanced-safemath': DevitoRewriterSafeMath,
-    'speculative': DevitoSpeculativeRewriter
+default_modes = {
+    'basic': None,
+    'advanced': None,
+    'advanced-safemath': None,
+    'speculative': None
 }
-"""The DLE transformation modes."""
+"""The DLE transformation modes.
+This dictionary may be modified at backend-initialization time."""
 
 default_options = {
     'blockinner': False,
     'blockshape': None,
     'blockalways': False
 }
-"""Default values for the various optimization options."""
+"""Default values for the supported optimization options.
+This dictionary may be modified at backend-initialization time."""
 
-configuration.add('dle', 'advanced', list(modes))
+configuration.add('dle', 'advanced', list(default_modes))
 configuration.add('dle_options',
                   ';'.join('%s:%s' % (k, v) for k, v in default_options.items()),
                   list(default_options))
+
+
+def init_dle(backend_modes):
+    global default_modes
+    for i in list(default_modes):
+        default_modes[i] = backend_modes[i]
 
 
 def transform(node, mode='basic', options=None):
@@ -82,13 +88,13 @@ def transform(node, mode='basic', options=None):
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
         return State(node)
-    elif mode not in modes:
+    elif mode not in default_modes:
         try:
-            rewriter = DevitoCustomRewriter(node, mode, params)
+            rewriter = CustomRewriter(node, mode, params)
             return rewriter.run()
         except DLEException:
             dle_warning("Unknown transformer mode(s) %s" % mode)
             return State(node)
     else:
-        rewriter = modes[mode](node, params)
+        rewriter = default_modes[mode](node, params)
         return rewriter.run()

@@ -3,7 +3,7 @@ Extended SymPy hierarchy.
 """
 
 import sympy
-from sympy import Expr, Float
+from sympy import Expr, Integer, Float, Symbol
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
@@ -88,7 +88,8 @@ class IntDiv(sympy.Expr):
     is_Atom = True
 
     def __new__(cls, lhs, rhs, params=None):
-        obj = sympy.Expr.__new__(cls)
+        rhs = Integer(rhs)
+        obj = sympy.Expr.__new__(cls, lhs, rhs)
         obj.lhs = lhs
         obj.rhs = rhs
         return obj
@@ -106,10 +107,29 @@ class FunctionFromPointer(sympy.Expr):
     """
 
     def __new__(cls, function, pointer, params=None):
-        obj = sympy.Expr.__new__(cls)
+        args = []
+        if isinstance(pointer, str):
+            pointer = Symbol(pointer)
+        elif not isinstance(pointer, Expr):
+            raise ValueError("`pointer` must be Expr or str")
+        args.append(pointer)
+        if isinstance(function, FunctionFromPointer):
+            args.append(function)
+        elif not isinstance(function, str):
+            raise ValueError("`function` must be FunctionFromPointer or str")
+        _params = []
+        for p in as_tuple(params):
+            if isinstance(p, str):
+                _params.append(Symbol(p))
+            elif not isinstance(p, Expr):
+                raise ValueError("`params` must be an iterable of Expr or str")
+            else:
+                _params.append(p)
+        args.extend(_params)
+        obj = sympy.Expr.__new__(cls, *args)
         obj.function = function
         obj.pointer = pointer
-        obj.params = as_tuple(params)
+        obj.params = tuple(_params)
         return obj
 
     def __str__(self):
@@ -123,15 +143,23 @@ class FunctionFromPointer(sympy.Expr):
             (self.function, self.pointer) + self.params
 
 
-class ListInitializer(sympy.Symbol):
+class ListInitializer(sympy.Expr):
 
     """
     Symbolic representation of the C++ list initializer notation ``{a, b, ...}``.
     """
 
     def __new__(cls, params):
-        obj = sympy.Symbol.__new__(cls, ','.join('%s' % i for i in params))
-        obj.params = params or ()
+        args = []
+        for p in as_tuple(params):
+            if isinstance(p, str):
+                args.append(Symbol(p))
+            elif not isinstance(p, Expr):
+                raise ValueError("`params` must be an iterable of Expr or str")
+            else:
+                args.append(p)
+        obj = sympy.Expr.__new__(cls, *args)
+        obj.params = tuple(args)
         return obj
 
     def __str__(self):

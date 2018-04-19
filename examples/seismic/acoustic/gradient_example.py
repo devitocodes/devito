@@ -3,7 +3,7 @@ from numpy import linalg
 from cached_property import cached_property
 
 from devito import TimeFunction, Function
-from examples.seismic import Receiver, RickerSource, demo_model
+from examples.seismic import TimeAxis, Receiver, RickerSource, demo_model
 from examples.seismic.acoustic import ForwardOperator, GradientOperator, smooth10
 
 
@@ -12,7 +12,8 @@ class GradientExample(object):
                  kernel='OT2', space_order=4, nbpml=10):
         self.kernel = kernel
         self.space_order = space_order
-        self._setup_model_and_acquisition(space_order, shape, spacing, nbpml, tn)
+        self._setup_model_and_acquisition(space_order, shape, spacing,
+                                          nbpml+int(space_order/2), tn)
         self._true_data()
 
     @cached_property
@@ -26,11 +27,11 @@ class GradientExample(object):
                            shape=shape, spacing=spacing, nbpml=nbpml)
         self.model = model
         t0 = 0.0
-        self.nt = int(1 + (tn-t0) / self.dt)  # Number of timesteps
-        time = np.linspace(t0, tn, self.nt)  # Discretized time axis
+        time_range = TimeAxis(start=t0, stop=tn, step=self.dt)
+        self.nt = time_range.num
 
         # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time)
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
         src.coordinates.data[0, :] = np.array(model.domain_size) * .5
         src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
@@ -38,19 +39,21 @@ class GradientExample(object):
 
         # Define receiver geometry (spread across x, just below surface)
         # We need two receiver fields - one for the true (verification) run
-        rec_t = Receiver(name='rec', grid=model.grid, ntime=self.nt, npoint=nrec)
-        rec_t.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        rec_t = Receiver(name='rec', grid=model.grid, time_range=time_range,
+                         npoint=nrec)
+        rec_t.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0],
+                                                   num=nrec)
         rec_t.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
         self.rec_t = rec_t
 
         # and the other for the smoothed run
-        self.rec = Receiver(name='rec', grid=model.grid, ntime=self.nt, npoint=nrec,
-                            coordinates=rec_t.coordinates.data)
+        self.rec = Receiver(name='rec', grid=model.grid, time_range=time_range,
+                            npoint=nrec, coordinates=rec_t.coordinates.data)
 
         # Receiver for Gradient
         self.rec_g = Receiver(name="rec", coordinates=self.rec.coordinates.data,
-                              grid=model.grid, dt=self.dt, ntime=self.nt)
+                              grid=model.grid, time_range=time_range)
 
         # Gradient symbol
         self.grad = Function(name="grad", grid=model.grid)
@@ -90,7 +93,7 @@ class GradientExample(object):
 
     @cached_property
     def forward_field(self):
-        return TimeFunction(name="u", grid=self.model.grid, save=self.nt,
+        return TimeFunction(name="u", grid=self.model.grid, save=self.src._time_range.num,
                             time_order=2, space_order=self.space_order)
 
     @cached_property
@@ -123,10 +126,11 @@ class GradientExample(object):
         G = np.dot(gradient.reshape(-1), dm.reshape(-1))
         # FWI Gradient test
         H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
-        error1 = np.zeros(7)
-        error2 = np.zeros(7)
 
-        for i in range(0, 7):
+        error1 = np.zeros(len(H))
+        error2 = np.zeros(len(H))
+
+        for i in range(0, len(H)):
             # Add the perturbation to the model
             def initializer(data):
                 data[:] = m0.data + H[i] * dm
@@ -148,6 +152,7 @@ class GradientExample(object):
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
+
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
