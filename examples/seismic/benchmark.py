@@ -214,7 +214,6 @@ def plot(problem, **kwargs):
     arch = kwargs['arch']
     space_order = "[%s]" % ",".join(str(i) for i in kwargs['space_order'])
     time_order = kwargs['time_order']
-    tn = kwargs['tn']
     shape = "[%s]" % ",".join(str(i) for i in kwargs['shape'])
 
     backend = configuration['backend']
