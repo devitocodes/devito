@@ -217,6 +217,8 @@ def plot(problem, **kwargs):
     tn = kwargs['tn']
     shape = "[%s]" % ",".join(str(i) for i in kwargs['shape'])
 
+    backend = configuration['backend']
+
     RooflinePlotter = get_ob_plotter()
     bench = get_ob_bench(problem, resultsdir, kwargs)
 
@@ -234,8 +236,8 @@ def plot(problem, **kwargs):
              if len(set(dict(j)[i] for j in gflopss)) > 1]
 
     # Filaneme
-    figname = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (
-        problem, shape, space_order, time_order, arch
+    figname = "%s_dim%s_so%s_to%s_arch[%s]_bkend[%s].pdf" % (
+        problem, shape, space_order, time_order, arch, backend
     )
 
     # Legend setup. Do not plot a legend if there's no variation in performance
