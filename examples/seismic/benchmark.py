@@ -211,8 +211,9 @@ def plot(problem, **kwargs):
     arch = kwargs['arch']
     space_order = "[%s]" % ",".join(str(i) for i in kwargs['space_order'])
     time_order = kwargs['time_order']
-    tn = kwargs['tn']
     shape = "[%s]" % ",".join(str(i) for i in kwargs['shape'])
+
+    backend = configuration['backend']
 
     RooflinePlotter = get_ob_plotter()
     bench = get_ob_bench(problem, resultsdir, kwargs)
@@ -231,17 +232,9 @@ def plot(problem, **kwargs):
              if len(set(dict(j)[i] for j in gflopss)) > 1]
 
     # Filaneme
-    figname = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (
-        problem, shape, space_order, time_order, arch
+    figname = "%s_dim%s_so%s_to%s_arch[%s]_bkend[%s].pdf" % (
+        problem, shape, space_order, time_order, arch, backend
     )
-
-    # Plot title
-    name = {'acoustic': 'Acoustic', 'tti': 'TTI'}[problem]
-    problem = "%s<grid=%s, TO=%s, sim=%sms>" % (name, shape, time_order, tn)
-    mode = ("varying<%s>" % ",".join(modes)) if modes else None
-    arch = "arch<%s>" % arch
-    backend = "backend<%s>" % configuration['backend']
-    title = ", ".join(i for i in [problem, mode, arch, backend] if i)
 
     # Legend setup. Do not plot a legend if there's no variation in performance
     # options (dse, dle, autotuning)
@@ -263,7 +256,7 @@ def plot(problem, **kwargs):
         min_max[i][0] = v if min_max[i][0] == 0 else min(v, min_max[i][0])
         min_max[i][1] = v if min_max[i][1] == sys.maxsize else max(v, min_max[i][1])
 
-    with RooflinePlotter(title=title, figname=figname, plotdir=resultsdir,
+    with RooflinePlotter(figname=figname, plotdir=resultsdir,
                          max_bw=max_bw, flop_ceils=flop_ceils,
                          fancycolor=True, legend=legend) as plot:
         for k, v in gflopss.items():
