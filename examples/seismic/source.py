@@ -70,6 +70,12 @@ class TimeAxis(object):
     def time_values(self):
         return np.linspace(self.start, self.stop, self.num)
 
+    def __getstate__(self):
+        return {'start':self.start, 'stop':self.stop, 'num':self.num}
+
+    def __setstate__(self, state):
+        self.__init__(start=state['start'], stop=state['stop'], num=state['num'])
+
 
 class PointSource(SparseTimeFunction):
     """Symbolic data object for a set of sparse point sources
