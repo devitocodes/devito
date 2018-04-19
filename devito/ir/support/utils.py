@@ -68,17 +68,16 @@ def detect_oobs(mapper):
     return found | {i.parent for i in found if i.is_Derived}
 
 
-def build_intervals(mapper):
+def build_intervals(stencil):
     """
-    Given M as produced by :func:`detect_accesses`, return: ::
+    Given ``stencil``, an object of type :class`Stencil`, return: ::
 
-        * An iterable of :class:`Interval`s, representing the data items
-          accessed in each :class:`Dimension` in M;
+        * An iterable of :class:`Interval`s, one for each :class:`Dimension`
+          in ``stencil``.
         * A dictionary of ``iterators``, suitable to build an
           :class:`IterationSpace`.
     """
     iterators = OrderedDict()
-    stencil = Stencil.union(*mapper.values())
     for i in stencil.dimensions:
         if i.is_NonlinearDerived:
             iterators.setdefault(i.parent, []).append(stencil.entry(i))
