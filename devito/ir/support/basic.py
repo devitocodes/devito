@@ -206,9 +206,11 @@ class IterationInstance(Vector):
     def __getitem__(self, index):
         if isinstance(index, (slice, int)):
             return super(IterationInstance, self).__getitem__(index)
-        elif index in self.findices:
-            return super(IterationInstance, self).__getitem__(self.findices.index(index))
         elif isinstance(index, Dimension):
+            for d in index._defines:
+                if d in self.findices:
+                    i = self.findices.index(d)
+                    return super(IterationInstance, self).__getitem__(i)
             return None
         else:
             raise TypeError("IterationInstance indices must be integers, slices, or "

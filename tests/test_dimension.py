@@ -4,7 +4,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito import (ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant,  # noqa
-                    DOMAIN, INTERIOR)
+                    SubDimension, DOMAIN, INTERIOR)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
@@ -96,7 +96,7 @@ class TestSubDimension(object):
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], region=INTERIOR)',
           'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], region=INTERIOR)'], 'xi'),
     ])
-    def test_iteration_properties(self, exprs, expected):
+    def test_iteration_property_parallel(self, exprs, expected):
         """Tests detection of sequental and parallel Iterations when applying
         equations over different regions."""
         grid = Grid(shape=(20, 20))
@@ -112,6 +112,31 @@ class TestSubDimension(object):
         iterations = FindNodes(Iteration).visit(op)
         assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
+
+    @pytest.mark.parametrize('exprs,expected,', [
+        (['Eq(u[t, x, yleft], u[t, x, yleft] + 1.)'], ['yleft']),
+        # All outers are parallel, carried dependence in `yleft`, so no SIMD in `yleft`
+        (['Eq(u[t, x, yleft], u[t, x, yleft+1] + 1.)'], []),
+    ])
+    def test_iteration_property_vector(self, exprs, expected):
+        """Tests detection of vector Iterations when using subdimensions."""
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions  # noqa
+        t = grid.time_dim  # noqa
+
+        # The leftmost 10 elements
+        yleft = SubDimension(name='yleft', grid=grid, parent=y, lower=0, upper=-10)  # noqa
+
+        u = TimeFunction(name='u', grid=grid, save=10, time_order=0, space_order=1)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
+
+        op = Operator(exprs)
+        iterations = FindNodes(Iteration).visit(op)
+        vectorizable = [i.dim.name for i in iterations if i.is_Vectorizable]
+        assert set(vectorizable) == set(expected)
 
 
 @skipif_yask
