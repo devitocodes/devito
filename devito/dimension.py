@@ -188,7 +188,8 @@ class Dimension(AbstractSymbol):
             raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
                                                                  args[self.max_name]))
 
-        if args[self.max_name] < args[self.min_name]:
+        # Allow the specific case of max=min-1, which disables the loop
+        if args[self.max_name] < args[self.min_name]-1:
             raise InvalidArgument("Illegal max=%s < min=%s"
                                   % (args[self.max_name], args[self.min_name]))
 
