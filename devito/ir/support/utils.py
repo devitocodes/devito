@@ -8,9 +8,9 @@ from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
 
-__all__ = ['detect_accesses', 'detect_oobs', 'build_intervals',
-           'detect_flow_directions', 'force_directions', 'group_expressions',
-           'align_accesses', 'detect_io']
+__all__ = ['detect_accesses', 'detect_free_dimensions', 'detect_oobs',
+           'build_intervals', 'detect_flow_directions', 'force_directions',
+           'group_expressions', 'align_accesses', 'detect_io']
 
 
 def detect_accesses(expr):
@@ -35,6 +35,14 @@ def detect_accesses(expr):
             if d is not None:
                 mapper[f][d].update(off or [0])
     return mapper
+
+
+def detect_free_dimensions(expr):
+    """
+    Return a degenerate :class:`Stencil` for the :class:`Dimension`s used
+    as plain symbols, rather than as array indices, in ``expr``.
+    """
+    return Stencil([(i, 0) for i in retrieve_terminals(expr) if isinstance(i, Dimension)])
 
 
 def detect_oobs(mapper):
