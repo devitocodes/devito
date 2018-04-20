@@ -215,3 +215,16 @@ def EVAL(exprs, *args):
     for i in as_tuple(exprs):
         processed.append(eval(i, globals(), scope))
     return processed[0] if isinstance(exprs, str) else processed
+
+
+def configuration_override(key, value):
+    def dec(f):
+        def wrapper(*args, **kwargs):
+            oldvalue = configuration[key]
+            configuration[key] = value
+            f(*args, **kwargs)
+            configuration[key] = oldvalue
+
+        return wrapper
+
+    return dec
