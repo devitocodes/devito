@@ -9,7 +9,6 @@ from sympy import Eq
 import ctypes
 from ctypes.util import find_library
 
-from devito.logger import error
 from devito.parameters import configuration
 from devito.tools import as_tuple, numpy_to_ctypes
 import devito
@@ -52,8 +51,8 @@ class MemoryAllocator(object):
         """
         Allocate memory.
 
-        :param shape: Shape of the array to allocate
-        :param dtype: Numpy datatype to allocate. Default to np.float32
+        :param shape: Shape of the array to allocate.
+        :param dtype: Numpy datatype to allocate.
 
         :returns (pointer, c_pointer): The first element of the tuple is the reference
                                        that can be used to access the data as a ctypes
@@ -65,8 +64,7 @@ class MemoryAllocator(object):
 
         c_pointer = self._alloc_C_libcall(size, ctype)
         if c_pointer is None:
-            error("Unable to allocate %d elements in memory", str(size))
-            return (None, None)
+            raise RuntimeError("Unable to allocate %d elements in memory", str(size))
 
         c_pointer = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype,
                                                                   shape=shape))
@@ -75,7 +73,7 @@ class MemoryAllocator(object):
         return (pointer, c_pointer)
 
     @abc.abstractmethod
-    def _alloc_C_libcall(self):
+    def _alloc_C_libcall(self, size, ctype):
         """
         Perform the actual memory allocation by calling a C function.
 
