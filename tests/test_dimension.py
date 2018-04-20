@@ -176,8 +176,8 @@ class TestConditionalDimension(object):
         grid = Grid(shape=(11, 11))
         time = grid.time_dim
 
-        u = TimeFunction(name='u', grid=grid)
-        assert(grid.stepping_dim in u.indices)
+        u = TimeFunction(name='u', save=nt, grid=grid)
+        assert(grid.time_dim in u.indices)
 
         factor = 4
         time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
