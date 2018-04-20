@@ -1,7 +1,7 @@
 import numpy as np
 
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, configuration_override
 
 from devito import (ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant,  # noqa
                     SubDimension, DOMAIN, INTERIOR)
@@ -170,6 +170,8 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
 
+    # This test generates an openmp loop form which makes older gccs upset
+    @configuration_override("openmp", False)
     def test_nothing_in_negative(self):
         """Test the case where when the condition is false, there is nothing to do."""
         nt = 4
