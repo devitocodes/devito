@@ -1,7 +1,7 @@
 import numpy as np
 
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, configuration_override
 
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, Eq, Operator,  # noqa
                     Constant, SubDimension, DOMAIN, INTERIOR)
@@ -169,6 +169,34 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
+
+    # This test generates an openmp loop form which makes older gccs upset
+    @configuration_override("openmp", False)
+    def test_nothing_in_negative(self):
+        """Test the case where when the condition is false, there is nothing to do."""
+        nt = 4
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', save=nt, grid=grid)
+        assert(grid.time_dim in u.indices)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+        usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                             time_dim=time_subsampled)
+        assert(time_subsampled in usave.indices)
+
+        eqns = [Eq(usave, u)]
+        op = Operator(eqns)
+
+        u.data[:] = 1.0
+        usave.data[:] = 0.0
+        op.apply(time_m=1, time_M=1)
+        assert np.allclose(usave.data, 0.0)
+
+        op.apply(time_m=0, time_M=0)
+        assert np.allclose(usave.data, 1.0)
 
     def test_laplace(self):
         grid = Grid(shape=(20, 20, 20))
