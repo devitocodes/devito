@@ -160,9 +160,9 @@
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_sorted</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;detect_accesses&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_oobs&#39;</span><span class="p">,</span> <span class="s1">&#39;build_intervals&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;detect_flow_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;force_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;group_expressions&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;align_accesses&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_io&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;detect_accesses&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_free_dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_oobs&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;build_intervals&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_flow_directions&#39;</span><span class="p">,</span> <span class="s1">&#39;force_directions&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;group_expressions&#39;</span><span class="p">,</span> <span class="s1">&#39;align_accesses&#39;</span><span class="p">,</span> <span class="s1">&#39;detect_io&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="detect_accesses"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_accesses">[docs]</a><span class="k">def</span> <span class="nf">detect_accesses</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -189,6 +189,14 @@
     <span class="k">return</span> <span class="n">mapper</span></div>
 
 
+<div class="viewcode-block" id="detect_free_dimensions"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_free_dimensions">[docs]</a><span class="k">def</span> <span class="nf">detect_free_dimensions</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a degenerate :class:`Stencil` for the :class:`Dimension`s used</span>
+<span class="sd">    as plain symbols, rather than as array indices, in ``expr``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">Stencil</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)])</span></div>
+
+
 <div class="viewcode-block" id="detect_oobs"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.detect_oobs">[docs]</a><span class="k">def</span> <span class="nf">detect_oobs</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Given M as produced by :func:`detect_accesses`, return the set of</span>
@@ -212,17 +220,16 @@
     <span class="k">return</span> <span class="n">found</span> <span class="o">|</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">found</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">}</span></div>
 
 
-<div class="viewcode-block" id="build_intervals"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.build_intervals">[docs]</a><span class="k">def</span> <span class="nf">build_intervals</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
+<div class="viewcode-block" id="build_intervals"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.build_intervals">[docs]</a><span class="k">def</span> <span class="nf">build_intervals</span><span class="p">(</span><span class="n">stencil</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Given M as produced by :func:`detect_accesses`, return: ::</span>
+<span class="sd">    Given ``stencil``, an object of type :class`Stencil`, return: ::</span>
 
-<span class="sd">        * An iterable of :class:`Interval`s, representing the data items</span>
-<span class="sd">          accessed in each :class:`Dimension` in M;</span>
+<span class="sd">        * An iterable of :class:`Interval`s, one for each :class:`Dimension`</span>
+<span class="sd">          in ``stencil``.</span>
 <span class="sd">        * A dictionary of ``iterators``, suitable to build an</span>
 <span class="sd">          :class:`IterationSpace`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">iterators</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-    <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">stencil</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_NonlinearDerived</span><span class="p">:</span>
             <span class="n">iterators</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="o">.</span><span class="n">entry</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>

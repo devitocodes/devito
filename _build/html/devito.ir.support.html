@@ -899,6 +899,13 @@ to <code class="docutils literal notranslate"><span class="pre">f</span></code> 
 </dd></dl>
 
 <dl class="function">
+<dt id="devito.ir.support.utils.detect_free_dimensions">
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">detect_free_dimensions</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#detect_free_dimensions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.detect_free_dimensions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a degenerate <code class="xref py py-class docutils literal notranslate"><span class="pre">Stencil</span></code> for the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">used</span>
+<span class="pre">as</span> <span class="pre">plain</span> <span class="pre">symbols,</span> <span class="pre">rather</span> <span class="pre">than</span> <span class="pre">as</span> <span class="pre">array</span> <span class="pre">indices,</span> <span class="pre">in</span> <span class="pre">``expr`</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
 <dt id="devito.ir.support.utils.detect_oobs">
 <code class="descclassname">devito.ir.support.utils.</code><code class="descname">detect_oobs</code><span class="sig-paren">(</span><em>mapper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#detect_oobs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.detect_oobs" title="Permalink to this definition">¶</a></dt>
 <dd><p>Given M as produced by <a class="reference internal" href="#devito.ir.support.utils.detect_accesses" title="devito.ir.support.utils.detect_accesses"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_accesses()</span></code></a>, return the set of
@@ -908,10 +915,10 @@ computational domain, to avoid out-of-bounds (OOB) accesses.</p>
 
 <dl class="function">
 <dt id="devito.ir.support.utils.build_intervals">
-<code class="descclassname">devito.ir.support.utils.</code><code class="descname">build_intervals</code><span class="sig-paren">(</span><em>mapper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#build_intervals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.build_intervals" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given M as produced by <a class="reference internal" href="#devito.ir.support.utils.detect_accesses" title="devito.ir.support.utils.detect_accesses"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_accesses()</span></code></a>, return:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* An iterable of :class:`Interval`s, representing the data items
-  accessed in each :class:`Dimension` in M;
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">build_intervals</code><span class="sig-paren">(</span><em>stencil</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#build_intervals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.build_intervals" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given <code class="docutils literal notranslate"><span class="pre">stencil</span></code>, an object of type :class`Stencil`, return:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* An iterable of :class:`Interval`s, one for each :class:`Dimension`
+  in ``stencil``.
 * A dictionary of ``iterators``, suitable to build an
   :class:`IterationSpace`.
 </pre></div>

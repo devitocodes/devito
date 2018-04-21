@@ -152,7 +152,7 @@
   <h1>Source code for devito.ir.support.stencil</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span><span class="p">,</span> <span class="n">as_tuple</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Stencil&#39;</span><span class="p">]</span>
 
@@ -183,9 +183,9 @@
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">entries</span> <span class="ow">or</span> <span class="p">[]):</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">StencilEntry</span><span class="p">):</span>
                 <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">ofs</span><span class="p">))</span>
-            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="n">entry</span> <span class="o">=</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">)</span>  <span class="c1"># Type checking</span>
-                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">entry</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">ofs</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                <span class="n">entry</span> <span class="o">=</span> <span class="n">StencilEntry</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">)</span>  <span class="c1"># Implicit type check</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">entry</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">ofs</span><span class="p">))))</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Cannot construct a Stencil for </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">Stencil</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="nb">set</span><span class="p">,</span> <span class="n">processed</span><span class="p">)</span>
