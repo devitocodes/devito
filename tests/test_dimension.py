@@ -1,10 +1,10 @@
 import numpy as np
 
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, configuration_override
 
-from devito import (ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant,  # noqa
-                    SubDimension, DOMAIN, INTERIOR)
+from devito import (ConditionalDimension, Grid, Function, TimeFunction, Eq, Operator,  # noqa
+                    Constant, SubDimension, DOMAIN, INTERIOR)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
@@ -170,6 +170,34 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
 
+    # This test generates an openmp loop form which makes older gccs upset
+    @configuration_override("openmp", False)
+    def test_nothing_in_negative(self):
+        """Test the case where when the condition is false, there is nothing to do."""
+        nt = 4
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', save=nt, grid=grid)
+        assert(grid.time_dim in u.indices)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+        usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                             time_dim=time_subsampled)
+        assert(time_subsampled in usave.indices)
+
+        eqns = [Eq(usave, u)]
+        op = Operator(eqns)
+
+        u.data[:] = 1.0
+        usave.data[:] = 0.0
+        op.apply(time_m=1, time_M=1)
+        assert np.allclose(usave.data, 0.0)
+
+        op.apply(time_m=0, time_M=0)
+        assert np.allclose(usave.data, 1.0)
+
     def test_laplace(self):
         grid = Grid(shape=(20, 20, 20))
         x, y, z = grid.dimensions
@@ -253,3 +281,28 @@ class TestConditionalDimension(object):
         assert np.all(np.allclose(u.data[0], 8))
         assert np.all([np.allclose(u2.data[i], i - 10) for i in range(10, nt)])
         assert np.all([np.allclose(usave.data[i], 2+i*factor) for i in range(2)])
+
+    def test_no_index(self):
+        """Test behaviour when the ConditionalDimension is used as a symbol in
+        an expression."""
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        v = Function(name='v', grid=grid)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        eqns = [Eq(u.forward, u + 1), Eq(v, v + u*u*time_subsampled)]
+        op = Operator(eqns)
+        op.apply(t_M=nt-2)
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        # expected result is 1024
+        # v = u[0]**2 * 0 + u[4]**2 * 1 + u[8]**2 * 2 + u[12]**2 * 3 + u[16]**2 * 4
+        # with u[t] = t
+        # v = 16 * 1 + 64 * 2 + 144 * 3 + 256 * 4 = 1600
+        assert np.all(np.allclose(v.data, 1600))

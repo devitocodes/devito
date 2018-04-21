@@ -2,9 +2,10 @@ from sympy import Eq
 
 from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
-from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup, Any,
-                               detect_accesses, detect_oobs, force_directions, detect_io,
-                               build_intervals, detect_flow_directions)
+from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
+                               Any, Stencil, detect_accesses, detect_oobs, detect_io,
+                               force_directions, detect_free_dimensions,
+                               detect_flow_directions, build_intervals)
 from devito.symbolics import FrozenExpr, dimension_sort
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
@@ -101,14 +102,18 @@ class LoweredEq(Eq, IREq):
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
 
-        # Analyze data accesses
+        # Analyze the expression
         mapper = detect_accesses(expr)
+        free_dims = detect_free_dimensions(expr)
         oobs = detect_oobs(mapper)
+
+        # Derive the stencil
+        stencil = Stencil.union(free_dims, *mapper.values())
 
         # The iteration space is constructed so that information always flows
         # from an iteration to another (i.e., no anti-dependences are created)
         directions, _ = force_directions(detect_flow_directions(expr), lambda i: Any)
-        intervals, iterators = build_intervals(mapper)
+        intervals, iterators = build_intervals(stencil)
         intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
         ispace = IterationSpace([i.zero() for i in intervals], iterators, directions)
 
