@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 from conftest import skipif_yask, configuration_override
 
-from devito import (ConditionalDimension, Grid, TimeFunction, Eq, Operator, Constant,  # noqa
-                    SubDimension, DOMAIN, INTERIOR)
+from devito import (ConditionalDimension, Grid, Function, TimeFunction, Eq, Operator,  # noqa
+                    Constant, SubDimension, DOMAIN, INTERIOR)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
@@ -281,3 +281,28 @@ class TestConditionalDimension(object):
         assert np.all(np.allclose(u.data[0], 8))
         assert np.all([np.allclose(u2.data[i], i - 10) for i in range(10, nt)])
         assert np.all([np.allclose(usave.data[i], 2+i*factor) for i in range(2)])
+
+    def test_no_index(self):
+        """Test behaviour when the ConditionalDimension is used as a symbol in
+        an expression."""
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        v = Function(name='v', grid=grid)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        eqns = [Eq(u.forward, u + 1), Eq(v, v + u*u*time_subsampled)]
+        op = Operator(eqns)
+        op.apply(t_M=nt-2)
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        # expected result is 1024
+        # v = u[0]**2 * 0 + u[4]**2 * 1 + u[8]**2 * 2 + u[12]**2 * 3 + u[16]**2 * 4
+        # with u[t] = t
+        # v = 16 * 1 + 64 * 2 + 144 * 3 + 256 * 4 = 1600
+        assert np.all(np.allclose(v.data, 1600))

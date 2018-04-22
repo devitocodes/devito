@@ -8,9 +8,9 @@ from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
 
-__all__ = ['detect_accesses', 'detect_oobs', 'build_intervals',
-           'detect_flow_directions', 'force_directions', 'group_expressions',
-           'align_accesses', 'detect_io']
+__all__ = ['detect_accesses', 'detect_free_dimensions', 'detect_oobs',
+           'build_intervals', 'detect_flow_directions', 'force_directions',
+           'group_expressions', 'align_accesses', 'detect_io']
 
 
 def detect_accesses(expr):
@@ -37,6 +37,14 @@ def detect_accesses(expr):
     return mapper
 
 
+def detect_free_dimensions(expr):
+    """
+    Return a degenerate :class:`Stencil` for the :class:`Dimension`s used
+    as plain symbols, rather than as array indices, in ``expr``.
+    """
+    return Stencil([(i, 0) for i in retrieve_terminals(expr) if isinstance(i, Dimension)])
+
+
 def detect_oobs(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return the set of
@@ -60,17 +68,16 @@ def detect_oobs(mapper):
     return found | {i.parent for i in found if i.is_Derived}
 
 
-def build_intervals(mapper):
+def build_intervals(stencil):
     """
-    Given M as produced by :func:`detect_accesses`, return: ::
+    Given ``stencil``, an object of type :class`Stencil`, return: ::
 
-        * An iterable of :class:`Interval`s, representing the data items
-          accessed in each :class:`Dimension` in M;
+        * An iterable of :class:`Interval`s, one for each :class:`Dimension`
+          in ``stencil``.
         * A dictionary of ``iterators``, suitable to build an
           :class:`IterationSpace`.
     """
     iterators = OrderedDict()
-    stencil = Stencil.union(*mapper.values())
     for i in stencil.dimensions:
         if i.is_NonlinearDerived:
             iterators.setdefault(i.parent, []).append(stencil.entry(i))
