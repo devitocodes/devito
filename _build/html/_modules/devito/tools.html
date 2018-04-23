@@ -150,16 +150,18 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.tools</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">ctypes</span>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">ctypes</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">Hashable</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span> <span class="nn">decorator</span> <span class="k">import</span> <span class="n">decorator</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span><span class="p">,</span> <span class="n">wraps</span><span class="p">,</span> <span class="n">reduce</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span><span class="p">,</span> <span class="n">combinations</span><span class="p">,</span> <span class="n">product</span><span class="p">,</span> <span class="n">zip_longest</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span><span class="p">,</span> <span class="n">mul</span>
 <span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">DEVNULL</span><span class="p">,</span> <span class="n">PIPE</span><span class="p">,</span> <span class="n">Popen</span><span class="p">,</span> <span class="n">CalledProcessError</span><span class="p">,</span> <span class="n">check_output</span>
+
 <span class="kn">import</span> <span class="nn">cpuinfo</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">distutils</span> <span class="k">import</span> <span class="n">version</span>
 
 <span class="kn">from</span> <span class="nn">multidict</span> <span class="k">import</span> <span class="n">MultiDict</span>
@@ -827,6 +829,92 @@
 <span class="sd">        Returns a dictionary with reduced/unique values for all keys.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">}</span>
+
+
+<span class="c1"># Method/function arguments validation</span>
+
+<span class="k">class</span> <span class="nc">validate_base</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Decorator to validate arguments</span>
+
+<span class="sd">    Formal parameters that don&#39;t exist in the definition of the function</span>
+<span class="sd">    being decorated as well as actual arguments not being present when</span>
+<span class="sd">    the validation is called are silently ignored.</span>
+
+<span class="sd">    Readapted from: ::</span>
+
+<span class="sd">        https://github.com/OP2/PyOP2/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">checks</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_checks</span> <span class="o">=</span> <span class="n">checks</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s2">&quot;develop-mode&quot;</span><span class="p">]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">nargs</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="vm">__code__</span><span class="o">.</span><span class="n">co_argcount</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">defaults</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="vm">__defaults__</span> <span class="ow">or</span> <span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">varnames</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="vm">__code__</span><span class="o">.</span><span class="n">co_varnames</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">file</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="vm">__code__</span><span class="o">.</span><span class="n">co_filename</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">line</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="vm">__code__</span><span class="o">.</span><span class="n">co_firstlineno</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">check_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">decorator</span><span class="p">(</span><span class="n">wrapper</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">check_args</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">argname</span><span class="p">,</span> <span class="n">argcond</span><span class="p">,</span> <span class="n">exception</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_checks</span><span class="p">:</span>
+            <span class="c1"># If the argument argname is not present in the decorated function</span>
+            <span class="c1"># silently ignore it</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">varnames</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">argname</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="c1"># No formal parameter argname</span>
+                <span class="k">continue</span>
+            <span class="c1"># Try the argument by keyword first, and by position second.</span>
+            <span class="c1"># If the argument isn&#39;t given, silently ignore it.</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">arg</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">argname</span><span class="p">)</span>
+                <span class="n">arg</span> <span class="o">=</span> <span class="n">arg</span> <span class="ow">or</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+                <span class="c1"># No actual parameter argname</span>
+                <span class="k">continue</span>
+            <span class="c1"># If the argument has a default value, also accept that (since the</span>
+            <span class="c1"># constructor will be able to deal with that)</span>
+            <span class="n">default_index</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">nargs</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">defaults</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">default_index</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">arg</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">defaults</span><span class="p">[</span><span class="n">default_index</span><span class="p">]:</span>
+                <span class="k">continue</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">check_arg</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">argcond</span><span class="p">,</span> <span class="n">exception</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">validate_type</span><span class="p">(</span><span class="n">validate_base</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decorator to validate argument types</span>
+
+<span class="sd">    The decorator expects one or more arguments, which are 3-tuples of</span>
+<span class="sd">    (name, type, exception), where name is the argument name in the</span>
+<span class="sd">    function being decorated, type is the argument type to be validated</span>
+<span class="sd">    and exception is the exception type to be raised if validation fails.</span>
+
+<span class="sd">    Readapted from: ::</span>
+
+<span class="sd">        https://github.com/OP2/PyOP2/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">checks</span><span class="p">):</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">checks</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">argname</span><span class="p">,</span> <span class="n">argtype</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">argname</span><span class="p">,</span> <span class="n">argtype</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">validate_type</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">processed</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">check_arg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">argtype</span><span class="p">,</span> <span class="n">exception</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">argtype</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">exception</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">:</span><span class="si">%d</span><span class="s2"> Parameter </span><span class="si">%s</span><span class="s2"> must be of type </span><span class="si">%r</span><span class="s2">&quot;</span>
+                            <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">line</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">argtype</span><span class="p">))</span>
 </pre></div>
 
            </div>

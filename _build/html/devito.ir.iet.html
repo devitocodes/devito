@@ -354,6 +354,11 @@ appears in this list are treated as traversable fields.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.ir.iet.nodes.Expression.dimensions">
+<code class="descname">dimensions</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Expression.dtype">
 <code class="descname">dtype</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.dtype" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -397,12 +402,6 @@ appears in this list are treated as traversable fields.</p>
 <dt id="devito.ir.iet.nodes.Expression.output">
 <code class="descname">output</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.output" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the symbol written by this Expression.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.Expression.shape">
-<code class="descname">shape</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.shape" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the shape of the written LHS.</p>
 </dd></dl>
 
 <dl class="method">
@@ -843,6 +842,48 @@ defines the data, as well as the dimension sizes.</p>
 
 </dd></dl>
 
+<dl class="class">
+<dt id="devito.ir.iet.nodes.ForeignExpression">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">ForeignExpression</code><span class="sig-paren">(</span><em>expr</em>, <em>dtype</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#ForeignExpression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Expression" title="devito.ir.iet.nodes.Expression"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.Expression</span></code></a></p>
+<p>A node representing a SymPy <code class="xref py py-class docutils literal notranslate"><span class="pre">FunctionFromPointer</span></code> expression.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ForeignExpression.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression.dtype" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ForeignExpression.is_increment">
+<code class="descname">is_increment</code><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression.is_increment" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if the write is actually an associative and commutative increment.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ForeignExpression.is_scalar">
+<code class="descname">is_scalar</code><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression.is_scalar" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if a scalar expression, False otherwise.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ForeignExpression.is_tensor">
+<code class="descname">is_tensor</code><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression.is_tensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if a tensor expression, False otherwise.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ForeignExpression.output">
+<code class="descname">output</code><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression.output" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the symbol written by this Expression.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ForeignExpression.write">
+<code class="descname">write</code><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression.write" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the function written by this Expression.</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.ir.iet.properties">
 <span id="devito-ir-iet-properties-module"></span><h2>devito.ir.iet.properties module<a class="headerlink" href="#module-devito.ir.iet.properties" title="Permalink to this headline">¶</a></h2>
@@ -1038,7 +1079,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14f739df8e18&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14f739df8d90&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x149720615598&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x149720615510&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1120,7 +1161,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x14f739df8a60&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14f739df89d8&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14f739df88c8&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x14f739df8950&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x1497206151e0&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x149720615158&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x149720615048&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x1497206150d0&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1270,6 +1311,11 @@ tree to their respective section.</p>
 <dl class="method">
 <dt id="devito.ir.iet.visitors.CGen.visit_Expression">
 <code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_Expression" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.iet.visitors.CGen.visit_ForeignExpression">
+<code class="descname">visit_ForeignExpression</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_ForeignExpression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_ForeignExpression" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">

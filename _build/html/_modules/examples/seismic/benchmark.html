@@ -156,7 +156,7 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">click</span>
 
-<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">clear_cache</span><span class="p">,</span> <span class="n">configuration</span><span class="p">,</span> <span class="n">sweep</span>
+<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">clear_cache</span><span class="p">,</span> <span class="n">configuration</span><span class="p">,</span> <span class="n">sweep</span><span class="p">,</span> <span class="n">mode_develop</span><span class="p">,</span> <span class="n">mode_benchmark</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">examples.seismic.acoustic.acoustic_example</span> <span class="k">import</span> <span class="n">run</span> <span class="k">as</span> <span class="n">acoustic_run</span>
 <span class="kn">from</span> <span class="nn">examples.seismic.tti.tti_example</span> <span class="k">import</span> <span class="n">run</span> <span class="k">as</span> <span class="n">tti_run</span>
@@ -175,11 +175,7 @@
 
 <span class="sd">    Further, this script can generate a roofline plot from a benchmark</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c1"># Make sure that with YASK we run in benchmarking mode</span>
-    <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;backend&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;yask&#39;</span><span class="p">:</span>
-        <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;develop-mode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;preemptive&#39;</span>
+    <span class="n">mode_benchmark</span><span class="p">()</span>
 
 
 <div class="viewcode-block" id="option_simulation"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.benchmark.option_simulation">[docs]</a><span class="k">def</span> <span class="nf">option_simulation</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
@@ -281,6 +277,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Test numerical correctness with different parameters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mode_develop</span><span class="p">()</span>
     <span class="n">test</span><span class="p">(</span><span class="n">problem</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 

@@ -158,7 +158,7 @@
 <span class="kn">from</span> <span class="nn">psutil</span> <span class="k">import</span> <span class="n">virtual_memory</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span>
-<span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">Data</span><span class="p">,</span> <span class="n">first_touch</span>
+<span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">Data</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">,</span> <span class="n">first_touch</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">DefaultDimension</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
@@ -289,6 +289,7 @@
                 <span class="k">assert</span><span class="p">(</span><span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first_touch&#39;</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;allocator&#39;</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">())</span>
 
     <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Shortcut for ``self.indexed[index]``.&quot;&quot;&quot;</span>
@@ -299,7 +300,8 @@
         <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating memory for </span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">))</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+                                  <span class="n">allocator</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="p">)</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
                     <span class="n">first_touch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -525,6 +527,10 @@
 <span class="sd">                    raised if such tuple has fewer entries then the number of space</span>
 <span class="sd">                    dimensions.</span>
 <span class="sd">    :param initializer: (Optional) A callable to initialize the data</span>
+<span class="sd">    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to</span>
+<span class="sd">                      specify where to allocate the function data when running</span>
+<span class="sd">                      on a NUMA architecture. Refer to ``default_allocator()``&#39;s</span>
+<span class="sd">                      __doc__ for more information about possible allocators.</span>
 
 <span class="sd">    .. note::</span>
 
@@ -750,6 +756,10 @@
 <span class="sd">                    raised if such tuple has fewer entries then the number of</span>
 <span class="sd">                    space dimensions.</span>
 <span class="sd">    :param initializer: (Optional) A callable to initialize the data</span>
+<span class="sd">    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to</span>
+<span class="sd">                      specify where to allocate the function data when running</span>
+<span class="sd">                      on a NUMA architecture. Refer to ``default_allocator()``&#39;s</span>
+<span class="sd">                      __doc__ for more information about possible allocators.</span>
 
 <span class="sd">    .. note::</span>
 
@@ -974,6 +984,10 @@
 <span class="sd">    :param space_order: Discretisation order for space derivatives.</span>
 <span class="sd">    :param dtype: Data type of the buffered data.</span>
 <span class="sd">    :param initializer: (Optional) A callable to initialize the data</span>
+<span class="sd">    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to</span>
+<span class="sd">                      specify where to allocate the function data when running</span>
+<span class="sd">                      on a NUMA architecture. Refer to ``default_allocator()``&#39;s</span>
+<span class="sd">                      __doc__ for more information about possible allocators.</span>
 
 <span class="sd">    .. note::</span>
 
@@ -1199,6 +1213,10 @@
 <span class="sd">                       Default to 1.</span>
 <span class="sd">    :param dtype: (Optional) Data type of the buffered data.</span>
 <span class="sd">    :param initializer: (Optional) A callable to initialize the data</span>
+<span class="sd">    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to</span>
+<span class="sd">                      specify where to allocate the function data when running</span>
+<span class="sd">                      on a NUMA architecture. Refer to ``default_allocator()``&#39;s</span>
+<span class="sd">                      __doc__ for more information about possible allocators.</span>
 
 <span class="sd">    .. note::</span>
 

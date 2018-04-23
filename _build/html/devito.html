@@ -568,6 +568,10 @@ in each dimension, may be passed; in this case, an error is
 raised if such tuple has fewer entries then the number of space
 dimensions.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+specify where to allocate the function data when running
+on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
+__doc__ for more information about possible allocators.</li>
 </ul>
 </td>
 </tr>
@@ -809,6 +813,10 @@ data layout and function indices of this symbol.</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives.</li>
 <li><strong>dtype</strong> – Data type of the buffered data.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+specify where to allocate the function data when running
+on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
+__doc__ for more information about possible allocators.</li>
 </ul>
 </td>
 </tr>
@@ -851,6 +859,10 @@ Default to 0.</li>
 Default to 1.</li>
 <li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+specify where to allocate the function data when running
+on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
+__doc__ for more information about possible allocators.</li>
 </ul>
 </td>
 </tr>
@@ -913,6 +925,10 @@ in each dimension, may be passed; in this case, an error is
 raised if such tuple has fewer entries then the number of
 space dimensions.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+specify where to allocate the function data when running
+on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
+__doc__ for more information about possible allocators.</li>
 </ul>
 </td>
 </tr>
@@ -1138,90 +1154,6 @@ derived time dimensions symbol. For example:</p>
 </div>
 <div class="section" id="module-devito.data">
 <span id="devito-data-module"></span><h2>devito.data module<a class="headerlink" href="#module-devito.data" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.data.Data">
-<em class="property">class </em><code class="descclassname">devito.data.</code><code class="descname">Data</code><a class="reference internal" href="_modules/devito/data.html#Data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.Data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></p>
-<p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> allowing logical indexing.</p>
-<p>The type <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> is subclassed as indicated at:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">docs</span><span class="o">.</span><span class="n">scipy</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">doc</span><span class="o">/</span><span class="n">numpy</span><span class="o">-</span><span class="mf">1.13</span><span class="o">.</span><span class="mi">0</span><span class="o">/</span><span class="n">user</span><span class="o">/</span><span class="n">basics</span><span class="o">.</span><span class="n">subclassing</span><span class="o">.</span><span class="n">html</span>
-</pre></div>
-</div>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>shape</strong> – Shape of the domain region in grid points.</li>
-<li><strong>dimensions</strong> – A tuple of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s,</span> <span class="pre">representing</span> <span class="pre">the</span> <span class="pre">dimensions</span>
-<span class="pre">of</span> <span class="pre">the</span> <span class="pre">``Data`</span></code>.</li>
-<li><strong>dtype</strong> – A <code class="docutils literal notranslate"><span class="pre">numpy.dtype</span></code> for the raw data.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">This type supports logical indexing over modulo buffered dimensions.</p>
-</div>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Any view or copy <code class="docutils literal notranslate"><span class="pre">A</span></code> created starting from <code class="docutils literal notranslate"><span class="pre">self</span></code>, for instance via
-a slice operation or a universal function (“ufunc” in NumPy jargon), will
-still be of type <a class="reference internal" href="#devito.data.Data" title="devito.data.Data"><code class="xref py py-class docutils literal notranslate"><span class="pre">Data</span></code></a>. However, if <code class="docutils literal notranslate"><span class="pre">A</span></code>’s rank is different than
-<code class="docutils literal notranslate"><span class="pre">self</span></code>’s rank, namely if <code class="docutils literal notranslate"><span class="pre">A.ndim</span> <span class="pre">!=</span> <span class="pre">self.ndim</span></code>, then the capability of
-performing logical indexing is lost.</p>
-</div>
-<dl class="method">
-<dt id="devito.data.Data.reset">
-<code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#Data.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.Data.reset" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set all grid entries to 0.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.data.first_touch">
-<code class="descclassname">devito.data.</code><code class="descname">first_touch</code><span class="sig-paren">(</span><em>array</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#first_touch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.first_touch" title="Permalink to this definition">¶</a></dt>
-<dd><p>Uses an Operator to initialize the given array in the same pattern that
-would later be used to access it.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.data.free">
-<code class="descclassname">devito.data.</code><code class="descname">free</code><span class="sig-paren">(</span><em>c_pointer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#free"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.free" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use the C function free to free the memory allocated for the
-given pointer.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.data.malloc_aligned">
-<code class="descclassname">devito.data.</code><code class="descname">malloc_aligned</code><span class="sig-paren">(</span><em>shape</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>alignment=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data.html#malloc_aligned"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.malloc_aligned" title="Permalink to this definition">¶</a></dt>
-<dd><p>Allocate memory using the C function <code class="docutils literal notranslate"><span class="pre">malloc_aligned</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>shape</strong> – Shape of the array to allocate</li>
-<li><strong>dtype</strong> – Numpy datatype to allocate. Default to np.float32</li>
-<li><strong>alignment</strong> – number of bytes to align to. Defaults to
-page size if not set.</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name" colspan="2">Returns (pointer, c_pointer):</th></tr>
-<tr class="field-even field"><td>&#160;</td><td class="field-body"><p class="first last">the first element of the tuple is the reference
-that can be used to access the data as a ctypes
-object. The second element is the low-level
-reference that is needed only for the call to free.</p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
 </div>
 <div class="section" id="module-devito.dimension">
 <span id="devito-dimension-module"></span><h2>devito.dimension module<a class="headerlink" href="#module-devito.dimension" title="Permalink to this headline">¶</a></h2>
@@ -1969,6 +1901,10 @@ in each dimension, may be passed; in this case, an error is
 raised if such tuple has fewer entries then the number of space
 dimensions.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+specify where to allocate the function data when running
+on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
+__doc__ for more information about possible allocators.</li>
 </ul>
 </td>
 </tr>
@@ -2070,6 +2006,10 @@ in each dimension, may be passed; in this case, an error is
 raised if such tuple has fewer entries then the number of
 space dimensions.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+specify where to allocate the function data when running
+on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
+__doc__ for more information about possible allocators.</li>
 </ul>
 </td>
 </tr>
@@ -2160,6 +2100,10 @@ data layout and function indices of this symbol.</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives.</li>
 <li><strong>dtype</strong> – Data type of the buffered data.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+specify where to allocate the function data when running
+on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
+__doc__ for more information about possible allocators.</li>
 </ul>
 </td>
 </tr>
@@ -2301,6 +2245,10 @@ Default to 0.</li>
 Default to 1.</li>
 <li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
 <li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+specify where to allocate the function data when running
+on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
+__doc__ for more information about possible allocators.</li>
 </ul>
 </td>
 </tr>
@@ -2663,13 +2611,13 @@ to run).</p>
 <p>The parameters dictionary contains global parameter settings.</p>
 <dl class="data">
 <dt id="devito.parameters.configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = {'backend': 'core', 'compiler': DevitoJITCompiler[GNUCompiler], 'debug_compiler': False, 'dle': 'advanced', 'dle_options': {'blockinner': False, 'blockshape': None, 'blockalways': False}, 'dse': 'advanced', 'first_touch': False, 'isa': 'cpp', 'log_level': 'INFO', 'openmp': False, 'platform': 'intel64'}</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = {'backend': 'core', 'compiler': DevitoJITCompiler[GNUCompiler], 'debug_compiler': False, 'develop-mode': True, 'dle': 'advanced', 'dle_options': {'blockinner': False, 'blockshape': None, 'blockalways': False}, 'dse': 'advanced', 'first_touch': False, 'isa': 'cpp', 'log_level': 'INFO', 'openmp': False, 'platform': 'intel64'}</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Devito configuration parameters.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.parameters.init_configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">init_configuration</code><span class="sig-paren">(</span><em>configuration={'backend': 'core', 'compiler': DevitoJITCompiler[GNUCompiler], 'debug_compiler': False, 'dle': 'advanced', 'dle_options': {'blockinner': False, 'blockshape': None, 'blockalways': False}, 'dse': 'advanced', 'first_touch': False, 'isa': 'cpp', 'log_level': 'INFO', 'openmp': False, 'platform': 'intel64'}, env_vars_mapper={'DEVITO_ARCH': 'compiler', 'DEVITO_BACKEND': 'backend', 'DEVITO_DEBUG_COMPILER': 'debug_compiler', 'DEVITO_DLE': 'dle', 'DEVITO_DLE_OPTIONS': 'dle_options', 'DEVITO_DSE': 'dse', 'DEVITO_FIRST_TOUCH': 'first_touch', 'DEVITO_ISA': 'isa', 'DEVITO_LOGGING': 'log_level', 'DEVITO_OPENMP': 'openmp', 'DEVITO_PLATFORM': 'platform'}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#init_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.init_configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">init_configuration</code><span class="sig-paren">(</span><em>configuration={'backend': 'core', 'compiler': DevitoJITCompiler[GNUCompiler], 'debug_compiler': False, 'develop-mode': True, 'dle': 'advanced', 'dle_options': {'blockinner': False, 'blockshape': None, 'blockalways': False}, 'dse': 'advanced', 'first_touch': False, 'isa': 'cpp', 'log_level': 'INFO', 'openmp': False, 'platform': 'intel64'}, env_vars_mapper={'DEVITO_ARCH': 'compiler', 'DEVITO_BACKEND': 'backend', 'DEVITO_DEBUG_COMPILER': 'debug_compiler', 'DEVITO_DEVELOP': 'develop-mode', 'DEVITO_DLE': 'dle', 'DEVITO_DLE_OPTIONS': 'dle_options', 'DEVITO_DSE': 'dse', 'DEVITO_FIRST_TOUCH': 'first_touch', 'DEVITO_ISA': 'isa', 'DEVITO_LOGGING': 'log_level', 'DEVITO_OPENMP': 'openmp', 'DEVITO_PLATFORM': 'platform'}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#init_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.init_configuration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
@@ -2689,6 +2637,28 @@ as well as all of the accepted values.</p>
 <dt id="devito.parameters.add_sub_configuration">
 <code class="descclassname">devito.parameters.</code><code class="descname">add_sub_configuration</code><span class="sig-paren">(</span><em>sub_configuration</em>, <em>sub_env_vars_mapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#add_sub_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.add_sub_configuration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.parameters.mode_develop">
+<code class="descclassname">devito.parameters.</code><code class="descname">mode_develop</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#mode_develop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.mode_develop" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run all future :class:<a href="#id7"><span class="problematic" id="id8">`</span></a>Operator`s in develop mode. This is the default
+configuration for Devito.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.parameters.mode_performance">
+<code class="descclassname">devito.parameters.</code><code class="descname">mode_performance</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#mode_performance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.mode_performance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run all future <code class="xref py py-class docutils literal notranslate"><span class="pre">Operator`s</span> <span class="pre">in</span> <span class="pre">performance</span> <span class="pre">mode.</span> <span class="pre">The</span> <span class="pre">performance</span>
+<span class="pre">mode</span> <span class="pre">will</span> <span class="pre">also</span> <span class="pre">try</span> <span class="pre">to</span> <span class="pre">allocate</span> <span class="pre">any</span> <span class="pre">future</span> <span class="pre">:class:`TensorFunction</span></code> with
+a suitable NUMA strategy.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.parameters.mode_benchmark">
+<code class="descclassname">devito.parameters.</code><code class="descname">mode_benchmark</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#mode_benchmark"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.mode_benchmark" title="Permalink to this definition">¶</a></dt>
+<dd><p>Like <code class="docutils literal notranslate"><span class="pre">mode_performance</span></code>, but also switch YASK’s autotuner mode to
+<code class="docutils literal notranslate"><span class="pre">preemptive</span></code>.</p>
+</dd></dl>
 
 </div>
 <div class="section" id="module-devito.profiling">

@@ -366,7 +366,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">def</span> <span class="nf">key</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ParallelRelaxed</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_Elementizable</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parallelizer</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">make_omp_parallel_iet</span><span class="p">(</span><span class="n">iet</span><span class="p">),</span> <span class="p">{}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parallelizer</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">make_parallel</span><span class="p">(</span><span class="n">iet</span><span class="p">),</span> <span class="p">{}</span>
 
     <span class="nd">@dle_pass</span>
     <span class="k">def</span> <span class="nf">_minimize_remainders</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>

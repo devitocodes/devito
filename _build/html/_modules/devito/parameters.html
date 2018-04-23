@@ -156,7 +156,7 @@
 <span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">environ</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;print_defaults&#39;</span><span class="p">,</span> <span class="s1">&#39;print_state&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;add_sub_configuration&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;add_sub_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;mode_develop&#39;</span><span class="p">,</span> <span class="s1">&#39;mode_performance&#39;</span><span class="p">,</span> <span class="s1">&#39;mode_benchmark&#39;</span><span class="p">]</span>
 
 <span class="c1"># Be EXTREMELY careful when writing to a Parameters dictionary</span>
 <span class="c1"># Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad</span>
@@ -249,6 +249,7 @@
     <span class="s1">&#39;DEVITO_ISA&#39;</span><span class="p">:</span> <span class="s1">&#39;isa&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_PLATFORM&#39;</span><span class="p">:</span> <span class="s1">&#39;platform&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_BACKEND&#39;</span><span class="p">:</span> <span class="s1">&#39;backend&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_DEVELOP&#39;</span><span class="p">:</span> <span class="s1">&#39;develop-mode&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DSE&#39;</span><span class="p">:</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DLE&#39;</span><span class="p">:</span> <span class="s1">&#39;dle&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DLE_OPTIONS&#39;</span><span class="p">:</span> <span class="s1">&#39;dle_options&#39;</span><span class="p">,</span>
@@ -327,6 +328,27 @@
     <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="mode_develop"><a class="viewcode-back" href="../../devito.html#devito.parameters.mode_develop">[docs]</a><span class="k">def</span> <span class="nf">mode_develop</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Run all future :class:`Operator`s in develop mode. This is the default</span>
+<span class="sd">    configuration for Devito.&quot;&quot;&quot;</span>
+    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;develop-mode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="mode_performance"><a class="viewcode-back" href="../../devito.html#devito.parameters.mode_performance">[docs]</a><span class="k">def</span> <span class="nf">mode_performance</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Run all future :class:`Operator`s in performance mode. The performance</span>
+<span class="sd">    mode will also try to allocate any future :class:`TensorFunction` with</span>
+<span class="sd">    a suitable NUMA strategy.&quot;&quot;&quot;</span>
+    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;develop-mode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="mode_benchmark"><a class="viewcode-back" href="../../devito.html#devito.parameters.mode_benchmark">[docs]</a><span class="k">def</span> <span class="nf">mode_benchmark</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Like ``mode_performance``, but also switch YASK&#39;s autotuner mode to</span>
+<span class="sd">    ``preemptive``.&quot;&quot;&quot;</span>
+    <span class="n">mode_performance</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;backend&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;yask&#39;</span><span class="p">:</span>
+        <span class="n">configuration</span><span class="o">.</span><span class="n">yask</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;preemptive&#39;</span></div>
 </pre></div>
 
            </div>
