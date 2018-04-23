@@ -2,24 +2,23 @@ from __future__ import absolute_import
 
 import cgen as c
 import numpy as np
-from sympy import Indexed
 
 from devito.cgen_utils import ccode
 from devito.compiler import jit_compile
-from devito.dimension import LoweredDimension
-from devito.logger import yask as log, yask_warning as warning
+from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
-from devito.ir.iet import (Element, List, PointerCast, MetaCall, IsPerfectIteration,
-                           Transformer, filter_iterations, retrieve_iteration_tree)
+from devito.ir.iet import (Element, List, PointerCast, MetaCall, Transformer,
+                           retrieve_iteration_tree)
 from devito.operator import OperatorRunnable
 from devito.tools import flatten
 from devito.types import Object
 
-from devito.yask import nfac, exit, configuration
+from devito.yask import configuration
 from devito.yask.data import DataScalar
 from devito.yask.utils import (make_grid_accesses, make_sharedptr_funcall, rawpointer,
                                namespace)
 from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
+from devito.yask.transformer import yaskizer
 from devito.yask.types import YaskGridObject
 
 __all__ = ['Operator']
@@ -53,40 +52,40 @@ class Operator(OperatorRunnable):
                 for e in expressions]
 
     def _specialize_iet(self, iet):
-        """Transform the Iteration/Expression tree to offload the computation of
+        """
+        Transform the Iteration/Expression tree to offload the computation of
         one or more loop nests onto YASK. This involves calling the YASK compiler
         to generate YASK code. Such YASK code is then called from within the
-        transformed Iteration/Expression tree."""
+        transformed Iteration/Expression tree.
+        """
         log("Specializing a Devito Operator for YASK...")
-
-        self.context = YaskNullContext()
-        self.yk_soln = YaskNullKernel()
 
         offloadable = find_offloadable_trees(iet)
         if len(offloadable) == 0:
+            self.context = YaskNullContext()
+            self.yk_soln = YaskNullKernel()
+
             log("No offloadable trees found")
-        elif len(offloadable) == 1:
-            tree, bundle, grid, dtype = offloadable[0]
+        else:
+            root, grid, dtype = offloadable[0]
             self.context = contexts.fetch(grid, dtype)
 
             # Create a YASK compiler solution for this Operator
             yc_soln = self.context.make_yc_solution(namespace['jit-yc-soln'])
 
-            transform = sympy2yask(self.context, yc_soln)
             try:
-                for i in bundle.exprs:
-                    transform(i.expr)
+                mapper = yaskizer(root, yc_soln)
 
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'], ['time'],
                                                  namespace['code-soln-name'])
                 funcall = Element(c.Statement(ccode(funcall)))
-                iet = Transformer({tree[1]: funcall}).visit(iet)
+                iet = Transformer({root: funcall}).visit(iet)
 
                 # Track /funcall/ as an external function call
                 self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
-                local_grids = [i for i in transform.mapper if i.is_Array]
+                local_grids = [i for i in mapper if i.is_Array]
                 self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
                                                              yc_soln, local_grids)
 
@@ -94,11 +93,8 @@ class Operator(OperatorRunnable):
                 log("Solution '%s' contains %d grid(s) and %d equation(s)." %
                     (yc_soln.get_name(), yc_soln.get_num_grids(),
                      yc_soln.get_num_equations()))
-
             except:
                 log("Unable to offload a candidate tree.")
-        else:
-            exit("Found more than one offloadable trees in a single Operator")
 
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
@@ -179,89 +175,6 @@ class Operator(OperatorRunnable):
             return self._lib.name
 
 
-class sympy2yask(object):
-    """
-    Convert a SymPy expression into a YASK abstract syntax tree and create any
-    necessay YASK grids.
-    """
-
-    def __init__(self, context, yc_soln):
-        self.context = context
-        self.yc_soln = yc_soln
-        self.mapper = {}
-
-    def __call__(self, expr):
-
-        def nary2binary(args, op):
-            r = run(args[0])
-            return r if len(args) == 1 else op(r, nary2binary(args[1:], op))
-
-        def run(expr):
-            if expr.is_Integer:
-                return nfac.new_const_number_node(int(expr))
-            elif expr.is_Float:
-                return nfac.new_const_number_node(float(expr))
-            elif expr.is_Rational:
-                a, b = expr.as_numer_denom()
-                return nfac.new_const_number_node(float(a)/float(b))
-            elif expr.is_Symbol:
-                function = expr.base.function
-                if function.is_Constant:
-                    if function not in self.mapper:
-                        self.mapper[function] = self.yc_soln.new_grid(function.name, [])
-                    return self.mapper[function].new_relative_grid_point([])
-                else:
-                    # A DSE-generated temporary, which must have already been
-                    # encountered as a LHS of a previous expression
-                    assert function in self.mapper
-                    return self.mapper[function]
-            elif isinstance(expr, Indexed):
-                function = expr.base.function
-                if function not in self.mapper:
-                    if function.is_TimeFunction:
-                        dimensions = [nfac.new_step_index(function.indices[0].name)]
-                        dimensions += [nfac.new_domain_index(i.name)
-                                       for i in function.indices[1:]]
-                    else:
-                        dimensions = [nfac.new_domain_index(i.name)
-                                      for i in function.indices]
-                    self.mapper[function] = self.yc_soln.new_grid(function.name,
-                                                                  dimensions)
-                indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
-                           for i, j in zip(expr.indices, function.indices)]
-                return self.mapper[function].new_relative_grid_point(indices)
-            elif expr.is_Add:
-                return nary2binary(expr.args, nfac.new_add_node)
-            elif expr.is_Mul:
-                return nary2binary(expr.args, nfac.new_multiply_node)
-            elif expr.is_Pow:
-                base, exp = expr.as_base_exp()
-                if not exp.is_integer:
-                    warning("non-integer powers unsupported in Devito-YASK translation")
-                    raise NotImplementedError
-
-                if int(exp) < 0:
-                    num, den = expr.as_numer_denom()
-                    return nfac.new_divide_node(run(num), run(den))
-                elif int(exp) >= 1:
-                    return nary2binary([base] * exp, nfac.new_multiply_node)
-                else:
-                    warning("0-power found in Devito-YASK translation? setting to 1")
-                    return nfac.new_const_number_node(1)
-            elif expr.is_Equality:
-                if expr.lhs.is_Symbol:
-                    function = expr.lhs.base.function
-                    assert function not in self.mapper
-                    self.mapper[function] = run(expr.rhs)
-                else:
-                    return nfac.new_equation_node(*[run(i) for i in expr.args])
-            else:
-                warning("Missing handler in Devito-YASK translation")
-                raise NotImplementedError
-
-        return run(expr)
-
-
 def find_offloadable_trees(iet):
     """
     Return the trees within ``iet`` that can be computed by YASK.
@@ -272,27 +185,30 @@ def find_offloadable_trees(iet):
     """
     offloadable = []
     for tree in retrieve_iteration_tree(iet):
-        parallel = filter_iterations(tree, lambda i: i.is_Parallel)
-        if not parallel:
-            # Cannot offload non-parallel loops
+        # The outermost iteration must be over time and it must
+        # nest at least one iteration
+        if len(tree) <= 1:
             continue
-        bundle = tree.inner.nodes[0]
+        time_iteration = tree[0]
+        if not time_iteration.dim.is_Time:
+            continue
+        grid_iterations = tree[1:]
+        if not all(i.is_Affine for i in grid_iterations):
+            # Non-affine array accesses unsupported by YASK
+            continue
+        bundle = tree[-1].nodes[0]
         if len(tree.inner.nodes) > 1 or not bundle.is_ExpressionBundle:
             # Illegal nest
-            continue
-        if not IsPerfectIteration().visit(parallel[0]):
-            # Don't know how to offload non-perfect nests
             continue
         functions = flatten(i.functions for i in bundle.exprs)
         keys = set((i.grid, i.dtype) for i in functions if i.is_TimeFunction)
         if len(keys) == 0:
+            # No Function found in this tree?
             continue
-        elif len(keys) > 1:
-            exit("Cannot handle Operators w/ heterogeneous grids")
+        assert len(keys) == 1
         grid, dtype = keys.pop()
-        # Is this a "complete" tree iterating over the entire grid?
-        dims = [i.dim for i in tree]
-        if all(i in dims for i in grid.dimensions) and\
-                any(j in dims for j in [grid.time_dim, grid.stepping_dim]):
-            offloadable.append((tree, bundle, grid, dtype))
+        # Does this tree iterate over a convex section of the grid?
+        if not all(i.dim._defines | set(grid.dimensions) for i in grid_iterations):
+            continue
+        offloadable.append((grid_iterations[0], grid, dtype))
     return offloadable

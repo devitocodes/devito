@@ -82,6 +82,7 @@ class TestSubDimension(object):
         assert np.all(u.data[1, -1, :, :] == 1)
         assert np.all(u.data[1, 1:3, :, :] == 2)
 
+    @skipif_yask
     def test_bcs(self):
         """
         Tests application of an Operator consisting of multiple equations
