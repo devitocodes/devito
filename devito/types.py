@@ -261,8 +261,12 @@ class Scalar(Symbol):
         """This stub allows sympy.Basic.subs to operate on an expression
         involving devito Scalars.  Ordinarily the comparisons between
         devito subclasses of sympy types are quite strict."""
-        if old.name == self.name:
-            return new
+        try:
+            if old.name == self.name:
+                return new
+        except AttributeError:
+            pass
+
         return self
 
 
