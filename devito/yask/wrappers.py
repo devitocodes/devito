@@ -8,8 +8,8 @@ from devito.compiler import make
 from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log
 
-from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
-from devito.yask.utils import rawpointer
+from devito.yask import cfac, nfac, ofac, exit, configuration
+from devito.yask.utils import namespace, rawpointer
 
 
 class YaskKernel(object):
@@ -51,7 +51,7 @@ class YaskKernel(object):
         # JIT-compile it
         try:
             compiler = configuration.yask['compiler']
-            opt_level = 1 if configuration.yask['develop-mode'] else 3
+            opt_level = 1 if configuration['develop-mode'] else 3
             make(namespace['path'], ['-j3', 'YK_CXX=%s' % compiler.cc,
                                      'YK_CXXOPT=-O%d' % opt_level,
                                      'mpi=0',  # Disable MPI for now
@@ -247,8 +247,17 @@ class YaskContext(object):
 
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
 
-        # Set up the YASK grid and allocate memory
+        # Create the YASK grid
         grid = self.yk_hook.new_grid(name, obj)
+
+        # Where should memory be allocated ?
+        alloc = obj._allocator
+        if alloc.is_Numa:
+            if alloc.put_onnode:
+                grid.set_numa_preferred(alloc.node)
+            elif alloc.put_local:
+                grid.set_numa_preferred(namespace['numa-put-local'])
+
         for i, s, h in zip(obj.indices, obj.shape_allocated, obj._extent_halo):
             if i.is_Time:
                 assert grid.is_dim_used(i.name)
