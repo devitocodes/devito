@@ -287,44 +287,32 @@ class SubDimension(DerivedDimension):
 
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension from which the SubDimension is created.
-    :param lower: Lower offset from the ``parent`` dimension's minimum
-    :param upper: Upper offset from the ``parent`` dimension's maximum
-    :param lower_symbolic: Symbolic expression to provide the lower bound
-    :param upper_symbolic: Symbolic expression to provide the upper bound
+    :param lower: Symbolic expression to provide the lower bound
+    :param upper: Symbolic expression to provide the upper bound
     """
 
-    def __new__(cls, name, parent, lower=None, upper=None,
-                lower_symbolic=None,
-                upper_symbolic=None, **kwargs):
+    def __new__(cls, name, parent, lower, upper, **kwargs):
         newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
-        assert (lower is None) ^ (lower_symbolic is None)
-        assert (upper is None) ^ (upper_symbolic is None)
-
-        if lower_symbolic is None:
-            lower_symbolic = parent.symbolic_start + lower
-        if upper_symbolic is None:
-            upper_symbolic = parent.symbolic_end + upper
-
-        newobj._interval = sympy.Interval(lower_symbolic, upper_symbolic)
+        newobj._interval = sympy.Interval(lower, upper)
         return newobj
 
     @classmethod
     def left(cls, name, parent, thickness):
         return cls(name, parent,
-                   lower_symbolic=parent.symbolic_start,
-                   upper_symbolic=parent.symbolic_start+thickness-1)
+                   lower=parent.symbolic_start,
+                   upper=parent.symbolic_start+thickness-1)
 
     @classmethod
     def right(cls, name, parent, thickness):
         return cls(name, parent,
-                   lower_symbolic=parent.symbolic_end-thickness+1,
-                   upper_symbolic=parent.symbolic_end)
+                   lower=parent.symbolic_end-thickness+1,
+                   upper=parent.symbolic_end)
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right):
         return cls(name, parent,
-                   lower_symbolic=parent.symbolic_start+thickness_left,
-                   upper_symbolic=parent.symbolic_end-thickness_right)
+                   lower=parent.symbolic_start+thickness_left,
+                   upper=parent.symbolic_end-thickness_right)
 
     @property
     def symbolic_start(self):
