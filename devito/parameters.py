@@ -4,7 +4,7 @@ from collections import OrderedDict
 from os import environ
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'add_sub_configuration']
+           'add_sub_configuration', 'mode_develop', 'mode_performance', 'mode_benchmark']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -97,6 +97,7 @@ env_vars_mapper = {
     'DEVITO_ISA': 'isa',
     'DEVITO_PLATFORM': 'platform',
     'DEVITO_BACKEND': 'backend',
+    'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
     'DEVITO_DLE_OPTIONS': 'dle_options',
@@ -175,3 +176,24 @@ def print_state():
     from devito.logger import info
     for k, v in configuration.items():
         info('%s: %s' % (k, v))
+
+
+def mode_develop():
+    """Run all future :class:`Operator`s in develop mode. This is the default
+    configuration for Devito."""
+    configuration['develop-mode'] = True
+
+
+def mode_performance():
+    """Run all future :class:`Operator`s in performance mode. The performance
+    mode will also try to allocate any future :class:`TensorFunction` with
+    a suitable NUMA strategy."""
+    configuration['develop-mode'] = False
+
+
+def mode_benchmark():
+    """Like ``mode_performance``, but also switch YASK's autotuner mode to
+    ``preemptive``."""
+    mode_performance()
+    if configuration['backend'] == 'yask':
+        configuration.yask['autotuning'] = 'preemptive'

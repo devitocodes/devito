@@ -1,11 +1,13 @@
-import cgen as c
+from collections import OrderedDict
 import ctypes
 
-from devito.cgen_utils import INT, ccode
-from devito.ir.iet import Element, Expression, FindNodes, Transformer
+from devito.cgen_utils import INT
+from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
 from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
+from devito.tools import ctypes_pointer
 
-from devito.yask import namespace
+__all__ = ['make_grid_accesses', 'make_sharedptr_funcall', 'rawpointer',
+           'split_increment']
 
 
 def make_sharedptr_funcall(call, params, sharedptr):
@@ -42,7 +44,7 @@ def make_grid_accesses(node):
             args = [rhs]
             args += [ListInitializer([INT(make_grid_gets(i)) for i in lhs.indices])]
             handle = make_sharedptr_funcall(namespace['code-grid-put'], args, name)
-            processed = Element(c.Statement(ccode(handle)))
+            processed = ForeignExpression(handle, e.dtype, is_Increment=e.is_increment)
         else:
             # Writing to a scalar temporary
             processed = Expression(e.expr.func(lhs, rhs))
@@ -55,3 +57,49 @@ def make_grid_accesses(node):
 def rawpointer(obj):
     """Return a :class:`ctypes.c_void_p` pointing to ``obj``."""
     return ctypes.cast(int(obj), ctypes.c_void_p)
+
+
+def split_increment(expr):
+    """
+    Split an increment of type: ::
+
+        u->set_element(v + u->get_element(indices), indices)
+
+    into its three main components, namely the target grid ``u``, the increment
+    value ``v``, and the :class:`ListInitializer` ``indices``.
+
+    :raises ValueError: If ``expr`` is not an increment or does not appear in
+                        the normal form above.
+    """
+    if not isinstance(expr, FunctionFromPointer) or len(expr.params) != 2:
+        raise ValueError
+    target = expr.pointer
+    expr, indices = expr.params
+    if not isinstance(indices, ListInitializer):
+        raise ValueError
+    if not expr.is_Add or len(expr.args) != 2:
+        raise ValueError
+    values = [i for i in expr.args if not isinstance(i, FunctionFromPointer)]
+    if not len(values) == 1:
+        raise ValueError
+    return target, values[0], indices
+
+
+# YASK conventions
+namespace = OrderedDict()
+namespace['jit-yc-hook'] = lambda i, j: 'devito_%s_yc_hook%d' % (i, j)
+namespace['jit-yk-hook'] = lambda i, j: 'devito_%s_yk_hook%d' % (i, j)
+namespace['jit-yc-soln'] = lambda i, j: 'devito_%s_yc_soln%d' % (i, j)
+namespace['jit-yk-soln'] = lambda i, j: 'devito_%s_yk_soln%d' % (i, j)
+namespace['kernel-filename'] = 'yask_stencil_code.hpp'
+namespace['code-soln-type'] = 'yask::yk_solution'
+namespace['code-soln-name'] = 'soln'
+namespace['code-soln-run'] = 'run_solution'
+namespace['code-grid-type'] = 'yask::yk_grid'
+namespace['code-grid-name'] = lambda i: "grid_%s" % str(i)
+namespace['code-grid-get'] = 'get_element'
+namespace['code-grid-put'] = 'set_element'
+namespace['code-grid-add'] = 'add_to_element'
+namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
+namespace['type-grid'] = ctypes_pointer('yask::yk_grid_ptr')
+namespace['numa-put-local'] = -1

@@ -142,6 +142,14 @@ class FunctionFromPointer(sympy.Expr):
         return super(FunctionFromPointer, self)._hashable_content() +\
             (self.function, self.pointer) + self.params
 
+    @property
+    def base(self):
+        if isinstance(self.pointer, FunctionFromPointer):
+            # FunctionFromPointer may be nested
+            return self.pointer.base
+        else:
+            return self.pointer
+
 
 class ListInitializer(sympy.Expr):
 

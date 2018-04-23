@@ -6,8 +6,8 @@ import devito.function as function
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
-from devito.yask import namespace
 from devito.yask.data import Data, DataScalar
+from devito.yask.utils import namespace
 from devito.yask.wrappers import contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction']

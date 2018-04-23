@@ -15,13 +15,13 @@ from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, tagger, ntags)
 from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
-from devito.symbolics import as_symbol
-from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
+from devito.symbolics import FunctionFromPointer, as_symbol
+from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, validate_type
 from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
-           'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast']
+           'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression']
 
 
 class Node(object):
@@ -202,15 +202,18 @@ class Expression(Node):
 
     is_Expression = True
 
+    @validate_type(('expr', ClusterizedEq))
     def __init__(self, expr):
-        assert isinstance(expr, ClusterizedEq)
-        assert isinstance(expr.lhs, (Symbol, Indexed))
         self.expr = expr
+        self.__expr_finalize__()
 
-        self._functions = tuple(filter_ordered(flatten(detect_io(expr, relax=True))))
-
-        self.dimensions = flatten(i.indices for i in self.functions if i.is_Indexed)
-        self.dimensions = filter_ordered(self.dimensions)
+    def __expr_finalize__(self):
+        """
+        Finalize the Expression initialization.
+        """
+        self._functions = tuple(filter_ordered(flatten(detect_io(self.expr, relax=True))))
+        self._dimensions = flatten(i.indices for i in self.functions if i.is_Indexed)
+        self._dimensions = tuple(filter_ordered(self._dimensions))
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
@@ -236,6 +239,10 @@ class Expression(Node):
         return self.expr.lhs
 
     @property
+    def dimensions(self):
+        return self._dimensions
+
+    @property
     def functions(self):
         return self._functions
 
@@ -244,7 +251,7 @@ class Expression(Node):
         """
         Return any symbols an :class:`Expression` may define.
         """
-        return (self.write, ) if self.write.is_Scalar else ()
+        return (self.write, ) if self.is_scalar else ()
 
     @property
     def write(self):
@@ -273,13 +280,6 @@ class Expression(Node):
         Return True if the write is actually an associative and commutative increment.
         """
         return self.expr.is_Increment
-
-    @property
-    def shape(self):
-        """
-        Return the shape of the written LHS.
-        """
-        return () if self.is_scalar else self.expr.lhs.shape
 
     @property
     def free_symbols(self):
@@ -712,6 +712,46 @@ class LocalExpression(Expression):
         Return any symbols an :class:`LocalExpression` may define.
         """
         return (self.write, )
+
+
+class ForeignExpression(Expression):
+
+    """A node representing a SymPy :class:`FunctionFromPointer` expression."""
+
+    @validate_type(('expr', FunctionFromPointer),
+                   ('dtype', type))
+    def __init__(self, expr, dtype, **kwargs):
+        self.expr = expr
+        self._dtype = dtype
+        self._is_increment = kwargs.get('is_Increment', False)
+        self.__expr_finalize__()
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @property
+    def output(self):
+        return self.expr.base
+
+    @property
+    def write(self):
+        if isinstance(self.output, (Symbol, Indexed)):
+            return self.output.function
+        else:
+            return None
+
+    @property
+    def is_increment(self):
+        return self._is_increment
+
+    @property
+    def is_scalar(self):
+        return False
+
+    @property
+    def is_tensor(self):
+        return False
 
 
 class UnboundedIndex(object):

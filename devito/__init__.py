@@ -1,6 +1,9 @@
 from __future__ import absolute_import
 
+import os
+
 from devito.base import *  # noqa
+from devito.data import *  # noqa
 from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
 from devito.finite_difference import *  # noqa
@@ -45,10 +48,22 @@ PLATFORMs = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
 configuration.add('platform', 'intel64', PLATFORMs)
 
 
+# In develop-mode:
+# - Some optimizations may not be applied to the generated code.
+# - The compiler performs more type and value checking
+def _switch_cpu(develop_mode):
+    if bool(develop_mode) is False:
+        isa, platform = infer_cpu()
+        configuration['isa'] = os.environ.get('DEVITO_ISA', isa)
+        configuration['platform'] = os.environ.get('DEVITO_PLATFORM', platform)
+    else:
+        configuration['isa'] = 'cpp'
+        configuration['platform'] = 'intel64'
+configuration.add('develop-mode', True, [False, True], _switch_cpu)  # noqa
+
 # Initialize the configuration, either from the environment or
 # defaults. This will also trigger the backend initialization
 init_configuration()
-
 
 # Expose a mechanism to clean up the symbol caches (SymPy's, Devito's)
 clear_cache = CacheManager().clear  # noqa
