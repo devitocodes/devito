@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import click
 
-from devito import clear_cache, configuration, sweep
+from devito import clear_cache, configuration, sweep, mode_develop, mode_benchmark
 from devito.logger import warning
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run
 from examples.seismic.tti.tti_example import run as tti_run
@@ -23,11 +23,7 @@ def benchmark():
 
     Further, this script can generate a roofline plot from a benchmark
     """
-
-    # Make sure that with YASK we run in benchmarking mode
-    if configuration['backend'] == 'yask':
-        configuration.yask['develop-mode'] = False
-        configuration.yask['autotuning'] = 'preemptive'
+    mode_benchmark()
 
 
 def option_simulation(f):
@@ -129,6 +125,7 @@ def cli_test(problem, **kwargs):
     """
     Test numerical correctness with different parameters.
     """
+    mode_develop()
     test(problem, **kwargs)
 
 

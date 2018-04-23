@@ -1,7 +1,7 @@
 from devito.logger import yask as log
 import devito.types as types
 
-from devito.yask import namespace
+from devito.yask.utils import namespace
 from devito.yask.wrappers import contexts
 
 __all__ = ['CacheManager']
