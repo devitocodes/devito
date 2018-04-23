@@ -337,22 +337,12 @@ class SubDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self._interval)
 
-    def _arg_values(self, args, interval, **kwargs):
-        values = {}
-
-        # This works for expressions involving devito.types.Scalar
-        # and sympy types, since _subs is overridden in
-        # devito.types.Scalar
-        evaluated_interval = self._interval.subs(args)
-        if evaluated_interval.left.is_Integer:
-            values[self.min_name] = evaluated_interval.left
-        if evaluated_interval.right.is_Integer:
-            values[self.max_name] = evaluated_interval.right
-        if (evaluated_interval.right-evaluated_interval.left).is_Integer:
-            values[self.size_name] = (
-                evaluated_interval.right-evaluated_interval.left + 1)
-
-        return values
+    def _arg_values(self, *args, **kwargs):
+        """
+        A :class:`SubDimension` provides no arguments, so there are
+        no argument values to be derived.
+        """
+        return {}
 
 
 class ConditionalDimension(DerivedDimension):
