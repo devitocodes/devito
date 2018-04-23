@@ -174,3 +174,14 @@ def test_domain_vs_halo():
     assert v._offset_domain.left == v._offset_domain.right == (3, 5, 6)
     assert v._extent_padding == ((1, 1), (3, 3), (4, 4))
     assert v._extent_padding.left == v._extent_padding.right == (1, 3, 4)
+
+
+def test_scalar_arg_substitution(t0, t1):
+    """
+    Tests the relaxed (compared to other devito sympy subclasses)
+    substitution semantics for scalars, which is used for argument
+    substitution into symbolic expressions.
+    """
+    assert t0 != 0
+    assert t0.subs('t0', 2) == 2
+    assert t0.subs('t0', t1) == t1
