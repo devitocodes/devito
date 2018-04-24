@@ -9,7 +9,7 @@ from collections import OrderedDict
 from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, MapIteration, NestedTransformer,
+                           VECTOR, WRAPPABLE, AFFINE, MapIteration, NestedTransformer,
                            retrieve_iteration_tree)
 from devito.ir.support import Scope
 from devito.tools import as_tuple, filter_ordered, flatten
@@ -49,6 +49,7 @@ def iet_analyze(iet):
     analysis = mark_parallel(iet)
     analysis = mark_vectorizable(analysis)
     analysis = mark_wrappable(analysis)
+    analysis = mark_affine(analysis)
 
     # Decorate the Iteration/Expression tree with the found properties
     mapper = OrderedDict()
@@ -173,3 +174,19 @@ def mark_wrappable(analysis):
                 dep.source.section(stepping) != dep.sink.section(stepping):
             return
     analysis.update({stepper: WRAPPABLE})
+
+
+@propertizer
+def mark_affine(analysis):
+    """Update the ``analysis`` detecting the ``AFFINE`` Iterations within
+    ``analysis.iet``."""
+    properties = OrderedDict()
+    for tree in analysis.trees:
+        for i in tree:
+            if i in properties:
+                continue
+            array_accesses = [a for a in analysis.scopes[i].accesses if not a.is_scalar]
+            if all(i.dim._defines & set(a.findices_affine) for a in array_accesses):
+                properties[i] = AFFINE
+
+    analysis.update(properties)
