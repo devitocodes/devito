@@ -344,6 +344,14 @@ class SubDimension(DerivedDimension):
     def symbolic_size(self):
         return self._size
 
+    @property
+    def symbolic_ofs_lower(self):
+        return self._interval.left - self.parent.symbolic_start
+
+    @property
+    def symbolic_ofs_upper(self):
+        return self._interval.right - self.parent.symbolic_end
+
     def _hashable_content(self):
         return (self.parent._hashable_content(), self._interval, self._size)
 
