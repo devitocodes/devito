@@ -125,7 +125,7 @@ class TestSubDimension(object):
         t = grid.time_dim  # noqa
 
         # The leftmost 10 elements
-        yleft = SubDimension(name='yleft', grid=grid, parent=y, lower=0, upper=-10)  # noqa
+        yleft = SubDimension.left(name='yleft', parent=y, thickness=10) # noqa
 
         u = TimeFunction(name='u', grid=grid, save=10, time_order=0, space_order=1)  # noqa
 

@@ -97,7 +97,7 @@ class LoweredEq(Eq, IREq):
         # Introduce space sub-dimensions if need to
         region = getattr(input_expr, '_region', DOMAIN)
         if region == INTERIOR:
-            mapper = {i: SubDimension("%si" % i, i, 1, -1)
+            mapper = {i: SubDimension.middle("%si" % i, i, 1, 1)
                       for i in ordering if i.is_Space}
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
