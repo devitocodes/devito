@@ -1451,8 +1451,8 @@ of the parent variable.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the dimension symbol.</li>
 <li><strong>parent</strong> – Parent dimension from which the SubDimension is created.</li>
-<li><strong>lower</strong> – Lower offset from the <code class="docutils literal notranslate"><span class="pre">parent</span></code> dimension.</li>
-<li><strong>upper</strong> – Upper offset from the <code class="docutils literal notranslate"><span class="pre">parent</span></code> dimension.</li>
+<li><strong>lower</strong> – Symbolic expression to provide the lower bound</li>
+<li><strong>upper</strong> – Symbolic expression to provide the upper bound</li>
 </ul>
 </td>
 </tr>
@@ -1460,15 +1460,32 @@ of the parent variable.</p>
 </table>
 </dd></dl>
 
-<dl class="attribute">
-<dt id="devito.dimension.SubDimension.lower">
-<code class="descname">lower</code><a class="headerlink" href="#devito.dimension.SubDimension.lower" title="Permalink to this definition">¶</a></dt>
+<dl class="classmethod">
+<dt id="devito.dimension.SubDimension.left">
+<em class="property">classmethod </em><code class="descname">left</code><span class="sig-paren">(</span><em>name</em>, <em>parent</em>, <em>thickness</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension.left"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension.left" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.dimension.SubDimension.middle">
+<em class="property">classmethod </em><code class="descname">middle</code><span class="sig-paren">(</span><em>name</em>, <em>parent</em>, <em>thickness_left</em>, <em>thickness_right</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension.middle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension.middle" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.dimension.SubDimension.right">
+<em class="property">classmethod </em><code class="descname">right</code><span class="sig-paren">(</span><em>name</em>, <em>parent</em>, <em>thickness</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension.right"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension.right" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.SubDimension.upper">
-<code class="descname">upper</code><a class="headerlink" href="#devito.dimension.SubDimension.upper" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dt id="devito.dimension.SubDimension.symbolic_end">
+<code class="descname">symbolic_end</code><a class="headerlink" href="#devito.dimension.SubDimension.symbolic_end" title="Permalink to this definition">¶</a></dt>
+<dd><p>The symbol defining the iteration end for this dimension.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.SubDimension.symbolic_start">
+<code class="descname">symbolic_start</code><a class="headerlink" href="#devito.dimension.SubDimension.symbolic_start" title="Permalink to this definition">¶</a></dt>
+<dd><p>The symbol defining the iteration start for this dimension.</p>
+</dd></dl>
 
 </dd></dl>
 
