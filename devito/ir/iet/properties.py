@@ -1,36 +1,13 @@
-class IterationProperty(object):
+from devito.tools import Tag
 
-    _KNOWN = []
+
+class IterationProperty(Tag):
 
     """
-    A :class:`Iteration` decorator.
+    An :class:`Iteration` decorator.
     """
 
-    def __init__(self, name, val=None):
-        self.name = name
-        self.val = val
-
-        self._KNOWN.append(self)
-
-    def __eq__(self, other):
-        if not isinstance(other, IterationProperty):
-            return False
-        return self.name == other.name and self.val == other.val
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __hash__(self):
-        return hash((self.name, self.val))
-
-    def __str__(self):
-        return self.name if self.val is None else '%s%s' % (self.name, str(self.val))
-
-    def __repr__(self):
-        if self.val is None:
-            return "Property: %s" % self.name
-        else:
-            return "Property: %s[%s]" % (self.name, str(self.val))
+    _repr = 'Property'
 
 
 SEQUENTIAL = IterationProperty('sequential')
