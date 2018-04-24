@@ -46,6 +46,25 @@ def test_basic_indexing():
     assert np.all(u.data[4, :, 4] == block)
 
 
+def test_advanced_indexing():
+    """
+    Tests packing/unpacking data in :class:`Function` objects with more advanced
+    access functions.
+    """
+    grid = Grid(shape=(4, 4, 4))
+    u = TimeFunction(name='yu4D', grid=grid, space_order=0, time_order=1)
+    u.data[:] = 0.
+
+    # Test slicing w/ negative indices, combined to explicit indexing
+    u.data[1, 1:-1, 1:-1, 1:-1] = 6.
+    assert np.all(u.data[0] == 0.)
+    assert np.all(u.data[1, 1:-1, 1:-1, 1:-1] == 6.)
+    assert np.all(u.data[1, :, 0] == 0.)
+    assert np.all(u.data[1, :, -1] == 0.)
+    assert np.all(u.data[1, :, :, 0] == 0.)
+    assert np.all(u.data[1, :, :, -1] == 0.)
+
+
 def test_halo_indexing():
     """
     Tests packing/unpacking data in :class:`Function` objects when some halo
