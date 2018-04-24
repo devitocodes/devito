@@ -280,6 +280,10 @@ class IterationInstance(Vector):
     def is_irregular(self):
         return not self.is_regular
 
+    @property
+    def is_scalar(self):
+        return self.rank == 0
+
     def distance(self, other, findex=None, view=None):
         """Compute the distance from ``self`` to ``other``.
 
