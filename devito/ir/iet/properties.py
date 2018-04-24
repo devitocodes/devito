@@ -34,6 +34,11 @@ WRAPPABLE = IterationProperty('wrappable')
 one or more buffer slots can be dropped without affecting correctness. For example,
 u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --> u[t-1, ...] = f(u[t, ...], u[t-1, ...])."""
 
+AFFINE = IterationProperty('affine')
+"""All :class:`Indexed`s' access functions using the Iteration dimension ``d`` are
+affine in ``d``. Further, the Iteration does not contain any Indexed varying in
+``d`` used to indirectly access some other Indexed."""
+
 
 def tagger(i):
     return IterationProperty('tag', i)

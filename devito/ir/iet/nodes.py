@@ -12,7 +12,7 @@ import cgen as c
 from devito.cgen_utils import ccode
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, tagger, ntags)
+                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags)
 from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -360,8 +360,8 @@ class Iteration(Node):
         return dims + tuple(i.name for i in self.uindices)
 
     @property
-    def is_Linear(self):
-        return len(self.uindices) == 0
+    def is_Affine(self):
+        return AFFINE in self.properties
 
     @property
     def is_Sequential(self):

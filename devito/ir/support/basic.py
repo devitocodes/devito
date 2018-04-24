@@ -4,7 +4,7 @@ from sympy import Basic, S
 from devito.dimension import Dimension
 from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
-from devito.tools import as_tuple, is_integer, filter_sorted, flatten
+from devito.tools import Tag, as_tuple, is_integer, filter_sorted, flatten
 
 __all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
 
@@ -157,6 +157,20 @@ class Vector(tuple):
         return self - other
 
 
+class IndexMode(Tag):
+
+    """
+    Tag for access functions.
+    """
+
+    _repr = 'IM'
+
+
+CONSTANT = IndexMode('constant')
+AFFINE = IndexMode('affine')
+IRREGULAR = IndexMode('irregular')
+
+
 class IterationInstance(Vector):
 
     """
@@ -224,19 +238,21 @@ class IterationInstance(Vector):
     def index_mode(self):
         index_mode = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i) or q_affine(i, fi):
-                index_mode.append('regular')
+            if is_integer(i):
+                index_mode.append(CONSTANT)
+            elif q_affine(i, fi):
+                index_mode.append(AFFINE)
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 try:
                     # There's still hope it's regular if a DerivedDimension is used
                     candidate = dims.pop()
                     if candidate.parent == fi and q_affine(i, candidate):
-                        index_mode.append('regular')
+                        index_mode.append(AFFINE)
                         continue
                 except (KeyError, AttributeError):
                     pass
-                index_mode.append('irregular')
+                index_mode.append(IRREGULAR)
         return tuple(index_mode)
 
     @cached_property
@@ -253,8 +269,12 @@ class IterationInstance(Vector):
         return tuple(aindices)
 
     @property
+    def findices_affine(self):
+        return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im == AFFINE)
+
+    @property
     def is_regular(self):
-        return all(i == 'regular' for i in self.index_mode)
+        return all(i in (CONSTANT, AFFINE) for i in self.index_mode)
 
     @property
     def is_irregular(self):
