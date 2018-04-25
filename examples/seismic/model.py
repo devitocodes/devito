@@ -389,6 +389,18 @@ class Model(object):
         else:
             self.phi = 0
 
+    def physical_params(self, m, **kwargs):
+        """
+        Return all set physical parameters
+        """
+        all_phys = [self.m, self.epsilon, self.delta, self.theta, self.phi]
+        params = []
+        for phys in all_phys:
+            if isinstance(phys, Function):
+                arg_in = kwargs.get(phys.name, None) or phys
+                params += [(phys.name, arg_in)]
+        return dict(params)
+
     @property
     def dim(self):
         """
