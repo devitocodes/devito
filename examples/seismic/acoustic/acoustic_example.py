@@ -15,7 +15,9 @@ def smooth10(vel, shape):
     nz = shape[-1]
 
     for a in range(5, nz-6):
-        if len(shape) == 2:
+        if len(shape) == 1:
+            out[a] = np.sum(vel[a - 5:a + 5], axis=0) / 10
+        elif len(shape) == 2:
             out[:, a] = np.sum(vel[:, a - 5:a + 5], axis=1) / 10
         else:
             out[:, :, a] = np.sum(vel[:, :, a - 5:a + 5], axis=2) / 10
@@ -39,12 +41,13 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     # Define source geometry (center of domain, just below surface)
     src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
-
+    if len(shape) > 1:
+        src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
     # Define receiver geometry (spread across x, just below surface)
     rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    if len(shape) > 1:
+        rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
     # Create solver object to provide relevant operators
     solver = AcousticWaveSolver(model, source=src, receiver=rec, kernel=kernel,
@@ -87,8 +90,8 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
-                        help="Preset to determine the physical problem setup")
+    parser.add_argument('-nd', dest='ndim', default=3, type=int,
+                        help="Preset to determine the number of dimensions")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
@@ -112,14 +115,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 3D preset parameters
-    if args.dim2:
-        shape = (150, 150)
-        spacing = (15.0, 15.0)
-        tn = 750.0
-    else:
-        shape = (50, 50, 50)
-        spacing = (20.0, 20.0, 20.0)
-        tn = 250.0
+    shape = tuple(args.ndim * [151])
+    spacing = tuple(args.ndim * [15.0])
+    tn = 750. if args.ndim < 3 else 250.
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, constant=args.constant, kernel=args.kernel,

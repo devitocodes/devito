@@ -75,7 +75,7 @@ def ForwardOperator(model, source, receiver, space_order=4,
     eqn = iso_stencil(u, m, s, damp, kernel)
 
     # Construct expression to inject source values
-    src_term = src.inject(field=u.forward, expr=src * s**2 / m,
+    src_term = src.inject(field=u.forward, expr=src * s**2 / (m * m.grid.volume_cell),
                           offset=model.nbpml)
 
     # Create interpolation expression for receivers
@@ -110,7 +110,7 @@ def AdjointOperator(model, source, receiver, space_order=4,
     eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
 
     # Construct expression to inject receiver values
-    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
+    receivers = rec.inject(field=v.backward, expr=rec * s**2 / (m * m.grid.volume_cell),
                            offset=model.nbpml)
 
     # Create interpolation expression for the adjoint-source
@@ -154,7 +154,7 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
     else:
         error("Unrecognized kernel, has to be OT2 or OT4")
     # Add expression for receiver injection
-    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
+    receivers = rec.inject(field=v.backward, expr=rec * s**2 / (m * m.grid.volume_cell),
                            offset=model.nbpml)
 
     # Substitute spacing terms to reduce flops
@@ -193,7 +193,7 @@ def BornOperator(model, source, receiver, space_order=4,
     eqn2 = iso_stencil(U, m, s, damp, kernel, q=-dm*u.dt2)
 
     # Add source term expression for u
-    source = src.inject(field=u.forward, expr=src * s**2 / m,
+    source = src.inject(field=u.forward, expr=src * s**2 / (m * m.grid.volume_cell),
                         offset=model.nbpml)
 
     # Create receiver interpolation expression from U

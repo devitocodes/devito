@@ -269,7 +269,10 @@ def damp_boundary(damp, nbpml, spacing):
     for i in range(nbpml):
         pos = np.abs((nbpml - i + 1) / float(nbpml))
         val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-        if damp.ndim == 2:
+        if damp.ndim == 1:
+            damp.data[i] += val/spacing[0]
+            damp.data[-(i + 1)] += val/spacing[0]
+        elif damp.ndim == 2:
             damp.data[i, :] += val/spacing[0]
             damp.data[-(i + 1), :] += val/spacing[0]
             damp.data[:, i] += val/spacing[1]
