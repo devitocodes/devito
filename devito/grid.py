@@ -94,9 +94,8 @@ class Grid(object):
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
     def __repr__(self):
-        return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
-            self.extent, self.shape, self.dimensions
-        )
+        return "Grid(extent=%s, shape=%s, dimensions=%s)" % (
+            self.extent, self.shape, self.dimensions)
 
     @property
     def dim(self):
@@ -125,3 +124,21 @@ class Grid(object):
     def shape_domain(self):
         """Shape of the physical domain (without external boundary layer)"""
         return self.shape
+
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__(), self.__getstate__()
+
+    def __getnewargs__(self):
+        return (self.shape, )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            try:
+                setattr(self, k, v)
+            except:
+                raise AttributeError('failed to set attribute :: ', k, v)

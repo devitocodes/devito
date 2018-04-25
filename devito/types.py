@@ -206,11 +206,13 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             newobj = sympy.Symbol.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
-            name = kwargs.get('name')
-
-            # Create the new Function object and invoke __init__
-            newcls = cls._symbol_type(name)
-            newobj = sympy.Symbol.__new__(newcls, name, *args, **options)
+            try:
+                newcls = cls._symbol_type(*args)
+                newobj = sympy.Symbol.__new__(newcls, *args, **options)
+            except:
+                newcls = cls._symbol_type(kwargs.get('name'))
+                newobj = sympy.Symbol.__new__(newcls, kwargs.get('name'), **options)
+                args = (kwargs.get('name'), )
 
             # Initialization
             newobj.__init__(*args, **kwargs)
@@ -218,6 +220,25 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             # Store new instance in symbol cache
             newcls._cache_put(newobj)
         return newobj
+
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__(), self.__getstate__()
+
+    def __getnewargs__(self):
+        return (self.name, )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+
+    def __getnewargs_ex__(self):
+        state = self.__getstate__()
+        return list(), state
 
 
 class Symbol(AbstractCachedSymbol):
@@ -295,6 +316,14 @@ class AbstractFunction(sympy.Function, Basic):
 
     is_AbstractFunction = True
 
+    def __getnewargs__(self):
+        return (self.name, )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['dimensions'] = self.dimensions
+        return state
+
 
 class AbstractCachedFunction(AbstractFunction, Cached):
     """
@@ -309,7 +338,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             newobj = sympy.Function.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
-            name = kwargs.get('name')
+            try:
+                name = args[0]
+                kwargs['name'] = name
+            except:
+                name = kwargs.get('name')
             indices = cls.__indices_setup__(**kwargs)
 
             # Create the new Function object and invoke __init__
@@ -486,6 +519,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """A mask to access the domain+halo region of the allocated data."""
         return tuple(slice(i, -j) if j != 0 else slice(i, None)
                      for i, j in self._offset_halo)
+
+    def __getnewargs__(self):
+        return (self.name, )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['dimensions'] = self.dimensions
+        return state
 
 
 class Array(AbstractCachedFunction):

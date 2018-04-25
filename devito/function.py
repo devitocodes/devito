@@ -101,6 +101,26 @@ class Constant(AbstractCachedSymbol):
         except AttributeError:
             pass
 
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__(), self.__getstate__()
+
+    def __getnewargs__(self):
+        return self._arg_names
+
+    def __getnewargs__ex_(self):
+        return self.args, self.__getstate__()
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['value'] = self._value
+        state['name'] = self.name
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+
 
 class TensorFunction(AbstractCachedFunction):
 
@@ -1028,6 +1048,24 @@ class SparseFunction(AbstractSparseFunction):
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__(), self.__getstate__()
+
+    def __getnewargs__(self):
+        return self._arg_names
+
+    def __getnewargs__ex_(self):
+        return self.args, self.__getstate__()
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+
 
 class SparseTimeFunction(SparseFunction):
     """
@@ -1088,6 +1126,15 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        print("THISFARIN")
+        for k, v in state.items():
+            setattr(self, k, v)
 
 
 class PrecomputedSparseFunction(AbstractSparseFunction):

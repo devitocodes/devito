@@ -191,6 +191,24 @@ class Dimension(AbstractSymbol):
             raise InvalidArgument("Illegal max=%s < min=%s"
                                   % (args[self.max_name], args[self.min_name]))
 
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__(), self.__getstate__()
+
+    def __getnewargs__(self):
+        return (self.name, )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            try:
+                setattr(self, k, v)
+            except:
+                raise AttributeError('failed to set attribute :: ', k, v)
+
 
 class SpaceDimension(Dimension):
 
@@ -206,6 +224,9 @@ class SpaceDimension(Dimension):
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
 
+    def __getnewargs_ex__(self):
+        return (self.name, ), self.__dict__.copy()
+
 
 class TimeDimension(Dimension):
 
@@ -219,6 +240,24 @@ class TimeDimension(Dimension):
     :param name: Name of the dimension symbol.
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
+
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__(), self.__getstate__()
+
+    def __getnewargs__(self):
+        return (self.name, )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            try:
+                setattr(self, k, v)
+            except:
+                raise AttributeError('failed to set attribute :: ', k, v)
 
 
 class DefaultDimension(Dimension):
@@ -275,6 +314,24 @@ class DerivedDimension(Dimension):
     @property
     def _arg_names(self):
         return self.parent._arg_names
+
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__(), self.__getstate__()
+
+    def __getnewargs__(self):
+        return (self.name, )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            try:
+                setattr(self, k, v)
+            except:
+                raise AttributeError('failed to set attribute :: ', k, v)
 
 
 class SubDimension(DerivedDimension):
@@ -445,6 +502,21 @@ class SteppingDimension(DerivedDimension):
 
     def _arg_check(self, *args):
         return
+
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__(), self.__getstate__()
+
+    def __getnewargs__(self):
+        return (self.name, self.parent)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
 
 
 class LoweredDimension(Dimension):

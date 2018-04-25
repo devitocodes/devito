@@ -122,6 +122,13 @@ class Data(np.ndarray):
         """
         self[:] = 0.0
 
+    def __reduce_ex__(self, proto):
+        """ Pickling support."""
+        return type(self), self.__getnewargs__()
+
+    def __getnewargs__(self):
+        return (self.shape, self.dimensions, self.dtype)
+
 
 """
 Pre-load ``libc`` to explicitly manage C memory
