@@ -171,10 +171,13 @@ def ccode(expr, **settings):
     :param settings: A dictionary of settings for code printing
     :returns: The resulting code as a string. If it fails, then it returns the expr
     """
-    indexed = list(retrieve_indexed(expr))
     dtype = np.float32
-    if len(indexed) > 0:
-        dtype = indexed[0].dtype
+    try:
+        indexed = list(retrieve_indexed(expr))
+        if len(indexed) > 0:
+            dtype = indexed[0].dtype
+    except:
+        'no indexed'
     return CodePrinter(dtype=dtype, settings=settings).doprint(expr, None)
 
 
