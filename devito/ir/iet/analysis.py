@@ -71,6 +71,12 @@ def mark_parallel(analysis):
         for depth, i in enumerate(tree):
             if i in properties:
                 continue
+
+            if i.uindices:
+                # Only ++/-- increments of iteration variables are supported
+                properties[i] = SEQUENTIAL
+                continue
+
             # Get all dimensions up to and including Iteration /i/, grouped by Iteration
             dims = [filter_ordered([j.dim] + [k.dim for k in j.uindices])
                     for j in tree[:depth + 1]]
