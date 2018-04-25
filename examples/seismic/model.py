@@ -124,7 +124,7 @@ def demo_model(preset, **kwargs):
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
-                     delta=delta, theta=theta, phi=phi, **kwargs)
+                     delta=delta, theta=theta, **kwargs)
 
     elif preset.lower() in ['circle-isotropic']:
         # A simple circle in a 2D domain with a background velocity.

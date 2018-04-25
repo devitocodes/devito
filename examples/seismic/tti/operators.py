@@ -410,9 +410,9 @@ def ForwardOperator(model, source, receiver, space_order=4,
     stencils = [first_stencil, second_stencil]
 
     # Source and receivers
-    stencils += src.inject(field=u.forward, expr=src * dt**2 / (m * m.grid.volume_cell),
+    stencils += src.inject(field=u.forward, expr=src * dt**2 / (m * u.grid.volume_cell),
                            offset=model.nbpml)
-    stencils += src.inject(field=v.forward, expr=src * dt**2 / (m * m.grid.volume_cell),
+    stencils += src.inject(field=v.forward, expr=src * dt**2 / (m * v.grid.volume_cell),
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
 
