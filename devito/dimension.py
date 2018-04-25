@@ -379,7 +379,7 @@ class ConditionalDimension(DerivedDimension):
         A :class:`ConditionalDimension` provides no arguments, so there are
         no argument values to be derived.
         """
-        return {}
+        return kwargs
 
     def _arg_check(self, *args):
         """
@@ -388,6 +388,11 @@ class ConditionalDimension(DerivedDimension):
         """
         return
 
+    @property
+    def _arg_names(self):
+        """Return a tuple of argument names introduced by this dimension."""
+        return (self.name, self.size_name, self.parent.ext_name,
+                self.parent.max_name, self.parent.min_name)
 
 class SteppingDimension(DerivedDimension):
 
