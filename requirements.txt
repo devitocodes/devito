@@ -2,9 +2,9 @@ numpy>=1.11
 sympy==1.1
 scipy
 matplotlib
-pytest
+pytest-runner
 flake8>=2.1.0
-parso==0.1.0
+jedi
 nbval
 cached-property
 psutil>=5.1.0
