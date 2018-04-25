@@ -2,6 +2,7 @@ from collections import OrderedDict
 
 import numpy as np
 import cgen as c
+from devito.symbolics import retrieve_indexed
 from mpmath.libmp import prec_to_dps, to_str
 from sympy import Function
 from sympy.printing.ccode import C99CodePrinter
@@ -65,7 +66,8 @@ class CodePrinter(C99CodePrinter):
 
     :param settings: A dictionary containing relevant settings
     """
-    def __init__(self, settings={}):
+    def __init__(self, dtype=np.float32, settings={}):
+        self.dtype = dtype
         C99CodePrinter.__init__(self, settings)
         self.known_functions.update(self.custom_functions)
 
@@ -81,6 +83,7 @@ class CodePrinter(C99CodePrinter):
 
         :returns: The resulting string
         """
+        self.dtype = expr.dtype
         output = self._print(expr.base.label) \
             + ''.join(['[' + self._print(x) + ']' for x in expr.indices])
 
@@ -100,8 +103,10 @@ class CodePrinter(C99CodePrinter):
         # to be 32-bit floats.
         # http://en.cppreference.com/w/cpp/language/floating_literal
         p, q = int(expr.p), int(expr.q)
-
-        return '%d.0F/%d.0F' % (p, q)  # float precision by default
+        if self.dtype == np.float64:
+            return '%d.0/%d.0' % (p, q)
+        else:
+            return '%d.0F/%d.0F' % (p, q)
 
     def _print_Mod(self, expr):
         """Print mod using % operator in C++
@@ -141,7 +146,9 @@ class CodePrinter(C99CodePrinter):
         elif rv.startswith('.0'):
             rv = '0.' + rv[2:]
 
-        return rv + 'F'
+        if self.dtype == np.float32:
+            rv = rv + 'F'
+        return rv
 
     def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
@@ -164,7 +171,11 @@ def ccode(expr, **settings):
     :param settings: A dictionary of settings for code printing
     :returns: The resulting code as a string. If it fails, then it returns the expr
     """
-    return CodePrinter(settings).doprint(expr, None)
+    indexed = list(retrieve_indexed(expr))
+    dtype = np.float32
+    if len(indexed) > 0:
+        dtype = indexed[0].dtype
+    return CodePrinter(dtype=dtype, settings=settings).doprint(expr, None)
 
 
 blankline = c.Line("")

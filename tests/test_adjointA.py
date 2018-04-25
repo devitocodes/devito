@@ -16,6 +16,9 @@ presets = {
 
 @skipif_yask
 @pytest.mark.parametrize('mkey, shape, kernel, space_order, nbpml', [
+    # 1 tests with varying time and space orders
+    ('layers', (60, ), 'OT2', 4, 10), ('layers', (60, ), 'OT2', 8, 10),
+    ('layers', (60, ), 'OT4', 4, 10), ('layers', (60, ), 'OT4', 8, 10),
     # 2D tests with varying time and space orders
     ('layers', (60, 70), 'OT2', 4, 10), ('layers', (60, 70), 'OT2', 8, 10),
     ('layers', (60, 70), 'OT2', 12, 10), ('layers', (60, 70), 'OT4', 4, 10),
