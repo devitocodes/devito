@@ -190,7 +190,7 @@ def BornOperator(model, source, receiver, space_order=4,
 
     s = model.grid.stepping_dim.spacing
     eqn1 = iso_stencil(u, m, s, damp, kernel)
-    eqn2 = iso_stencil(U, m, s, damp, kernel, q=-dm*u.dt2)
+    eqn2 = iso_stencil(U, m, s, damp, kernel, q=-dm*u.dt2/u.grid.volume_cell)
 
     # Add source term expression for u
     source = src.inject(field=u.forward, expr=src * s**2 / (m * u.grid.volume_cell),
