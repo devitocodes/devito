@@ -122,7 +122,7 @@ def iet_make(clusters):
         for j, offs in ispace.sub_iterators.get(k.dim, []):
             modulo = len(offs)
             for n, o in enumerate(filter_ordered(offs)):
-                if j.is_Time:
+                if j.is_Stepping:
                     name = "%s%d" % (j.name, n)
                     vname = Scalar(name=name, dtype=np.int32)
                     value = (k.dim + o) % modulo

@@ -372,7 +372,7 @@ class ConditionalDimension(DerivedDimension):
         A :class:`ConditionalDimension` provides no arguments, so this
         method returns an empty dict.
         """
-        return {}
+        return {self.size_name: kwargs.get('size')}
 
     def _arg_values(self, *args, **kwargs):
         """
