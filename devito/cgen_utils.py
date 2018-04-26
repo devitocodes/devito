@@ -83,7 +83,6 @@ class CodePrinter(C99CodePrinter):
 
         :returns: The resulting string
         """
-        self.dtype = expr.dtype
         output = self._print(expr.base.label) \
             + ''.join(['[' + self._print(x) + ']' for x in expr.indices])
 

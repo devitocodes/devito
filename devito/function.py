@@ -931,7 +931,7 @@ class SparseFunction(AbstractSparseFunction):
     @property
     def point_symbols(self):
         """Symbol for coordinate value in each dimension of the point"""
-        return tuple([sympy.symbols('p%s' % d) for d in self.grid.dimensions])
+        return tuple(sympy.symbols('p%s' % d) for d in self.grid.dimensions)
 
     @property
     def point_increments(self):
@@ -972,7 +972,7 @@ class SparseFunction(AbstractSparseFunction):
                                               self.coordinate_indices,
                                               indices[:self.grid.dim])])
 
-    def interp_indices(self, variables, offset=0):
+    def _interpolation_indices(self, variables, offset=0):
         """
         Get interpolation indices for the variables
         """
@@ -1017,7 +1017,7 @@ class SparseFunction(AbstractSparseFunction):
 
         variables = list(retrieve_indexed(expr))
         # List of indirection indices for all adjacent grid points
-        subs, idx_subs = self.interp_indices(variables, offset)
+        subs, idx_subs = self._interpolation_indices(variables, offset)
         # Substitute coordinate base symbols into the coefficients
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
@@ -1049,7 +1049,7 @@ class SparseFunction(AbstractSparseFunction):
             expr = expr.subs(self.indices[0], p_t)
 
         # List of indirection indices for all adjacent grid points
-        subs, idx_subs = self.interp_indices(variables, offset)
+        subs, idx_subs = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the coefficients
         return [Inc(field.subs(vsub),
