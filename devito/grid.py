@@ -109,7 +109,7 @@ class Grid(object):
         """
         Volume of a single cell e.g  h_x*h_y*h_z in 3D
         """
-        return prod([d.spacing for d in self.dimensions])
+        return prod(d.spacing for d in self.dimensions)
 
     @property
     def spacing(self):
