@@ -68,4 +68,4 @@ def test_acoustic(mkey, shape, kernel, space_order, nbpml):
     term2 = linalg.norm(rec.data) ** 2
     info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
          % (term1, term2, (term1 - term2)/term1, term1 / term2))
-    assert np.isclose((term1 - term2)/term1, 1., rtol=1.e-10)
+    assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
