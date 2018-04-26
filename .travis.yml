@@ -53,10 +53,10 @@ matrix:
   allow_failures:
     - os: linux
       python: "2.7"
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 INSTALL_TYPE=conda
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
     - os: osx
       python: "2.7"
-      env: DEVITO_ARCH=clang DEVITO_OPENMP=0 INSTALL_TYPE=conda
+      env: DEVITO_ARCH=clang DEVITO_OPENMP=0
 
 addons:
   apt:
@@ -80,7 +80,7 @@ before_install:
 
 install:
   # Install devito with conda
-  - if [[ $INSTALL_TYPE == 'conda' ]]; then
+  - if [[ $INSTALL_TYPE != 'pip_setup' ]]; then
       conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION;
       source activate devito;
       pip install -e .;
