@@ -21,7 +21,8 @@ from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
-           'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression']
+           'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression',
+           'IterationTree']
 
 
 class Node(object):
@@ -752,6 +753,27 @@ class ForeignExpression(Expression):
     @property
     def is_tensor(self):
         return False
+
+
+# Utility classes
+
+
+class IterationTree(tuple):
+
+    """
+    Represent a sequence of nested :class:`Iteration`s.
+    """
+
+    @property
+    def root(self):
+        return self[0] if self else None
+
+    @property
+    def inner(self):
+        return self[-1] if self else None
+
+    def __repr__(self):
+        return "IterationTree%s" % super(IterationTree, self).__repr__()
 
 
 class UnboundedIndex(object):
