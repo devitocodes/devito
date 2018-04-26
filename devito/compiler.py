@@ -262,22 +262,25 @@ def make(loc, args):
     logfile = path.join(get_tmp_dir(), "%s.log" % hash_key)
     errfile = path.join(get_tmp_dir(), "%s.err" % hash_key)
 
+    tic = time()
     with change_directory(loc):
-        with open(logfile, "w") as log:
-            with open(errfile, "w") as err:
+        with open(logfile, "w") as lf:
+            with open(errfile, "w") as ef:
 
                 command = ['make'] + args
-                log.write("Compilation command:\n")
-                log.write(" ".join(command))
-                log.write("\n\n")
+                lf.write("Compilation command:\n")
+                lf.write(" ".join(command))
+                lf.write("\n\n")
                 try:
-                    subprocess.check_call(command, stderr=err, stdout=log)
+                    subprocess.check_call(command, stderr=ef, stdout=lf)
                 except subprocess.CalledProcessError as e:
                     raise CompilationError('Command "%s" return error status %d. '
                                            'Unable to compile code.\n'
                                            'Compile log in %s\n'
                                            'Compile errors in %s\n' %
                                            (e.cmd, e.returncode, logfile, errfile))
+    toc = time()
+    log("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
 
 
 # Registry dict for deriving Compiler classes according to the environment variable
