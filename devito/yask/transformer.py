@@ -1,5 +1,5 @@
 from devito.dimension import LoweredDimension
-from devito.ir.iet import FindNodes, Expression, retrieve_iteration_tree
+from devito.ir.iet import FindNodes, Expression
 from devito.logger import yask_warning as warning
 from devito.symbolics import split_affine
 
@@ -8,24 +8,22 @@ from devito.yask import nfac
 __all__ = ['yaskizer']
 
 
-def yaskizer(root, yc_soln):
+def yaskizer(tree, yc_soln):
     """
     Convert a SymPy expression into a YASK abstract syntax tree and create the
     necessay YASK grids.
 
-    :param root: The outermost space :class:`Iteration` defining an offloadable
-                 loop nest.
+    :param tree: An offloadable :class:`IterationTree`.
     :param yc_soln: The YASK compiler solution to which the new YASK grids are
                     attached.
     """
+    # It's up to Devito to organize the equations into a flow graph
+    yc_soln.set_dependency_checker_enabled(False)
+
     # To be populated by `handle`
     mapper = {}
 
-    trees = retrieve_iteration_tree(root)
-    assert len(trees) == 1
-    tree = trees[0]
-
-    for i in FindNodes(Expression).visit(root):
+    for i in FindNodes(Expression).visit(tree.root):
         # Build the YASK AST
         yask_expr = handle(i.expr, yc_soln, mapper)
 

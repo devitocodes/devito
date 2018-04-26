@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 
+from collections import namedtuple
+
 import cgen as c
 import numpy as np
 
@@ -10,7 +12,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Element, List, PointerCast, MetaCall, Transformer,
                            retrieve_iteration_tree)
 from devito.operator import OperatorRunnable
-from devito.tools import flatten
+from devito.tools import ReducerMap, flatten
 from devito.types import Object
 
 from devito.yask import configuration
@@ -61,31 +63,39 @@ class Operator(OperatorRunnable):
         log("Specializing a Devito Operator for YASK...")
 
         offloadable = find_offloadable_trees(iet)
-        if len(offloadable) == 0:
+
+        if len(offloadable.trees) == 0:
             self.context = YaskNullContext()
             self.yk_soln = YaskNullKernel()
 
             log("No offloadable trees found")
         else:
-            root, grid, dtype = offloadable[0]
-            self.context = contexts.fetch(grid, dtype)
+            self.context = contexts.fetch(offloadable.grid, offloadable.dtype)
 
             # Create a YASK compiler solution for this Operator
             yc_soln = self.context.make_yc_solution(namespace['jit-yc-soln'])
 
             try:
-                mapper = yaskizer(root, yc_soln)
+                trees = offloadable.trees
+                local_grids = []
 
+                # Generate YASK grids and ASTs
+                for i in trees:
+                    mapper = yaskizer(i, yc_soln)
+                    local_grids.extend([i for i in mapper if i.is_Array])
+
+                # Transform the IET
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'], ['time'],
                                                  namespace['code-soln-name'])
                 funcall = Element(c.Statement(ccode(funcall)))
-                iet = Transformer({root: funcall}).visit(iet)
+                mapper = {trees[0].root: funcall}
+                mapper.update({i.root: None for i in trees[1:]})
+                iet = Transformer(mapper).visit(iet)
 
-                # Track /funcall/ as an external function call
+                # Mark `funcall` as an external function call
                 self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
-                local_grids = [i for i in mapper if i.is_Array]
                 self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
                                                              yc_soln, local_grids)
 
@@ -183,7 +193,12 @@ def find_offloadable_trees(iet):
     *and* all of the grids accessed by the enclosed equations are homogeneous
     (i.e., same dimensions and data type).
     """
-    offloadable = []
+    Offloadable = namedtuple('Offlodable', 'trees grid dtype')
+    Offloadable.__new__.__defaults__ = [], None, None
+
+    reducer = ReducerMap()
+
+    # Find offloadable candidates
     for tree in retrieve_iteration_tree(iet):
         # The outermost iteration must be over time and it must
         # nest at least one iteration
@@ -192,23 +207,31 @@ def find_offloadable_trees(iet):
         time_iteration = tree[0]
         if not time_iteration.dim.is_Time:
             continue
-        grid_iterations = tree[1:]
-        if not all(i.is_Affine for i in grid_iterations):
+        grid_tree = tree[1:]
+        if not all(i.is_Affine for i in grid_tree):
             # Non-affine array accesses unsupported by YASK
             continue
         bundle = tree[-1].nodes[0]
         if len(tree.inner.nodes) > 1 or not bundle.is_ExpressionBundle:
             # Illegal nest
             continue
-        functions = flatten(i.functions for i in bundle.exprs)
-        keys = set((i.grid, i.dtype) for i in functions if i.is_TimeFunction)
-        if len(keys) == 0:
-            # No Function found in this tree?
-            continue
-        assert len(keys) == 1
-        grid, dtype = keys.pop()
-        # Does this tree iterate over a convex section of the grid?
-        if not all(i.dim._defines | set(grid.dimensions) for i in grid_iterations):
-            continue
-        offloadable.append((grid_iterations[0], grid, dtype))
-    return offloadable
+        # Found an offloadable candidate
+        reducer.setdefault('grid_trees', []).append(grid_tree)
+        # Track `grid` and `dtype`
+        functions = flatten(i.functions for i in inner_iteration.nodes)
+        reducer.extend(('grid', i.grid) for i in functions if i.is_TimeFunction)
+        reducer.extend(('dtype', i.dtype) for i in functions if i.is_TimeFunction)
+
+    # `grid` and `dtype` must be unique
+    try:
+        grid = reducer.unique('grid')
+        dtype = reducer.unique('dtype')
+        trees = reducer['grid_trees']
+    except (KeyError, ValueError):
+        return Offloadable()
+
+    # Do the trees iterate over a convex section of the grid?
+    if not all(i.dim._defines | set(grid.dimensions) for i in flatten(trees)):
+        return Offloadable()
+
+    return Offloadable(trees, grid, dtype)
