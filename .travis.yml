@@ -126,4 +126,4 @@ script:
           pip install doctr;
           doctr deploy . --built-docs docs --key-path .deploy_key.enc;
       fi
-    fi;
+    fi
