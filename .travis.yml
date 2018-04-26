@@ -79,16 +79,15 @@ before_install:
   - conda info -a
 
 install:
-  # Install devito with either pip or conda
+  # Install devito with conda
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION;
       source activate devito;
       pip install -e .;
       conda list;
     fi
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then
-      python setup.py install;
-    fi
+  # Install devito with pip
+  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py install; fi
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
@@ -100,30 +99,58 @@ before_script:
 
 script:
   - flake8 --builtins=ArgumentError .
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then
-      python setup.py test
-    else
-      py.test -vs --cov devito tests/;# Additional seismic operator tests
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/acoustic/gradient_example.py; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/seismic/tti/tti_example.py -a; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then python examples/checkpointing/checkpointing_example.py; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/cfd; fi
-      if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
-      codecov
-      sphinx-apidoc -f -o docs/ examples
-      sphinx-apidoc -f -o docs/ devito devito/yask/*
-      cd docs
-      make html
-      cd ..
-      if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
+  # Run tests with pip
+  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py test; fi
+  # Run test with py.tests
+  - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test -vs --cov devito tests/; fi
+  # Run remaining specialized examples and tests
+  # Additional seismic operator tests
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      python examples/seismic/benchmark.py test -P acoustic -a;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      python examples/seismic/acoustic/acoustic_example.py --full;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      python examples/seismic/acoustic/acoustic_example.py --constant --full;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      python examples/seismic/acoustic/gradient_example.py;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      python examples/seismic/tti/tti_example.py -a;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      python examples/checkpointing/checkpointing_example.py;
+    fi
+  # Test tutorial notebooks for the website using nbval
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      py.test -vs --nbval examples/cfd;
+    fi
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      py.test -vs --nbval examples/seismic/tutorials;
+    fi
+  # Code coverage and documentation generation
+  - if [[ $DEVITO_BACKEND != 'yask' ] && [$INSTALL_TYPE == 'conda']]; then
+      codecov;
+      sphinx-apidoc -f -o docs/ examples;
+      sphinx-apidoc -f -o docs/ devito devito/yask/*;
+      cd docs;
+      make html;
+      cd ..;
+    fi
+  # Docs deployment only once from a single build
+  - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
           set -e;
           pip install doctr;
           doctr deploy . --built-docs docs --key-path .deploy_key.enc;
-      fi
     fi
