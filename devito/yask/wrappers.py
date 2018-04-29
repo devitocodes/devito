@@ -143,9 +143,10 @@ class YaskKernel(object):
                       (i.get_name(), str(i.get_dim_names()), size))
             else:
                 size = [i.get_rank_domain_size(j) for j in self.space_dimensions]
-                pad = [i.get_pad_size(j) for j in self.space_dimensions]
-                debug("    Grid: %s%s, size=%s, pad=%s" %
-                      (i.get_name(), str(i.get_dim_names()), size, pad))
+                lpad = [i.get_left_pad_size(j) for j in self.space_dimensions]
+                rpad = [i.get_right_pad_size(j) for j in self.space_dimensions]
+                debug("    Grid: %s%s, size=%s, left_pad=%s, right_pad=%s" %
+                      (i.get_name(), str(i.get_dim_names()), size, lpad, rpad))
 
         # Apply any user-provided option, if any
         self.soln.apply_command_line_options(configuration.yask['options'] or '')
@@ -264,13 +265,11 @@ class YaskContext(object):
                 assert grid.get_alloc_size(i.name) == s
             else:
                 # Note:
-                # 1) The halo is set to a value which is the max between the number
-                # of points on the left and the number of points on the right of
-                # the approximation (the same with a centered approximation)
-                # 2) from the YASK docs: "If the halo is set to a value larger than
+                # From the YASK docs: "If the halo is set to a value larger than
                 # the padding size, the padding size will be automatically increased
-                # to accomodate it
-                grid.set_halo_size(i.name, max(h))
+                # to accomodate it."
+                grid.set_left_halo_size(i.name, h.left)
+                grid.set_right_halo_size(i.name, h.right)
         grid.alloc_storage()
 
         self.grids[name] = grid
