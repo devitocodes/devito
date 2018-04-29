@@ -17,6 +17,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
                            ArrayCast, PointerCast, derive_parameters)
+from devito.ir.stree import schedule
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
@@ -87,8 +88,11 @@ class Operator(Callable):
         clusters = rewrite(clusters, mode=set_dse_mode(dse))
         self._dtype, self._dspace = clusters.meta
 
-        # Lower Clusters to an Iteration/Expression tree (IET)
-        nodes = iet_build(clusters)
+        # Lower Clusters to a Schedule tree
+        stree = schedule(clusters)
+
+        # Lower Sections to an Iteration/Expression tree (IET)
+        nodes = iet_build(stree)
 
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes)
