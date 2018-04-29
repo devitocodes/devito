@@ -511,7 +511,7 @@ class IterationSpace(Space):
         return self._directions
 
     @property
-    def iteration_intervals(self):
+    def itintervals(self):
         return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
 
     @property

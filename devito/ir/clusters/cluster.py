@@ -43,6 +43,10 @@ class PartialCluster(object):
         return self._ispace
 
     @property
+    def itintervals(self):
+        return self._ispace.itintervals
+
+    @property
     def dspace(self):
         return self._dspace
 
