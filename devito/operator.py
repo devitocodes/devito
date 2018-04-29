@@ -92,16 +92,16 @@ class Operator(Callable):
         stree = schedule(clusters)
 
         # Lower Sections to an Iteration/Expression tree (IET)
-        nodes = iet_build(stree)
+        iet = iet_build(stree)
 
         # Introduce C-level profiling infrastructure
-        nodes, self.profiler = self._profile_sections(nodes)
+        iet, self.profiler = self._profile_sections(iet)
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes = self._specialize_iet(nodes)
+        iet = self._specialize_iet(iet)
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
-        dle_state = transform(nodes, *set_dle_mode(dle))
+        dle_state = transform(iet, *set_dle_mode(dle))
 
         # Update the Operator state based on the DLE
         self.dle_args = dle_state.arguments
@@ -113,16 +113,16 @@ class Operator(Callable):
         self._includes.extend(list(dle_state.includes))
 
         # Introduce the required symbol declarations
-        nodes = iet_insert_C_decls(dle_state.nodes, self.func_table)
+        iet = iet_insert_C_decls(dle_state.nodes, self.func_table)
 
         # Insert data and pointer casts for array parameters and profiling structs
-        nodes = self._build_casts(nodes)
+        iet = self._build_casts(iet)
 
         # Derive parameters as symbols not defined in the kernel itself
-        parameters = self._build_parameters(nodes)
+        parameters = self._build_parameters(iet)
 
         # Finish instantiation
-        super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
+        super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
 
     def prepare_arguments(self, **kwargs):
         """
@@ -238,9 +238,9 @@ class Operator(Callable):
 
         return self._cfunction
 
-    def _profile_sections(self, nodes):
+    def _profile_sections(self, iet):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        return List(body=nodes), None
+        return List(body=iet), None
 
     def _autotune(self, args):
         """Use auto-tuning on this Operator to determine empirically the
@@ -251,24 +251,24 @@ class Operator(Callable):
         """Transform ``expressions`` into a backend-specific representation."""
         return [LoweredEq(i) for i in expressions]
 
-    def _specialize_iet(self, nodes):
+    def _specialize_iet(self, iet):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
-        return nodes
+        return iet
 
-    def _build_parameters(self, nodes):
+    def _build_parameters(self, iet):
         """Determine the Operator parameters based on the Iteration/Expression
-        tree ``nodes``."""
-        return derive_parameters(nodes, True)
+        tree ``iet``."""
+        return derive_parameters(iet, True)
 
-    def _build_casts(self, nodes):
+    def _build_casts(self, iet):
         """Introduce array and pointer casts at the top of the Iteration/Expression
-        tree ``nodes``."""
+        tree ``iet``."""
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
         profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
         casts.append(PointerCast(profiler))
-        return List(body=casts + [nodes])
+        return List(body=casts + [iet])
 
 
 class OperatorRunnable(Operator):
@@ -369,11 +369,11 @@ class OperatorRunnable(Operator):
                      (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
-    def _profile_sections(self, nodes,):
+    def _profile_sections(self, iet,):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        nodes, profiler = create_profile('timers', nodes)
+        iet, profiler = create_profile('timers', iet)
         self._globals.append(profiler.cdef)
-        return nodes, profiler
+        return iet, profiler
 
 
 # Misc helpers
