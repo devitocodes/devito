@@ -22,7 +22,9 @@ from devito.types import AbstractFunction, Symbol, Indexed
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
            'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression',
-           'IterationTree']
+           'IterationTree', 'Section']
+
+# First-class IET nodes
 
 
 class Node(object):
@@ -38,6 +40,7 @@ class Node(object):
     is_Call = False
     is_List = False
     is_Element = False
+    is_Section = False
 
     """
     :attr:`_traversable`. The traversable fields of the Node; that is, fields
@@ -313,9 +316,7 @@ class Iteration(Node):
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
                  direction=None, properties=None, pragmas=None, uindices=None):
-        # Ensure we deal with a list of Expression objects internally
         self.nodes = as_tuple(nodes)
-
         self.dim = dimension
         self.index = index or self.dim.name
         self.direction = direction or Forward
@@ -582,7 +583,7 @@ class Conditional(Node):
         return tuple(self.condition.free_symbols)
 
 
-# Utilities
+# Second level IET nodes
 
 class TimedList(List):
 
@@ -753,6 +754,31 @@ class ForeignExpression(Expression):
     @property
     def is_tensor(self):
         return False
+
+
+class Section(List):
+
+    """
+    A sequence of nodes.
+
+    Functionally, a :class:`Section` is identical to a :class:`List`; that is,
+    they generate the same code (i.e., their ``body``). However, a Section should
+    be used to define sub-trees that, for some reasons, have a relevance within
+    the IET (e.g., groups of statements that logically represent the same
+    computation unit).
+    """
+
+    is_Sequence = True
+
+    def __init__(self, body=None):
+        super(Section, self).__init__(body=body)
+
+    def __repr__(self):
+        return "<Section (%d)>" % len(self.body)
+
+    @property
+    def roots(self):
+        return self.body
 
 
 # Utility classes
