@@ -19,4 +19,5 @@ codecov
 pytest-cov
 multidict
 frozendict
+anytree==2.4.3
 git+https://github.com/opesci/pyrevolve
