@@ -16,7 +16,7 @@ class ScheduleTree(NodeMixin):
     def __repr__(self):
         return render(self)
 
-    def __iter__(self):
+    def visit(self):
         for i in PostOrderIter(self):
             yield i
 
@@ -31,7 +31,7 @@ class NodeSection(ScheduleTree):
 
     @property
     def __repr_render__(self):
-        return "Section"
+        return "<S>"
 
 
 class NodeIteration(ScheduleTree):

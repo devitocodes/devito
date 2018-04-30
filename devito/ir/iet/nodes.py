@@ -770,8 +770,9 @@ class Section(List):
 
     is_Sequence = True
 
-    def __init__(self, body=None):
+    def __init__(self, name, body=None):
         super(Section, self).__init__(body=body)
+        self.name = name
 
     def __repr__(self):
         return "<Section (%d)>" % len(self.body)

@@ -5,9 +5,10 @@ import numpy as np
 from devito.cgen_utils import Allocator
 from devito.dimension import LoweredDimension
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
-                           Conditional, UnboundedIndex, MetaCall, MapExpressions,
-                           Transformer, NestedTransformer, SubstituteExpression,
-                           iet_analyze, filter_iterations, retrieve_iteration_tree)
+                           Conditional, Section, UnboundedIndex, MetaCall,
+                           MapExpressions, Transformer, NestedTransformer,
+                           SubstituteExpression, iet_analyze, filter_iterations,
+                           retrieve_iteration_tree)
 from devito.tools import filter_ordered, flatten
 from devito.types import Scalar
 
@@ -42,8 +43,9 @@ def iet_make(stree):
     """
     Create an Iteration/Expression tree (IET) from a :class:`ScheduleTree`.
     """
+    nsections = 0
     queues = OrderedDict()
-    for i in stree:
+    for i in stree.visit():
         if i == stree:
             # We hit this handle at the very end of the visit
             return List(body=queues.pop(i))
@@ -66,6 +68,10 @@ def iet_make(stree):
             # Generate Iteration
             body = [Iteration(queues.pop(i), i.dim, i.dim.limits, offsets=i.limits,
                               direction=i.direction, uindices=uindices)]
+
+        elif i.is_Section:
+            body = [Section('section%d' % nsections, body=queues.pop(i))]
+            nsections += 1
 
         queues.setdefault(i.parent, []).extend(body)
 

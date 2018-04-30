@@ -17,7 +17,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
                            ArrayCast, PointerCast, derive_parameters)
-from devito.ir.stree import schedule
+from devito.ir.stree import schedule, section
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
@@ -90,6 +90,7 @@ class Operator(Callable):
 
         # Lower Clusters to a Schedule tree
         stree = schedule(clusters)
+        stree = section(stree)
 
         # Lower Sections to an Iteration/Expression tree (IET)
         iet = iet_build(stree)

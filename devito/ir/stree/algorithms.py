@@ -1,8 +1,12 @@
 from collections import OrderedDict
 
-from devito.ir.stree.tree import ScheduleTree, NodeIteration, NodeConditional, NodeExprs
+from anytree import findall
 
-__all__ = ['schedule']
+from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
+                                  NodeExprs, NodeSection)
+from devito.tools import flatten
+
+__all__ = ['schedule', 'section']
 
 
 def schedule(clusters):
@@ -47,5 +51,63 @@ def schedule(clusters):
                 node = NodeConditional(c.guards[k.dim])
                 v.last.parent = node
                 node.parent = v
+
+    return stree
+
+
+def section(stree):
+    """
+    Create sections in a :class:`ScheduleTree`. A section is a sub-tree with
+    the following properties: ::
+
+        * The root is a node of type :class:`NodeSection`;
+        * The immediate children of the root are nodes of type :class:`NodeIteration`
+          and have same parent.
+        * The :class:`Dimension` of the immediate children are either: ::
+            * identical, OR
+            * different, but all of type :class:`SubDimension`;
+        * The :class:`Dimension` of the immediate children cannot be a
+          :class:`TimeDimension`.
+    """
+
+    class Section(object):
+        def __init__(self, node):
+            self.parent = node.parent
+            self.dim = node.dim
+            self.nodes = [node]
+
+        def is_compatible(self, node):
+            return (self.parent == node.parent
+                    and (self.dim == node.dim or node.dim.is_Sub))
+
+    # Search candidate sections
+    sections = []
+    for i in range(stree.height):
+        # Find all sections at depth `i`
+        section = None
+        for n in findall(stree, filter_=lambda n: n.depth == i):
+            if any(p in flatten(s.nodes for s in sections) for p in n.ancestors):
+                # Already within a section
+                continue
+            elif not n.is_Iteration or n.dim.is_Time:
+                section = None
+            elif section is None or not section.is_compatible(n):
+                section = Section(n)
+                sections.append(section)
+            else:
+                section.nodes.append(n)
+
+    # Transform the schedule tree by adding in sections
+    for i in sections:
+        node = NodeSection()
+        processed = []
+        for n in list(i.parent.children):
+            if n in i.nodes:
+                n.parent = node
+                if node not in processed:
+                    processed.append(node)
+            else:
+                processed.append(n)
+        i.parent.children = processed
 
     return stree
