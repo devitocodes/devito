@@ -196,6 +196,31 @@ class TestConditionalDimension(object):
         # Verify that u2[x,y]= u[2*x, 2*y]
         assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
 
+    def test_subsampled_fd(self):
+        """
+        Test that the symbolic interface is working for space subsampled
+        functions.
+        """
+        nt = 19
+        grid = Grid(shape=(12, 12))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, save=nt)
+        assert(grid.time_dim in u.indices)
+
+        # Creates subsampled spatial dimensions and accordine grid
+        dims = tuple([ConditionalDimension(d.name+'sub', parent=d, factor=2)
+                      for d in u.grid.dimensions])
+        grid2 = Grid((6, 6), dimensions=dims)
+        u2 = TimeFunction(name='u2', grid=grid2, save=nt, space_order=2)
+        assert(time in u2.indices)
+        print(u2.dx)
+        eqns = [Eq(u.forward, u + 1.), Eq(u2, u), Eq(u2.forward, u2.dx)]
+        op = Operator(eqns)
+        op.apply(time_M=nt-2)
+        # Verify that u2[x,y]= u[2*x, 2*y]
+        assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
+
     # This test generates an openmp loop form which makes older gccs upset
     @configuration_override("openmp", False)
     def test_nothing_in_negative(self):
@@ -335,4 +360,4 @@ class TestConditionalDimension(object):
 
 
 if __name__ == "__main__":
-    TestConditionalDimension().test_spacial_subsampling()
+    TestConditionalDimension().test_subsampled_fd()
