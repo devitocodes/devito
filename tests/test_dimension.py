@@ -196,7 +196,7 @@ class TestConditionalDimension(object):
         assert np.allclose(usave.data, 0.0)
 
         op.apply(time_m=0, time_M=0)
-        assert np.allclose(usave.data, 0.0)
+        assert np.allclose(usave.data, 1.0)
 
     def test_laplace(self):
         grid = Grid(shape=(20, 20, 20))
