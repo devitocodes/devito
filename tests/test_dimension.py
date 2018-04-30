@@ -216,7 +216,7 @@ class TestConditionalDimension(object):
         assert(time in u2.indices)
         print(u2.dx)
         eqns = [Eq(u.forward, u + 1.), Eq(u2, u), Eq(u2.forward, u2.dx)]
-        op = Operator(eqns)
+        op = Operator(eqns, dse="advanced")
         op.apply(time_M=nt-2)
         # Verify that u2[x,y]= u[2*x, 2*y]
         assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
