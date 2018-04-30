@@ -373,20 +373,6 @@ class ConditionalDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.factor, self.condition)
 
-    def _arg_defaults(self, **kwargs):
-        """
-        A :class:`ConditionalDimension` provides no arguments, so this
-        method returns an empty dict.
-        """
-        return {}
-
-    def _arg_values(self, *args, **kwargs):
-        """
-        A :class:`ConditionalDimension` provides no arguments, so there are
-        no argument values to be derived.
-        """
-        return {}
-
     def _arg_check(self, *args):
         """
         A :class:`ConditionalDimension` provides no arguments, so there are
