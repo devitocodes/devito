@@ -79,12 +79,17 @@ class YaskKernel(object):
         self.env = kfac.new_env()
         self.soln = kfac.new_solution(self.env)
 
+        # Apply any user-provided options, if any.
+        # These are applied here instead of just before prepare_solution()
+        # so that applicable options will apply to all API calls.
+        self.soln.apply_command_line_options(configuration.yask['options'] or '')
+
         # MPI setup: simple rank configuration in 1st dim only.
         # TODO: in production runs, the ranks would be distributed along all
         # domain dimensions.
         self.soln.set_num_ranks(self.space_dimensions[0], self.env.get_num_ranks())
 
-        # Redirect stdout/strerr to a string or file
+        # Redirect stdout to a string or file
         if configuration.yask['dump']:
             filename = 'yk_dump.%s.%s.%s.txt' % (self.name,
                                                  configuration['platform'],
@@ -148,8 +153,6 @@ class YaskKernel(object):
                 debug("    Grid: %s%s, size=%s, left_pad=%s, right_pad=%s" %
                       (i.get_name(), str(i.get_dim_names()), size, lpad, rpad))
 
-        # Apply any user-provided option, if any
-        self.soln.apply_command_line_options(configuration.yask['options'] or '')
         # Set up the block shape for loop blocking
         for i, j in zip(self.space_dimensions, configuration.yask['blockshape']):
             self.soln.set_block_size(i, j)
