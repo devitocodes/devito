@@ -95,7 +95,7 @@ class Operator(Callable):
         # Lower Sections to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
 
-        # Introduce C-level profiling infrastructure
+        # Insert code for C-level performance profiling
         iet, self.profiler = self._profile_sections(iet)
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
@@ -113,7 +113,7 @@ class Operator(Callable):
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
 
-        # Introduce the required symbol declarations
+        # Insert the required symbol declarations
         iet = iet_insert_C_decls(dle_state.nodes, self.func_table)
 
         # Insert data and pointer casts for array parameters and profiling structs
@@ -364,9 +364,13 @@ class OperatorRunnable(Operator):
         summary = self.profiler.summary(args, self._dtype)
         with bar():
             for k, v in summary.items():
-                name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
-                gpointss = ", %.2f GPts/s" % v.gpointss if k == 'main' else ''
-                info("Section %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
+                itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
+                if len(itershapes) > 1:
+                    name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
+                else:
+                    name = "%s<%s>" % (k, itershapes[0])
+                gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
+                info("%s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
                      (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
