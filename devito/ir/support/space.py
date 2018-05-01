@@ -1,5 +1,7 @@
 import abc
 from collections import OrderedDict
+from functools import reduce
+from operator import mul
 
 from frozendict import frozendict
 
@@ -113,7 +115,7 @@ class Interval(AbstractInterval):
         self.lower = lower
         self.upper = upper
         self.min_extent = abs(upper - lower)
-        self.extent = dim.symbolic_size + self.min_extent
+        self.extent = dim.symbolic_extent + 1 + self.min_extent
 
     def __repr__(self):
         return "%s[%s, %s]" % (self.dim, self.lower, self.upper)
@@ -198,6 +200,14 @@ class IntervalGroup(tuple):
     @property
     def dimensions(self):
         return filter_ordered([i.dim for i in self])
+
+    @property
+    def extent(self):
+        return reduce(mul, [i.extent for i in self]) if self else 0
+
+    @property
+    def shape(self):
+        return tuple(i.extent for i in self)
 
     @property
     def is_well_defined(self):
@@ -362,6 +372,14 @@ class Space(object):
     @property
     def dimensions(self):
         return filter_ordered(self.intervals.dimensions)
+
+    @property
+    def extent(self):
+        return self.intervals.extent
+
+    @property
+    def shape(self):
+        return self.intervals.shape
 
 
 class DataSpace(Space):
