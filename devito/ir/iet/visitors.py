@@ -403,13 +403,11 @@ class FindSymbols(Visitor):
     :param mode: Drive the search. Accepted values are: ::
 
         * 'symbolics': Collect :class:`AbstractSymbol` objects.
-        * 'symbolics-writes': Collect written :class:`AbstractSymbol` objects.
         * 'free-symbols': Collect all free symbols.
     """
 
     rules = {
         'symbolics': lambda e: e.functions,
-        'symbolics-writes': lambda e: as_tuple(e.write),
         'free-symbols': lambda e: e.free_symbols,
         'defines': lambda e: as_tuple(e.defines),
     }
