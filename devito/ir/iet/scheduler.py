@@ -5,8 +5,8 @@ import numpy as np
 from devito.cgen_utils import Allocator
 from devito.dimension import LoweredDimension
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
-                           Conditional, Section, UnboundedIndex, MetaCall,
-                           MapExpressions, Transformer, NestedTransformer,
+                           Conditional, Section, ExpressionBundle, UnboundedIndex,
+                           MetaCall, MapExpressions, Transformer, NestedTransformer,
                            SubstituteExpression, iet_analyze, filter_iterations,
                            retrieve_iteration_tree)
 from devito.tools import filter_ordered, flatten
@@ -51,7 +51,8 @@ def iet_make(stree):
             return List(body=queues.pop(i))
 
         elif i.is_Exprs:
-            body = [Expression(e) for e in i.exprs]
+            exprs = [Expression(e) for e in i.exprs]
+            body = [ExpressionBundle(i.shape, i.ops, i.traffic, body=exprs)]
 
         elif i.is_Conditional:
             body = [Conditional(i.guard, queues.pop(i))]
