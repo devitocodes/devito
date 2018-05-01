@@ -22,7 +22,7 @@ from devito.types import AbstractFunction, Symbol, Indexed
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
            'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression',
-           'IterationTree', 'Section']
+           'IterationTree', 'Section', 'ExpressionBundle']
 
 # First-class IET nodes
 
@@ -41,6 +41,7 @@ class Node(object):
     is_List = False
     is_Element = False
     is_Section = False
+    is_ExpressionBundle = False
 
     """
     :attr:`_traversable`. The traversable fields of the Node; that is, fields
@@ -779,6 +780,28 @@ class Section(List):
 
     @property
     def roots(self):
+        return self.body
+
+
+class ExpressionBundle(List):
+
+    """
+    A sequence of :class:`Expression`s.
+    """
+
+    is_ExpressionBundle = True
+
+    def __init__(self, shape, ops, traffic, body=None):
+        super(ExpressionBundle, self).__init__(body=body)
+        self.shape = shape
+        self.ops = ops
+        self.traffic = traffic
+
+    def __repr__(self):
+        return "<ExpressionBundle (%d)>" % len(self.exprs)
+
+    @property
+    def exprs(self):
         return self.body
 
 
