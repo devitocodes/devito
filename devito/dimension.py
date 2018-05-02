@@ -378,6 +378,7 @@ class ConditionalDimension(DerivedDimension):
         """
         return
 
+
 class SteppingDimension(DerivedDimension):
 
     is_NonlinearDerived = True

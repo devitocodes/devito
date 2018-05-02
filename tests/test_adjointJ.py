@@ -13,7 +13,7 @@ from examples.seismic.acoustic import AcousticWaveSolver
 @pytest.mark.parametrize('shape', [(60, 70), (40, 50, 30)])
 def test_acousticJ(shape, space_order):
     t0 = 0.0  # Start time
-    tn = 500.  # Final time
+    tn = 1000.  # Final time
     nrec = shape[0]  # Number of receivers
     nbpml = 10 + space_order / 2
     spacing = [15. for _ in shape]
