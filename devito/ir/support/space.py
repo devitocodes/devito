@@ -51,8 +51,10 @@ class AbstractInterval(object):
 
     merge = union
 
-    def subtract(self, o):
+    def add(self, o):
         return self._rebuild()
+
+    subtract = add
 
     def negate(self):
         return self._rebuild()
@@ -149,6 +151,12 @@ class Interval(AbstractInterval):
             return self._rebuild()
         else:
             return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper))
+
+    def add(self, o):
+        if self.dim != o.dim or o.is_Null:
+            return self._rebuild()
+        else:
+            return Interval(self.dim, self.lower + o.lower, self.upper + o.upper)
 
     def subtract(self, o):
         if self.dim != o.dim or o.is_Null:
@@ -247,6 +255,11 @@ class IntervalGroup(tuple):
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.intersection(mapper.get(i.dim, i)) for i in self]
+        return IntervalGroup(intervals)
+
+    def add(self, o):
+        mapper = OrderedDict([(i.dim, i) for i in o])
+        intervals = [i.add(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
         return IntervalGroup(intervals)
 
     def subtract(self, o):
