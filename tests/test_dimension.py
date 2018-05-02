@@ -183,7 +183,7 @@ class TestConditionalDimension(object):
         u = TimeFunction(name='u', grid=grid, save=nt)
         assert(grid.time_dim in u.indices)
 
-        # Creates subsampled spatial dimensions and accordine grid
+        # Creates subsampled spatial dimensions and according grid
         dims = tuple([ConditionalDimension(d.name+'sub', parent=d, factor=2)
                       for d in u.grid.dimensions])
         grid2 = Grid((6, 6), dimensions=dims)
