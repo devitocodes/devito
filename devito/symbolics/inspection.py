@@ -7,7 +7,7 @@ from devito.dimension import Dimension
 from devito.symbolics.search import retrieve_indexed, retrieve_ops, search
 from devito.symbolics.queries import q_timedimension
 from devito.logger import warning
-from devito.tools import flatten, filter_sorted, partial_order
+from devito.tools import flatten, filter_sorted, toposort
 
 __all__ = ['count', 'estimate_cost', 'estimate_memory', 'dimension_sort']
 
@@ -134,7 +134,7 @@ def dimension_sort(expr, key=None):
                 constraint.extend([d for d in ai.free_symbols
                                    if isinstance(d, Dimension) and d not in constraint])
         constraints.append(tuple(constraint))
-    ordering = partial_order(constraints)
+    ordering = toposort(constraints)
 
     # Add any leftover free dimensions (not an Indexed' index)
     dimensions = [i for i in expr.free_symbols if isinstance(i, Dimension)]
