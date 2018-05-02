@@ -293,11 +293,6 @@ def test_dependences_eq(expr, expected, ti0, ti1, fa):
     (['Eq(ti0[x,y,z], ti1[x,y,z])',
       'Eq(ti3[x,y,z], ti0[y+1,y,y])'],
      ['ti0,flow,x', 'ti0,anti,x']),
-    # Data indices don't match iteration indices, so conservatively assume
-    # all sort of deps
-    (['Eq(ti0[x,y,z], ti1[x,y,z])',
-      'Eq(ti3[x,y,z], ti0[x,y,x])'],
-     ['ti0,flow,z', 'ti0,anti,z']),
 ])
 def test_dependences_scope(exprs, expected, ti0, ti1, ti3, fa):
     """

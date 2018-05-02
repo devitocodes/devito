@@ -154,8 +154,9 @@ def build_dependence_lists(elements):
     mapper = OrderedDict()
     for element in elements:
         for idx, i0 in enumerate(element):
+            v = mapper.setdefault(i0, set())
             for i1 in element[idx + 1:]:
-                mapper.setdefault(i0, set()).add(i1)
+                v.add(i1)
     return mapper
 
 
@@ -180,6 +181,11 @@ def toposort(data):
         assert isinstance(data, Iterable)
         data = build_dependence_lists(data)
 
+    processed = []
+
+    if not data:
+        return processed
+
     # Do not transform `data` in place
     mapper = OrderedDict([(k, set(v)) for k, v in data.items()])
 
@@ -188,7 +194,6 @@ def toposort(data):
         v.discard(k)
 
     # Perform the topological sorting
-    processed = []
     extra_items_in_deps = reduce(set.union, mapper.values()) - set(mapper)
     mapper.update(OrderedDict([(item, set()) for item in extra_items_in_deps]))
     while True:
