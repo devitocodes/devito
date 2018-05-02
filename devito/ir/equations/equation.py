@@ -2,11 +2,12 @@ from sympy import Eq
 
 from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
+from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Any, Stencil, detect_accesses, detect_oobs, detect_io,
                                force_directions, detect_free_dimensions,
                                detect_flow_directions, build_intervals)
-from devito.symbolics import FrozenExpr, dimension_sort
+from devito.symbolics import FrozenExpr
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
