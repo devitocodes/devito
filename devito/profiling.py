@@ -43,7 +43,7 @@ def create_profile(name, iet):
         for i in bundles:
             for k, v in i.traffic.items():
                 mapper.setdefault(k, []).append(v)
-        traffic = [IntervalGroup.generate('union', *i) for i in mapper.values()]
+        traffic = [IntervalGroup.generate('merge', *i) for i in mapper.values()]
         traffic = sum(i.extent for i in traffic)
 
         # Each ExpressionBundle lives in its own iteration space
