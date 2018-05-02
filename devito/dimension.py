@@ -371,32 +371,12 @@ class ConditionalDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.factor, self.condition)
 
-    def _arg_defaults(self, **kwargs):
-        """
-        A :class:`ConditionalDimension` provides no arguments, so this
-        method returns an empty dict.
-        """
-        return {self.size_name: kwargs.get('size')}
-
-    def _arg_values(self, *args, **kwargs):
-        """
-        A :class:`ConditionalDimension` provides no arguments, so there are
-        no argument values to be derived.
-        """
-        return {}
-
     def _arg_check(self, *args):
         """
         A :class:`ConditionalDimension` provides no arguments, so there are
         no checks to be performed.
         """
         return
-
-    @property
-    def _arg_names(self):
-        """Return a tuple of argument names introduced by this dimension."""
-        return (self.name, self.size_name, self.parent.ext_name,
-                self.parent.max_name, self.parent.min_name)
 
 class SteppingDimension(DerivedDimension):
 

@@ -357,7 +357,3 @@ class TestConditionalDimension(object):
         # with u[t] = t
         # v = 16 * 1 + 64 * 2 + 144 * 3 + 256 * 4 = 1600
         assert np.all(np.allclose(v.data, 1600))
-
-
-if __name__ == "__main__":
-    TestConditionalDimension().test_subsampled_fd()
