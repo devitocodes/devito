@@ -1,13 +1,11 @@
 from collections import Counter
-from operator import attrgetter
 
 from sympy import Indexed, cos, sin
 
-from devito.dimension import Dimension
 from devito.symbolics.search import retrieve_indexed, retrieve_ops, search
 from devito.symbolics.queries import q_timedimension
 from devito.logger import warning
-from devito.tools import flatten, filter_sorted, toposort
+from devito.tools import flatten
 
 __all__ = ['count', 'estimate_cost', 'estimate_memory']
 
