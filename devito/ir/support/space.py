@@ -492,7 +492,12 @@ class IterationSpace(Space):
         else:
             func = lambda i: i in cond
         intervals = [i for i in self.intervals if func(i.dim)]
-        sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
+        sub_iterators = {}
+        for k, v in self.sub_iterators.items():
+            if func(k) and len(v) == 0:
+                sub_iterators.update({k: v})
+            elif func(k) and len(v) > 0:
+                sub_iterators.update({k: [] if v[0].dim.is_Conditional else v})
         directions = {k: v for k, v in self.directions.items() if func(k)}
         return IterationSpace(intervals, sub_iterators, directions)
 
