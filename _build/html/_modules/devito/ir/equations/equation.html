@@ -154,11 +154,12 @@
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">SubDimension</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">DOMAIN</span><span class="p">,</span> <span class="n">INTERIOR</span>
+<span class="kn">from</span> <span class="nn">devito.ir.equations.algorithms</span> <span class="k">import</span> <span class="n">dimension_sort</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="p">(</span><span class="n">IterationSpace</span><span class="p">,</span> <span class="n">DataSpace</span><span class="p">,</span> <span class="n">Interval</span><span class="p">,</span> <span class="n">IntervalGroup</span><span class="p">,</span>
                                <span class="n">Any</span><span class="p">,</span> <span class="n">Stencil</span><span class="p">,</span> <span class="n">detect_accesses</span><span class="p">,</span> <span class="n">detect_oobs</span><span class="p">,</span> <span class="n">detect_io</span><span class="p">,</span>
                                <span class="n">force_directions</span><span class="p">,</span> <span class="n">detect_free_dimensions</span><span class="p">,</span>
                                <span class="n">detect_flow_directions</span><span class="p">,</span> <span class="n">build_intervals</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">FrozenExpr</span><span class="p">,</span> <span class="n">dimension_sort</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">FrozenExpr</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;LoweredEq&#39;</span><span class="p">,</span> <span class="s1">&#39;ClusterizedEq&#39;</span><span class="p">,</span> <span class="s1">&#39;DummyEq&#39;</span><span class="p">]</span>
 

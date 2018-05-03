@@ -57,6 +57,7 @@
 ./_build/html/_modules/devito/ir/clusters/algorithms.html
 ./_build/html/_modules/devito/ir/clusters/cluster.html
 ./_build/html/_modules/devito/ir/clusters/graph.html
+./_build/html/_modules/devito/ir/equations/algorithms.html
 ./_build/html/_modules/devito/ir/equations/equation.html
 ./_build/html/_modules/devito/ir/iet/analysis.html
 ./_build/html/_modules/devito/ir/iet/nodes.html

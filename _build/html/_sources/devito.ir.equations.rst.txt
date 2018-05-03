@@ -4,6 +4,14 @@ devito.ir.equations package
 Submodules
 ----------
 
+devito.ir.equations.algorithms module
+-------------------------------------
+
+.. automodule:: devito.ir.equations.algorithms
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.ir.equations.equation module
 -----------------------------------
 

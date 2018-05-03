@@ -196,6 +196,29 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
 </div>
+<div class="section" id="module-devito.ir.equations.algorithms">
+<span id="devito-ir-equations-algorithms-module"></span><h2>devito.ir.equations.algorithms module<a class="headerlink" href="#module-devito.ir.equations.algorithms" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.ir.equations.algorithms.dimension_sort">
+<code class="descclassname">devito.ir.equations.algorithms.</code><code class="descname">dimension_sort</code><span class="sig-paren">(</span><em>expr</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/algorithms.html#dimension_sort"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.algorithms.dimension_sort" title="Permalink to this definition">¶</a></dt>
+<dd><p>Topologically sort the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">in</span> <span class="pre">``expr`</span></code>, based on the order
+in which they appear within :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Indexed`s.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>expr</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.Eq</span></code> from which the :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Dimension`s are
+extracted.</li>
+<li><strong>key</strong> – A callable used as key to enforce a final ordering.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
 <div class="section" id="module-devito.ir.equations.equation">
 <span id="devito-ir-equations-equation-module"></span><h2>devito.ir.equations.equation module<a class="headerlink" href="#module-devito.ir.equations.equation" title="Permalink to this headline">¶</a></h2>
 <dl class="class">

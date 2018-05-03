@@ -151,17 +151,15 @@
             
   <h1>Source code for devito.symbolics.inspection</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Counter</span>
-<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span>
 
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_ops</span><span class="p">,</span> <span class="n">search</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics.queries</span> <span class="k">import</span> <span class="n">q_timedimension</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">partial_order</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_cost&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_memory&#39;</span><span class="p">,</span> <span class="s1">&#39;dimension_sort&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_cost&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_memory&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="count"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.count">[docs]</a><span class="k">def</span> <span class="nf">count</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
@@ -263,42 +261,6 @@
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">writes</span><span class="p">))</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="dimension_sort"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.dimension_sort">[docs]</a><span class="k">def</span> <span class="nf">dimension_sort</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Topologically sort the :class:`Dimension`s in ``expr``, based on the order</span>
-<span class="sd">    in which they are encountered when visiting ``expr``.</span>
-
-<span class="sd">    :param expr: The :class:`sympy.Eq` from which the :class:`Dimension`s are</span>
-<span class="sd">                 extracted. They can appear both as array indices or as free</span>
-<span class="sd">                 symbols.</span>
-<span class="sd">    :param key: A callable used as key to enforce a final ordering.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Get all Indexed dimensions, in the same order as the appear in /expr/</span>
-    <span class="n">constraints</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">):</span>
-        <span class="n">constraint</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">ai</span><span class="p">,</span> <span class="n">fi</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">ai</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
-                <span class="n">constraint</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fi</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">constraint</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">ai</span><span class="o">.</span><span class="n">free_symbols</span>
-                                   <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">constraint</span><span class="p">])</span>
-        <span class="n">constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">constraint</span><span class="p">))</span>
-    <span class="n">ordering</span> <span class="o">=</span> <span class="n">partial_order</span><span class="p">(</span><span class="n">constraints</span><span class="p">)</span>
-
-    <span class="c1"># Add any leftover free dimensions (not an Indexed&#39; index)</span>
-    <span class="n">dimensions</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)]</span>
-    <span class="n">dimensions</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">attrgetter</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span>  <span class="c1"># for determinism</span>
-    <span class="n">ordering</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dimensions</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ordering</span><span class="p">])</span>
-
-    <span class="c1"># Add parent dimensions</span>
-    <span class="n">derived</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ordering</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">]</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">derived</span><span class="p">:</span>
-        <span class="n">ordering</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">ordering</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">ordering</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Time</span><span class="p">)</span></div>
 </pre></div>
 
            </div>
