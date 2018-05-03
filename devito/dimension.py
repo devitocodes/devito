@@ -357,10 +357,6 @@ class ConditionalDimension(DerivedDimension):
         return newobj
 
     @property
-    def spacing(self):
-        return self.factor * self.parent.spacing
-
-    @property
     def factor(self):
         return self._factor
 
