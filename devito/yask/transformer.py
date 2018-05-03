@@ -8,55 +8,77 @@ from devito.yask import nfac
 __all__ = ['yaskizer']
 
 
-def yaskizer(tree, yc_soln):
+def yaskizer(trees, yc_soln):
     """
-    Convert a SymPy expression into a YASK abstract syntax tree and create the
-    necessay YASK grids.
+    Populate a YASK compiler solution with the :class:`Expression`s found in an IET.
 
-    :param tree: An offloadable :class:`IterationTree`.
-    :param yc_soln: The YASK compiler solution to which the new YASK grids are
-                    attached.
+    The necessary YASK grids are instantiated.
+
+    :param trees: A sequence of offloadable :class:`IterationTree`s, in which the
+                  Expressions are searched.
+    :param yc_soln: The YASK compiler solution to be populated.
     """
+    # Track all created YASK grids
+    mapper = {}
+
     # It's up to Devito to organize the equations into a flow graph
     yc_soln.set_dependency_checker_enabled(False)
 
-    # To be populated by `handle`
-    mapper = {}
+    processed = []
+    for tree in trees:
+        # All expressions within `tree`
+        expressions = [i.expr for i in FindNodes(Expression).visit(tree.root)]
 
-    for i in FindNodes(Expression).visit(tree.root):
-        # Build the YASK AST
-        yask_expr = handle(i.expr, yc_soln, mapper)
-
-        if yask_expr is None:
-            # A temporary, go on
-            continue
-
-        # Maybe set a conditional to apply the equation to a sub-domain only
         conditions = []
         for i in tree:
-            if not i.dim.is_Sub:
-                continue
-            main = i.dim.parent
-            # Create a node for the first index value along /main/
-            ydim = nfac.new_domain_index(main.name)
-            # Condition for lower offset
-            first_ydim = nfac.new_first_domain_index(ydim)
-            const = nfac.new_const_number_node(int(i.dim.symbolic_ofs_lower))
-            lower = nfac.new_add_node(first_ydim, const)
-            conditions.append(nfac.new_not_less_than_node(ydim, lower))
-            # Condition for upper offset
-            last_ydim = nfac.new_last_domain_index(ydim)
-            const = nfac.new_const_number_node(int(i.dim.symbolic_ofs_upper))
-            upper = nfac.new_add_node(last_ydim, const)
-            conditions.append(nfac.new_not_greater_than_node(ydim, upper))
-        # Finally concatenate the conditions with the logical AND `&` (if any)
+            # Handle iteration-carried flow dependences
+            if i.is_Sequential:
+                # Note: this may throw a TypeError exception if the `extent` is not
+                # a statically known quantity. This is desired behaviour: we won't do
+                # offloading because we don't know how to treat these equations
+                unwinded = []
+                for r in range(i.extent()):
+                    unwinded.extend(e.xreplace({i.dim: i.dim + r}) for e in expressions)
+                expressions = unwinded
+
+            # Create conditional expression for sub-domain along `i`
+            elif i.dim.is_Sub:
+                main = i.dim.parent
+                # Create a node for the first index value along /main/
+                ydim = nfac.new_domain_index(main.name)
+                # Condition for lower offset
+                first_ydim = nfac.new_first_domain_index(ydim)
+                const = nfac.new_const_number_node(int(i.dim.symbolic_ofs_lower))
+                lower = nfac.new_add_node(first_ydim, const)
+                conditions.append(nfac.new_not_less_than_node(ydim, lower))
+                # Condition for upper offset
+                last_ydim = nfac.new_last_domain_index(ydim)
+                const = nfac.new_const_number_node(int(i.dim.symbolic_ofs_upper))
+                upper = nfac.new_add_node(last_ydim, const)
+                conditions.append(nfac.new_not_greater_than_node(ydim, upper))
+
+        # Agglomerate local sub-domain expressions into a single, global expression
         try:
             condition = conditions.pop(0)
             for i in conditions:
                 condition = nfac.new_and_node(condition, i)
-            yask_expr.set_cond(condition)
         except IndexError:
-            pass
+            condition = None
+
+        # Build the YASK equations as well as all necessary grids
+        for i in expressions:
+            yask_expr = handle(i, yc_soln, mapper)
+
+            if yask_expr is not None:
+                processed.append(yask_expr)
+                # Is there a sub-domain to be attached ?
+                if condition is not None:
+                    yask_expr.set_cond(condition)
+
+    # Add flow dependences to the offloaded equations
+    # TODO: This can be improved by spotting supergroups ?
+    for to, frm in zip(processed, processed[1:]):
+        yc_soln.add_flow_dependency(frm, to)
 
     return mapper
 
@@ -80,7 +102,7 @@ def handle(expr, yc_soln, mapper):
             if function not in mapper:
                 mapper[function] = yc_soln.new_grid(function.name, [])
             return mapper[function].new_relative_grid_point([])
-        else:
+        elif not function.is_Dimension:
             # A DSE-generated temporary, which must have already been
             # encountered as a LHS of a previous expression
             assert function in mapper

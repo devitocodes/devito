@@ -60,8 +60,6 @@ class Operator(OperatorRunnable):
         to generate YASK code. Such YASK code is then called from within the
         transformed Iteration/Expression tree.
         """
-        log("Specializing a Devito Operator for YASK...")
-
         offloadable = find_offloadable_trees(iet)
 
         if len(offloadable.trees) == 0:
@@ -77,12 +75,10 @@ class Operator(OperatorRunnable):
 
             try:
                 trees = offloadable.trees
-                local_grids = []
 
-                # Generate YASK grids and ASTs
-                for i in trees:
-                    mapper = yaskizer(i, yc_soln)
-                    local_grids.extend([i for i in mapper if i.is_Array])
+                # Generate YASK grids and populate `yc_soln` with equations
+                mapper = yaskizer(trees, yc_soln)
+                local_grids = [i for i in mapper if i.is_Array]
 
                 # Transform the IET
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'], ['time'],
@@ -104,14 +100,14 @@ class Operator(OperatorRunnable):
                     (yc_soln.get_name(), yc_soln.get_num_grids(),
                      yc_soln.get_num_equations()))
             except:
+                self.yk_soln = YaskNullKernel()
+
                 log("Unable to offload a candidate tree.")
 
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
         iet = make_grid_accesses(iet)
-
-        log("Specialization successfully performed!")
 
         return iet
 
