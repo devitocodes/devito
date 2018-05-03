@@ -3,7 +3,8 @@ import pytest
 from conftest import skipif_yask
 from sympy import Derivative, simplify, diff
 
-from devito import Grid, Function, TimeFunction, Eq, Operator, clear_cache
+from devito import (Grid, Function, TimeFunction, Eq, Operator,
+                    clear_cache, ConditionalDimension)
 
 
 @pytest.fixture
@@ -157,3 +158,28 @@ def test_fd_space(derivative, space_order):
     error = abs(du.data[space_border:-space_border] -
                 Dpolyvalues[space_border:-space_border])
     assert np.isclose(np.mean(error), 0., atol=1e-3)
+
+
+@skipif_yask
+def test_subsampled_fd():
+    """
+    Test that the symbolic interface is working for space subsampled
+    functions.
+    """
+    nt = 19
+    grid = Grid(shape=(12, 12))
+
+    u = TimeFunction(name='u', grid=grid, save=nt, space_order=2)
+
+    # Creates subsampled spatial dimensions and according grid
+    dims = tuple([ConditionalDimension(d.name+'sub', parent=d, factor=2)
+                  for d in u.grid.dimensions])
+    grid2 = Grid((6, 6), dimensions=dims)
+    u2 = TimeFunction(name='u2', grid=grid2, save=nt)
+
+    eqns = [Eq(u.forward, u + 1.), Eq(u2, u2.dx + u)]
+    op = Operator(eqns, dse="advanced")
+    op.apply(time_M=nt-2)
+    # Verify that u2[x,y]= u[2*x, 2*y]
+    assert np.all(np.allclose(u.data[-1], nt-1))
+    assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
