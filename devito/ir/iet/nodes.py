@@ -825,6 +825,10 @@ class IterationTree(tuple):
     def __repr__(self):
         return "IterationTree%s" % super(IterationTree, self).__repr__()
 
+    def __getitem__(self, key):
+        ret = super(IterationTree, self).__getitem__(key)
+        return IterationTree(ret) if isinstance(key, slice) else ret
+
 
 class UnboundedIndex(object):
 
