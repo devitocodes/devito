@@ -117,10 +117,14 @@ class Profiler(object):
             # Runtime itershapes
             itershapes = [tuple(i.subs(arguments) for i in j) for j in data.itershapes]
 
+            # Do not show unexecuted Sections (i.e., because the loop trip count was 0)
+            if ops == 0 or traffic == 0:
+                continue
+
             # Derived metrics
             gflops = float(ops)/10**9
-            gflopss = gflops/time
             gpoints = float(points)/10**9
+            gflopss = gflops/time
             gpointss = gpoints/time
             oi = ops/traffic
 
