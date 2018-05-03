@@ -56,8 +56,7 @@ def autotune(operator, arguments, tunable):
     # ... Defaults (basic mode)
     blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
     # ... Always try the entire iteration space (degenerate block)
-    datashape = [at_arguments[mapper[i].original_dim.symbolic_end.name] -
-                 at_arguments[mapper[i].original_dim.symbolic_start.name] for i in mapper]
+    datashape = [mapper[i].original_dim.symbolic_size.subs(at_arguments) for i in mapper]
     blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j))
                       for i, j in zip(mapper, datashape)]))
     # ... More attempts if auto-tuning in aggressive mode
@@ -79,8 +78,8 @@ def autotune(operator, arguments, tunable):
         for k, v in at_arguments.items():
             if k in bs:
                 val = bs[k]
-                start = at_arguments[mapper[k].original_dim.symbolic_start.name]
-                end = at_arguments[mapper[k].original_dim.symbolic_end.name]
+                start = mapper[k].original_dim.symbolic_start.subs(at_arguments)
+                end = mapper[k].original_dim.symbolic_end.subs(at_arguments)
                 if val <= mapper[k].iteration.extent(start, end):
                     at_arguments[k] = val
                 else:

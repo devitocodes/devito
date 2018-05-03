@@ -322,6 +322,10 @@ class SubDimension(DerivedDimension):
     def symbolic_end(self):
         return self._interval.right
 
+    @property
+    def symbolic_size(self):
+        return self._interval.right - self._interval.left + 1
+
     def _hashable_content(self):
         return (self.parent._hashable_content(), self._interval)
 
