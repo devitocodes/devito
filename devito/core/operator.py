@@ -1,7 +1,5 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict
-
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree

@@ -56,11 +56,6 @@ class TestSubDimension(object):
 
         op = Operator(eqs)
 
-        trees = retrieve_iteration_tree(op)
-        for tree in trees:
-            print(tree)
-        #assert len(trees) == 1
-
         u.data[:] = 1.0
         op.apply(time_M=1)
         assert np.all(u.data[1, 0, :, :] == 1)
