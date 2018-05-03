@@ -218,7 +218,7 @@ def find_offloadable_trees(iet):
         # Found an offloadable candidate
         reducer.setdefault('grid_trees', []).append(grid_tree)
         # Track `grid` and `dtype`
-        functions = flatten(i.functions for i in inner_iteration.nodes)
+        functions = flatten(i.functions for i in bundle.exprs)
         reducer.extend(('grid', i.grid) for i in functions if i.is_TimeFunction)
         reducer.extend(('dtype', i.dtype) for i in functions if i.is_TimeFunction)
 
