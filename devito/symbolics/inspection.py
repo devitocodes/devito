@@ -2,7 +2,7 @@ from collections import Counter
 
 from sympy import cos, sin
 
-from devito.symbolics.search import retrieve_indexed, retrieve_ops, search
+from devito.symbolics.search import retrieve_ops, search
 from devito.logger import warning
 from devito.tools import flatten
 
