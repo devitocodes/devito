@@ -40,21 +40,23 @@ def dimension_sort(expr, key=None):
 
     ordering = toposort(constraints)
 
-    # Add in any leftover free dimensions (not an Indexed' index)
-    dimensions = [i for i in expr.free_symbols if isinstance(i, Dimension)]
-    dimensions = filter_sorted(dimensions, key=attrgetter('name'))  # for determinism
-    ordering.extend([i for i in dimensions if i not in ordering])
+    # Add in leftover free dimensions (not an Indexed' index)
+    extra = set([i for i in expr.free_symbols if isinstance(i, Dimension)])
+
+    # Add in pure data dimensions (e.g., those accessed only via explicit values,
+    # such as A[3])
+    indexeds = retrieve_indexed(expr, deep=True)
+    if indexeds:
+        extra.update(set.union(*[set(i.function.indices) for i in indexeds]))
+
+    # Enforce determinism
+    extra = filter_sorted(extra, key=attrgetter('name'))
+
+    ordering.extend([i for i in extra if i not in ordering])
 
     # Add in parent dimensions
     for i in list(ordering):
         if i.is_Derived and i.parent not in ordering:
             ordering.insert(ordering.index(i), i.parent)
-
-    # Add in pure data dimensions (e.g., those accessed only via explicit values,
-    # such as A[3])
-    for i in retrieve_indexed(expr, deep=True):
-        for d in i.function.indices:
-            if d not in ordering:
-                ordering.append(d)
 
     return sorted(ordering, key=key)
