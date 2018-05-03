@@ -92,7 +92,6 @@ class TestSubDimension(object):
         grid = Grid(shape=(20, 20))
         x, y = grid.dimensions
         t = grid.stepping_dim
-        time = grid.time_dim
         thickness = 4
 
         u = TimeFunction(name='u', save=None, grid=grid, space_order=0, time_order=1)
@@ -105,9 +104,9 @@ class TestSubDimension(object):
         yi = SubDimension.middle(name='yi', parent=y,
                                  thickness_left=4, thickness_right=4)
 
-        t_in_centre = Eq(u[t, xi, yi], time)
-        leftbc = Eq(u[t, xleft, yi], u[t, xleft+1, yi] + 1)
-        rightbc = Eq(u[t, xright, yi], u[t, xright-1, yi] + 1)
+        t_in_centre = Eq(u[t+1, xi, yi], 1)
+        leftbc = Eq(u[t+1, xleft, yi], u[t+1, xleft+1, yi] + 1)
+        rightbc = Eq(u[t+1, xright, yi], u[t+1, xright-1, yi] + 1)
 
         op = Operator([t_in_centre, leftbc, rightbc])
 
@@ -117,6 +116,8 @@ class TestSubDimension(object):
         assert np.all(u.data[0, :, -thickness:] == 0.)
         assert all(np.all(u.data[0, i, thickness:-thickness] == (thickness+1-i))
                    for i in range(thickness))
+        assert all(np.all(u.data[0, -i, thickness:-thickness] == (thickness+2-i))
+                   for i in range(1, thickness + 1))
         assert np.all(u.data[0, thickness:-thickness, thickness:-thickness] == 1.)
 
     @skipif_yask
