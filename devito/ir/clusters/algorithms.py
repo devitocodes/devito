@@ -212,7 +212,7 @@ def bump_and_contract(targets, source, sink):
             processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
         else:
             for i in sink.tensors[function]:
-                scalarized = Scalar(name='s%s' % i.function.name).indexify()
+                scalarized = Scalar(name='s%s%d' % (i.function.name, len(mapper))).indexify()
                 mapper[i] = scalarized
 
                 # Index bumping

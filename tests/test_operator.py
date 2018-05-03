@@ -812,6 +812,7 @@ class TestDeclarator(object):
 
     def test_heap_perfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle=None)
+        print( str(operator.ccode))
         assert """\
   float (*c)[j_size];
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
@@ -821,8 +822,8 @@ class TestDeclarator(object):
   {
     for (int j = j_m; j <= j_M; j += 1)
     {
-      float s0 = c[i][j];
-      c[i][j] = s0*c[i][j];
+      float sa0 = c[i][j];
+      c[i][j] = sa0*c[i][j];
     }
   }
   gettimeofday(&end_section0, NULL);
