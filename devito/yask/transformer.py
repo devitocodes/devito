@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 from devito.dimension import LoweredDimension
 from devito.ir.iet import FindNodes, Expression
 from devito.logger import yask_warning as warning
@@ -32,42 +30,54 @@ def yaskizer(trees, yc_soln):
         expressions = [i.expr for i in FindNodes(Expression).visit(tree.root)]
 
         # Attach conditional expression for sub-domains
-        conditions = OrderedDict([(i, []) for i in expressions])
+        conditions = [(i, []) for i in expressions]
         for i in tree:
             if not i.dim.is_Sub:
                 continue
 
             ydim = nfac.new_domain_index(i.dim.parent.name)
 
-            from IPython import embed; embed()
             # Lower extreme
             try:
-                value = nfac.new_const_number_node(int(i.dim.symbolic_ofs_lower))
-                expr = nfac.new_add_node(nfac.new_first_domain_index(ydim), value)
-                for k, v in conditions.items():
+                c = nfac.new_const_number_node(int(i.dim.symbolic_ofs_lower))
+                expr = nfac.new_add_node(nfac.new_first_domain_index(ydim), c)
+                for _, v in conditions:
                     v.append(nfac.new_not_less_than_node(ydim, expr))
             except TypeError:
-                pass
-                #if i.is_Sequential:
-                #    # Note: this may throw a TypeError exception if `extent()` is not
-                #    # a statically known value. This is desired behaviour.
-                #    unwinded = []
-                #    for r in range(i.extent()):
-                #        pass
-                #else:
-                #    raise NotImplementedError
+                    # Note: this may throw a TypeError exception if `extent()` is not
+                    # a statically known value. This is intended behaviour.
+                    unwinded = []
+                    for e, v in conditions:
+                        for r in reversed(range(i.extent())):
+                            c = nfac.new_const_number_node(r)
+                            expr = nfac.new_add_node(nfac.new_last_domain_index(ydim), c)
+                            condition = v + [nfac.new_not_less_than_node(ydim, expr)]
+                            unwinded.append((e, condition))
+                    conditions = unwinded
 
             # Upper extreme
             try:
-                value = nfac.new_const_number_node(int(i.dim.symbolic_ofs_upper))
-                expr = nfac.new_add_node(nfac.new_last_domain_index(ydim), value)
-                for k, v in conditions.items():
+                c = nfac.new_const_number_node(int(i.dim.symbolic_ofs_upper))
+                expr = nfac.new_add_node(nfac.new_last_domain_index(ydim), c)
+                for _, v in conditions:
                     v.append(nfac.new_not_greater_than_node(ydim, expr))
             except TypeError:
-                pass
+                if i.is_Sequential:
+                    # Note: this may throw a TypeError exception if `extent()` is not
+                    # a statically known value. This is intended behaviour.
+                    unwinded = []
+                    for e, v in conditions:
+                        for r in reversed(range(i.extent())):
+                            c = nfac.new_const_number_node(r)
+                            expr = nfac.new_add_node(nfac.new_first_domain_index(ydim), c)
+                            condition = v + [nfac.new_not_greater_than_node(ydim, expr)]
+                            unwinded.append((e, condition))
+                    conditions = unwinded
+                else:
+                    raise NotImplementedError
 
         # Build the YASK equations as well as all necessary grids
-        for k, v in conditions.items():
+        for k, v in conditions:
             yask_expr = handle(k, yc_soln, mapper)
 
             if yask_expr is not None:
@@ -82,9 +92,8 @@ def yaskizer(trees, yc_soln):
 
     # Add flow dependences to the offloaded equations
     # TODO: This can be improved by spotting supergroups ?
-    #for i in processed: print(i.format_simple())
-    #for to, frm in zip(processed, processed[1:]):
-    #    yc_soln.add_flow_dependency(frm, to)
+    for to, frm in zip(processed, processed[1:]):
+        yc_soln.add_flow_dependency(frm, to)
 
     return mapper
 
