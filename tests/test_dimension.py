@@ -192,7 +192,8 @@ class TestConditionalDimension(object):
         op = Operator(eqns)
         op.apply(time_M=nt-2)
         # Verify that u2[x,y]= u[2*x, 2*y]
-        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        print(u.data[nt-1])
+        assert np.all(np.allclose(u.data[nt-1], nt-1))
         assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
 
     # This test generates an openmp loop form which makes older gccs upset

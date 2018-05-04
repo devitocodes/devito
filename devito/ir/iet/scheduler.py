@@ -55,7 +55,6 @@ def iet_make(clusters):
     # Build IET
     for cluster in clusters:
         body = [Expression(e) for e in cluster.exprs]
-
         if cluster.ispace.empty:
             # No Iterations are needed
             processed.extend(body)
@@ -63,7 +62,6 @@ def iet_make(clusters):
 
         root = None
         itintervals = cluster.ispace.iteration_intervals
-
         # Can I reuse any of the previously scheduled Iterations ?
         index = 0
         for i0, i1 in zip(itintervals, list(schedule)):
@@ -72,7 +70,6 @@ def iet_make(clusters):
             root = schedule[i1]
             index += 1
         needed = itintervals[index:]
-
         # Build Expressions
         if not needed:
             body = List(body=body)
@@ -97,6 +94,7 @@ def iet_make(clusters):
         # If /needed/ is != [], root.dim might be a guarded dimension for /cluster/
         if root is not None and root.dim in cluster.guards:
             body = Conditional(cluster.guards[root.dim], body)
+
 
         # Update the current schedule
         if root is None:

@@ -78,6 +78,7 @@ def guard(clusters):
     for each conditional expression encountered in ``clusters``.
     """
     processed = ClusterGroup()
+
     for c in clusters:
         # Find out what expressions in /c/ should be guarded
         mapper = {}
@@ -93,6 +94,7 @@ def guard(clusters):
 
         # Expand with guarded clusters
         combs = list(powerset(mapper))
+        keys = [d.parent for d in mapper]
         for dims, ndims in zip(combs, reversed(combs)):
             banned = flatten(v for k, v in mapper.items() if k not in dims)
             exprs = [e.xreplace({i: IntDiv(i.parent, i.factor) for i in mapper})
@@ -106,8 +108,29 @@ def guard(clusters):
 
             guards = [(i.parent, conditions[i]) for i in dims]
             guards.extend([(i.parent, negated[i]) for i in ndims])
-            cluster = PartialCluster(exprs, c.ispace, c.dspace, c.atomics, dict(guards))
-            processed.append(cluster)
+            guards = dict(guards)
+            # cluster = PartialCluster(exprs, c.ispace, c.dspace, c.atomics, guards)
+            # processed.append(cluster)
+            #
+            # Ublgy merge of conditonals if both conditions
+            if len(processed) > 0:
+                # Check exisiting PartialCluster
+                for i in range(len(processed)):
+                    pr = processed[i]
+                    # Check common expression and common coditions
+                    if pr.exprs == exprs and any([a==b] for a, b in zip(pr.guards, guards)):
+                        for dim in keys:
+                            # Merge conditons if both Eq and Ne for a given expression
+                            if dim in pr.guards.keys() and pr.guards[dim] != guards[dim]:
+                                pr.guards.pop(dim)
+                    else:
+                        # Add condtional if not existing
+                        cluster = PartialCluster(exprs, c.ispace, c.dspace, c.atomics, guards)
+                        processed.append(cluster)
+            else:
+                # Add first cluster no matter what
+                cluster = PartialCluster(exprs, c.ispace, c.dspace, c.atomics, guards)
+                processed.append(cluster)
 
     return processed
 

@@ -168,18 +168,29 @@ def test_subsampled_fd():
     """
     nt = 19
     grid = Grid(shape=(12, 12))
+    time = grid.time_dim
 
     u = TimeFunction(name='u', grid=grid, save=nt, space_order=2)
+    assert(grid.time_dim in u.indices)
 
     # Creates subsampled spatial dimensions and according grid
     dims = tuple([ConditionalDimension(d.name+'sub', parent=d, factor=2)
                   for d in u.grid.dimensions])
     grid2 = Grid((6, 6), dimensions=dims)
-    u2 = TimeFunction(name='u2', grid=grid2, save=nt)
+    factor = 4
+    time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+    u2 = TimeFunction(name='u2', grid=grid2, save=nt, space_order=1)
+    for i in range(nt):
+        for j in range(u2.data.shape[2]):
+            u2.data[i, :, j] = np.linspace(1.0, 2.0, u2.data.shape[2])
 
-    eqns = [Eq(u.forward, u + 1.), Eq(u2, u2.dx + u)]
+    eqns = [Eq(u.forward, u + 1.), Eq(u2, u2.dx)]
     op = Operator(eqns, dse="advanced")
-    op.apply(time_M=nt-2)
+    op.apply(time_M=nt-2, x_m=3, x_M=9)
     # Verify that u2[x,y]= u[2*x, 2*y]
     assert np.all(np.allclose(u.data[-1], nt-1))
-    assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
+    assert np.allclose(u.data[:-3, 0:-1:2, 0:-1:2], u2.data[1:-2, :, :])
+
+
+if __name__ == "__main__":
+    test_subsampled_fd()
