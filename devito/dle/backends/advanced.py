@@ -98,8 +98,8 @@ class AdvancedRewriter(BasicRewriter):
                 dim = blocked.setdefault(i, Dimension(name=name))
                 bsize = dim.symbolic_size
                 bstart = i.limits[0]
-                binnersize = i.dim.symbolic_extent + (i.offsets[1] - i.offsets[0])
-                bfinish = i.dim.symbolic_end - (binnersize % bsize) - 1
+                binnersize = i.extent_symbolic + (i.offsets[1] - i.offsets[0])
+                bfinish = i.dim.symbolic_end - (binnersize % bsize)
                 inter_block = Iteration([], dim, [bstart, bfinish, bsize],
                                         offsets=i.offsets, properties=PARALLEL)
                 inter_blocks.append(inter_block)

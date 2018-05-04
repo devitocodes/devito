@@ -65,12 +65,6 @@ class Dimension(AbstractSymbol):
         return Scalar(name=self.max_name, dtype=np.int32)
 
     @property
-    def symbolic_extent(self):
-        """Return the extent of the loop over this dimension.
-        Would be the same as size if using default values """
-        return (self.symbolic_end - self.symbolic_start)
-
-    @property
     def limits(self):
         return (self.symbolic_start, self.symbolic_end, 1)
 
