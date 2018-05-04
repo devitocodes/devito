@@ -4,10 +4,11 @@ from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
 
 import numpy as np
 
-from devito import Eq, Grid, Function, TimeFunction, Dimension  # noqa
+from devito import Eq, Inc, Grid, Function, TimeFunction, Operator, Dimension  # noqa
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet.nodes import Conditional, Expression
+from devito.ir.iet.utils import retrieve_iteration_tree
 from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
                                      Any, Forward, Backward)
@@ -475,6 +476,36 @@ else
 {
   fc[x][y] = fc[x][y] + 2;
 }"""
+
+    def test_iteration_property_atomic(self):
+        """Tests detection of PARALLEL_IF_ATOMIC property."""
+        g = Grid(shape=(10, 10))
+        u = Function(name='u', grid=g)
+
+        p = Dimension(name='p')
+        d = Dimension(name='d')
+        rx = Dimension(name='rx')
+        ry = Dimension(name='ry')
+
+        coeff_x = Function(name='coeff_x', dimensions=(p, rx), shape=(1, 2))
+        coeff_y = Function(name='coeff_y', dimensions=(p, ry), shape=(1, 2))
+
+        gridpoints = Function(name='gridpoints', dimensions=(p, d), shape=(1, 2))
+        src = Function(name='src', dimensions=(p,), shape=(1,))
+
+        inject = Inc(u[gridpoints[p, 0]+rx, gridpoints[p, 1]+ry],
+                     u[gridpoints[p, 0]+rx, gridpoints[p, 1]+ry] +
+                     coeff_x*coeff_y*src)
+
+        op = Operator(inject, dle='advanced')
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+        inner = trees[0][-1]
+        assert inner.is_ParallelAtomic
+        assert inner.is_ParallelRelaxed
+        assert not inner.is_Parallel
+        assert not inner.is_Vectorizable
 
 
 @skipif_yask

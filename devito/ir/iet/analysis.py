@@ -79,8 +79,8 @@ def mark_parallel(analysis):
             dims = flatten(dims)
 
             # The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):
-            # test0 - (d_1, ..., d_{i-1}) > 0, OR
-            # test1 - (d_1, ..., d_i) = 0
+            # test0 := (d_1, ..., d_{i-1}) > 0, OR
+            # test1 := (d_1, ..., d_i) = 0
             is_parallel = True
 
             # The i-th Iteration is PARALLEL_IF_ATOMIC if for all dependeces:

@@ -509,7 +509,12 @@ class Dependence(object):
     def is_independent(self, dim=None):
         """Return True if a dimension-independent dependence, False otherwise."""
         try:
-            if dim is None or self.source.is_irregular or self.sink.is_irregular:
+            if self.source.is_irregular or self.sink.is_irregular:
+                # Note: we cannot just return `self.distance == 0` as an irregular
+                # source/sink might mean that an array is actually accessed indirectly
+                # (e.g., A[B[i]]), thus there would be no guarantee on independence
+                return False
+            elif dim is None:
                 return self.distance == 0
             else:
                 return all(i != self.cause for i in dim._defines)
