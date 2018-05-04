@@ -350,6 +350,10 @@ class Access(IterationInstance):
     def is_increment(self):
         return self.is_read_increment or self.is_write_increment
 
+    @property
+    def is_local(self):
+        return self.function.is_Symbol
+
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
         return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
@@ -516,8 +520,13 @@ class Dependence(object):
                 return False
             elif dim is None:
                 return self.distance == 0
+            elif self.source.is_local and self.sink.is_local:
+                # A dependence between two locally declared scalars
+                return True
             else:
-                return all(i != self.cause for i in dim._defines)
+                # Note: the check `i in self.findices` makes sure that `i` is not
+                # a reduction dimension
+                return all(i in self.findices and i != self.cause for i in dim._defines)
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False
