@@ -98,7 +98,7 @@ class AdvancedRewriter(BasicRewriter):
                 dim = blocked.setdefault(i, Dimension(name=name))
                 bsize = dim.symbolic_size
                 bstart = i.limits[0]
-                binnersize = i.extent_symbolic + (i.offsets[1] - i.offsets[0])
+                binnersize = i.symbolic_extent + (i.offsets[1] - i.offsets[0])
                 bfinish = i.dim.symbolic_end - (binnersize % bsize)
                 inter_block = Iteration([], dim, [bstart, bfinish, bsize],
                                         offsets=i.offsets, properties=PARALLEL)
@@ -255,7 +255,7 @@ class AdvancedRewriter(BasicRewriter):
                 continue
 
             # Dynamic trip count adjustment
-            endpoint = root.end_symbolic
+            endpoint = root.symbolic_end
             if not endpoint.is_Symbol:
                 continue
             condition = []
@@ -263,7 +263,7 @@ class AdvancedRewriter(BasicRewriter):
                             if i.is_Tensor)
             for i in root.uindices:
                 for j in externals:
-                    condition.append(root.end_symbolic + padding < j)
+                    condition.append(root.symbolic_end + padding < j)
             condition = ' && '.join(ccode(i) for i in condition)
             endpoint_padded = endpoint.func('_%s' % endpoint.name)
             init = cgen.Initializer(

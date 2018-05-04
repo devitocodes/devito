@@ -57,7 +57,7 @@ def autotune(operator, arguments, parameters, tunable):
     # ... Defaults (basic mode)
     blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
     # ... Always try the entire iteration space (degenerate block)
-    itershape = [mapper[i].iteration.extent_symbolic.subs(arguments) for i in mapper]
+    itershape = [mapper[i].iteration.symbolic_extent.subs(arguments) for i in mapper]
     blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j-1))
                       for i, j in zip(mapper, itershape)]))
     # ... More attempts if auto-tuning in aggressive mode

@@ -156,7 +156,7 @@ def optimize_unfolded_tree(unfolded, root):
             t1_uindex = (UnboundedIndex(index, t1.limits[0]),)
             t2_uindex = (UnboundedIndex(index, -t1.limits[0]),)
 
-            limits = (0, t1.limits[1] - t1.limits[0], t1.incr_symbolic)
+            limits = (0, t1.limits[1] - t1.limits[0], t1.symbolic_incr)
             modified_tree.append(t1._rebuild(limits=limits,
                                              uindices=t1.uindices + t1_uindex))
 
