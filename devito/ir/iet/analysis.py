@@ -23,7 +23,7 @@ class Analysis(object):
         self.iet = iet
         self.properties = OrderedDict()
 
-        self.trees = retrieve_iteration_tree(iet)
+        self.trees = retrieve_iteration_tree(iet, mode='superset')
         self.scopes = OrderedDict([(k, Scope([i.expr for i in v]))
                                    for k, v in MapIteration().visit(iet).items()])
 
