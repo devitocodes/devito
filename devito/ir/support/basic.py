@@ -526,7 +526,9 @@ class Dependence(object):
             else:
                 # Note: the check `i in self.findices` makes sure that `i` is not
                 # a reduction dimension
-                return all(i in self.findices and i != self.cause for i in dim._defines)
+                test0 = any(i in self.findices for i in dim._defines)
+                test1 = all(i != self.cause for i in dim._defines)
+                return test0 and test1
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False
