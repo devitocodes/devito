@@ -453,64 +453,66 @@ class Function(TensorFunction):
         Dynamically create notational shortcuts for space derivatives.
         """
         for dim in self.space_dimensions:
+            name = dim.parent.name if dim.is_Derived else dim.name
             # First derivative, centred
             dx = partial(first_derivative, order=self.space_order,
                          dim=dim, side=centered)
-            setattr(self.__class__, 'd%s' % dim.name,
+            setattr(self.__class__, 'd%s' % name,
                     property(dx, 'Return the symbolic expression for '
                              'the centered first derivative wrt. '
-                             'the %s dimension' % dim.name))
+                             'the %s dimension' % name))
 
             # First derivative, left
             dxl = partial(first_derivative, order=self.space_order,
                           dim=dim, side=left)
-            setattr(self.__class__, 'd%sl' % dim.name,
+            setattr(self.__class__, 'd%sl' % name,
                     property(dxl, 'Return the symbolic expression for '
                              'the left-sided first derivative wrt. '
-                             'the %s dimension' % dim.name))
+                             'the %s dimension' % name))
 
             # First derivative, right
             dxr = partial(first_derivative, order=self.space_order,
                           dim=dim, side=right)
-            setattr(self.__class__, 'd%sr' % dim.name,
+            setattr(self.__class__, 'd%sr' % name,
                     property(dxr, 'Return the symbolic expression for '
                              'the right-sided first derivative wrt. '
-                             'the %s dimension' % dim.name))
+                             'the %s dimension' % name))
 
             # Second derivative
             dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
                           fd_order=int(self.space_order / 2))
-            setattr(self.__class__, 'd%s2' % dim.name,
+            setattr(self.__class__, 'd%s2' % name,
                     property(dx2, 'Return the symbolic expression for '
                              'the second derivative wrt. the '
-                             '%s dimension' % dim.name))
+                             '%s dimension' % name))
 
             # Fourth derivative
             dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
                           fd_order=max(int(self.space_order / 2), 2))
-            setattr(self.__class__, 'd%s4' % dim.name,
+            setattr(self.__class__, 'd%s4' % name,
                     property(dx4, 'Return the symbolic expression for '
                              'the fourth derivative wrt. the '
-                             '%s dimension' % dim.name))
+                             '%s dimension' % name))
 
             for dim2 in self.space_dimensions:
+                name2 = dim2.parent.name if dim2.is_Derived else dim2.name
                 # First cross derivative
                 dxy = partial(cross_derivative, order=self.space_order,
                               dims=(dim, dim2))
-                setattr(self.__class__, 'd%s%s' % (dim.name, dim2.name),
+                setattr(self.__class__, 'd%s%s' % (name, name2),
                         property(dxy, 'Return the symbolic expression for '
                                  'the first cross derivative wrt. the '
                                  '%s and %s dimensions' %
-                                 (dim.name, dim2.name)))
+                                 (name, name2)))
 
                 # Second cross derivative
                 dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
                                 order=self.space_order)
-                setattr(self.__class__, 'd%s2%s2' % (dim.name, dim2.name),
+                setattr(self.__class__, 'd%s2%s2' % (dim.name, name2),
                         property(dx2y2, 'Return the symbolic expression for '
                                  'the second cross derivative wrt. the '
                                  '%s and %s dimensions' %
-                                 (dim.name, dim2.name)))
+                                 (name, name2)))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

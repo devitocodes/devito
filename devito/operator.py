@@ -346,7 +346,6 @@ class OperatorRunnable(Operator):
         """
         # Build the arguments list to invoke the kernel function
         args = self.arguments(**kwargs)
-
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         self.cfunction(*arg_values)
