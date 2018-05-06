@@ -484,6 +484,8 @@ else
         (['Eq(v.forward, u+1)', 'Eq(rcv, 0)',
           'Inc(rcv, rcv + v[t, gp[p, 0]+rx, gp[p, 1]+ry]*cx*cy)'],
          ['rx', 'ry'], ['x', 'y', 'p']),
+        (['Eq(v.forward, v[t+1, x+1, y]+v[t, x, y]+v[t, x+1, y])'],
+         [], ['y'])
     ])
     def test_iteration_parallelism(self, exprs, atomic, parallel):
         """Tests detection of PARALLEL_IF_ATOMIC property."""
@@ -517,6 +519,64 @@ else
         assert all(not i.is_ParallelAtomic for i in iters if i.dim.name not in atomic)
         assert all(i.is_Parallel for i in iters if i.dim.name in parallel)
         assert all(not i.is_Parallel for i in iters if i.dim.name not in parallel)
+
+    @pytest.mark.parametrize('exprs,atomic,parallel', [
+        (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz],'
+          ' u[gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz] + cx*cy*cz*src)'],
+         ['p', 'rx', 'ry', 'rz'], []),
+        (['Eq(rcv, 0)', 'Inc(rcv, rcv + cx*cy*cz)'],
+         ['rx', 'ry', 'rz'], ['time', 'p']),
+        (['Eq(v.forward, u+1)', 'Eq(rcv, 0)',
+          'Inc(rcv, rcv + v[t, gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz]*cx*cy*cz)'],
+         ['rx', 'ry', 'rz'], ['x', 'y', 'z', 'p']),
+        (['Eq(v.forward, v[t+1, x+1, y, z]+v[t, x, y, z]+v[t, x+1, y, z])'],
+         [], ['y', 'z']),
+        (['Eq(v.forward, v[t+1, x-1, y, z]+v[t, x, y, z]+v[t, x-1, y, z])'],
+         [], ['y', 'z']),
+        (['Eq(v.forward, v[t+1, x, y+1, z]+v[t, x, y, z]+v[t, x, y+1, z])'],
+         [], ['x', 'z']),
+        (['Eq(v.forward, v[t+1, x, y-1, z]+v[t, x, y, z]+v[t, x, y-1, z])'],
+         [], ['x', 'z']),
+        (['Eq(v.forward, v[t+1, x, y, z+1]+v[t, x, y, z]+v[t, x, y, z+1])'],
+         [], ['x', 'y']),
+        (['Eq(v.forward, v[t+1, x, y, z-1]+v[t, x, y, z]+v[t, x, y, z-1])'],
+         [], ['x', 'y'])
+    ])
+    def test_iteration_parallelism_3d(self, exprs, atomic, parallel):
+        """Tests detection of PARALLEL_IF_ATOMIC property."""
+        grid = Grid(shape=(10, 10, 10))
+        time = grid.time_dim  # noqa
+        t = grid.stepping_dim  # noqa
+
+        p = Dimension(name='p')
+        d = Dimension(name='d')
+        rx = Dimension(name='rx')
+        ry = Dimension(name='ry')
+        rz = Dimension(name='rz')
+
+        u = Function(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='u', grid=grid, save=None)  # noqa
+
+        cx = Function(name='coeff_x', dimensions=(p, rx), shape=(1, 2))  # noqa
+        cy = Function(name='coeff_y', dimensions=(p, ry), shape=(1, 2))  # noqa
+        cz = Function(name='coeff_z', dimensions=(p, rz), shape=(1, 2))  # noqa
+
+        gp = Function(name='gridpoints', dimensions=(p, d), shape=(1, 3))  # noqa
+        src = Function(name='src', dimensions=(p,), shape=(1,))  # noqa
+        rcv = Function(name='rcv', dimensions=(time, p), shape=(100, 1), space_order=0)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
+
+        # Use 'openmp' here instead of 'advanced' to disable loop blocking
+        op = Operator(exprs, dle='openmp')
+
+        iters = FindNodes(Iteration).visit(op)
+        assert all([i.is_ParallelAtomic for i in iters if i.dim.name in atomic])
+        assert all([not i.is_ParallelAtomic for i in iters if i.dim.name not in atomic])
+        assert all([i.is_Parallel for i in iters if i.dim.name in parallel])
+        assert all([not i.is_Parallel for i in iters if i.dim.name not in parallel])
 
 
 @skipif_yask
