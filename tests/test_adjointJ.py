@@ -3,6 +3,7 @@ import pytest
 from numpy import linalg
 from conftest import skipif_yask
 
+from devito import clear_cache
 from devito.logger import info
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -12,6 +13,7 @@ from examples.seismic.acoustic import AcousticWaveSolver
 @pytest.mark.parametrize('space_order', [4, 8, 12])
 @pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
 def test_acousticJ(shape, space_order):
+    clear_cache()
     t0 = 0.0  # Start time
     tn = 1000.  # Final time
     nrec = shape[0]  # Number of receivers
