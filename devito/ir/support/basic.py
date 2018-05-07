@@ -4,7 +4,7 @@ from sympy import Basic, S
 from devito.dimension import Dimension
 from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
-from devito.tools import as_tuple, is_integer, filter_sorted
+from devito.tools import as_tuple, is_integer, filter_sorted, flatten
 
 __all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
 
@@ -175,7 +175,6 @@ class IterationInstance(Vector):
 
     def __new__(cls, indexed):
         obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
-        # findices
         obj.findices = tuple(indexed.base.function.indices)
         if len(obj.findices) != len(set(obj.findices)):
             raise ValueError("Illegal non-unique `findices`")
@@ -469,6 +468,10 @@ class Dependence(object):
         self.distance = source.distance(sink)
 
     @property
+    def _defined_findices(self):
+        return set(flatten(i._defines for i in self.findices))
+
+    @property
     def cause(self):
         """Return the findex causing the dependence (if any -- return None if
         the dependence is between scalars)."""
@@ -524,9 +527,10 @@ class Dependence(object):
                 # A dependence between two locally declared scalars
                 return True
             else:
-                # Note: the check `i in self.findices` makes sure that `i` is not
-                # a reduction dimension
-                test0 = any(i in self.findices for i in dim._defines)
+                # Note: the check `i in self._defined_findices` makes sure that `i`
+                # is not a reduction dimension, in which case `self` would indeed be
+                # a dimension-dependent dependence
+                test0 = any(i in self._defined_findices for i in dim._defines)
                 test1 = all(i != self.cause for i in dim._defines)
                 return test0 and test1
         except TypeError:
