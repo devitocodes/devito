@@ -2,8 +2,11 @@ import pytest
 
 from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
 
-from devito import Eq, Grid, TimeFunction  # noqa
+import numpy as np
+
+from devito import Eq, Grid, Function, TimeFunction, Dimension  # noqa
 from devito.ir.equations import DummyEq, LoweredEq
+from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet.nodes import Conditional, Expression
 from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
@@ -290,11 +293,6 @@ def test_dependences_eq(expr, expected, ti0, ti1, fa):
     (['Eq(ti0[x,y,z], ti1[x,y,z])',
       'Eq(ti3[x,y,z], ti0[y+1,y,y])'],
      ['ti0,flow,x', 'ti0,anti,x']),
-    # Data indices don't match iteration indices, so conservatively assume
-    # all sort of deps
-    (['Eq(ti0[x,y,z], ti1[x,y,z])',
-      'Eq(ti3[x,y,z], ti0[x,y,x])'],
-     ['ti0,flow,z', 'ti0,anti,z']),
 ])
 def test_dependences_scope(exprs, expected, ti0, ti1, ti3, fa):
     """
@@ -487,3 +485,29 @@ else
 {
   fc[x][y] = fc[x][y] + 2;
 }"""
+
+
+@skipif_yask
+@pytest.mark.parametrize('expr,expected', [
+    ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d, x, y]')
+])
+def test_dimension_sort(expr, expected):
+    """
+    Tests that ``dimension_sort()`` provides meaningful :class:`Dimension` orderings.
+    """
+    grid = Grid(shape=(10, 10))
+    p = Dimension('p')
+    r = Dimension('r')
+    d = Dimension('d')
+    time = grid.time_dim  # noqa
+    x, y = grid.dimensions
+
+    a = Function(name='a', dimensions=(time, p), shape=(10, 1))  # noqa
+    b = Function(name='b', dimensions=(time, x, y), shape=(10, 10, 10))  # noqa
+    c = Function(name='c', shape=(1, 2),  # noqa
+                 dimensions=(p, d), dtype=np.int32)
+    f = Function(name='f', dimensions=(p, r), shape=(1, 1))  # noqa
+
+    expr = eval(expr)
+
+    assert dimension_sort(expr, lambda i: not i.is_Time) == eval(expected)
