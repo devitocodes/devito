@@ -78,7 +78,7 @@ class AnisotropicWaveSolver(object):
                              save=self.source.nt if save else None,
                              time_order=2, space_order=self.space_order)
         # Pick m from model unless explicitly provided
-        kwargs.update(self.model.physical_params(m, epsilon=epsilon, delta=delta,
+        kwargs.update(self.model.physical_params(m=m, epsilon=epsilon, delta=delta,
                                                  theta=theta, phi=phi))
         # Execute operator and return wavefield and receiver data
         op = self.op_fwd(kernel, save)
