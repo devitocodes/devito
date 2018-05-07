@@ -79,12 +79,17 @@ class YaskKernel(object):
         self.env = kfac.new_env()
         self.soln = kfac.new_solution(self.env)
 
+        # Apply any user-provided options, if any.
+        # These are applied here instead of just before prepare_solution()
+        # so that applicable options will apply to all API calls.
+        self.soln.apply_command_line_options(configuration.yask['options'] or '')
+
         # MPI setup: simple rank configuration in 1st dim only.
         # TODO: in production runs, the ranks would be distributed along all
         # domain dimensions.
         self.soln.set_num_ranks(self.space_dimensions[0], self.env.get_num_ranks())
 
-        # Redirect stdout/strerr to a string or file
+        # Redirect stdout to a string or file
         if configuration.yask['dump']:
             filename = 'yk_dump.%s.%s.%s.txt' % (self.name,
                                                  configuration['platform'],
@@ -143,12 +148,11 @@ class YaskKernel(object):
                       (i.get_name(), str(i.get_dim_names()), size))
             else:
                 size = [i.get_rank_domain_size(j) for j in self.space_dimensions]
-                pad = [i.get_pad_size(j) for j in self.space_dimensions]
-                debug("    Grid: %s%s, size=%s, pad=%s" %
-                      (i.get_name(), str(i.get_dim_names()), size, pad))
+                lpad = [i.get_left_pad_size(j) for j in self.space_dimensions]
+                rpad = [i.get_right_pad_size(j) for j in self.space_dimensions]
+                debug("    Grid: %s%s, size=%s, left_pad=%s, right_pad=%s" %
+                      (i.get_name(), str(i.get_dim_names()), size, lpad, rpad))
 
-        # Apply any user-provided option, if any
-        self.soln.apply_command_line_options(configuration.yask['options'] or '')
         # Set up the block shape for loop blocking
         for i, j in zip(self.space_dimensions, configuration.yask['blockshape']):
             self.soln.set_block_size(i, j)
@@ -264,13 +268,11 @@ class YaskContext(object):
                 assert grid.get_alloc_size(i.name) == s
             else:
                 # Note:
-                # 1) The halo is set to a value which is the max between the number
-                # of points on the left and the number of points on the right of
-                # the approximation (the same with a centered approximation)
-                # 2) from the YASK docs: "If the halo is set to a value larger than
+                # From the YASK docs: "If the halo is set to a value larger than
                 # the padding size, the padding size will be automatically increased
-                # to accomodate it
-                grid.set_halo_size(i.name, max(h))
+                # to accomodate it."
+                grid.set_left_halo_size(i.name, h.left)
+                grid.set_right_halo_size(i.name, h.right)
         grid.alloc_storage()
 
         self.grids[name] = grid
