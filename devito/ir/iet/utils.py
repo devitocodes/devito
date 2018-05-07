@@ -1,4 +1,4 @@
-from devito.ir.iet import Iteration, List, FindSections, FindSymbols
+from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
 from devito.tools import as_tuple, flatten
 from devito.types import Array
 
@@ -31,7 +31,7 @@ def retrieve_iteration_tree(node, mode='normal'):
     """
     assert mode in ('normal', 'superset')
 
-    trees = [i for i in FindSections().visit(node) if i]
+    trees = [IterationTree(i) for i in FindSections().visit(node) if i]
     if mode == 'normal':
         return trees
     else:
@@ -40,7 +40,7 @@ def retrieve_iteration_tree(node, mode='normal'):
             if any(set(i).issubset(set(j)) for j in trees if i != j):
                 continue
             match.append(i)
-        return match
+        return IterationTree(match)
 
 
 def filter_iterations(tree, key=lambda i: i, stop=lambda: False):

@@ -1,5 +1,7 @@
 import abc
 from collections import OrderedDict
+from functools import reduce
+from operator import mul
 
 from frozendict import frozendict
 
@@ -49,8 +51,10 @@ class AbstractInterval(object):
 
     merge = union
 
-    def subtract(self, o):
+    def add(self, o):
         return self._rebuild()
+
+    subtract = add
 
     def negate(self):
         return self._rebuild()
@@ -113,7 +117,7 @@ class Interval(AbstractInterval):
         self.lower = lower
         self.upper = upper
         self.min_extent = abs(upper - lower)
-        self.extent = dim.symbolic_size + self.min_extent
+        self.extent = dim.symbolic_extent + 1 + self.min_extent
 
     def __repr__(self):
         return "%s[%s, %s]" % (self.dim, self.lower, self.upper)
@@ -147,6 +151,12 @@ class Interval(AbstractInterval):
             return self._rebuild()
         else:
             return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper))
+
+    def add(self, o):
+        if self.dim != o.dim or o.is_Null:
+            return self._rebuild()
+        else:
+            return Interval(self.dim, self.lower + o.lower, self.upper + o.upper)
 
     def subtract(self, o):
         if self.dim != o.dim or o.is_Null:
@@ -200,6 +210,14 @@ class IntervalGroup(tuple):
         return filter_ordered([i.dim for i in self])
 
     @property
+    def extent(self):
+        return reduce(mul, [i.extent for i in self]) if self else 0
+
+    @property
+    def shape(self):
+        return tuple(i.extent for i in self)
+
+    @property
     def is_well_defined(self):
         """
         Return True if all :class:`Interval`s are over different :class:`Dimension`s,
@@ -237,6 +255,11 @@ class IntervalGroup(tuple):
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.intersection(mapper.get(i.dim, i)) for i in self]
+        return IntervalGroup(intervals)
+
+    def add(self, o):
+        mapper = OrderedDict([(i.dim, i) for i in o])
+        intervals = [i.add(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
         return IntervalGroup(intervals)
 
     def subtract(self, o):
@@ -362,6 +385,14 @@ class Space(object):
     @property
     def dimensions(self):
         return filter_ordered(self.intervals.dimensions)
+
+    @property
+    def extent(self):
+        return self.intervals.extent
+
+    @property
+    def shape(self):
+        return self.intervals.shape
 
 
 class DataSpace(Space):
@@ -511,7 +542,7 @@ class IterationSpace(Space):
         return self._directions
 
     @property
-    def iteration_intervals(self):
+    def itintervals(self):
         return tuple(IterationInterval(i, self.directions[i.dim]) for i in self.intervals)
 
     @property
