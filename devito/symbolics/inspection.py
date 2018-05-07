@@ -1,13 +1,12 @@
 from collections import Counter
 
-from sympy import Indexed, cos, sin
+from sympy import cos, sin
 
-from devito.symbolics.search import retrieve_indexed, retrieve_ops, search
-from devito.symbolics.queries import q_timedimension
+from devito.symbolics.search import retrieve_ops, search
 from devito.logger import warning
 from devito.tools import flatten
 
-__all__ = ['count', 'estimate_cost', 'estimate_memory']
+__all__ = ['count', 'estimate_cost']
 
 
 def count(exprs, query):
@@ -62,50 +61,3 @@ def estimate_cost(handle, estimate_functions=False):
         return flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
-
-
-def estimate_memory(handle, mode='realistic'):
-    """
-    Estimate the number of memory reads and writes.
-
-    :param handle: a SymPy expression or an iterator of SymPy expressions.
-    :param mode: Mode for computing the estimate:
-
-    Estimate ``mode`` might be any of: ::
-
-        * ideal: Also known as "compulsory traffic", which is the minimum
-                 number of read/writes to be performed (ie, models an infinite cache).
-        * ideal_with_stores: Like ideal, but a data item which is both read.
-                             and written is counted twice (ie both load an
-                             store are counted).
-        * realistic: Assume that all datasets, even the time-independent ones,
-                     need to be re-read at each time iteration.
-    """
-    assert mode in ['ideal', 'ideal_with_stores', 'realistic']
-
-    def access(symbol):
-        assert isinstance(symbol, Indexed)
-        # Irregular accesses (eg A[B[i]]) are counted as compulsory traffic
-        if any(i.atoms(Indexed) for i in symbol.indices):
-            return symbol
-        else:
-            return symbol.base
-
-    try:
-        # Is it a plain SymPy object ?
-        iter(handle)
-    except TypeError:
-        handle = [handle]
-
-    if mode in ['ideal', 'ideal_with_stores']:
-        filter = lambda s: any(q_timedimension(i) for i in s.atoms())
-    else:
-        filter = lambda s: s
-    reads = set(flatten([retrieve_indexed(e.rhs) for e in handle]))
-    writes = set(flatten([retrieve_indexed(e.lhs) for e in handle]))
-    reads = set([access(s) for s in reads if filter(s)])
-    writes = set([access(s) for s in writes if filter(s)])
-    if mode == 'ideal':
-        return len(set(reads) | set(writes))
-    else:
-        return len(reads) + len(writes)
