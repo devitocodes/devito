@@ -493,11 +493,12 @@ else
         (['Eq(v.forward, v[t+1, x, y-1]+v[t, x, y]+v[t, x, y-1])'],
          [], ['x'])
     ])
-    def test_iteration_parallelism(self, exprs, atomic, parallel):
-        """Tests detection of PARALLEL_IF_ATOMIC property."""
+    def test_iteration_parallelism_2d(self, exprs, atomic, parallel):
+        """Tests detection of PARALLEL_* properties."""
         grid = Grid(shape=(10, 10))
         time = grid.time_dim  # noqa
         t = grid.stepping_dim  # noqa
+        x, y = grid.dimensions  # noqa
 
         p = Dimension(name='p')
         d = Dimension(name='d')
@@ -549,10 +550,11 @@ else
          [], ['x', 'y'])
     ])
     def test_iteration_parallelism_3d(self, exprs, atomic, parallel):
-        """Tests detection of PARALLEL_IF_ATOMIC property."""
+        """Tests detection of PARALLEL_* properties."""
         grid = Grid(shape=(10, 10, 10))
         time = grid.time_dim  # noqa
         t = grid.stepping_dim  # noqa
+        x, y, z = grid.dimensions  # noqa
 
         p = Dimension(name='p')
         d = Dimension(name='d')
