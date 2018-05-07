@@ -555,13 +555,11 @@
 <span class="sd">    :param mode: Drive the search. Accepted values are: ::</span>
 
 <span class="sd">        * &#39;symbolics&#39;: Collect :class:`AbstractSymbol` objects.</span>
-<span class="sd">        * &#39;symbolics-writes&#39;: Collect written :class:`AbstractSymbol` objects.</span>
 <span class="sd">        * &#39;free-symbols&#39;: Collect all free symbols.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">rules</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;symbolics&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">functions</span><span class="p">,</span>
-        <span class="s1">&#39;symbolics-writes&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">write</span><span class="p">),</span>
         <span class="s1">&#39;free-symbols&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">,</span>
         <span class="s1">&#39;defines&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">defines</span><span class="p">),</span>
     <span class="p">}</span>

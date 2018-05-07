@@ -29,7 +29,7 @@
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="devito.ir.support package" href="devito.ir.support.html" />
+    <link rel="next" title="devito.ir.stree package" href="devito.ir.stree.html" />
     <link rel="prev" title="devito.ir.equations package" href="devito.ir.equations.html" /> 
 
   
@@ -285,15 +285,20 @@ perform actual data dependence analysis.</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Node.is_Element">
 <code class="descname">is_Element</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.iet.nodes.Node.is_Element" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">_traversable</span></code>. The traversable fields of the Node; that is, fields
-walked over by a <code class="xref py py-class docutils literal notranslate"><span class="pre">Visitor</span></code>. All arguments in __init__ whose name
-appears in this list are treated as traversable fields.</p>
-</dd></dl>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Node.is_Expression">
 <code class="descname">is_Expression</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.iet.nodes.Node.is_Expression" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Node.is_ExpressionBundle">
+<code class="descname">is_ExpressionBundle</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.iet.nodes.Node.is_ExpressionBundle" title="Permalink to this definition">¶</a></dt>
+<dd><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">_traversable</span></code>. The traversable fields of the Node; that is, fields
+walked over by a <code class="xref py py-class docutils literal notranslate"><span class="pre">Visitor</span></code>. All arguments in __init__ whose name
+appears in this list are treated as traversable fields.</p>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Node.is_Iteration">
@@ -313,6 +318,11 @@ appears in this list are treated as traversable fields.</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Node.is_Node">
 <code class="descname">is_Node</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Node.is_Node" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Node.is_Section">
+<code class="descname">is_Section</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.iet.nodes.Node.is_Section" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -884,6 +894,62 @@ defines the data, as well as the dimension sizes.</p>
 
 </dd></dl>
 
+<dl class="class">
+<dt id="devito.ir.iet.nodes.IterationTree">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">IterationTree</code><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#IterationTree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
+<p>Represent a sequence of nested :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Iteration`s.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.IterationTree.inner">
+<code class="descname">inner</code><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree.inner" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.IterationTree.root">
+<code class="descname">root</code><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree.root" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.iet.nodes.Section">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Section</code><span class="sig-paren">(</span><em>name</em>, <em>body=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Section"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Section" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.List" title="devito.ir.iet.nodes.List"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.List</span></code></a></p>
+<p>A sequence of nodes.</p>
+<p>Functionally, a <a class="reference internal" href="#devito.ir.iet.nodes.Section" title="devito.ir.iet.nodes.Section"><code class="xref py py-class docutils literal notranslate"><span class="pre">Section</span></code></a> is identical to a <a class="reference internal" href="#devito.ir.iet.nodes.List" title="devito.ir.iet.nodes.List"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>; that is,
+they generate the same code (i.e., their <code class="docutils literal notranslate"><span class="pre">body</span></code>). However, a Section should
+be used to define sub-trees that, for some reasons, have a relevance within
+the IET (e.g., groups of statements that logically represent the same
+computation unit).</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Section.is_Sequence">
+<code class="descname">is_Sequence</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Section.is_Sequence" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Section.roots">
+<code class="descname">roots</code><a class="headerlink" href="#devito.ir.iet.nodes.Section.roots" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.iet.nodes.ExpressionBundle">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">ExpressionBundle</code><span class="sig-paren">(</span><em>shape</em>, <em>ops</em>, <em>traffic</em>, <em>body=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#ExpressionBundle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.ExpressionBundle" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.List" title="devito.ir.iet.nodes.List"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.List</span></code></a></p>
+<p>A sequence of :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Expression`s.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ExpressionBundle.exprs">
+<code class="descname">exprs</code><a class="headerlink" href="#devito.ir.iet.nodes.ExpressionBundle.exprs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.ExpressionBundle.is_ExpressionBundle">
+<code class="descname">is_ExpressionBundle</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.ExpressionBundle.is_ExpressionBundle" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.ir.iet.properties">
 <span id="devito-ir-iet-properties-module"></span><h2>devito.ir.iet.properties module<a class="headerlink" href="#module-devito.ir.iet.properties" title="Permalink to this headline">¶</a></h2>
@@ -953,8 +1019,8 @@ u[t+1, …] = f(u[t, …], u[t-1, …]) –&gt; u[t-1, …] = f(u[t, …], u[t-1
 <span id="devito-ir-iet-scheduler-module"></span><h2>devito.ir.iet.scheduler module<a class="headerlink" href="#module-devito.ir.iet.scheduler" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="devito.ir.iet.scheduler.iet_build">
-<code class="descclassname">devito.ir.iet.scheduler.</code><code class="descname">iet_build</code><span class="sig-paren">(</span><em>clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/scheduler.html#iet_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.scheduler.iet_build" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create an Iteration/Expression tree (IET) given an iterable of :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Cluster`s.
+<code class="descclassname">devito.ir.iet.scheduler.</code><code class="descname">iet_build</code><span class="sig-paren">(</span><em>stree</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/scheduler.html#iet_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.scheduler.iet_build" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create an Iteration/Expression tree (IET) from a <code class="xref py py-class docutils literal notranslate"><span class="pre">ScheduleTree</span></code>.
 The nodes in the returned IET are decorated with properties deriving from
 data dependence analysis.</p>
 </dd></dl>
@@ -1079,7 +1145,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x152457674268&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x1524576741e0&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14c324c9bd08&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14c324c9bc80&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1161,7 +1227,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x152457672e18&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x152457672d90&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x152457672c80&gt;, 'symbolics-writes': &lt;function FindSymbols.&lt;lambda&gt; at 0x152457672d08&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x14c324c9b950&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14c324c9b8c8&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14c324c9b840&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1276,7 +1342,7 @@ tree to their respective section.</p>
 <dt id="devito.ir.iet.visitors.CGen">
 <em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">CGen</code><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.visitors.Visitor</span></code></p>
-<p>Return a representation of the Iteration/Expression tree as a <a href="#id3"><span class="problematic" id="id4">:module:`cgen`</span></a> tree.</p>
+<p>Return a representation of the Iteration/Expression tree as a <a href="#id5"><span class="problematic" id="id6">:module:`cgen`</span></a> tree.</p>
 <dl class="method">
 <dt id="devito.ir.iet.visitors.CGen.visit_ArrayCast">
 <code class="descname">visit_ArrayCast</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_ArrayCast"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_ArrayCast" title="Permalink to this definition">¶</a></dt>
@@ -1493,7 +1559,7 @@ enclosed <code class="xref py py-class docutils literal notranslate"><span class
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="devito.ir.support.html" class="btn btn-neutral float-right" title="devito.ir.support package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="devito.ir.stree.html" class="btn btn-neutral float-right" title="devito.ir.stree package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="devito.ir.equations.html" class="btn btn-neutral" title="devito.ir.equations package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

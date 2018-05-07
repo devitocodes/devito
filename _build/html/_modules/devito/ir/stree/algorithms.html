@@ -1,0 +1,329 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.ir.stree.algorithms &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+      <li>devito.ir.stree.algorithms</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.ir.stree.algorithms</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">anytree</span> <span class="k">import</span> <span class="n">findall</span>
+
+<span class="kn">from</span> <span class="nn">devito.ir.stree.tree</span> <span class="k">import</span> <span class="p">(</span><span class="n">ScheduleTree</span><span class="p">,</span> <span class="n">NodeIteration</span><span class="p">,</span> <span class="n">NodeConditional</span><span class="p">,</span>
+                                  <span class="n">NodeExprs</span><span class="p">,</span> <span class="n">NodeSection</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">,</span> <span class="s1">&#39;section&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="schedule"><a class="viewcode-back" href="../../../../devito.ir.stree.html#devito.ir.stree.algorithms.schedule">[docs]</a><span class="k">def</span> <span class="nf">schedule</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Arrange an iterable of :class:`Cluster`s into a :class:`ScheduleTree`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">stree</span> <span class="o">=</span> <span class="n">ScheduleTree</span><span class="p">()</span>
+
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
+        <span class="n">pointers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+
+        <span class="c1"># Find out if any of the existing nodes can be reused</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">stree</span>
+        <span class="k">for</span> <span class="n">it0</span><span class="p">,</span> <span class="n">it1</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">itintervals</span><span class="p">,</span> <span class="n">pointers</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">it0</span> <span class="o">!=</span> <span class="n">it1</span> <span class="ow">or</span> <span class="n">it0</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">it0</span><span class="p">]</span>
+            <span class="n">index</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">it0</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">guards</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="c1"># The reused sub-trees might acquire some new sub-iterators</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pointers</span><span class="p">[:</span><span class="n">index</span><span class="p">]:</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
+        <span class="c1"># Later sub-trees, instead, will not be used anymore</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pointers</span><span class="p">[</span><span class="n">index</span><span class="p">:]:</span>
+            <span class="n">mapper</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="c1"># Add in Iterations</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">itintervals</span><span class="p">[</span><span class="n">index</span><span class="p">:]:</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="n">NodeIteration</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">project</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">]),</span> <span class="n">root</span><span class="p">)</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span>
+
+        <span class="c1"># Add in Expressions</span>
+        <span class="n">NodeExprs</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ops</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">traffic</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
+
+        <span class="c1"># Add in Conditionals</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">guards</span><span class="p">:</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">NodeConditional</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">guards</span><span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">dim</span><span class="p">])</span>
+                <span class="n">v</span><span class="o">.</span><span class="n">last</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">node</span>
+                <span class="n">node</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">v</span>
+
+    <span class="k">return</span> <span class="n">stree</span></div>
+
+
+<div class="viewcode-block" id="section"><a class="viewcode-back" href="../../../../devito.ir.stree.html#devito.ir.stree.algorithms.section">[docs]</a><span class="k">def</span> <span class="nf">section</span><span class="p">(</span><span class="n">stree</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create sections in a :class:`ScheduleTree`. A section is a sub-tree with</span>
+<span class="sd">    the following properties: ::</span>
+
+<span class="sd">        * The root is a node of type :class:`NodeSection`;</span>
+<span class="sd">        * The immediate children of the root are nodes of type :class:`NodeIteration`</span>
+<span class="sd">          and have same parent.</span>
+<span class="sd">        * The :class:`Dimension` of the immediate children are either: ::</span>
+<span class="sd">            * identical, OR</span>
+<span class="sd">            * different, but all of type :class:`SubDimension`;</span>
+<span class="sd">        * The :class:`Dimension` of the immediate children cannot be a</span>
+<span class="sd">          :class:`TimeDimension`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">class</span> <span class="nc">Section</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">parent</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">dim</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[</span><span class="n">node</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">is_compatible</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">==</span> <span class="n">node</span><span class="o">.</span><span class="n">parent</span>
+                    <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">node</span><span class="o">.</span><span class="n">dim</span> <span class="ow">or</span> <span class="n">node</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Sub</span><span class="p">))</span>
+
+    <span class="c1"># Search candidate sections</span>
+    <span class="n">sections</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">stree</span><span class="o">.</span><span class="n">height</span><span class="p">):</span>
+        <span class="c1"># Find all sections at depth `i`</span>
+        <span class="n">section</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">findall</span><span class="p">(</span><span class="n">stree</span><span class="p">,</span> <span class="n">filter_</span><span class="o">=</span><span class="k">lambda</span> <span class="n">n</span><span class="p">:</span> <span class="n">n</span><span class="o">.</span><span class="n">depth</span> <span class="o">==</span> <span class="n">i</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">p</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">nodes</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">n</span><span class="o">.</span><span class="n">ancestors</span><span class="p">):</span>
+                <span class="c1"># Already within a section</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Iteration</span> <span class="ow">or</span> <span class="n">n</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">:</span>
+                <span class="n">section</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">elif</span> <span class="n">section</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">section</span><span class="o">.</span><span class="n">is_compatible</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="n">section</span> <span class="o">=</span> <span class="n">Section</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+                <span class="n">sections</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">section</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">section</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+
+    <span class="c1"># Transform the schedule tree by adding in sections</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">:</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">NodeSection</span><span class="p">()</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">children</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+                <span class="n">n</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">node</span>
+                <span class="k">if</span> <span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">:</span>
+                    <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="n">processed</span>
+
+    <span class="k">return</span> <span class="n">stree</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            LANGUAGE:'en',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
+      });
+  </script> 
+
+</body>
+</html>

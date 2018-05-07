@@ -1,0 +1,409 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.ir.stree package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="devito.ir.support package" href="devito.ir.support.html" />
+    <link rel="prev" title="devito.ir.iet package" href="devito.ir.iet.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.foreign.html">devito.foreign package</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="devito.ir.html">devito.ir package</a><ul class="current">
+<li class="toctree-l4 current"><a class="reference internal" href="devito.ir.html#subpackages">Subpackages</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.html#module-devito.ir">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.grid">devito.grid module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.logger">devito.logger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="devito.html">devito package</a> &raquo;</li>
+        
+          <li><a href="devito.ir.html">devito.ir package</a> &raquo;</li>
+        
+      <li>devito.ir.stree package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/devito.ir.stree.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="devito-ir-stree-package">
+<h1>devito.ir.stree package<a class="headerlink" href="#devito-ir-stree-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-devito.ir.stree.algorithms">
+<span id="devito-ir-stree-algorithms-module"></span><h2>devito.ir.stree.algorithms module<a class="headerlink" href="#module-devito.ir.stree.algorithms" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.ir.stree.algorithms.schedule">
+<code class="descclassname">devito.ir.stree.algorithms.</code><code class="descname">schedule</code><span class="sig-paren">(</span><em>clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/algorithms.html#schedule"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.algorithms.schedule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Arrange an iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">Cluster`s</span> <span class="pre">into</span> <span class="pre">a</span> <span class="pre">:class:`ScheduleTree</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.stree.algorithms.section">
+<code class="descclassname">devito.ir.stree.algorithms.</code><code class="descname">section</code><span class="sig-paren">(</span><em>stree</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/algorithms.html#section"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.algorithms.section" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create sections in a <code class="xref py py-class docutils literal notranslate"><span class="pre">ScheduleTree</span></code>. A section is a sub-tree with
+the following properties:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* The root is a node of type :class:`NodeSection`;
+* The immediate children of the root are nodes of type :class:`NodeIteration`
+  and have same parent.
+* The :class:`Dimension` of the immediate children are either: ::
+    * identical, OR
+    * different, but all of type :class:`SubDimension`;
+* The :class:`Dimension` of the immediate children cannot be a
+  :class:`TimeDimension`.
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.ir.stree.tree">
+<span id="devito-ir-stree-tree-module"></span><h2>devito.ir.stree.tree module<a class="headerlink" href="#module-devito.ir.stree.tree" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.ir.stree.tree.ScheduleTree">
+<em class="property">class </em><code class="descclassname">devito.ir.stree.tree.</code><code class="descname">ScheduleTree</code><span class="sig-paren">(</span><em>parent=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/tree.html#ScheduleTree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">anytree.node.nodemixin.NodeMixin</span></code></p>
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.ScheduleTree.is_Conditional">
+<code class="descname">is_Conditional</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree.is_Conditional" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.ScheduleTree.is_Exprs">
+<code class="descname">is_Exprs</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree.is_Exprs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.ScheduleTree.is_Iteration">
+<code class="descname">is_Iteration</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree.is_Iteration" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.ScheduleTree.is_Section">
+<code class="descname">is_Section</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree.is_Section" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.ScheduleTree.last">
+<code class="descname">last</code><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree.last" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.stree.tree.ScheduleTree.visit">
+<code class="descname">visit</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/tree.html#ScheduleTree.visit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree.visit" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.stree.tree.NodeSection">
+<em class="property">class </em><code class="descclassname">devito.ir.stree.tree.</code><code class="descname">NodeSection</code><span class="sig-paren">(</span><em>parent=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/tree.html#NodeSection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.tree.NodeSection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.stree.tree.ScheduleTree" title="devito.ir.stree.tree.ScheduleTree"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.stree.tree.ScheduleTree</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeSection.is_Section">
+<code class="descname">is_Section</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.stree.tree.NodeSection.is_Section" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.stree.tree.NodeIteration">
+<em class="property">class </em><code class="descclassname">devito.ir.stree.tree.</code><code class="descname">NodeIteration</code><span class="sig-paren">(</span><em>ispace</em>, <em>parent=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/tree.html#NodeIteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.tree.NodeIteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.stree.tree.ScheduleTree" title="devito.ir.stree.tree.ScheduleTree"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.stree.tree.ScheduleTree</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeIteration.dim">
+<code class="descname">dim</code><a class="headerlink" href="#devito.ir.stree.tree.NodeIteration.dim" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeIteration.direction">
+<code class="descname">direction</code><a class="headerlink" href="#devito.ir.stree.tree.NodeIteration.direction" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeIteration.interval">
+<code class="descname">interval</code><a class="headerlink" href="#devito.ir.stree.tree.NodeIteration.interval" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeIteration.is_Iteration">
+<code class="descname">is_Iteration</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.stree.tree.NodeIteration.is_Iteration" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeIteration.limits">
+<code class="descname">limits</code><a class="headerlink" href="#devito.ir.stree.tree.NodeIteration.limits" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeIteration.sub_iterators">
+<code class="descname">sub_iterators</code><a class="headerlink" href="#devito.ir.stree.tree.NodeIteration.sub_iterators" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.stree.tree.NodeConditional">
+<em class="property">class </em><code class="descclassname">devito.ir.stree.tree.</code><code class="descname">NodeConditional</code><span class="sig-paren">(</span><em>guard</em>, <em>parent=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/tree.html#NodeConditional"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.tree.NodeConditional" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.stree.tree.ScheduleTree" title="devito.ir.stree.tree.ScheduleTree"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.stree.tree.ScheduleTree</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeConditional.is_Conditional">
+<code class="descname">is_Conditional</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.stree.tree.NodeConditional.is_Conditional" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.stree.tree.NodeExprs">
+<em class="property">class </em><code class="descclassname">devito.ir.stree.tree.</code><code class="descname">NodeExprs</code><span class="sig-paren">(</span><em>exprs</em>, <em>shape</em>, <em>ops</em>, <em>traffic</em>, <em>parent=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/tree.html#NodeExprs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.tree.NodeExprs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.stree.tree.ScheduleTree" title="devito.ir.stree.tree.ScheduleTree"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.stree.tree.ScheduleTree</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeExprs.is_Exprs">
+<code class="descname">is_Exprs</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.stree.tree.NodeExprs.is_Exprs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.ir.stree">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.ir.stree" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="devito.ir.support.html" class="btn btn-neutral float-right" title="devito.ir.support package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="devito.ir.iet.html" class="btn btn-neutral" title="devito.ir.iet package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1',
+            LANGUAGE:'en',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
+      });
+  </script> 
+
+</body>
+</html>

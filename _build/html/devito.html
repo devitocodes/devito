@@ -270,6 +270,13 @@
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.iet.html#module-devito.ir.iet">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="devito.ir.stree.html">devito.ir.stree package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.stree.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.stree.html#module-devito.ir.stree.algorithms">devito.ir.stree.algorithms module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.stree.html#module-devito.ir.stree.tree">devito.ir.stree.tree module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="devito.ir.stree.html#module-devito.ir.stree">Module contents</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.support.html">devito.ir.support package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#submodules">Submodules</a></li>
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.support.html#module-devito.ir.support.basic">devito.ir.support.basic module</a></li>
@@ -2681,50 +2688,13 @@ a suitable NUMA strategy.</p>
 </div>
 <div class="section" id="module-devito.profiling">
 <span id="devito-profiling-module"></span><h2>devito.profiling module<a class="headerlink" href="#module-devito.profiling" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.profiling.Profile">
-<em class="property">class </em><code class="descclassname">devito.profiling.</code><code class="descname">Profile</code><span class="sig-paren">(</span><em>name</em>, <em>ops</em>, <em>memory</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.profiling.Profile" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
-<p>Metadata for a profiled code section.</p>
-<dl class="attribute">
-<dt id="devito.profiling.Profile.memory">
-<code class="descname">memory</code><a class="headerlink" href="#devito.profiling.Profile.memory" title="Permalink to this definition">¶</a></dt>
-<dd><p>Alias for field number 2</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.profiling.Profile.name">
-<code class="descname">name</code><a class="headerlink" href="#devito.profiling.Profile.name" title="Permalink to this definition">¶</a></dt>
-<dd><p>Alias for field number 0</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.profiling.Profile.ops">
-<code class="descname">ops</code><a class="headerlink" href="#devito.profiling.Profile.ops" title="Permalink to this definition">¶</a></dt>
-<dd><p>Alias for field number 1</p>
-</dd></dl>
-
-</dd></dl>
-
 <dl class="function">
 <dt id="devito.profiling.create_profile">
-<code class="descclassname">devito.profiling.</code><code class="descname">create_profile</code><span class="sig-paren">(</span><em>name</em>, <em>node</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#create_profile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.create_profile" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a <code class="xref py py-class docutils literal notranslate"><span class="pre">Profiler</span></code> for the Iteration/Expression tree <code class="docutils literal notranslate"><span class="pre">node</span></code>.
-The following code sections are profiled:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* The whole ``node``;
-* A sequence of perfectly nested loops that have common :class:`Iteration`
-  dimensions, but possibly different extent. For example: ::
-
-    for x = 0 to N
-      ..
-    for x = 1 to N-1
-      ..
-
-  Both Iterations have dimension ``x``, and will be profiled as a single
-  section, though their extent is different.
-* Any perfectly nested loops.
-</pre></div>
-</div>
+<code class="descclassname">devito.profiling.</code><code class="descname">create_profile</code><span class="sig-paren">(</span><em>name</em>, <em>iet</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#create_profile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.create_profile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Enrich the Iteration/Expression tree <code class="docutils literal notranslate"><span class="pre">iet</span></code> adding nodes for C-level
+performance profiling. In particular, turn all <code class="xref py py-class docutils literal notranslate"><span class="pre">Section`s</span> <span class="pre">within</span> <span class="pre">``iet`</span></code>
+into :class:<a href="#id9"><span class="problematic" id="id10">`</span></a>TimedList`s.</p>
+<p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">Profiler</span></code> is returned to access profiling data.</p>
 </dd></dl>
 
 </div>

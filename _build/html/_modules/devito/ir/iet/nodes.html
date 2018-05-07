@@ -173,7 +173,10 @@
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Element&#39;</span><span class="p">,</span> <span class="s1">&#39;Callable&#39;</span><span class="p">,</span>
            <span class="s1">&#39;Call&#39;</span><span class="p">,</span> <span class="s1">&#39;Conditional&#39;</span><span class="p">,</span> <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span> <span class="s1">&#39;LocalExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;TimedList&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;UnboundedIndex&#39;</span><span class="p">,</span> <span class="s1">&#39;MetaCall&#39;</span><span class="p">,</span> <span class="s1">&#39;ArrayCast&#39;</span><span class="p">,</span> <span class="s1">&#39;PointerCast&#39;</span><span class="p">,</span> <span class="s1">&#39;ForeignExpression&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;UnboundedIndex&#39;</span><span class="p">,</span> <span class="s1">&#39;MetaCall&#39;</span><span class="p">,</span> <span class="s1">&#39;ArrayCast&#39;</span><span class="p">,</span> <span class="s1">&#39;PointerCast&#39;</span><span class="p">,</span> <span class="s1">&#39;ForeignExpression&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;IterationTree&#39;</span><span class="p">,</span> <span class="s1">&#39;Section&#39;</span><span class="p">,</span> <span class="s1">&#39;ExpressionBundle&#39;</span><span class="p">]</span>
+
+<span class="c1"># First-class IET nodes</span>
 
 
 <div class="viewcode-block" id="Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Node">[docs]</a><span class="k">class</span> <span class="nc">Node</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -189,6 +192,8 @@
     <span class="n">is_Call</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_List</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Element</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Section</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_ExpressionBundle</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    :attr:`_traversable`. The traversable fields of the Node; that is, fields</span>
@@ -464,9 +469,7 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">direction</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pragmas</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">uindices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="c1"># Ensure we deal with a list of Expression objects internally</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dimension</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">direction</span> <span class="o">=</span> <span class="n">direction</span> <span class="ow">or</span> <span class="n">Forward</span>
@@ -733,7 +736,7 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">condition</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span></div>
 
 
-<span class="c1"># Utilities</span>
+<span class="c1"># Second level IET nodes</span>
 
 <div class="viewcode-block" id="TimedList"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.TimedList">[docs]</a><span class="k">class</span> <span class="nc">TimedList</span><span class="p">(</span><span class="n">List</span><span class="p">):</span>
 
@@ -904,6 +907,75 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="Section"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Section">[docs]</a><span class="k">class</span> <span class="nc">Section</span><span class="p">(</span><span class="n">List</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A sequence of nodes.</span>
+
+<span class="sd">    Functionally, a :class:`Section` is identical to a :class:`List`; that is,</span>
+<span class="sd">    they generate the same code (i.e., their ``body``). However, a Section should</span>
+<span class="sd">    be used to define sub-trees that, for some reasons, have a relevance within</span>
+<span class="sd">    the IET (e.g., groups of statements that logically represent the same</span>
+<span class="sd">    computation unit).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Sequence</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Section</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;Section (</span><span class="si">%d</span><span class="s2">)&gt;&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">roots</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body</span></div>
+
+
+<div class="viewcode-block" id="ExpressionBundle"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.ExpressionBundle">[docs]</a><span class="k">class</span> <span class="nc">ExpressionBundle</span><span class="p">(</span><span class="n">List</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A sequence of :class:`Expression`s.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_ExpressionBundle</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">traffic</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ExpressionBundle</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ops</span> <span class="o">=</span> <span class="n">ops</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">traffic</span> <span class="o">=</span> <span class="n">traffic</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;ExpressionBundle (</span><span class="si">%d</span><span class="s2">)&gt;&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body</span></div>
+
+
+<span class="c1"># Utility classes</span>
+
+
+<div class="viewcode-block" id="IterationTree"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.IterationTree">[docs]</a><span class="k">class</span> <span class="nc">IterationTree</span><span class="p">(</span><span class="nb">tuple</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represent a sequence of nested :class:`Iteration`s.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">inner</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;IterationTree</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationTree</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="UnboundedIndex"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.UnboundedIndex">[docs]</a><span class="k">class</span> <span class="nc">UnboundedIndex</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>

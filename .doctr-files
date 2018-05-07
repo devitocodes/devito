@@ -11,6 +11,7 @@
 ./_build/doctrees/devito.ir.doctree
 ./_build/doctrees/devito.ir.equations.doctree
 ./_build/doctrees/devito.ir.iet.doctree
+./_build/doctrees/devito.ir.stree.doctree
 ./_build/doctrees/devito.ir.support.doctree
 ./_build/doctrees/devito.symbolics.doctree
 ./_build/doctrees/download.doctree
@@ -65,6 +66,8 @@
 ./_build/html/_modules/devito/ir/iet/scheduler.html
 ./_build/html/_modules/devito/ir/iet/utils.html
 ./_build/html/_modules/devito/ir/iet/visitors.html
+./_build/html/_modules/devito/ir/stree/algorithms.html
+./_build/html/_modules/devito/ir/stree/tree.html
 ./_build/html/_modules/devito/ir/support/basic.html
 ./_build/html/_modules/devito/ir/support/space.html
 ./_build/html/_modules/devito/ir/support/stencil.html
@@ -107,6 +110,7 @@
 ./_build/html/_sources/devito.ir.equations.rst.txt
 ./_build/html/_sources/devito.ir.iet.rst.txt
 ./_build/html/_sources/devito.ir.rst.txt
+./_build/html/_sources/devito.ir.stree.rst.txt
 ./_build/html/_sources/devito.ir.support.rst.txt
 ./_build/html/_sources/devito.rst.txt
 ./_build/html/_sources/devito.symbolics.rst.txt
@@ -170,6 +174,7 @@
 ./_build/html/devito.ir.equations.html
 ./_build/html/devito.ir.html
 ./_build/html/devito.ir.iet.html
+./_build/html/devito.ir.stree.html
 ./_build/html/devito.ir.support.html
 ./_build/html/devito.symbolics.html
 ./_build/html/download.html
@@ -199,6 +204,7 @@
 ./devito.ir.equations.rst
 ./devito.ir.iet.rst
 ./devito.ir.rst
+./devito.ir.stree.rst
 ./devito.ir.support.rst
 ./devito.rst
 ./devito.symbolics.rst

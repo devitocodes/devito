@@ -152,14 +152,13 @@
   <h1>Source code for devito.symbolics.inspection</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Counter</span>
 
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span>
 
-<span class="kn">from</span> <span class="nn">devito.symbolics.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_ops</span><span class="p">,</span> <span class="n">search</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics.queries</span> <span class="k">import</span> <span class="n">q_timedimension</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics.search</span> <span class="k">import</span> <span class="n">retrieve_ops</span><span class="p">,</span> <span class="n">search</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_cost&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_memory&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_cost&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="count"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.count">[docs]</a><span class="k">def</span> <span class="nf">count</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
@@ -214,53 +213,6 @@
         <span class="k">return</span> <span class="n">flops</span>
     <span class="k">except</span><span class="p">:</span>
         <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Cannot estimate cost of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span></div>
-
-
-<div class="viewcode-block" id="estimate_memory"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.inspection.estimate_memory">[docs]</a><span class="k">def</span> <span class="nf">estimate_memory</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;realistic&#39;</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Estimate the number of memory reads and writes.</span>
-
-<span class="sd">    :param handle: a SymPy expression or an iterator of SymPy expressions.</span>
-<span class="sd">    :param mode: Mode for computing the estimate:</span>
-
-<span class="sd">    Estimate ``mode`` might be any of: ::</span>
-
-<span class="sd">        * ideal: Also known as &quot;compulsory traffic&quot;, which is the minimum</span>
-<span class="sd">                 number of read/writes to be performed (ie, models an infinite cache).</span>
-<span class="sd">        * ideal_with_stores: Like ideal, but a data item which is both read.</span>
-<span class="sd">                             and written is counted twice (ie both load an</span>
-<span class="sd">                             store are counted).</span>
-<span class="sd">        * realistic: Assume that all datasets, even the time-independent ones,</span>
-<span class="sd">                     need to be re-read at each time iteration.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">assert</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ideal&#39;</span><span class="p">,</span> <span class="s1">&#39;ideal_with_stores&#39;</span><span class="p">,</span> <span class="s1">&#39;realistic&#39;</span><span class="p">]</span>
-
-    <span class="k">def</span> <span class="nf">access</span><span class="p">(</span><span class="n">symbol</span><span class="p">):</span>
-        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span>
-        <span class="c1"># Irregular accesses (eg A[B[i]]) are counted as compulsory traffic</span>
-        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Indexed</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">symbol</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
-            <span class="k">return</span> <span class="n">symbol</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">symbol</span><span class="o">.</span><span class="n">base</span>
-
-    <span class="k">try</span><span class="p">:</span>
-        <span class="c1"># Is it a plain SymPy object ?</span>
-        <span class="nb">iter</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">handle</span><span class="p">]</span>
-
-    <span class="k">if</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ideal&#39;</span><span class="p">,</span> <span class="s1">&#39;ideal_with_stores&#39;</span><span class="p">]:</span>
-        <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="nb">any</span><span class="p">(</span><span class="n">q_timedimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">atoms</span><span class="p">())</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span>
-    <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]))</span>
-    <span class="n">writes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]))</span>
-    <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">access</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">reads</span> <span class="k">if</span> <span class="nb">filter</span><span class="p">(</span><span class="n">s</span><span class="p">)])</span>
-    <span class="n">writes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">access</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">writes</span> <span class="k">if</span> <span class="nb">filter</span><span class="p">(</span><span class="n">s</span><span class="p">)])</span>
-    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;ideal&#39;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">writes</span><span class="p">))</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

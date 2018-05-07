@@ -166,9 +166,9 @@
 <span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">BlockingArg</span><span class="p">,</span> <span class="n">Ompizer</span><span class="p">,</span> <span class="n">dle_pass</span><span class="p">,</span>
                                  <span class="n">simdinfo</span><span class="p">,</span> <span class="n">get_simd_flag</span><span class="p">,</span> <span class="n">get_simd_items</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span>
-                           <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">compose_nodes</span><span class="p">,</span>
-                           <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span>
+                           <span class="n">tagger</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
+                           <span class="n">Transformer</span><span class="p">,</span> <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
@@ -387,8 +387,8 @@
                 <span class="k">continue</span>
 
             <span class="c1"># Padding</span>
-            <span class="n">writes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics-writes&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-                      <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span><span class="p">]</span>
+            <span class="n">writes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">write</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+                      <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">is_Array</span><span class="p">]</span>
             <span class="n">padding</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">writes</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>

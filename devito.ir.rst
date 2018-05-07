@@ -9,6 +9,7 @@ Subpackages
     devito.ir.clusters
     devito.ir.equations
     devito.ir.iet
+    devito.ir.stree
     devito.ir.support
 
 Module contents
