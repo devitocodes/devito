@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import numpy as np
 import cgen as c
-from devito.symbolics import retrieve_indexed
+
 from mpmath.libmp import prec_to_dps, to_str
 from sympy import Function
 from sympy.printing.ccode import C99CodePrinter
@@ -66,8 +66,8 @@ class CodePrinter(C99CodePrinter):
 
     :param settings: A dictionary containing relevant settings
     """
-    def __init__(self, dtype=np.float32, settings={}):
-        self.dtype = dtype
+    def __init__(self, settings={}):
+        self.dtype = settings.pop('dtype', np.float32)
         C99CodePrinter.__init__(self, settings)
         self.known_functions.update(self.custom_functions)
 
@@ -170,14 +170,7 @@ def ccode(expr, **settings):
     :param settings: A dictionary of settings for code printing
     :returns: The resulting code as a string. If it fails, then it returns the expr
     """
-    dtype = np.float32
-    try:
-        indexed = list(retrieve_indexed(expr))
-        if len(indexed) > 0:
-            dtype = indexed[0].dtype
-    except:
-        'no indexed'
-    return CodePrinter(dtype=dtype, settings=settings).doprint(expr, None)
+    return CodePrinter(settings=settings).doprint(expr, None)
 
 
 blankline = c.Line("")

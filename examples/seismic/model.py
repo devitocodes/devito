@@ -266,24 +266,19 @@ def damp_boundary(damp, nbpml, spacing):
     """
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
     assert all(damp._offset_domain[0] == i for i in damp._offset_domain)
-    for i in range(nbpml):
-        pos = np.abs((nbpml - i + 1) / float(nbpml))
-        val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-        if damp.ndim == 1:
-            damp.data[i] += val/spacing[0]
-            damp.data[-(i + 1)] += val/spacing[0]
-        elif damp.ndim == 2:
-            damp.data[i, :] += val/spacing[0]
-            damp.data[-(i + 1), :] += val/spacing[0]
-            damp.data[:, i] += val/spacing[1]
-            damp.data[:, -(i + 1)] += val/spacing[1]
-        else:
-            damp.data[i, :, :] += val/spacing[0]
-            damp.data[-(i + 1), :, :] += val/spacing[0]
-            damp.data[:, i, :] += val/spacing[1]
-            damp.data[:, -(i + 1), :] += val/spacing[1]
-            damp.data[:, :, i] += val/spacing[2]
-            damp.data[:, :, -(i + 1)] += val/spacing[2]
+    for i in range(damp.ndim):
+        for j in range(nbpml):
+            # Dampening coefficient
+            pos = np.abs((nbpml - j + 1) / float(nbpml))
+            val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+            # : slices
+            all_ind = [slice(0, d) for d in damp.data.shape]
+            # Left slice for dampening for dimension i
+            all_ind[i] = slice(j, j+1)
+            damp.data[all_ind] += val/spacing[i]
+            # right slice for dampening for dimension i
+            all_ind[i] = slice(damp.data.shape[i]-j, damp.data.shape[i]-j-1, -1)
+            damp.data[all_ind] += val/spacing[i]
 
 
 def initialize_function(function, data, nbpml):
@@ -322,6 +317,7 @@ class Model(object):
     """
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
+        self._physical_parameters = ('m', 'epsilon', 'delta', 'theta', 'phi')
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
@@ -389,17 +385,12 @@ class Model(object):
         else:
             self.phi = 0
 
-    def physical_params(self, m, **kwargs):
+    def physical_params(self, **kwargs):
         """
         Return all set physical parameters
         """
-        all_phys = [self.m, self.epsilon, self.delta, self.theta, self.phi]
-        params = []
-        for phys in all_phys:
-            if isinstance(phys, Function):
-                arg_in = kwargs.get(phys.name, None) or phys
-                params += [(phys.name, arg_in)]
-        return dict(params)
+        known = [getattr(self, i) for i in self._physical_parameters]
+        return {i.name: kwargs.get(i.name, i) for i in known if i is not None}
 
     @property
     def dim(self):

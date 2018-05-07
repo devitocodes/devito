@@ -209,11 +209,15 @@ class CGen(Visitor):
         return o.element
 
     def visit_Expression(self, o):
-        return c.Assign(ccode(o.expr.lhs), ccode(o.expr.rhs))
+        c_type = {'dtype': o.dtype}
+        return c.Assign(ccode(o.expr.lhs, **c_type),
+                        ccode(o.expr.rhs, **c_type))
 
     def visit_LocalExpression(self, o):
+        c_type = {'dtype': o.dtype}
         return c.Initializer(c.Value(c.dtype_to_ctype(o.dtype),
-                             ccode(o.expr.lhs)), ccode(o.expr.rhs))
+                             ccode(o.expr.lhs, **c_type)),
+                             ccode(o.expr.rhs, **c_type))
 
     def visit_ForeignExpression(self, o):
         return c.Statement(ccode(o.expr))
