@@ -66,8 +66,8 @@ class CodePrinter(C99CodePrinter):
 
     :param settings: A dictionary containing relevant settings
     """
-    def __init__(self, settings={}):
-        self.dtype = settings.pop('dtype', np.float32)
+    def __init__(self, dtype=np.float32, settings={}):
+        self.dtype = dtype
         C99CodePrinter.__init__(self, settings)
         self.known_functions.update(self.custom_functions)
 
@@ -163,14 +163,14 @@ class CodePrinter(C99CodePrinter):
         return str(expr)
 
 
-def ccode(expr, **settings):
+def ccode(expr, dtype=np.float32, **settings):
     """Generate C++ code from an expression calling CodePrinter class
 
     :param expr: The expression
     :param settings: A dictionary of settings for code printing
     :returns: The resulting code as a string. If it fails, then it returns the expr
     """
-    return CodePrinter(settings=settings).doprint(expr, None)
+    return CodePrinter(dtype=dtype, settings=settings).doprint(expr, None)
 
 
 blankline = c.Line("")
