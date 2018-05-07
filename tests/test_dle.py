@@ -439,25 +439,3 @@ def test_loops_collapsed(fe, t0, t1, t2, t3, exprs, expected, iters):
         else:
             for k in pragmas:
                 assert 'omp for collapse' not in k.value
-
-
-def test_parallel_bclike():
-    grid = Grid(shape=(20, 20, 20))
-    x, y, z = grid.dimensions
-    time = grid.time_dim
-    t = grid.stepping_dim
-
-    u = TimeFunction(name='u', grid=grid, save=None, time_order=2)
-
-    # left boundary type operation
-    expr = Eq(u[t+1, x, y, z], u[t+1, x, y+1, z]
-              + u[t, x, y, z] + u[t, x, y+1, z])
-
-    op = Operator(expr, dle=('openmp',))
-    iterations = retrieve_iteration_tree(op)
-
-    # Expect time, x, y, z
-    expected = (False, True, False, True)
-    assert len(iterations[0]) == len(expected)
-    for i in range(len(expected)):
-        assert iterations[0][i].is_Parallel == expected[i]
