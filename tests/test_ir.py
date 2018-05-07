@@ -485,7 +485,13 @@ else
           'Inc(rcv, rcv + v[t, gp[p, 0]+rx, gp[p, 1]+ry]*cx*cy)'],
          ['rx', 'ry'], ['x', 'y', 'p']),
         (['Eq(v.forward, v[t+1, x+1, y]+v[t, x, y]+v[t, x+1, y])'],
-         [], ['y'])
+         [], ['y']),
+        (['Eq(v.forward, v[t+1, x-1, y]+v[t, x, y]+v[t, x-1, y])'],
+         [], ['y']),
+        (['Eq(v.forward, v[t+1, x, y+1]+v[t, x, y]+v[t, x, y+1])'],
+         [], ['x']),
+        (['Eq(v.forward, v[t+1, x, y-1]+v[t, x, y]+v[t, x, y-1])'],
+         [], ['x'])
     ])
     def test_iteration_parallelism(self, exprs, atomic, parallel):
         """Tests detection of PARALLEL_IF_ATOMIC property."""
