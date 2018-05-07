@@ -66,7 +66,7 @@ class Operator(OperatorRunnable):
         if len(offloadable) == 0:
             log("No offloadable trees found")
         elif len(offloadable) == 1:
-            tree, grid, dtype = offloadable[0]
+            tree, bundle, grid, dtype = offloadable[0]
             self.context = contexts.fetch(grid, dtype)
 
             # Create a YASK compiler solution for this Operator
@@ -74,7 +74,7 @@ class Operator(OperatorRunnable):
 
             transform = sympy2yask(self.context, yc_soln)
             try:
-                for i in tree[-1].nodes:
+                for i in bundle.exprs:
                     transform(i.expr)
 
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'], ['time'],
@@ -276,11 +276,14 @@ def find_offloadable_trees(iet):
         if not parallel:
             # Cannot offload non-parallel loops
             continue
-        if not (IsPerfectIteration().visit(parallel[0]) and
-                all(i.is_Expression for i in tree[-1].nodes)):
-            # Don't know how to offload this Iteration/Expression to YASK
+        bundle = tree.inner.nodes[0]
+        if len(tree.inner.nodes) > 1 or not bundle.is_ExpressionBundle:
+            # Illegal nest
             continue
-        functions = flatten(i.functions for i in tree[-1].nodes)
+        if not IsPerfectIteration().visit(parallel[0]):
+            # Don't know how to offload non-perfect nests
+            continue
+        functions = flatten(i.functions for i in bundle.exprs)
         keys = set((i.grid, i.dtype) for i in functions if i.is_TimeFunction)
         if len(keys) == 0:
             continue
@@ -291,5 +294,5 @@ def find_offloadable_trees(iet):
         dims = [i.dim for i in tree]
         if all(i in dims for i in grid.dimensions) and\
                 any(j in dims for j in [grid.time_dim, grid.stepping_dim]):
-            offloadable.append((tree, grid, dtype))
+            offloadable.append((tree, bundle, grid, dtype))
     return offloadable

@@ -802,15 +802,15 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
 
@@ -819,8 +819,8 @@ class TestDeclarator(object):
         assert """\
   float (*c)[j_size];
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
     for (int j = j_m; j <= j_M; j += 1)
@@ -829,9 +829,9 @@ class TestDeclarator(object):
       c[i][j] = s0*c[i][j];
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   free(c);
   return 0;""" in str(operator.ccode)
 
@@ -842,8 +842,8 @@ class TestDeclarator(object):
   float (*c)[j_size];
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = 0.0F;
@@ -852,9 +852,9 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
@@ -865,17 +865,17 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
     a[i] = 3.0F*t0*t1;
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
 
@@ -883,8 +883,8 @@ class TestDeclarator(object):
         operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle=None)
         assert """\
   float c_stack[i_size][j_size] __attribute__((aligned(64)));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int k = k_m; k <= k_M; k += 1)
   {
     for (int s = s_m; s <= s_M; s += 1)
@@ -901,9 +901,9 @@ class TestDeclarator(object):
       }
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   return 0;""" in str(operator.ccode)
 
 
@@ -1074,8 +1074,8 @@ class TestLoopScheduler(object):
         outer, inner = trees
         assert len(outer) == 2 and len(inner) == 3
         assert all(i == j for i, j in zip(outer, inner[:-1]))
-        assert outer[-1].nodes[0].expr.rhs == eq1.rhs
-        assert inner[-1].nodes[0].expr.rhs == eq2.rhs
+        assert outer[-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
+        assert inner[-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
 
     def test_equations_emulate_bc(self, t0):
         """
@@ -1100,8 +1100,8 @@ class TestLoopScheduler(object):
         op = Operator([eq1, eq2], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].expr.rhs == eq1.rhs
-        assert trees[1][-1].nodes[0].expr.rhs == eq2.rhs
+        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
+        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
 
     @pytest.mark.parametrize('exprs', [
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
@@ -1118,8 +1118,8 @@ class TestLoopScheduler(object):
         op = Operator(eqs, dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].expr.rhs == eqs[0].rhs
-        assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
+        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eqs[0].rhs
+        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eqs[1].rhs
 
     @pytest.mark.parametrize('shape, dimensions', [((11, 11), (x, y)),
                                                    ((11, 11), (y, x)),
@@ -1182,9 +1182,9 @@ class TestLoopScheduler(object):
         op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
-        assert len(trees[0][-1].nodes) == 2
-        assert trees[0][-1].nodes[0].write == u1
-        assert trees[0][-1].nodes[1].write == u2
+        assert len(trees[0][-1].nodes[0].exprs) == 2
+        assert trees[0][-1].nodes[0].exprs[0].write == u1
+        assert trees[0][-1].nodes[0].exprs[1].write == u2
 
     def test_flow_detection(self):
         """

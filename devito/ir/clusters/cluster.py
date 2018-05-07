@@ -4,7 +4,8 @@ from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.clusters.graph import FlowGraph
-from devito.ir.support import DataSpace, IterationSpace
+from devito.ir.support import DataSpace, IterationSpace, detect_io
+from devito.symbolics import estimate_cost
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -41,6 +42,18 @@ class PartialCluster(object):
     @property
     def ispace(self):
         return self._ispace
+
+    @property
+    def itintervals(self):
+        return self._ispace.itintervals
+
+    @property
+    def extent(self):
+        return self.ispace.extent
+
+    @property
+    def shape(self):
+        return self.ispace.shape
 
     @property
     def dspace(self):
@@ -89,6 +102,40 @@ class PartialCluster(object):
             return dtypes.pop()
         else:
             raise ValueError("Unsupported Cluster [mixed integer arithmetic ?]")
+
+    @property
+    def ops(self):
+        """
+        Return the floating point operations performed by this Cluster.
+        """
+        return self.extent*sum(estimate_cost(i) for i in self.exprs)
+
+    @property
+    def traffic(self):
+        """
+        Return the compulsary traffic (number of reads/writes) generated
+        by this Cluster, as a mapper from tensor objects to :class:`IntervalGroup`s.
+
+        .. note::
+
+            If a tensor object is both read and written, then it is counted twice.
+        """
+        reads, writes = detect_io(self.exprs, relax=True)
+        accesses = [(i, 'r') for i in reads] + [(i, 'w') for i in writes]
+        ret = {}
+        for i, mode in accesses:
+            if not i.is_Tensor:
+                continue
+            elif i in self.dspace.parts:
+                # Stencils extend the data spaces beyond the iteration spaces
+                intervals = self.dspace.parts[i]
+                # Assume that invariant dimensions always cause new loads/stores
+                invariants = self.ispace.intervals.drop(intervals.dimensions)
+                intervals = intervals.generate('union', invariants, intervals)
+                ret[(i, mode)] = intervals
+            else:
+                ret[(i, mode)] = self.ispace.intervals
+        return ret
 
     @exprs.setter
     def exprs(self, val):

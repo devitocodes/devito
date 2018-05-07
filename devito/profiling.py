@@ -1,121 +1,87 @@
 from __future__ import absolute_import
 
-import operator
 from collections import OrderedDict, namedtuple
 from functools import reduce
+from operator import mul
 
 from ctypes import Structure, byref, c_double
 from cgen import Struct, Value
 
-from devito.ir.iet import (Expression, TimedList, FindNodes, Transformer,
-                           FindAdjacentIterations, retrieve_iteration_tree)
-from devito.symbolics import estimate_cost, estimate_memory
+from devito.ir.iet import (ExpressionBundle, TimedList, Section, FindNodes,
+                           Transformer)
+from devito.ir.support import IntervalGroup
+from devito.symbolics import estimate_cost
 from devito.tools import flatten
 
-__all__ = ['Profile', 'create_profile']
+__all__ = ['create_profile']
 
 
-def create_profile(name, node):
+def create_profile(name, iet):
     """
-    Create a :class:`Profiler` for the Iteration/Expression tree ``node``.
-    The following code sections are profiled: ::
+    Enrich the Iteration/Expression tree ``iet`` adding nodes for C-level
+    performance profiling. In particular, turn all :class:`Section`s within ``iet``
+    into :class:`TimedList`s.
 
-        * The whole ``node``;
-        * A sequence of perfectly nested loops that have common :class:`Iteration`
-          dimensions, but possibly different extent. For example: ::
-
-            for x = 0 to N
-              ..
-            for x = 1 to N-1
-              ..
-
-          Both Iterations have dimension ``x``, and will be profiled as a single
-          section, though their extent is different.
-        * Any perfectly nested loops.
+    A :class:`Profiler` is returned to access profiling data.
     """
+    sections = FindNodes(Section).visit(iet)
+
+    # Construct the Profiler
     profiler = Profiler(name)
+    for section in sections:
+        # All ExpressionBundles within `section`
+        bundles = FindNodes(ExpressionBundle).visit(section)
 
-    trees = retrieve_iteration_tree(node)
-    if not trees:
-        return node, profiler
+        # Total operation count
+        ops = sum(i.ops for i in bundles)
 
-    adjacents = [flatten(i) for i in FindAdjacentIterations().visit(node).values() if i]
+        # Operation count at each section iteration
+        sops = sum(estimate_cost(i.expr) for i in flatten(b.exprs for b in bundles))
 
-    def are_adjacent(tree, last):
-        for i, j in zip(tree, last):
-            if i == j:
-                continue
-            try:
-                return any(abs(a.index(j) - a.index(i)) == 1 for a in adjacents)
-            except ValueError:
-                return False
+        # Total memory traffic
+        mapper = {}
+        for i in bundles:
+            for k, v in i.traffic.items():
+                mapper.setdefault(k, []).append(v)
+        traffic = [IntervalGroup.generate('merge', *i) for i in mapper.values()]
+        traffic = sum(i.extent for i in traffic)
 
-    # Group Iterations based on timing region
-    key, groups = lambda itspace: {i.defines for i in itspace}, []
-    handle = [trees[0]]
-    for tree in trees[1:]:
-        last = handle[-1]
-        if key(tree) == key(last) and are_adjacent(tree, last):
-            handle.append(tree)
-        else:
-            groups.append(tuple(handle))
-            handle = [tree]
-    groups.append(tuple(handle))
+        # Each ExpressionBundle lives in its own iteration space
+        itershapes = [i.shape for i in bundles]
 
-    # Create and track C-level timers
-    mapper = OrderedDict()
-    for group in groups:
-        # We time at the single timestep level
-        for i in zip(*group):
-            root = i[0]
-            remainder = tuple(j for j in i if j is not root)
-            if not root.dim.is_Time:
-                break
-        if root in mapper:
-            continue
+        # Track how many grid points are written within `section`
+        points = []
+        for i in bundles:
+            writes = {e.write for e in i.exprs if e.is_tensor and e.write.is_TimeFunction}
+            points.append(reduce(mul, i.shape)*len(writes))
+        points = sum(points)
 
-        # Prepare to transform the Iteration/Expression tree
-        body = (root,) + remainder
-        lname = 'section_%d' % len(mapper)
-        mapper[root] = TimedList(gname=name, lname=lname, body=body)
-        mapper.update(OrderedDict([(j, None) for j in remainder]))
-
-        # Estimate computational properties of the profiled section
-        expressions = FindNodes(Expression).visit(body)
-        ops = estimate_cost([e.expr for e in expressions])
-        memory = estimate_memory([e.expr for e in expressions])
-
-        # Keep track of the new profiled section
-        profiler.add(lname, group[0], ops, memory)
+        profiler.add(section, SectionData(ops, sops, points, traffic, itershapes))
 
     # Transform the Iteration/Expression tree introducing the C-level timers
-    processed = Transformer(mapper).visit(node)
+    mapper = {i: TimedList(gname=name, lname=i.name, body=i.body) for i in sections}
+    iet = Transformer(mapper).visit(iet)
 
-    return processed, profiler
+    return iet, profiler
 
 
 class Profiler(object):
-
-    """
-    A Profiler is used to manage profiling information for Devito generated C code.
-    """
-
-    structname = "profile"
 
     def __init__(self, name):
         self.name = name
         self._sections = OrderedDict()
 
-    def add(self, name, section, ops, memory):
+    def add(self, section, data):
         """
         Add a profiling section.
 
-        :param name: The name which uniquely identifies the profiled code section.
-        :param section: The code section, represented as a tuple of :class:`Iteration`s.
-        :param ops: The number of floating-point operations in the section.
-        :param memory: The memory traffic in the section, as bytes moved from/to memory.
+        :param section: The :class:`Section` node being profiled.
+        :param data: An iterable of :class:`SectionData`s. Each SectionData represents
+                     an IET rooted in the Section, and includes the number of
+                     floating-point operations performed in the IET as well as the
+                     compulsory memory traffic, as bytes moved from/to memory.
         """
-        self._sections[section] = Profile(name, ops, memory)
+        self._sections[section] = data
 
     def new(self):
         """
@@ -126,7 +92,7 @@ class Profiler(object):
 
     def summary(self, arguments, dtype):
         """
-        Return a :class:`PerformanceSummary` of the tracked sections.
+        Return a :class:`PerformanceSummary` of the profiled sections.
 
         :param arguments: A mapper from argument names to run-time values from which
                           the Profiler infers iteration space and execution times
@@ -134,40 +100,36 @@ class Profiler(object):
         :param dtype: The data type of the objects in the profiled sections. Used
                       to compute the operational intensity.
         """
-
         summary = PerformanceSummary()
-        for itspace, profile in self._sections.items():
-            dims = {i: i.dim.parent if i.dim.is_Stepping else i.dim for i in itspace}
+        for section, data in self._sections.items():
+            # Time to run the section
+            time = max(getattr(arguments[self.name]._obj, section.name), 10e-7)
 
-            # Time
-            time = max(getattr(arguments[self.name]._obj, profile.name), 10e-7)
+            # Number of FLOPs performed
+            ops = data.ops.subs(arguments)
 
-            # Flops
-            itershape = [i.extent().subs(arguments) for i in itspace]
-            iterspace = reduce(operator.mul, itershape)
-            flops = float(profile.ops*iterspace)
-            gflops = flops/10**9
-            gpoints = iterspace/10**9
+            # Number of grid points computed
+            points = data.points.subs(arguments)
 
             # Compulsory traffic
-            datashape = [
-                (dims[i].symbolic_end - dims[i].symbolic_start + 1).subs(arguments)
-                for i in itspace]
-            dataspace = reduce(operator.mul, datashape)
-            traffic = float(profile.memory*dataspace*dtype().itemsize)
+            traffic = float(data.traffic.subs(arguments)*dtype().itemsize)
+
+            # Runtime itershapes
+            itershapes = [tuple(i.subs(arguments) for i in j) for j in data.itershapes]
+
+            # Do not show unexecuted Sections (i.e., because the loop trip count was 0)
+            if ops == 0 or traffic == 0:
+                continue
 
             # Derived metrics
-            oi = flops/traffic
+            gflops = float(ops)/10**9
+            gpoints = float(points)/10**9
             gflopss = gflops/time
             gpointss = gpoints/time
+            oi = ops/traffic
 
             # Keep track of performance achieved
-            summary.setsection(profile.name, time, gflopss, gpointss, oi, profile.ops,
-                               itershape, datashape)
-
-        # Rename the most time consuming section as 'main'
-        if len(summary) > 0:
-            summary['main'] = summary.pop(max(summary, key=summary.get))
+            summary.add(section.name, time, gflopss, gpointss, oi, data.sops, itershapes)
 
         return summary
 
@@ -176,8 +138,8 @@ class Profiler(object):
         """
         Return the profiler C type in ctypes format.
         """
-        return type(Profiler.structname, (Structure,),
-                    {"_fields_": [(i.name, c_double) for i in self._sections.values()]})
+        return type(Profiler.__name__, (Structure,),
+                    {"_fields_": [(i.name, c_double) for i in self._sections]})
 
     @property
     def cdef(self):
@@ -185,8 +147,8 @@ class Profiler(object):
         Returns a :class:`cgen.Struct` representing the profiler data structure in C
         (a ``struct``).
         """
-        return Struct(Profiler.structname,
-                      [Value('double', i.name) for i in self._sections.values()])
+        return Struct(Profiler.__name__,
+                      [Value('double', i.name) for i in self._sections])
 
 
 class PerformanceSummary(OrderedDict):
@@ -195,8 +157,8 @@ class PerformanceSummary(OrderedDict):
     A special dictionary to track and quickly access performance data.
     """
 
-    def setsection(self, key, time, gflopss, gpointss, oi, ops, itershape, datashape):
-        self[key] = PerfEntry(time, gflopss, gpointss, oi, ops, itershape, datashape)
+    def add(self, key, time, gflopss, gpointss, oi, ops, itershapes):
+        self[key] = PerfEntry(time, gflopss, gpointss, oi, ops, itershapes)
 
     @property
     def gflopss(self):
@@ -211,9 +173,9 @@ class PerformanceSummary(OrderedDict):
         return OrderedDict([(k, v.time) for k, v in self.items()])
 
 
-Profile = namedtuple('Profile', 'name ops memory')
+SectionData = namedtuple('SectionData', 'ops sops points traffic itershapes')
 """Metadata for a profiled code section."""
 
 
-PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershape datashape')
-"""Structured performance data."""
+PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
+"""Runtime profiling data for a :class:`Section`."""
