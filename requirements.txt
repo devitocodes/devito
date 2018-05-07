@@ -18,6 +18,6 @@ pytest-cov
 multidict
 frozendict
 git+https://github.com/opesci/pyrevolve
-git+https://github.com/dask/dask.git@5c2787fcda94c212e1bdaec4ca591471ddc3820b
-git+https://github.com/dask/distributed.git@399522b9581b7de0a61d1ad578bfbe7463a17642
-git+https://github.com/tornadoweb/tornado.git@8afac1f805de738ccd0f58618b84b0a5f90dd346
+dask==0.17.4
+distributed==1.21.8
+tornado==5.0.2
