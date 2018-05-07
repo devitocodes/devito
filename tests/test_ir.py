@@ -491,7 +491,9 @@ else
         (['Eq(v.forward, v[t+1, x, y+1]+v[t, x, y]+v[t, x, y+1])'],
          [], ['x']),
         (['Eq(v.forward, v[t+1, x, y-1]+v[t, x, y]+v[t, x, y-1])'],
-         [], ['x'])
+         [], ['x']),
+        (['Eq(v.forward, v+1)', 'Inc(u, u+v)'],
+         [], ['x', 'y'])
     ])
     def test_iteration_parallelism_2d(self, exprs, atomic, parallel):
         """Tests detection of PARALLEL_* properties."""
@@ -506,7 +508,7 @@ else
         ry = Dimension(name='ry')
 
         u = Function(name='u', grid=grid)  # noqa
-        v = TimeFunction(name='u', grid=grid, save=None)  # noqa
+        v = TimeFunction(name='v', grid=grid, save=None)  # noqa
 
         cx = Function(name='coeff_x', dimensions=(p, rx), shape=(1, 2))  # noqa
         cy = Function(name='coeff_y', dimensions=(p, ry), shape=(1, 2))  # noqa
@@ -563,7 +565,7 @@ else
         rz = Dimension(name='rz')
 
         u = Function(name='u', grid=grid)  # noqa
-        v = TimeFunction(name='u', grid=grid, save=None)  # noqa
+        v = TimeFunction(name='v', grid=grid, save=None)  # noqa
 
         cx = Function(name='coeff_x', dimensions=(p, rx), shape=(1, 2))  # noqa
         cy = Function(name='coeff_y', dimensions=(p, ry), shape=(1, 2))  # noqa
