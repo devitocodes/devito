@@ -118,7 +118,7 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test -vs --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
   # Code coverage and documentation generation
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then
+  - if [[ $INSTALL_TYPE == 'conda' ]]; then
       codecov;
       sphinx-apidoc -f -o docs/ examples;
       sphinx-apidoc -f -o docs/ devito devito/yask/*;

@@ -61,9 +61,10 @@ class Function(function.Function):
 
                 # /self._padding/ must be updated as (from the YASK docs):
                 # "The value may be slightly larger [...] due to rounding"
-                padding = [0 if i.is_Time else grid.get_extra_pad_size(i.name)
-                           for i in self.indices]
-                self._padding = tuple((i,)*2 for i in padding)
+                pad = [(0, 0) if i.is_Time else (grid.get_left_extra_pad_size(i.name),
+                                                 grid.get_right_extra_pad_size(i.name))
+                       for i in self.indices]
+                self._padding = pad
 
                 self._data = Data(grid, self.shape_allocated, self.indices, self.dtype)
                 self._data.reset()

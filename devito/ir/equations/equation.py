@@ -121,8 +121,7 @@ class LoweredEq(Eq, IREq):
         # The data space is relative to the computational domain
         intervals = [i if i.dim in oobs else i.zero() for i in intervals]
         intervals += [Interval(i, 0, 0) for i in ordering if i not in ispace.dimensions]
-        parts = {k: IntervalGroup(Interval(i, min(j), max(j)) for i, j in v.items())
-                 for k, v in mapper.items()}
+        parts = {k: IntervalGroup(build_intervals(v)[0]) for k, v in mapper.items()}
         dspace = DataSpace(intervals, parts)
 
         # Finally create the LoweredEq with all metadata attached

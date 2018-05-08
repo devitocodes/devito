@@ -11,12 +11,14 @@ psutil>=5.1.0
 py-cpuinfo
 git+https://github.com/inducer/cgen
 git+https://github.com/inducer/codepy
-dask
-distributed
 scikit-image
 click
 codecov
 pytest-cov
 multidict
 frozendict
+anytree==2.4.3
 git+https://github.com/opesci/pyrevolve
+dask==0.17.4
+distributed==1.21.8
+tornado==5.0.2

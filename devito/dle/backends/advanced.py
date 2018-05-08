@@ -14,9 +14,9 @@ from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Iteration, List, PARALLEL, ELEMENTAL, REMAINDER, tagger,
-                           FindSymbols, IsPerfectIteration, Transformer, compose_nodes,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL, REMAINDER,
+                           tagger, FindSymbols, FindNodes, IsPerfectIteration,
+                           Transformer, compose_nodes, retrieve_iteration_tree)
 from devito.logger import dle_warning
 from devito.tools import as_tuple
 
@@ -235,8 +235,8 @@ class AdvancedRewriter(BasicRewriter):
                 continue
 
             # Padding
-            writes = [i for i in FindSymbols('symbolics-writes').visit(root)
-                      if i.is_Array]
+            writes = [i.write for i in FindNodes(Expression).visit(root)
+                      if i.write.is_Array]
             padding = []
             for i in writes:
                 try:
