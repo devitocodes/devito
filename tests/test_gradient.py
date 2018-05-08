@@ -12,7 +12,8 @@ from examples.seismic import Receiver
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('kernel', ['OT2'])
 @pytest.mark.parametrize('shape', [(70, 80)])
-def test_gradientFWI(shape, kernel, space_order):
+@pytest.mark.parametrize('checkpointing', [True, False])
+def test_gradientFWI(shape, kernel, space_order, checkpointing):
     """
     This test ensure that the FWI gradient computed with devito
     satisfies the Taylor expansion property:
@@ -33,7 +34,7 @@ def test_gradientFWI(shape, kernel, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
-    spacing = tuple(15. for _ in shape)
+    spacing = tuple(10. for _ in shape)
     wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                  kernel=kernel, space_order=space_order,
                  nbpml=10+space_order/2)
@@ -49,10 +50,11 @@ def test_gradientFWI(shape, kernel, space_order):
 
     # Objective function value
     F0 = .5*linalg.norm(rec0.data - rec.data)**2
+
     # Gradient: <J^T \delta d, dm>
     residual = Receiver(name='rec', grid=wave.model.grid, data=rec0.data - rec.data,
                         time_range=rec.time_range, coordinates=rec0.coordinates.data)
-    gradient, _ = wave.gradient(residual, u0, m=m0)
+    gradient, _ = wave.gradient(residual, u0, m=m0, checkpointing=checkpointing)
     G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
 
     # FWI Gradient test
@@ -144,4 +146,4 @@ def test_gradientJ(shape, kernel, space_order):
 
 
 if __name__ == "__main__":
-    test_gradientFWI(shape=(70, 80), kernel='OT2', space_order=4)
+    test_gradientFWI(shape=(70, 80), kernel='OT2', space_order=4, checkpointing=True)

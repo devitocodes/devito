@@ -2,7 +2,7 @@ import numpy as np
 from numpy import linalg
 from cached_property import cached_property
 
-from devito import TimeFunction, Function
+from devito import TimeFunction, Function, info
 from examples.seismic import TimeAxis, Receiver, RickerSource, demo_model
 from examples.seismic.acoustic import ForwardOperator, GradientOperator, smooth10
 
@@ -146,13 +146,12 @@ class GradientExample(object):
             # First order error Phi(m0+dm) - Phi(m0)
             error1[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0)
             # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>
-            error2[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0 - H[i]
-                                    * G)
+            error2[i] = np.absolute(.5*linalg.norm(d - self.rec_t.data)**2 - F0 - H[i])
 
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-
+        print(p1, p2)
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 

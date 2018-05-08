@@ -11,7 +11,7 @@ from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 def smooth10(vel, shape):
     if np.isscalar(vel):
         return .9 * vel * np.ones(shape, dtype=np.float32)
-    out = np.ones(shape, dtype=vel.dtype)
+    out = np.copy(vel)
     nz = shape[-1]
 
     for a in range(5, nz-6):
@@ -20,8 +20,8 @@ def smooth10(vel, shape):
     return out
 
 
-def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
-                   tn=500., kernel='OT2', space_order=4, nbpml=10,
+def acoustic_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
+                   tn=750., kernel='OT2', space_order=4, nbpml=10,
                    constant=False, **kwargs):
     nrec = shape[0]
     preset = 'constant-isotropic' if constant else 'layers-isotropic'

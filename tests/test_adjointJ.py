@@ -33,7 +33,7 @@ def test_acousticJ(shape, space_order):
     src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = 30.
-    src.data[:] = 1e3*src.data
+
     # Define receiver geometry (same as source, but spread across x)
     rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
@@ -52,7 +52,7 @@ def test_acousticJ(shape, space_order):
     _, u0, _ = solver.forward(save=True, m=model0.m)
 
     # Compute initial born perturbation from m - m0
-    dm = 1e2*(model.m.data - model0.m.data)
+    dm = (model.m.data - model0.m.data)
 
     du, _, _, _ = solver.born(dm, m=model0.m)
 
