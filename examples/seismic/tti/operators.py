@@ -390,7 +390,7 @@ def ForwardOperator(model, source, receiver, space_order=4,
     ang1 = sin(theta)
     ang2 = 0
     ang3 = 0
-    if len(model.shape) == 3:
+    if len(model.shape) == 3 and phi is not None:
         ang2 = cos(phi)
         ang3 = sin(phi)
 

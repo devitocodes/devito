@@ -70,8 +70,9 @@ if __name__ == "__main__":
                         help="Devito loop engine (DSE) mode")
     args = parser.parse_args()
 
+    # Setup model type with or without azimuth
+    preset = 'layers-tti' if args.azi else 'layers-tti-noazimuth'
 
-    preset = 'layers-tti' of args.azi else 'layers-tti-noazimuth'
     # 3D preset parameters
     if args.dim2:
         shape = (150, 150)
