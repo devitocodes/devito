@@ -499,6 +499,20 @@ class Dependence(object):
             # Conservatively assume this is a carried dependence
             return True
 
+    def is_reduce(self, dim):
+        """Return True if ``dim`` may represent a reduction dimension for
+        ``self``, False otherwise."""
+        test0 = self.is_increment
+        test1 = self.source.is_regular and self.sink.is_regular
+        test2 = all(i not in self._defined_findices for i in dim._defines)
+        return test0 and test1 and test2
+
+    def is_reduce_atmost(self, dim=None):
+        """More flexible than :meth:`is_reduce`. Return True  if ``dim`` may
+        represent a reduction dimension for ``self`` or if `self`` is definitely
+        independent of ``dim``, False otherwise."""
+        return self.is_reduce(dim) or self.is_indep(dim)
+
     def is_indep(self, dim=None):
         """Return True if definitely a dimension-independent dependence,
         False otherwise."""
