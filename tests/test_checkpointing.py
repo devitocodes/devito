@@ -207,8 +207,8 @@ def test_checkpointed_vs_not_checkpointed(shape, kernel, space_order):
 @pytest.mark.parametrize('shape', [(70, 80), (50, 50, 50)])
 def test_checkpointed_gradient_test(shape, kernel, space_order):
     """ Run the gradient test but with checkpointing """
-    spacing = tuple([15.0 for _ in shape])
-    tn = 500.
+    spacing = tuple([10.0 for _ in shape])
+    tn = 750.
     example = CheckpointingExample(shape, spacing, tn, kernel, space_order)
     m0, dm = example.initial_estimate()
     gradient, rec = example.gradient(m0)
@@ -300,4 +300,4 @@ def test_index_alignment(const):
 
 
 if __name__ == "__main__":
-    test_checkpointed_vs_not_checkpointed(shape=(70, 80), kernel='OT2', space_order=4)
+    test_checkpointed_gradient_test(shape=(70, 80), kernel='OT2', space_order=4)

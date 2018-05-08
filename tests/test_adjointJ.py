@@ -3,6 +3,7 @@ import pytest
 from numpy import linalg
 from conftest import skipif_yask
 
+from devito import clear_cache
 from devito.logger import info
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver

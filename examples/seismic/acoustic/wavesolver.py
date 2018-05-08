@@ -3,7 +3,8 @@ from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
-
+from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
+from pyrevolve import Revolver
 
 class AcousticWaveSolver(object):
     """
@@ -56,9 +57,9 @@ class AcousticWaveSolver(object):
                                space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
-    def op_grad(self):
+    def op_grad(self, save=True):
         """Cached operator for gradient runs"""
-        return GradientOperator(self.model, save=True, source=self.source,
+        return GradientOperator(self.model, save=save, source=self.source,
                                 receiver=self.receiver, kernel=self.kernel,
                                 space_order=self.space_order, **self._kwargs)
 
@@ -140,7 +141,7 @@ class AcousticWaveSolver(object):
                                       dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, v, summary
 
-    def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
+    def gradient(self, rec, u, v=None, grad=None, m=None, checkpointing=False, **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
@@ -153,7 +154,7 @@ class AcousticWaveSolver(object):
 
         :returns: Gradient field and performance summary
         """
-
+        dt = kwargs.pop('dt', self.dt)
         # Gradient symbol
         if grad is None:
             grad = Function(name='grad', grid=self.model.grid)
@@ -167,8 +168,21 @@ class AcousticWaveSolver(object):
         if m is None:
             m = m or self.model.m
 
-        summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m,
-                                       dt=kwargs.pop('dt', self.dt), **kwargs)
+        if checkpointing:
+            u = TimeFunction(name='u', grid=self.model.grid,
+                             time_order=2, space_order=self.space_order)
+            cp = DevitoCheckpoint([u])
+            n_checkpoints = None
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False), u=u, m=m, dt=dt)
+            wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v, m=m, rec=rec, dt=dt)
+
+            # Run forward
+            wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
+            wrp.apply_forward()
+            summary = wrp.apply_reverse()
+        else:
+            summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m,
+                                           dt=dt, **kwargs)
         return grad, summary
 
     def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
