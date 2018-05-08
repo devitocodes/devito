@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from functools import partial
-
+from itertools import product
 import sympy
 import numpy as np
 from psutil import virtual_memory
@@ -18,7 +18,7 @@ from devito.logger import debug, error, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import AbstractCachedFunction, AbstractCachedSymbol
-from devito.tools import ReducerMap, prod
+from devito.tools import ReducerMap, prod, powerset
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction']
@@ -870,61 +870,33 @@ class SparseFunction(AbstractSparseFunction):
 
         :returns: List of coefficients, eg. [b_11, b_12, b_21, b_22]
         """
-        # Grid indices corresponding to the corners of the cell
-        x1, y1, z1, x2, y2, z2 = sympy.symbols('x1, y1, z1, x2, y2, z2')
+        # Grid indices corresponding to the corners of the cell ie x1, y1, z1
+        indices1 = tuple(sympy.symbols('%s1' % d) for d in self.grid.dimensions)
+        indices2 = tuple(sympy.symbols('%s2' % d) for d in self.grid.dimensions)
+        # 1, x1, y1, z1, x1*y1, ...
+        indices = list(powerset(indices1))
+        indices[0] = (1,)
+        point_sym = list(powerset(self.point_symbols))
+        point_sym[0] = (1,)
+        # 1, px. py, pz, px*py, ...
+        A = []
+        ref_A = [np.prod(ind) for ind in indices]
+        # Create the matrix with the same increment order as the point increment
+        for i in self.point_increments:
+            # substitute x1 by x2 if increment in that dimension
+            subs = dict((indices1[d], indices2[d] if i[d] == 1 else indices1[d])
+                        for d in range(len(i)))
+            A += [[1] + [a.subs(subs) for a in ref_A[1:]]]
+
+        A = sympy.Matrix(A)
         # Coordinate values of the sparse point
-        if self.grid.dim == 1:
-            px, = self.point_symbols
-            A = sympy.Matrix([[1, x1], [1, x2]])
-            p = sympy.Matrix([1, px])
+        p = sympy.Matrix([[np.prod(ind)] for ind in point_sym])
 
-            # Map to reference cell
-            x, = self.grid.dimensions
-            reference_cell = {x1: 0, x2: x.spacing}
-        elif self.grid.dim == 2:
-            px, py = self.point_symbols
-            A = sympy.Matrix([[1, x1, y1, x1*y1],
-                              [1, x1, y2, x1*y2],
-                              [1, x2, y1, x2*y1],
-                              [1, x2, y2, x2*y2]])
-
-            p = sympy.Matrix([[1],
-                              [px],
-                              [py],
-                              [px*py]])
-
-            # Map to reference cell
-            x, y = self.grid.dimensions
-            reference_cell = {x1: 0, y1: 0, x2: x.spacing, y2: y.spacing}
-
-        elif self.grid.dim == 3:
-            px, py, pz = self.point_symbols
-            A = sympy.Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
-                              [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
-                              [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
-                              [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
-                              [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
-                              [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
-                              [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
-                              [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
-
-            p = sympy.Matrix([[1],
-                              [px],
-                              [py],
-                              [pz],
-                              [px*py],
-                              [px*pz],
-                              [py*pz],
-                              [px*py*pz]])
-
-            # Map to reference cell
-            x, y, z = self.grid.dimensions
-            reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing,
-                              y2: y.spacing, z2: z.spacing}
-        else:
-            raise NotImplementedError('Interpolation coefficients not implemented '
-                                      'for %d dimensions.' % self.grid.dim)
-
+        # reference cell x1:0, x2:h_x
+        left = dict((a, 0) for a in indices1)
+        right = dict((b, dim.spacing) for b, dim in zip(indices2, self.grid.dimensions))
+        reference_cell = {**left, **right}
+        # Substitute in interpolation matrix
         A = A.subs(reference_cell)
         return A.inv().T.dot(p)
 
@@ -936,16 +908,7 @@ class SparseFunction(AbstractSparseFunction):
     @property
     def point_increments(self):
         """Index increments in each dimension for each point symbol"""
-        if self.grid.dim == 1:
-            return ((0, ), (1, ))
-        if self.grid.dim == 2:
-            return ((0, 0), (0, 1), (1, 0), (1, 1))
-        elif self.grid.dim == 3:
-            return ((0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1),
-                    (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))
-        else:
-            raise NotImplementedError('Point increments not defined '
-                                      'for %d dimensions.' % self.grid.dim)
+        return tuple(product(range(2), repeat=self.grid.dim))
 
     @property
     def coordinate_symbols(self):

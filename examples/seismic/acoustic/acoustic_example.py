@@ -15,12 +15,7 @@ def smooth10(vel, shape):
     nz = shape[-1]
 
     for a in range(5, nz-6):
-        if len(shape) == 1:
-            out[a] = np.sum(vel[a - 5:a + 5], axis=0) / 10
-        elif len(shape) == 2:
-            out[:, a] = np.sum(vel[:, a - 5:a + 5], axis=1) / 10
-        else:
-            out[:, :, a] = np.sum(vel[:, :, a - 5:a + 5], axis=2) / 10
+            out[...,a] = np.sum(vel[...,a - 5:a + 5], axis=len(shape)-1) / 10
 
     return out
 

@@ -16,7 +16,7 @@ def test_acousticJ(shape, space_order):
     tn = 500.  # Final time
     nrec = shape[0]  # Number of receivers
     nbpml = 10 + space_order / 2
-    spacing = [15. for _ in shape]
+    spacing = [10. for _ in shape]
 
     # Create two-layer "true" model from preset with a fault 1/3 way down
     model = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=2.5,
