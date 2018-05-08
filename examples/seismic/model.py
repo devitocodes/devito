@@ -124,6 +124,34 @@ def demo_model(preset, **kwargs):
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
+                     delta=delta, theta=theta, phi=phi, **kwargs)
+
+    elif preset.lower() in ['layers-tti-noazimuth', 'twolayer-tti-noazimuth',
+                            '2layer-tti-noazimuth']:
+        # A two-layer model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 2.5 km/s.\
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        dtype = kwargs.pop('dtype', np.float32)
+        nbpml = kwargs.pop('nbpml', 10)
+        ratio = kwargs.pop('ratio', 2)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+
+        # Define a velocity profile in km/s
+        v = np.empty(shape, dtype=dtype)
+        v[:] = vp_top  # Top velocity (background)
+        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+
+        epsilon = .3*(v - 1.5)
+        delta = .2*(v - 1.5)
+        theta = .5*(v - 1.5)
+
+        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
+                     dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
                      delta=delta, theta=theta, **kwargs)
 
     elif preset.lower() in ['circle-isotropic']:
