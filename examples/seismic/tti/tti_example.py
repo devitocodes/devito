@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
     parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
-                        help="Wether or not to use an azimuth angle")
+                        help="Whether or not to use an azimuth angle")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
                         help="Enable autotuning for block sizes")
     parser.add_argument("-so", "--space_order", default=4,
