@@ -309,17 +309,17 @@ class TestDependenceAnalysis(object):
 
     @pytest.mark.parametrize('expr,expected', [
         ('Eq(ti0[x,y,z], ti1[x,y,z])', None),
-        ('Eq(ti0[x,y,z], ti0[x,y,z])', 'flow,independent,None,direct'),
-        ('Eq(ti0[x,y,z], ti0[x,y,z])', 'flow,inplace,None,direct'),
-        ('Eq(ti0[x,y,z], ti0[x,y,z-1])', 'flow,carried,z,direct'),
-        ('Eq(ti0[x,y,z], ti0[x-1,y,z-1])', 'flow,carried,x,direct'),
-        ('Eq(ti0[x,y,z], ti0[x-1,y,z+1])', 'flow,carried,x,direct'),
-        ('Eq(ti0[x,y,z], ti0[x+1,y+2,z])', 'anti,carried,x,direct'),
-        ('Eq(ti0[x,y,z], ti0[x,y+2,z-3])', 'anti,carried,y,direct'),
-        ('Eq(ti0[x,y,z], ti0[fa[x],y,z])', 'all,carried,x,indirect'),
-        ('Eq(ti0[x,y,z], ti0[fa[x],y,fa[z]])', 'all,carried,x,indirect'),
-        ('Eq(ti0[x,fa[y],z], ti0[x,y,z])', 'all,carried,y,indirect'),
-        ('Eq(ti0[x,y,z], ti0[x-1,fa[y],z])', 'flow,carried,x,direct'),
+        ('Eq(ti0[x,y,z], ti0[x,y,z])', 'flow,indep,None,regular'),
+        ('Eq(ti0[x,y,z], ti0[x,y,z])', 'flow,inplace,None,regular'),
+        ('Eq(ti0[x,y,z], ti0[x,y,z-1])', 'flow,carried,z,regular'),
+        ('Eq(ti0[x,y,z], ti0[x-1,y,z-1])', 'flow,carried,x,regular'),
+        ('Eq(ti0[x,y,z], ti0[x-1,y,z+1])', 'flow,carried,x,regular'),
+        ('Eq(ti0[x,y,z], ti0[x+1,y+2,z])', 'anti,carried,x,regular'),
+        ('Eq(ti0[x,y,z], ti0[x,y+2,z-3])', 'anti,carried,y,regular'),
+        ('Eq(ti0[x,y,z], ti0[fa[x],y,z])', 'all,carried,x,irregular'),
+        ('Eq(ti0[x,y,z], ti0[fa[x],y,fa[z]])', 'all,carried,x,irregular'),
+        ('Eq(ti0[x,fa[y],z], ti0[x,y,z])', 'all,carried,y,irregular'),
+        ('Eq(ti0[x,y,z], ti0[x-1,fa[y],z])', 'flow,carried,x,regular'),
     ])
     def test_single_eq(self, expr, expected, ti0, ti1, fa):
         """
@@ -344,7 +344,7 @@ class TestDependenceAnalysis(object):
             assert len(deps) == 0
             return
         else:
-            type, mode, cause, direct = expected.split(',')
+            type, mode, exp_cause, regular = expected.split(',')
             if type == 'all':
                 assert len(deps) == 2
             else:
@@ -364,55 +364,58 @@ class TestDependenceAnalysis(object):
         assert getattr(dep, 'is_%s' % mode)()
 
         # Check cause
-        if cause == 'None':
-            assert dep.cause is None
+        if exp_cause == 'None':
+            assert not dep.cause
             return
         else:
-            assert dep.cause.name == cause
+            assert len(dep.cause) == 1
+            cause = dep.cause.pop()
+            assert cause.name == exp_cause
 
         # Check mode restricted to the cause
-        assert getattr(dep, 'is_%s' % mode)(dep.cause)
-        non_causes = [i for i in [x, y, z] if i is not dep.cause]
+        assert getattr(dep, 'is_%s' % mode)(cause)
+        non_causes = [i for i in [x, y, z] if i is not cause]
         assert all(not getattr(dep, 'is_%s' % mode)(i) for i in non_causes)
 
-        # Check if it's direct or indirect
-        assert getattr(dep, 'is_%s' % direct)
+        # Check if it's regular or irregular
+        assert getattr(dep.source, 'is_%s' % regular) or\
+            getattr(dep.sink, 'is_%s' % regular)
 
     @pytest.mark.parametrize('exprs,expected', [
         # Trivial flow dep
         (['Eq(ti0[x,y,z], ti1[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y,z])'],
-         ['ti0,flow,None']),
+         ['ti0,flow,set()']),
         # One flow dep, one anti dep
         (['Eq(ti0[x,y,z], ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z])'],
-         ['ti0,flow,None', 'ti1,anti,None']),
+         ['ti0,flow,set()', 'ti1,anti,set()']),
         # One output dep, two identical flow deps
         (['Eq(ti3[x+1,y,z], ti1[x,y,z])',
           'Eq(ti3[x+1,y,z], ti3[x,y,z])'],
-         ['ti3,output,None', 'ti3,flow,x', 'ti3,flow,x']),
+         ['ti3,output,set()', 'ti3,flow,{x}', 'ti3,flow,{x}']),
         # One flow independent dep, two flow carried flow deps
         (['Eq(ti0[x,y,z], ti0[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y-1,z])',
           'Eq(ti3[x,y,z], ti0[x-2,y,z])'],
-         ['ti0,flow,None', 'ti0,flow,y', 'ti0,flow,x']),
+         ['ti0,flow,set()', 'ti0,flow,{y}', 'ti0,flow,{x}']),
         # An indirect dep, conservatively assumed flow and anti
         (['Eq(ti0[x,y,z], ti1[x,y,z])',
           'Eq(ti3[x,y,z], ti0[fa[x],y,z])'],
-         ['ti0,flow,x', 'ti0,anti,x']),
+         ['ti0,flow,{x}', 'ti0,anti,{x}']),
         # A direct anti dep "masking" the indirect dep in an inner dimension
         (['Eq(ti0[x,y,z], ti1[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x+1,fa[y],z])'],
-         ['ti0,anti,x']),
+         ['ti0,anti,{x}']),
         # Conservatively assume dependences due to "complex" affine index functions
         (['Eq(ti0[x,y,z], ti1[x,2*y,z])',
           'Eq(ti1[x,3*y,z], ti0[x+1,y,z])'],
-         ['ti1,flow,y', 'ti1,anti,y', 'ti0,anti,x']),
+         ['ti1,flow,{y}', 'ti1,anti,{y}', 'ti0,anti,{x}']),
         # Data indices don't match iteration indices, so conservatively assume
         # all sort of deps
         (['Eq(ti0[x,y,z], ti1[x,y,z])',
           'Eq(ti3[x,y,z], ti0[y+1,y,y])'],
-         ['ti0,flow,x', 'ti0,anti,x']),
+         ['ti0,flow,{x}', 'ti0,anti,{x}']),
     ])
     def test_multiple_eqs(self, exprs, expected, ti0, ti1, ti3, fa):
         """
