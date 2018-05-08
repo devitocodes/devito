@@ -350,6 +350,10 @@ class ConditionalDimension(DerivedDimension):
         * ``condition``: an arbitrary SymPy expression depending on ``parent``.
                          All iterations for which the expression evaluates to
                          True are part of the ``SubDimension`` region.
+
+    ConditioanlDimension need runtime arguments. The generated C code will require
+    the size of the dimension to initialize the arrays as e.g:
+    float (*restrict u2)[xsub_size + 1 + 1][ysub_size + 1 + 1]
     """
 
     def __new__(cls, name, parent, **kwargs):
