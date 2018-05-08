@@ -61,6 +61,9 @@ class Node(Eq):
         readby = readby % ('' if len(self.readby) <= 2 else ', ...')
         return "Node(key=%s, reads=%s, readby=%s)" % (self.lhs, reads, readby)
 
+    def func(self, *args, **kwargs):
+        return super(Node, self).func(*args, inc=self.is_Increment, **kwargs)
+
 
 class FlowGraph(OrderedDict):
 
