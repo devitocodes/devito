@@ -50,7 +50,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(description=description)
     parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
-    parser.add_argument('--azimuth', dest='asy', default=True, action='store_true',
+    parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
                         help="Wether or not to use an azimuth angle")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
                         help="Enable autotuning for block sizes")
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    preset = 'layers-tti' of args.asi else 'layers-tti-noazimuth'
+    preset = 'layers-tti' of args.azi else 'layers-tti-noazimuth'
     # 3D preset parameters
     if args.dim2:
         shape = (150, 150)
