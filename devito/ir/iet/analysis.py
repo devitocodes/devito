@@ -89,7 +89,7 @@ def mark_parallel(analysis):
 
             for dep in analysis.scopes[i].d_all:
                 test0 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
-                test1 = all(dep.is_independent(d) for d in dims)
+                test1 = all(dep.is_indep(d) for d in dims)
                 if not (test0 or test1):
                     is_parallel = False
                     if not dep.is_increment:
