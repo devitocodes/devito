@@ -1,4 +1,4 @@
-from devito import Function, TimeFunction, memoized_meth
+from devito import Function, TimeFunction, memoized_meth, set_log_level
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -169,17 +169,20 @@ class AcousticWaveSolver(object):
             m = m or self.model.m
 
         if checkpointing:
+            set_log_level('ERROR')
             u = TimeFunction(name='u', grid=self.model.grid,
                              time_order=2, space_order=self.space_order)
             cp = DevitoCheckpoint([u])
             n_checkpoints = None
-            wrap_fw = CheckpointOperator(self.op_fwd(save=False), u=u, m=m, dt=dt)
-            wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v, m=m, rec=rec, dt=dt)
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.source, u=u, m=m, dt=dt)
+            wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v, 
+                                          m=m, rec=rec, dt=dt, grad=grad)
 
             # Run forward
             wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
             wrp.apply_forward()
             summary = wrp.apply_reverse()
+            set_log_level('INFO')
         else:
             summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m,
                                            dt=dt, **kwargs)

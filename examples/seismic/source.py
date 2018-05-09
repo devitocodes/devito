@@ -236,7 +236,7 @@ class RickerSource(WaveletSource):
         :param f0: Peak frequency in kHz
         :param t: Discretized values of time in ms
         """
-        r = (np.pi * f0 * (t - 2./f0))
+        r = (np.pi * f0 * (t - 1./f0))
         return (1-2.*r**2)*np.exp(-r**2)
 
 
