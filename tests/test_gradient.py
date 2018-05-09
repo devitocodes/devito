@@ -12,6 +12,54 @@ from examples.seismic import Receiver
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('kernel', ['OT2'])
 @pytest.mark.parametrize('shape', [(70, 80)])
+def test_gradient_checkpointing(shape, kernel, space_order):
+    """
+    This test ensure that the FWI gradient computed with devito
+    satisfies the Taylor expansion property:
+    .. math::
+        \Phi(m0 + h dm) = \Phi(m0) + \O(h) \\
+        \Phi(m0 + h dm) = \Phi(m0) + h \nabla \Phi(m0) + \O(h^2) \\
+        \Phi(m0) = .5* || F(m0 + h dm) - D ||_2^2
+
+    where
+    .. math::
+        \nabla \Phi(m0) = <J^T \delta d, dm> \\
+        \delta d = F(m0+ h dm) - D \\
+
+    with F the Forward modelling operator.
+    :param dimensions: size of the domain in all dimensions
+    in number of grid points
+    :param time_order: order of the time discretization scheme
+    :param space_order: order of the spacial discretization scheme
+    :return: assertion that the Taylor properties are satisfied
+    """
+    spacing = tuple(10. for _ in shape)
+    wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
+                 kernel=kernel, space_order=space_order,
+                 nbpml=40)
+
+    m0 = Function(name='m0', grid=wave.model.m.grid, space_order=space_order)
+    m0.data[:] = smooth10(wave.model.m.data, wave.model.m.shape_domain)
+
+    # Compute receiver data for the true velocity
+    rec, u, _ = wave.forward()
+
+    # Compute receiver data and full wavefield for the smooth velocity
+    rec0, u0, _ = wave.forward(m=m0, save=True)
+
+    # Gradient: <J^T \delta d, dm>
+    residual = Receiver(name='rec', grid=wave.model.grid, data=rec0.data - rec.data,
+                        time_range=rec.time_range, coordinates=rec0.coordinates.data)
+
+    gradient, _ = wave.gradient(residual, u0, m=m0, checkpointing=True)
+    gradient2, _ = wave.gradient(residual, u0, m=m0, checkpointing=False)
+    assert np.allclose(gradient.data, gradient2.data)
+
+
+@skipif_yask
+@pytest.mark.parametrize('space_order', [4])
+@pytest.mark.parametrize('kernel', ['OT2'])
+@pytest.mark.parametrize('shape', [(70, 80)])
 @pytest.mark.parametrize('checkpointing', [True, False])
 def test_gradientFWI(shape, kernel, space_order, checkpointing):
     """
@@ -37,7 +85,7 @@ def test_gradientFWI(shape, kernel, space_order, checkpointing):
     spacing = tuple(10. for _ in shape)
     wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                  kernel=kernel, space_order=space_order,
-                 nbpml=10+space_order/2)
+                 nbpml=40)
 
     m0 = Function(name='m0', grid=wave.model.m.grid, space_order=space_order)
     m0.data[:] = smooth10(wave.model.m.data, wave.model.m.shape_domain)
@@ -45,6 +93,7 @@ def test_gradientFWI(shape, kernel, space_order, checkpointing):
 
     # Compute receiver data for the true velocity
     rec, u, _ = wave.forward()
+
     # Compute receiver data and full wavefield for the smooth velocity
     rec0, u0, _ = wave.forward(m=m0, save=True)
 
@@ -54,6 +103,7 @@ def test_gradientFWI(shape, kernel, space_order, checkpointing):
     # Gradient: <J^T \delta d, dm>
     residual = Receiver(name='rec', grid=wave.model.grid, data=rec0.data - rec.data,
                         time_range=rec.time_range, coordinates=rec0.coordinates.data)
+
     gradient, _ = wave.gradient(residual, u0, m=m0, checkpointing=checkpointing)
     G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
 
@@ -116,6 +166,7 @@ def test_gradientJ(shape, kernel, space_order):
 
     # Compute receiver data and full wavefield for the smooth velocity
     rec, u0, _ = wave.forward(m=m0, save=False)
+
     # Gradient: J dm
     Jdm, _, _, _ = wave.born(dm, rec=linrec, m=m0)
     # FWI Gradient test

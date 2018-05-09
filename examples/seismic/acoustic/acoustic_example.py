@@ -21,7 +21,7 @@ def smooth10(vel, shape):
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
-                   tn=750., kernel='OT2', space_order=4, nbpml=10,
+                   tn=500., kernel='OT2', space_order=4, nbpml=10,
                    constant=False, **kwargs):
     nrec = shape[0]
     preset = 'constant-isotropic' if constant else 'layers-isotropic'
