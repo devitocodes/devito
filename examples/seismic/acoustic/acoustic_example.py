@@ -20,7 +20,7 @@ def smooth10(vel, shape):
     return out
 
 
-def acoustic_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
+def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., kernel='OT2', space_order=4, nbpml=10,
                    constant=False, **kwargs):
     nrec = shape[0]
@@ -52,7 +52,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         space_order=4, kernel='OT2', nbpml=40, full_run=False,
-        autotune=False, constant=False, **kwargs):
+        autotune=False, constant=False, checkpointing=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
                             space_order=space_order, kernel=kernel,
@@ -67,9 +67,9 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     if constant:
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
-        solver.forward(save=full_run, m=m0)
+        solver.forward(save=full_run and not checkpointing, m=m0)
         # With a new m as a scalar value
-        solver.forward(save=full_run, m=.25)
+        solver.forward(save=full_run and not checkpointing, m=.25)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
@@ -79,7 +79,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Born")
     solver.born(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, autotune=autotune)
+    solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
 
 
 if __name__ == "__main__":
@@ -107,13 +107,16 @@ if __name__ == "__main__":
                         help="Devito loop engine (DSE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
+    parser.add_argument("--checkpointing", default=False, action='store_true',
+                        help="Constant velocity model, default is a two layer model")
     args = parser.parse_args()
 
     # 3D preset parameters
-    shape = tuple(args.ndim * [151])
+    shape = tuple(args.ndim * [51])
     spacing = tuple(args.ndim * [15.0])
     tn = 750. if args.ndim < 3 else 250.
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, constant=args.constant, kernel=args.kernel,
-        autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full)
+        autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full,
+        checkpointing=args.checkpointing)

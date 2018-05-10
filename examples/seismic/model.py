@@ -405,14 +405,14 @@ class Model(object):
         else:
             self.theta = 0
 
-        if phi is not None:
+        if phi is not None and self.grid.dim > 2:
             if isinstance(phi, np.ndarray):
                 self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
                 initialize_function(self.phi, phi, self.nbpml)
             else:
                 self.phi = phi
         else:
-            self.phi = 0
+            self.phi = None
 
     def physical_params(self, **kwargs):
         """
