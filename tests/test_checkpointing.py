@@ -1,6 +1,6 @@
-from examples.checkpointing.checkpointing_example import CheckpointingExample
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
+from examples.seismic import Receiver
 from pyrevolve import Revolver
 import numpy as np
 from conftest import skipif_yask
@@ -123,24 +123,31 @@ def test_forward_with_breaks(shape, kernel, space_order):
     spacing = tuple([15.0 for _ in shape])
     tn = 500.
     time_order = 2
-    example = CheckpointingExample(shape, spacing, tn, kernel, space_order)
-    m0, dm = example.initial_estimate()
+    nrec = shape[0]
 
-    cp = DevitoCheckpoint([example.forward_field])
-    wrap_fw = CheckpointOperator(example.forward_operator, u=example.forward_field,
-                                 rec=example.rec, m=m0, src=example.src, dt=example.dt)
-    wrap_rev = CheckpointOperator(example.gradient_operator, u=example.forward_field,
-                                  v=example.adjoint_field, m=m0, rec=example.rec_g,
-                                  grad=example.grad, dt=example.dt)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, example.src._time_range.num-time_order)
-    example.forward_operator.apply(u=example.forward_field, rec=example.rec, m=m0,
-                                   src=example.src, dt=example.dt)
-    u_temp = np.copy(example.forward_field.data)
-    rec_temp = np.copy(example.rec.data)
-    example.forward_field.data[:] = 0
+    solver = acoustic_setup(shape=shape, spacing=spacing, tn=tn,
+                            space_order=space_order, kernel=kernel)
+
+    grid = solver.model.grid
+
+    rec = Receiver(name='rec', grid=grid, time_range=solver.receiver.time_range,
+                   npoint=nrec)
+    rec.coordinates.data[:, :] = solver.receiver.coordinates.data[:]
+
+    dt = solver.model.critical_dt
+
+    u = TimeFunction(name='u', grid=grid, time_order=2, space_order=space_order)
+    cp = DevitoCheckpoint([u])
+    wrap_fw = CheckpointOperator(solver.op_fwd(save=False), rec=rec,
+                                 src=solver.source, u=u, dt=dt)
+    wrap_rev = CheckpointOperator(solver.op_grad(save=False), u=u, dt=dt, rec=rec)
+
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, rec._time_range.num-time_order)
+    rec1, u1, summary = solver.forward()
+
     wrp.apply_forward()
-    assert(np.allclose(u_temp, example.forward_field.data))
-    assert(np.allclose(rec_temp, example.rec.data))
+    assert(np.allclose(u1.data, u.data))
+    assert(np.allclose(rec1.data, rec.data))
 
 
 @silencio(log_level='WARNING')

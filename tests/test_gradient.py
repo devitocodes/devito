@@ -3,7 +3,7 @@ import pytest
 from numpy import linalg
 from conftest import skipif_yask
 
-from devito import Function, info
+from devito import Function, info, clear_cache
 from examples.seismic.acoustic.acoustic_example import smooth10, acoustic_setup as setup
 from examples.seismic import Receiver
 
@@ -33,6 +33,7 @@ def test_gradient_checkpointing(shape, kernel, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
+    clear_cache()
     spacing = tuple(10. for _ in shape)
     wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                  kernel=kernel, space_order=space_order,
@@ -82,6 +83,7 @@ def test_gradientFWI(shape, kernel, space_order, checkpointing):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
+    clear_cache()
     spacing = tuple(10. for _ in shape)
     wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                  kernel=kernel, space_order=space_order,
@@ -152,6 +154,7 @@ def test_gradientJ(shape, kernel, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
+    clear_cache()
     spacing = tuple(15. for _ in shape)
     wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                  kernel=kernel, space_order=space_order,

@@ -405,7 +405,7 @@ class Model(object):
         else:
             self.theta = 0
 
-        if phi is not None and self.grid.dim>2:
+        if phi is not None and self.grid.dim > 2:
             if isinstance(phi, np.ndarray):
                 self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
                 initialize_function(self.phi, phi, self.nbpml)
