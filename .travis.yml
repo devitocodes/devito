@@ -102,21 +102,22 @@ script:
   # Run tests with pip
   - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py test; fi
   # Run test with py.tests
-  - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test -vs --cov devito tests/; fi
+  # - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test -vs --cov devito tests/; fi
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/gradient_example.py; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/checkpointing/checkpointing_example.py;fi
+  # - if [[ $RUN_EXAMPLES == 'True' ]]; then DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/gradient_example.py; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/checkpointing/checkpointing_example.py;fi
   # Test tutorial notebooks for the website using nbval
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test -vs --nbval examples/cfd; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then py.test -vs --nbval examples/cfd; fi
+  #- if [[ $RUN_EXAMPLES == 'True' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test -vs --nbval examples/seismic/tutorials/04_dask.ipynb; fi
   # Code coverage and documentation generation
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       codecov;
