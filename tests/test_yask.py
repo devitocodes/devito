@@ -340,10 +340,6 @@ class TestOperatorAcoustic(object):
         return 4
 
     @pytest.fixture
-    def kernel(self):
-        return 'OT2'
-
-    @pytest.fixture
     def dtype(self):
         return np.float64
 
@@ -376,7 +372,7 @@ class TestOperatorAcoustic(object):
     @pytest.fixture
     def u(self, model, space_order, kernel):
         return TimeFunction(name='u', grid=model.grid,
-                            space_order=space_order, kernel=kernel)
+                            space_order=space_order, time_order=2)
 
     @pytest.fixture
     def eqn(self, m, damp, u, kernel):
