@@ -116,7 +116,7 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/checkpointing/checkpointing_example.py;fi
   # Test tutorial notebooks for the website using nbval
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test -vs --nbval examples/cfd; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --verbose --full-trace --nbval examples/seismic/tutorials; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then PYTEST_DEBUG=1 py.test -vs --pastebin=all --full-trace --nbval examples/seismic/tutorials; fi
   # Code coverage and documentation generation
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       codecov;
