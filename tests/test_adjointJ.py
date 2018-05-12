@@ -3,6 +3,7 @@ import pytest
 from numpy import linalg
 from conftest import skipif_yask
 
+from devito import clear_cache
 from devito.logger import info
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -10,13 +11,14 @@ from examples.seismic.acoustic import AcousticWaveSolver
 
 @skipif_yask
 @pytest.mark.parametrize('space_order', [4, 8, 12])
-@pytest.mark.parametrize('shape', [(60, 70), (40, 50, 30)])
+@pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
 def test_acousticJ(shape, space_order):
+    clear_cache()
     t0 = 0.0  # Start time
     tn = 500.  # Final time
     nrec = shape[0]  # Number of receivers
     nbpml = 10 + space_order / 2
-    spacing = [15. for _ in shape]
+    spacing = [10. for _ in shape]
 
     # Create two-layer "true" model from preset with a fault 1/3 way down
     model = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=2.5,
@@ -50,7 +52,7 @@ def test_acousticJ(shape, space_order):
     _, u0, _ = solver.forward(save=True, m=model0.m)
 
     # Compute initial born perturbation from m - m0
-    dm = model.m.data - model0.m.data
+    dm = (model.m.data - model0.m.data)
 
     du, _, _, _ = solver.born(dm, m=model0.m)
 
@@ -60,10 +62,10 @@ def test_acousticJ(shape, space_order):
     # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
     term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
     term2 = linalg.norm(du.data)**2
-    info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
-         % (term1, term2, term1 - term2, term1 / term2))
+    info('<Ax,y>: %f, <x, A^Ty>: %f, relative error: %4.4e, ratio: %e'
+         % (term1, term2, 1 - term1/term2, term1 / term2))
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
 
 if __name__ == "__main__":
-    test_acousticJ(shape=(60, 70), space_order=4)
+    test_acousticJ(shape=(60,), space_order=4)
