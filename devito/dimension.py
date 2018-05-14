@@ -351,9 +351,14 @@ class ConditionalDimension(DerivedDimension):
                          All iterations for which the expression evaluates to
                          True are part of the ``SubDimension`` region.
 
-    ConditioanlDimension need runtime arguments. The generated C code will require
+    ConditioanlDimension needs runtime arguments. The generated C code will require
     the size of the dimension to initialize the arrays as e.g:
-    float (*restrict u2)[xsub_size + 1 + 1][ysub_size + 1 + 1]
+    .. code-block:: python
+        x = grid.dimension[0]
+        x1 = ConditionalDimension(name='x1', parent=x, factor=2)
+        u1 = TimeFunction(name='u1', dimensions=(x1,), size=grid.shape[0]/factor)
+        # The generated code will look like
+        float (*restrict u1)[x1_size + 1] = ...
     """
 
     def __new__(cls, name, parent, **kwargs):
