@@ -882,7 +882,7 @@ class SparseFunction(AbstractSparseFunction):
         A = []
         ref_A = [np.prod(ind) for ind in indices]
         # Create the matrix with the same increment order as the point increment
-        for i in self.point_increments:
+        for i in self._point_increments:
             # substitute x1 by x2 if increment in that dimension
             subs = dict((indices1[d], indices2[d] if i[d] == 1 else indices1[d])
                         for d in range(len(i)))
@@ -906,7 +906,7 @@ class SparseFunction(AbstractSparseFunction):
         return tuple(sympy.symbols('p%s' % d) for d in self.grid.dimensions)
 
     @property
-    def point_increments(self):
+    def _point_increments(self):
         """Index increments in each dimension for each point symbol"""
         return tuple(product(range(2), repeat=self.grid.dim))
 
@@ -942,7 +942,7 @@ class SparseFunction(AbstractSparseFunction):
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
                               in zip(inc, self.coordinate_indices))
-                        for inc in self.point_increments]
+                        for inc in self._point_increments]
 
         # Generate index substitutions for all grid variables except
         # the `SparseFunction` types

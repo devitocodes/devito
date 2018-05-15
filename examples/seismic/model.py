@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 from devito import Grid, Function, Constant
-from devito.logger import error
+from devito.logger import error, warning
 
 
 __all__ = ['Model', 'demo_model']
@@ -343,7 +343,7 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    _physical_parameters = ('m', 'epsilon', 'delta', 'theta', 'phi')
+    _physical_parameters = ('m')
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
@@ -375,6 +375,7 @@ class Model(object):
 
         if epsilon is not None:
             if isinstance(epsilon, np.ndarray):
+                self._physical_parameters += ('epsilon')
                 self.epsilon = Function(name="epsilon", grid=self.grid)
                 initialize_function(self.epsilon, 1 + 2 * epsilon, self.nbpml)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
@@ -388,6 +389,7 @@ class Model(object):
 
         if delta is not None:
             if isinstance(delta, np.ndarray):
+                self._physical_parameters += ('delta')
                 self.delta = Function(name="delta", grid=self.grid)
                 initialize_function(self.delta, np.sqrt(1 + 2 * delta), self.nbpml)
             else:
@@ -397,6 +399,7 @@ class Model(object):
 
         if theta is not None:
             if isinstance(theta, np.ndarray):
+                self._physical_parameters += ('theta')
                 self.theta = Function(name="theta", grid=self.grid,
                                       space_order=space_order)
                 initialize_function(self.theta, theta, self.nbpml)
@@ -405,8 +408,11 @@ class Model(object):
         else:
             self.theta = 0
 
-        if phi is not None and self.grid.dim > 2:
-            if isinstance(phi, np.ndarray):
+        if phi is not None:
+            if self.grid.dim < 3:
+                warning("2D TTI does not use an azimuth angle Phi, ignoring input")
+            elif isinstance(phi, np.ndarray):
+                self._physical_parameters += ('phi')
                 self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
                 initialize_function(self.phi, phi, self.nbpml)
             else:
@@ -416,11 +422,10 @@ class Model(object):
 
     def physical_params(self, **kwargs):
         """
-        Return all set physical parameters
+        Return all set physical parameters and update to input values if provided
         """
         known = [getattr(self, i) for i in self._physical_parameters]
-        return {i.name: kwargs.get(i.name, i) or i for i in known
-                if isinstance(i, Function)}
+        return {i.name: kwargs.get(i.name, i) or i for i in known}
 
     @property
     def dim(self):

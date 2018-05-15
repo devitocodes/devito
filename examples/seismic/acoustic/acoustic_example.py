@@ -61,15 +61,19 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
+    # Whether or not we save the whole time history. We only need the full wavefield
+    # with 'save=True' if we compute the gradient without checkpointing, if we use
+    # checkpointing, PyRevolve will take care of the time history
+    save = full_run and not checkpointing
     # Define receiver geometry (spread across x, just below surface)
-    rec, u, summary = solver.forward(save=full_run, autotune=autotune)
+    rec, u, summary = solver.forward(save=save, autotune=autotune)
 
     if constant:
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
-        solver.forward(save=full_run and not checkpointing, m=m0)
+        solver.forward(save=save, m=m0)
         # With a new m as a scalar value
-        solver.forward(save=full_run and not checkpointing, m=.25)
+        solver.forward(save=save, m=.25)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]

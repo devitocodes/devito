@@ -1,5 +1,5 @@
 from pyrevolve import Checkpoint, Operator
-from devito import TimeFunction
+from devito import TimeFunction, silencio
 
 
 class CheckpointOperator(Operator):
@@ -27,6 +27,7 @@ class CheckpointOperator(Operator):
         args[self.t_arg_names['t_end']] = t_end - 1 + self.start_offset
         return args
 
+    @silencio(log_level='WARNING')
     def apply(self, t_start, t_end):
         """ If the devito operator requires some extra arguments in the call to apply
             they can be stored in the args property of this object so pyRevolve calls
