@@ -209,7 +209,8 @@ class GuardAllocator(MemoryAllocator):
 
     def free(self, c_pointer, total_size):
         # unprotect it, since free() accesses it, I think...
-        self.lib.mprotect(c_pointer, total_size, ctypes.c_int(mmap.PROT_READ | mmap.PROT_WRITE))
+        self.lib.mprotect(c_pointer, total_size,
+                          ctypes.c_int(mmap.PROT_READ | mmap.PROT_WRITE))
         self.lib.free(c_pointer)
 
 

@@ -199,6 +199,7 @@ def test_oob_noguard():
     u = Function(name='u', grid=grid, space_order=0, allocator=ALLOC_FLAT)
     Operator(Eq(u[2000, 0], 1.0)).apply()
 
+
 @pytest.mark.skip(reason="will crash entire test suite")
 def test_oob_guard():
     """
