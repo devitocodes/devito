@@ -62,7 +62,7 @@ class Data(object):
 
         offset = offset or tuple(0 for _ in dimensions)
         assert len(offset) == len(dimensions)
-        self._offset = [0 if i.is_Time else (self.get_first_rank_alloc_index(i.name)+j)
+        self._offset = [(self.get_first_rank_alloc_index(i.name)+j) if i.is_Space else 0
                         for i, j in zip(dimensions, offset)]
 
     def __getitem__(self, index):
@@ -206,7 +206,7 @@ class Data(object):
         for i in self.dimensions:
             if i.is_Time:
                 target.set_alloc_size(i.name, self.get_alloc_size(i.name))
-            else:
+            elif i.is_Space:
                 target.set_left_halo_size(i.name, self.get_left_halo_size(i.name))
                 target.set_right_halo_size(i.name, self.get_right_halo_size(i.name))
         target.share_storage(self.grid)

@@ -270,7 +270,7 @@ class YaskContext(object):
             if i.is_Time:
                 assert grid.is_dim_used(i.name)
                 assert grid.get_alloc_size(i.name) == s
-            else:
+            elif i.is_Space:
                 # Note:
                 # From the YASK docs: "If the halo is set to a value larger than
                 # the padding size, the padding size will be automatically increased

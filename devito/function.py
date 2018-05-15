@@ -543,7 +543,7 @@ class Function(TensorFunction):
     @property
     def _halo_indices(self):
         """Return the function indices for which a halo region is defined."""
-        return self.indices
+        return tuple(i for i in self.indices if i.is_Space)
 
     @property
     def laplace(self):
@@ -701,10 +701,6 @@ class TimeFunction(Function):
             else:
                 shape = (time_order + 1,) + grid.shape_domain
         return shape
-
-    @property
-    def _halo_indices(self):
-        return tuple(i for i in self.indices if not i.is_Time)
 
     @property
     def forward(self):
