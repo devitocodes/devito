@@ -23,7 +23,7 @@ class Analysis(object):
         self.iet = iet
         self.properties = OrderedDict()
 
-        self.trees = retrieve_iteration_tree(iet)
+        self.trees = retrieve_iteration_tree(iet, mode='superset')
         self.scopes = OrderedDict([(k, Scope([i.expr for i in v]))
                                    for k, v in MapIteration().visit(iet).items()])
 
@@ -79,8 +79,8 @@ def mark_parallel(analysis):
             dims = flatten(dims)
 
             # The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):
-            # test0 - (d_1, ..., d_{i-1}) > 0, OR
-            # test1 - (d_1, ..., d_i) = 0
+            # test0 := (d_1, ..., d_{i-1}) > 0, OR
+            # test1 := (d_1, ..., d_i) = 0
             is_parallel = True
 
             # The i-th Iteration is PARALLEL_IF_ATOMIC if for all dependeces:
@@ -89,8 +89,9 @@ def mark_parallel(analysis):
 
             for dep in analysis.scopes[i].d_all:
                 test0 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
-                test1 = all(dep.is_independent(d) for d in dims)
-                if not (test0 or test1):
+                test1 = all(dep.is_indep(d) for d in dims)
+                test2 = all(dep.is_reduce_atmost(d) for d in prev) and dep.is_indep(i.dim)
+                if not (test0 or test1 or test2):
                     is_parallel = False
                     if not dep.is_increment:
                         is_atomic_parallel = False
