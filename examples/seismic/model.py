@@ -411,6 +411,7 @@ class Model(object):
         if phi is not None:
             if self.grid.dim < 3:
                 warning("2D TTI does not use an azimuth angle Phi, ignoring input")
+                self.phi = 0
             elif isinstance(phi, np.ndarray):
                 self._physical_parameters += ('phi',)
                 self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
@@ -418,8 +419,7 @@ class Model(object):
             else:
                 self.phi = phi
         else:
-            self.phi = None
-        print([getattr(self, i) for i in self._physical_parameters])
+            self.phi = 0
 
     def physical_params(self, **kwargs):
         """
