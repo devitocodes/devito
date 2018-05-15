@@ -54,15 +54,15 @@ class MemoryAllocator(object):
         :param shape: Shape of the array to allocate.
         :param dtype: Numpy datatype to allocate.
 
-        :returns (pointer, c_pointer): The first element of the tuple is the reference
-                                       that can be used to access the data as a ctypes
-                                       object. The second element is the low-level
-                                       reference that is needed only for the call to free.
+        :returns (pointer, free_handle): The first element of the tuple is the reference
+                                         that can be used to access the data as a ctypes
+                                         object. The second element is an opaque object
+                                         that is needed only for the call to free.
         """
         size = int(reduce(mul, shape))
         ctype = numpy_to_ctypes(dtype)
 
-        c_pointer = self._alloc_C_libcall(size, ctype)
+        c_pointer, free_args = self._alloc_C_libcall(size, ctype)
         if c_pointer is None:
             raise RuntimeError("Unable to allocate %d elements in memory", str(size))
 
@@ -70,12 +70,14 @@ class MemoryAllocator(object):
                                                                   shape=shape))
         pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
 
-        return (pointer, c_pointer)
+        return (pointer, free_args)
 
     @abc.abstractmethod
     def _alloc_C_libcall(self, size, ctype):
         """
         Perform the actual memory allocation by calling a C function.
+        Should return a 2-tuple (c_pointer, free_args), where the free args
+        are what is handed back to free() later to deallocate.
 
         .. note::
 
@@ -84,12 +86,12 @@ class MemoryAllocator(object):
         return
 
     @abc.abstractmethod
-    def free(self, c_pointer, size):
+    def free(self, *args):
         """
         Free memory previously allocated with ``self.alloc``.
 
-        :param c_pointer: The pointer to the memory region to be freed.
-        :param size: The amount of memory to be freed, in bytes.
+        Arguments are provided exactly as returned in the second
+        element of the tuple returned by _alloc_C_libcall
 
         .. note::
 
@@ -122,11 +124,11 @@ class PosixAllocator(MemoryAllocator):
         alignment = self.lib.getpagesize()
         ret = self.lib.posix_memalign(ctypes.byref(c_pointer), alignment, c_bytesize)
         if ret == 0:
-            return c_pointer
+            return c_pointer, (c_pointer, )
         else:
-            return None
+            return None, None
 
-    def free(self, c_pointer, size):
+    def free(self, c_pointer):
         self.lib.free(c_pointer)
 
 
@@ -178,9 +180,9 @@ class NumaAllocator(MemoryAllocator):
         else:
             c_pointer = self.lib.numa_alloc(c_bytesize)
         if c_pointer == 0:
-            return None
+            return None, None
         else:
-            return c_pointer
+            return c_pointer, (c_pointer, size)
 
     def free(self, c_pointer, size):
         self.lib.numa_free(c_pointer, size)
@@ -273,18 +275,18 @@ class Data(np.ndarray):
 
     def __new__(cls, shape, dimensions, dtype, allocator=ALLOC_FLAT):
         assert len(shape) == len(dimensions)
-        ndarray, c_pointer = allocator.alloc(shape, dtype)
+        ndarray, free_args = allocator.alloc(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
         obj._allocator = allocator
-        obj._c_pointer = c_pointer
+        obj._free_args = free_args
         obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
         return obj
 
     def __del__(self):
-        if self._c_pointer is None:
+        if self._free_args is None:
             return
-        self._allocator.free(self._c_pointer, self.nbytes)
-        self._c_pointer = None
+        self._allocator.free(*self._free_args)
+        self._free_args = None
 
     def __array_finalize__(self, obj):
         # `self` is the newly created object
@@ -297,9 +299,9 @@ class Data(np.ndarray):
         else:
             self._modulo = obj._modulo
         # Views or references created via operations on `obj` do not get an
-        # explicit reference to the C pointer (`_c_pointer`). This makes sure
+        # explicit reference to the underlying data (`_free_args`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
-        self._c_pointer = None
+        self._free_args = None
 
     def __getitem__(self, index):
         index = self._convert_index(index)
