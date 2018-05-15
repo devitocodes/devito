@@ -64,7 +64,7 @@ class MemoryAllocator(object):
         size = int(reduce(mul, shape))
         ctype = numpy_to_ctypes(dtype)
 
-        c_pointer, free_args = self._alloc_C_libcall(size, ctype)
+        c_pointer, memfree_args = self._alloc_C_libcall(size, ctype)
         if c_pointer is None:
             raise RuntimeError("Unable to allocate %d elements in memory", str(size))
 
@@ -72,13 +72,13 @@ class MemoryAllocator(object):
                                                                   shape=shape))
         pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
 
-        return (pointer, free_args)
+        return (pointer, memfree_args)
 
     @abc.abstractmethod
     def _alloc_C_libcall(self, size, ctype):
         """
         Perform the actual memory allocation by calling a C function.
-        Should return a 2-tuple (c_pointer, free_args), where the free args
+        Should return a 2-tuple (c_pointer, memfree_args), where the free args
         are what is handed back to free() later to deallocate.
 
         .. note::
@@ -134,7 +134,7 @@ class PosixAllocator(MemoryAllocator):
         self.lib.free(c_pointer)
 
 
-class GuardAllocator(MemoryAllocator):
+class GuardAllocator(PosixAllocator):
     """
     Memory allocator based on ``posix`` functions. The allocated memory is
     aligned to page boundaries.  Additionally, it allocates extra memory
@@ -145,16 +145,8 @@ class GuardAllocator(MemoryAllocator):
     protected), is poisoned with NaNs.
     """
 
-    is_Posix = True
-
-    @classmethod
-    def initialize(cls):
-        handle = find_library('c')
-        if handle is not None:
-            cls.lib = ctypes.CDLL(handle)
-
-    def __init__(self, padding=1048576):
-        self.padding = padding
+    def __init__(self, padding_bytes=1024*1024):
+        self.padding_bytes = padding_bytes
 
     def _alloc_C_libcall(self, size, ctype):
         if not self.available():
@@ -162,9 +154,9 @@ class GuardAllocator(MemoryAllocator):
                                "allocate memory")
 
         pagesize = self.lib.getpagesize()
-        assert self.padding % pagesize == 0
+        assert self.padding_bytes % pagesize == 0
 
-        npages_pad = self.padding // pagesize
+        npages_pad = self.padding_bytes // pagesize
         nbytes_user = size * ctypes.sizeof(ctype)
         npages_user = (nbytes_user + pagesize - 1) // pagesize
 
@@ -179,13 +171,12 @@ class GuardAllocator(MemoryAllocator):
 
         # generate pointers to the left padding, the user data, and the right pad
         padleft_pointer = c_pointer
-        c_pointer = ctypes.c_void_p(c_pointer.value + self.padding)
+        c_pointer = ctypes.c_void_p(c_pointer.value + self.padding_bytes)
         padright_pointer = ctypes.c_void_p(c_pointer.value + npages_user * pagesize)
 
         # and set the permissions on the pad memory to 0 (no access)
         # if these fail, don't worry about failing the entire allocation
-        c_padsize = ctypes.c_ulong(self.padding)
-        print("protect", padleft_pointer, padright_pointer)
+        c_padsize = ctypes.c_ulong(self.padding_bytes)
         if self.lib.mprotect(padleft_pointer, c_padsize, ctypes.c_int(0)):
             logger.warning("couldn't protect memory")
         if self.lib.mprotect(padright_pointer, c_padsize, ctypes.c_int(0)):
@@ -358,18 +349,18 @@ class Data(np.ndarray):
 
     def __new__(cls, shape, dimensions, dtype, allocator=ALLOC_FLAT):
         assert len(shape) == len(dimensions)
-        ndarray, free_args = allocator.alloc(shape, dtype)
+        ndarray, memfree_args = allocator.alloc(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
         obj._allocator = allocator
-        obj._free_args = free_args
+        obj._memfree_args = memfree_args
         obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
         return obj
 
     def __del__(self):
-        if self._free_args is None:
+        if self._memfree_args is None:
             return
-        self._allocator.free(*self._free_args)
-        self._free_args = None
+        self._allocator.free(*self._memfree_args)
+        self._memfree_args = None
 
     def __array_finalize__(self, obj):
         # `self` is the newly created object
@@ -382,9 +373,9 @@ class Data(np.ndarray):
         else:
             self._modulo = obj._modulo
         # Views or references created via operations on `obj` do not get an
-        # explicit reference to the underlying data (`_free_args`). This makes sure
+        # explicit reference to the underlying data (`_memfree_args`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
-        self._free_args = None
+        self._memfree_args = None
 
     def __getitem__(self, index):
         index = self._convert_index(index)
