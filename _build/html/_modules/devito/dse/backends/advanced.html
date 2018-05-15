@@ -273,7 +273,7 @@
                     <span class="p">(</span><span class="n">naliases</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">time_invariants</span><span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">]):</span>
                 <span class="n">candidates</span><span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
 
         <span class="c1"># Create alias Clusters and all necessary substitution rules</span>
         <span class="c1"># for the new temporaries</span>

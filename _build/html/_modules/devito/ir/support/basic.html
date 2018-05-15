@@ -156,7 +156,7 @@
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support.space</span> <span class="k">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Backward</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_terminals</span><span class="p">,</span> <span class="n">q_affine</span><span class="p">,</span> <span class="n">q_inc</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span> <span class="n">filter_sorted</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Vector&#39;</span><span class="p">,</span> <span class="s1">&#39;IterationInstance&#39;</span><span class="p">,</span> <span class="s1">&#39;Access&#39;</span><span class="p">,</span> <span class="s1">&#39;TimedAccess&#39;</span><span class="p">,</span> <span class="s1">&#39;Scope&#39;</span><span class="p">]</span>
 
@@ -327,7 +327,6 @@
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">):</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationInstance</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
-        <span class="c1"># findices</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">findices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">)):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal non-unique `findices`&quot;</span><span class="p">)</span>
@@ -502,6 +501,10 @@
     <span class="k">def</span> <span class="nf">is_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_read_increment</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_write_increment</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_local</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_Symbol</span>
+
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">mode</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\033</span><span class="s1">[1;37;31mW</span><span class="se">\033</span><span class="s1">[0m&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_write</span> <span class="k">else</span> <span class="s1">&#39;</span><span class="se">\033</span><span class="s1">[1;37;32mR</span><span class="se">\033</span><span class="s1">[0m&#39;</span>
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&lt;</span><span class="si">%s</span><span class="s2">,[</span><span class="si">%s</span><span class="s2">]&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">))</span></div>
@@ -617,61 +620,79 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">distance</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">sink</span><span class="p">)</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_defined_findices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_defines</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">cause</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return the findex causing the dependence (if any -- return None if</span>
-<span class="sd">        the dependence is between scalars).&quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Return the findex causing the dependence.&quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">j</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">i</span>
+                    <span class="k">return</span> <span class="n">i</span><span class="o">.</span><span class="n">_defines</span>
             <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
                 <span class="c1"># Conservatively assume this is an offending dimension</span>
-                <span class="k">return</span> <span class="n">i</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_indirect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return True if induced by an indirection array (e.g., A[B[i]]),</span>
-<span class="sd">        False otherwise.&quot;&quot;&quot;</span>
-        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">index_mode</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">index_mode</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">d</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">cause</span> <span class="ow">and</span> <span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="s1">&#39;irregular&#39;</span> <span class="ow">or</span> <span class="n">j</span> <span class="o">==</span> <span class="s1">&#39;irregular&#39;</span><span class="p">):</span>
-                <span class="k">return</span> <span class="kc">True</span>
-        <span class="k">return</span> <span class="kc">False</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_direct</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return True if the dependence occurs through affine functions,</span>
-<span class="sd">        False otherwise.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_indirect</span>
+                <span class="k">return</span> <span class="n">i</span><span class="o">.</span><span class="n">_defines</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_increment</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_increment</span>
 
     <span class="k">def</span> <span class="nf">is_carried</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return True if a dimension-carried dependence, False otherwise.&quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Return True if definitely a dimension-carried dependence,</span>
+<span class="sd">        False otherwise.&quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span> <span class="o">&gt;</span> <span class="mi">0</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span>
+                <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cause</span> <span class="o">&amp;</span> <span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
             <span class="c1"># Conservatively assume this is a carried dependence</span>
             <span class="k">return</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">is_independent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return True if a dimension-independent dependence, False otherwise.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">is_reduce</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if ``dim`` may represent a reduction dimension for</span>
+<span class="sd">        ``self``, False otherwise.&quot;&quot;&quot;</span>
+        <span class="n">test0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_increment</span>
+        <span class="n">test1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_regular</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_regular</span>
+        <span class="n">test2</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_defined_findices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">test0</span> <span class="ow">and</span> <span class="n">test1</span> <span class="ow">and</span> <span class="n">test2</span>
+
+    <span class="k">def</span> <span class="nf">is_reduce_atmost</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;More flexible than :meth:`is_reduce`. Return True  if ``dim`` may</span>
+<span class="sd">        represent a reduction dimension for ``self`` or if `self`` is definitely</span>
+<span class="sd">        independent of ``dim``, False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reduce</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_indep</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_indep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if definitely a dimension-independent dependence,</span>
+<span class="sd">        False otherwise.&quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">dim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_irregular</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_irregular</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_irregular</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_irregular</span><span class="p">:</span>
+                <span class="c1"># Note: we cannot just return `self.distance == 0` as an irregular</span>
+                <span class="c1"># source/sink might mean that an array is actually accessed indirectly</span>
+                <span class="c1"># (e.g., A[B[i]]), thus there would be no guarantee on independence</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">elif</span> <span class="n">dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_local</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_local</span><span class="p">:</span>
+                <span class="c1"># A dependence between two locally declared scalars</span>
+                <span class="k">return</span> <span class="kc">True</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span>
+                <span class="c1"># Note: the check `i in self._defined_findices` makes sure that `i`</span>
+                <span class="c1"># is not a reduction dimension, in which case `self` would indeed be</span>
+                <span class="c1"># a dimension-dependent dependence</span>
+                <span class="n">test0</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_defined_findices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span>
+                <span class="n">test1</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cause</span> <span class="o">&amp;</span> <span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+                <span class="k">return</span> <span class="n">test0</span> <span class="ow">and</span> <span class="n">test1</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
             <span class="c1"># Conservatively assume this is not dimension-independent</span>
             <span class="k">return</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="nf">is_inplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Stronger than ``is_independent()``, as it also compares the timestamps.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_independent</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">lex_eq</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;Stronger than ``is_indep()``, as it also compares the timestamps.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_indep</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">lex_eq</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> -&gt; </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="p">)</span>
@@ -681,23 +702,11 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">cause</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
-        <span class="n">ret</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ret</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">])</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">filter_sorted</span><span class="p">(</span><span class="n">ret</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">none</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">direct</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return the dependences induced through affine index functions.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_direct</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">indirect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return the dependences induced through an indirection array.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_indirect</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -710,7 +719,7 @@
 
     <span class="k">def</span> <span class="nf">independent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the dimension-independent dependences.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_independent</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_indep</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">inplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the in-place dependences.&quot;&quot;&quot;</span>

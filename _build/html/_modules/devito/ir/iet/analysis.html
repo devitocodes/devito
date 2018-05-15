@@ -175,7 +175,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">iet</span> <span class="o">=</span> <span class="n">iet</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">properties</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">trees</span> <span class="o">=</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trees</span> <span class="o">=</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;superset&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scopes</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">Scope</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">]))</span>
                                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">MapIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
 
@@ -231,8 +231,8 @@
             <span class="n">dims</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">dims</span><span class="p">)</span>
 
             <span class="c1"># The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):</span>
-            <span class="c1"># test0 - (d_1, ..., d_{i-1}) &gt; 0, OR</span>
-            <span class="c1"># test1 - (d_1, ..., d_i) = 0</span>
+            <span class="c1"># test0 := (d_1, ..., d_{i-1}) &gt; 0, OR</span>
+            <span class="c1"># test1 := (d_1, ..., d_i) = 0</span>
             <span class="n">is_parallel</span> <span class="o">=</span> <span class="kc">True</span>
 
             <span class="c1"># The i-th Iteration is PARALLEL_IF_ATOMIC if for all dependeces:</span>
@@ -241,8 +241,9 @@
 
             <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">d_all</span><span class="p">:</span>
                 <span class="n">test0</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">prev</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">is_carried</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">prev</span><span class="p">)</span>
-                <span class="n">test1</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">is_independent</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dims</span><span class="p">)</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">test0</span> <span class="ow">or</span> <span class="n">test1</span><span class="p">):</span>
+                <span class="n">test1</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">is_indep</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dims</span><span class="p">)</span>
+                <span class="n">test2</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">is_reduce_atmost</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">prev</span><span class="p">)</span> <span class="ow">and</span> <span class="n">dep</span><span class="o">.</span><span class="n">is_indep</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">test0</span> <span class="ow">or</span> <span class="n">test1</span> <span class="ow">or</span> <span class="n">test2</span><span class="p">):</span>
                     <span class="n">is_parallel</span> <span class="o">=</span> <span class="kc">False</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">dep</span><span class="o">.</span><span class="n">is_increment</span><span class="p">:</span>
                         <span class="n">is_atomic_parallel</span> <span class="o">=</span> <span class="kc">False</span>

@@ -191,7 +191,6 @@
 
             <span class="c1"># Collect flow-dependences breaking the search</span>
             <span class="n">flow</span> <span class="o">=</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span> <span class="o">-</span> <span class="p">(</span><span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">inplace</span><span class="p">()</span> <span class="o">+</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">increment</span><span class="p">)</span>
-            <span class="n">flow</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">flow</span><span class="p">}</span>
 
             <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">is_compatible</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span> <span class="ow">and</span>\
                     <span class="nb">all</span><span class="p">(</span><span class="n">is_local</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">candidate</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">clusters</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">funcs</span><span class="p">):</span>
@@ -211,9 +210,9 @@
             <span class="k">elif</span> <span class="n">anti</span><span class="p">:</span>
                 <span class="c1"># Data dependences prevent fusion with earlier clusters, so</span>
                 <span class="c1"># must break up the search</span>
-                <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">anti</span><span class="o">.</span><span class="n">cause</span><span class="p">))</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">anti</span><span class="o">.</span><span class="n">cause</span><span class="p">)</span>
                 <span class="k">break</span>
-            <span class="k">elif</span> <span class="nb">set</span><span class="p">(</span><span class="n">flow</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">atomics</span><span class="p">):</span>
+            <span class="k">elif</span> <span class="n">flow</span><span class="o">.</span><span class="n">cause</span> <span class="o">&amp;</span> <span class="n">candidate</span><span class="o">.</span><span class="n">atomics</span><span class="p">:</span>
                 <span class="c1"># We cannot even attempt fusing with earlier clusters, as</span>
                 <span class="c1"># otherwise the existing flow dependences wouldn&#39;t be honored</span>
                 <span class="k">break</span>
