@@ -346,6 +346,57 @@ class TestOperatorSimple(object):
         assert u.data[:].sum() == np.prod(grid.shape)
 
 
+class TestOperatorAdvanced(object):
+
+    """
+    Test execution of non-trivial Operators through YASK.
+    """
+
+    def setup_method(self, method):
+        clear_cache()
+
+    def test_misc_dims(self):
+        """
+        Tests grid-independent :class:`Function`s, which require YASK's "misc"
+        dimensions.
+        """
+        dx = Dimension(name='dx')
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=1, space_order=4, save=4)
+        c = Function(name='c', dimensions=(x, dx), shape=(10, 5))
+
+        step = Eq(u.forward, (
+            u[time, x-2, y] * c[x, 0]
+            + u[time, x-1, y] * c[x, 1]
+            + u[time, x, y] * c[x, 2]
+            + u[time, x+1, y] * c[x, 3]
+            + u[time, x+2, y] * c[x, 4]))
+
+        for i in range(10):
+            c.data[i, 0] = 1.0+i
+            c.data[i, 1] = 1.0+i
+            c.data[i, 2] = 3.0+i
+            c.data[i, 3] = 6.0+i
+            c.data[i, 4] = 5.0+i
+
+        u.data[:] = 0.0
+        u.data[0, 2, :] = 2.0
+
+        op = Operator(step)
+        assert 'run_solution' in str(op)
+
+        op(time_m=0, time_M=0)
+        assert(np.all(u.data[1, 0, :] == 10.0))
+        assert(np.all(u.data[1, 1, :] == 14.0))
+        assert(np.all(u.data[1, 2, :] == 10.0))
+        assert(np.all(u.data[1, 3, :] == 8.0))
+        assert(np.all(u.data[1, 4, :] == 10.0))
+        assert(np.all(u.data[1, 5:10, :] == 0.0))
+
+
 class TestOperatorAcoustic(object):
 
     """
@@ -353,6 +404,10 @@ class TestOperatorAcoustic(object):
 
     This test is very similar to the one in test_adjointA.
     """
+
+    @classmethod
+    def setup_class(cls):
+        clear_cache()
 
     @pytest.fixture
     def shape(self):
