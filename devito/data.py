@@ -8,13 +8,15 @@ import numpy as np
 from sympy import Eq
 import ctypes
 from ctypes.util import find_library
+import mmap
 
 from devito.parameters import configuration
 from devito.tools import as_tuple, numpy_to_ctypes
+from devito.logger import logger
 import devito
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
-           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM']
+           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD']
 
 
 class MemoryAllocator(object):
@@ -132,6 +134,85 @@ class PosixAllocator(MemoryAllocator):
         self.lib.free(c_pointer)
 
 
+class GuardAllocator(MemoryAllocator):
+    """
+    Memory allocator based on ``posix`` functions. The allocated memory is
+    aligned to page boundaries.  Additionally, it allocates extra memory
+    before and after the data, and configures it so that an SEGV is thrown
+    immediately if an out-of-bounds access occurs.
+
+    Further, the remainder region of the last page (which cannot be
+    protected), is poisoned with NaNs.
+    """
+
+    is_Posix = True
+
+    @classmethod
+    def initialize(cls):
+        handle = find_library('c')
+        if handle is not None:
+            cls.lib = ctypes.CDLL(handle)
+
+    def __init__(self, padding=1048576):
+        self.padding = padding
+
+    def _alloc_C_libcall(self, size, ctype):
+        if not self.available():
+            raise RuntimeError("Couldn't find `libc`'s `posix_memalign` to "
+                               "allocate memory")
+
+        pagesize = self.lib.getpagesize()
+        assert self.padding % pagesize == 0
+
+        npages_pad = self.padding // pagesize
+        nbytes_user = size * ctypes.sizeof(ctype)
+        npages_user = (nbytes_user + pagesize - 1) // pagesize
+
+        npages_alloc = 2*npages_pad + npages_user
+
+        c_bytesize = ctypes.c_ulong(npages_alloc * pagesize)
+        c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.c_void_p)
+        alignment = self.lib.getpagesize()
+        ret = self.lib.posix_memalign(ctypes.byref(c_pointer), alignment, c_bytesize)
+        if ret != 0:
+            return None, None
+
+        # generate pointers to the left padding, the user data, and the right pad
+        padleft_pointer = c_pointer
+        c_pointer = ctypes.c_void_p(c_pointer.value + self.padding)
+        padright_pointer = ctypes.c_void_p(c_pointer.value + npages_user * pagesize)
+
+        # and set the permissions on the pad memory to 0 (no access)
+        # if these fail, don't worry about failing the entire allocation
+        c_padsize = ctypes.c_ulong(self.padding)
+        print("protect", padleft_pointer, padright_pointer)
+        if self.lib.mprotect(padleft_pointer, c_padsize, ctypes.c_int(0)):
+            logger.warning("couldn't protect memory")
+        if self.lib.mprotect(padright_pointer, c_padsize, ctypes.c_int(0)):
+            logger.warning("couldn't protect memory")
+
+        # if there is a multiple of 4 bytes left, use the code below to poison
+        # the memory
+        if nbytes_user % 4 == 0:
+            poison_size = npages_user*pagesize - nbytes_user
+            intp_type = ctypes.POINTER(ctypes.c_int)
+            poison_ptr = ctypes.cast(ctypes.c_void_p(c_pointer.value + nbytes_user),
+                                     intp_type)
+
+            # for both float32 and float64, a sequence of -100 int32s represents NaNs,
+            # at least on little-endian architectures.  It shouldn't matter what we
+            # put in there, anyway
+            for i in range(poison_size // 4):
+                poison_ptr[i] = -100
+
+        return c_pointer, (padleft_pointer, c_bytesize)
+
+    def free(self, c_pointer, total_size):
+        # unprotect it, since free() accesses it, I think...
+        self.lib.mprotect(c_pointer, total_size, ctypes.c_int(mmap.PROT_READ | mmap.PROT_WRITE))
+        self.lib.free(c_pointer)
+
+
 class NumaAllocator(MemoryAllocator):
 
     """
@@ -200,6 +281,7 @@ class NumaAllocator(MemoryAllocator):
         return self._node == 'local'
 
 
+ALLOC_GUARD = GuardAllocator(1048576)
 ALLOC_FLAT = PosixAllocator()
 ALLOC_KNL_DRAM = NumaAllocator(0)
 ALLOC_KNL_MCDRAM = NumaAllocator(1)
@@ -234,7 +316,7 @@ def default_allocator():
         * In all other cases, return ALLOC_FLAT.
     """
     if configuration['develop-mode']:
-        return ALLOC_FLAT
+        return ALLOC_GUARD
     elif NumaAllocator.available():
         if configuration['platform'] == 'knl':
             return ALLOC_KNL_MCDRAM
