@@ -6,7 +6,8 @@ from collections import OrderedDict
 
 from devito.compiler import make
 from devito.exceptions import CompilationError
-from devito.logger import debug, yask as log
+from devito.logger import debug, yask as log, yask_warning as warning
+from devito.tools import powerset, filter_sorted
 
 from devito.yask import cfac, nfac, ofac, exit, configuration
 from devito.yask.utils import namespace, rawpointer
@@ -205,7 +206,7 @@ class YaskKernel(object):
 
 class YaskContext(object):
 
-    def __init__(self, name, grid, dtype):
+    def __init__(self, name, grid):
         """
         Proxy between Devito and YASK.
 
@@ -214,12 +215,11 @@ class YaskContext(object):
 
         :param name: Unique name of the context.
         :param grid: A :class:`Grid` carrying the context dimensions.
-        :param dtype: The data type used in kernels, as a NumPy dtype.
         """
         self.name = name
         self.space_dimensions = grid.dimensions
         self.time_dimension = grid.stepping_dim
-        self.dtype = dtype
+        self.dtype = grid.dtype
 
         # All known solutions and grids in this context
         self.solutions = []
@@ -234,10 +234,6 @@ class YaskContext(object):
         handle = [nfac.new_step_index(str(self.time_dimension))] + handle
         yc_hook.new_grid('dummy_w_time', handle)
         self.yk_hook = YaskKernel(namespace['jit-yk-hook'](name, 0), yc_hook)
-
-    @property
-    def dimensions(self):
-        return (self.time_dimension,) + self.space_dimensions
 
     @property
     def nsolutions(self):
@@ -341,34 +337,75 @@ class ContextManager(OrderedDict):
 
     def __init__(self, *args, **kwargs):
         super(ContextManager, self).__init__(*args, **kwargs)
-        self.ncontexts = 0
+        self._partial_map = {}
+        self._ncontexts = 0
+
+    def _getkey(self, grid, dtype, dimensions=None):
+        base = (configuration['isa'], dtype)
+        if grid is not None:
+            dims = filter_sorted((grid.time_dim, grid.stepping_dim) + grid.dimensions)
+            return base + (tuple(dims),)
+        elif dimensions:
+            dims = filter_sorted([i for i in dimensions if i.is_Space])
+            return base + (tuple(dims),)
+        else:
+            return base
 
     def dump(self):
         """
         Drop all known contexts and clean up the relevant YASK directories.
         """
         self.clear()
+        self._partial_map.clear()
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'yask', '*devito*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*devito*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*hook*')))
 
-    def fetch(self, grid, dtype):
+    def fetch(self, grid, dtype, dimensions=None):
         """
         Fetch the :class:`YaskContext` in ``self`` uniquely identified by
-        ``grid`` and ``dtype``. Create a new (empty) :class:`YaskContext` on miss.
+        ``grid`` and ``dtype``.
         """
-        # A unique key for this context.
-        key = (configuration['isa'], dtype, grid.dimensions,
-               grid.time_dim, grid.stepping_dim)
+        key = self._getkey(grid, dtype, dimensions)
 
-        # Fetch or create a YaskContext
-        if key in self:
+        context = self.get(key, self._partial_map.get(key))
+        if context is not None:
             log("Fetched existing context from cache")
+            return context
         else:
-            self[key] = YaskContext('ctx%d' % self.ncontexts, grid, dtype)
-            self.ncontexts += 1
-            log("Context successfully created!")
-        return self[key]
+            exit("Couldn't find context for grid %s" % grid)
+
+    def putdefault(self, grid):
+        """
+        Derive a key ``K`` from the :class:`Grid` ``grid``; if ``K`` in ``self``,
+        return the existing :class:`YaskContext` ``self[K]``, otherwise create a
+        new context ``C``, set ``self[K] = C`` and return ``C``.
+        """
+        assert grid is not None
+
+        key = self._getkey(grid, grid.dtype)
+
+        # Does a YaskContext exist already corresponding to this key?
+        if key in self:
+            return self[key]
+
+        # Functions declared with explicit dimensions (i.e., with no Grid) must be
+        # able to retrieve the right context
+        partial_keys = [self._getkey(None, grid.dtype, i) for i in powerset(key[-1])]
+        if any(i in self._partial_map for i in partial_keys):
+            warning("Non-unique Dimensions found in different contexts; dumping "
+                    "all known contexts. Perhaps you're attempting to use multiple "
+                    "Grids, and some of them share identical Dimensions? ")
+            self.dump()
+
+        # Create a new YaskContext
+        context = YaskContext('ctx%d' % self._ncontexts, grid)
+        self._ncontexts += 1
+
+        self[key] = context
+        self._partial_map.update({i: context for i in partial_keys})
+
+        log("Context successfully created!")
 
     @property
     def ngrids(self):

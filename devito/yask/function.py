@@ -68,7 +68,7 @@ class Function(function.Function):
                 log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
 
                 # Fetch the appropriate context
-                context = contexts.fetch(self.grid, self.dtype)
+                context = contexts.fetch(self.grid, self.dtype, self.dimensions)
 
                 # TODO : the following will fail if not using a SteppingDimension,
                 # eg with save=True one gets /time/ instead /t/

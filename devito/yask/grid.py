@@ -1,11 +1,18 @@
 import devito.grid as grid
 
 from devito.yask.function import Constant
+from devito.yask.wrappers import contexts
 
 __all__ = ['Grid']
 
 
 class Grid(grid.Grid):
+
+    def __init__(self, *args, **kwargs):
+        super(Grid, self).__init__(*args, **kwargs)
+
+        # Initialize a new YaskContext for this Grid
+        contexts.putdefault(self)
 
     @property
     def _const(self):
