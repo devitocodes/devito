@@ -39,7 +39,6 @@ def groupby(clusters):
 
             # Collect flow-dependences breaking the search
             flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
-            flow = {i.cause for i in flow}
 
             if candidate.ispace.is_compatible(c.ispace) and\
                     all(is_local(i, candidate, c, clusters) for i in funcs):
@@ -59,9 +58,9 @@ def groupby(clusters):
             elif anti:
                 # Data dependences prevent fusion with earlier clusters, so
                 # must break up the search
-                c.atomics.update(set(anti.cause))
+                c.atomics.update(anti.cause)
                 break
-            elif set(flow).intersection(candidate.atomics):
+            elif flow.cause & candidate.atomics:
                 # We cannot even attempt fusing with earlier clusters, as
                 # otherwise the existing flow dependences wouldn't be honored
                 break

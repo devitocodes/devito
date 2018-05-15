@@ -361,9 +361,11 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
     # outermost sequential, innermost parallel
     (['Eq(fc[x,y], fc[x+1,y+1] + fc[x-1,y])'],
      (False, True)),
-    # outermost parallel w/ repeated dimensions
+    # outermost parallel w/ repeated dimensions, but the compiler is conservative
+    # and makes it sequential, as it doesn't like what happens in the inner dims,
+    # where `x`, rather than `y`, is used
     (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x], t0 + 1)'],
-     (True, False)),
+     (False, False)),
     # outermost sequential w/ repeated dimensions
     (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x+1], t0 + 1)'],
      (False, False)),
