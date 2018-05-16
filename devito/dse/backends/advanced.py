@@ -121,7 +121,7 @@ class AdvancedRewriter(BasicRewriter):
                     (naliases > 1 or time_invariants[v.rhs]):
                 candidates[v.rhs] = k
             else:
-                processed.append(Eq(k, v.rhs))
+                processed.append(v)
 
         # Create alias Clusters and all necessary substitution rules
         # for the new temporaries
