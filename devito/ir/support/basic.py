@@ -284,6 +284,13 @@ class IterationInstance(Vector):
     def is_scalar(self):
         return self.rank == 0
 
+    def affine_if_present(self, findices):
+        """
+        Return True if the provided ``findices`` appear in ``self`` and are
+        affine, False otherwise.
+        """
+        return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
+
     def distance(self, other, findex=None, view=None):
         """Compute the distance from ``self`` to ``other``.
 
