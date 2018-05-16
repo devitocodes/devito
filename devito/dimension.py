@@ -65,12 +65,6 @@ class Dimension(AbstractSymbol):
         return Scalar(name=self.max_name, dtype=np.int32)
 
     @property
-    def symbolic_extent(self):
-        """Return the extent of the loop over this dimension.
-        Would be the same as size if using default values """
-        return (self.symbolic_end - self.symbolic_start)
-
-    @property
     def limits(self):
         return (self.symbolic_start, self.symbolic_end, 1)
 
@@ -291,28 +285,32 @@ class SubDimension(DerivedDimension):
     :param upper: Symbolic expression to provide the upper bound
     """
 
-    def __new__(cls, name, parent, lower, upper, **kwargs):
+    def __new__(cls, name, parent, lower, upper, size, **kwargs):
         newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
         newobj._interval = sympy.Interval(lower, upper)
+        newobj._size = size
         return newobj
 
     @classmethod
     def left(cls, name, parent, thickness):
         return cls(name, parent,
                    lower=parent.symbolic_start,
-                   upper=parent.symbolic_start+thickness-1)
+                   upper=parent.symbolic_start+thickness-1,
+                   size=thickness)
 
     @classmethod
     def right(cls, name, parent, thickness):
         return cls(name, parent,
                    lower=parent.symbolic_end-thickness+1,
-                   upper=parent.symbolic_end)
+                   upper=parent.symbolic_end,
+                   size=thickness)
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right):
         return cls(name, parent,
                    lower=parent.symbolic_start+thickness_left,
-                   upper=parent.symbolic_end-thickness_right)
+                   upper=parent.symbolic_end-thickness_right,
+                   size=parent.symbolic_size-thickness_left-thickness_right)
 
     @property
     def symbolic_start(self):
@@ -322,8 +320,12 @@ class SubDimension(DerivedDimension):
     def symbolic_end(self):
         return self._interval.right
 
+    @property
+    def symbolic_size(self):
+        return self._size
+
     def _hashable_content(self):
-        return (self.parent._hashable_content(), self._interval)
+        return (self.parent._hashable_content(), self._interval, self._size)
 
     def _arg_values(self, *args, **kwargs):
         """

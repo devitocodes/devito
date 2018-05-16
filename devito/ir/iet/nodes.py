@@ -415,7 +415,7 @@ class Iteration(Node):
         return self._rebuild(properties=properties)
 
     @property
-    def bounds_symbolic(self):
+    def symbolic_bounds(self):
         """Return a 2-tuple representing the symbolic bounds of the object."""
         start = self.limits[0]
         end = self.limits[1]
@@ -432,30 +432,30 @@ class Iteration(Node):
         return (start + as_symbol(self.offsets[0]), end + as_symbol(self.offsets[1]))
 
     @property
-    def extent_symbolic(self):
+    def symbolic_extent(self):
         """
         Return the symbolic extent of the Iteration.
         """
-        return self.bounds_symbolic[1] - self.bounds_symbolic[0] + 1
+        return self.symbolic_bounds[1] - self.symbolic_bounds[0] + 1
 
     @property
-    def start_symbolic(self):
+    def symbolic_start(self):
         """
         Return the symbolic start of the Iteration.
         """
-        return self.bounds_symbolic[0]
+        return self.symbolic_bounds[0]
 
     @property
-    def end_symbolic(self):
+    def symbolic_end(self):
         """
         Return the symbolic end of the Iteration.
         """
-        return self.bounds_symbolic[1]
+        return self.symbolic_bounds[1]
 
     @property
-    def incr_symbolic(self):
+    def symbolic_incr(self):
         """
-        Return the symbolic extent of the Iteration.
+        Return the symbolic increment of the Iteration.
         """
         return self.limits[2]
 
@@ -510,8 +510,8 @@ class Iteration(Node):
         Return all :class:`Symbol` objects used in the header of this
         :class:`Iteration`.
         """
-        return tuple(self.start_symbolic.free_symbols) \
-            + tuple(self.end_symbolic.free_symbols) \
+        return tuple(self.symbolic_start.free_symbols) \
+            + tuple(self.symbolic_end.free_symbols) \
             + tuple(flatten(ui.free_symbols for ui in self.uindices))
 
 

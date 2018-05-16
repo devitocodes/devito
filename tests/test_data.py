@@ -1,8 +1,9 @@
 from conftest import skipif_yask
-
+import pytest
 import numpy as np
 
-from devito import Grid, Function, TimeFunction
+from devito import (Grid, Function, TimeFunction,
+                    ALLOC_GUARD, Operator, Eq, ALLOC_FLAT)
 
 
 def test_basic_indexing():
@@ -185,3 +186,27 @@ def test_scalar_arg_substitution(t0, t1):
     assert t0 != 0
     assert t0.subs('t0', 2) == 2
     assert t0.subs('t0', t1) == t1
+
+
+@pytest.mark.skip(reason="will corrupt memory and risk crash")
+def test_oob_noguard():
+    """
+    Tests the guard page allocator.  This writes to memory it shouldn't,
+    and typically gets away with it.
+    """
+    # A tiny grid
+    grid = Grid(shape=(4, 4))
+    u = Function(name='u', grid=grid, space_order=0, allocator=ALLOC_FLAT)
+    Operator(Eq(u[2000, 0], 1.0)).apply()
+
+
+@pytest.mark.skip(reason="will crash entire test suite")
+def test_oob_guard():
+    """
+    Tests the guard page allocator.  This causes a segfault in the
+    test suite, deliberately.
+    """
+    # A tiny grid
+    grid = Grid(shape=(4, 4))
+    u = Function(name='u', grid=grid, space_order=0, allocator=ALLOC_GUARD)
+    Operator(Eq(u[2000, 0], 1.0)).apply()

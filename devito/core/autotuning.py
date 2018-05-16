@@ -13,13 +13,14 @@ from devito.parameters import configuration
 __all__ = ['autotune']
 
 
-def autotune(operator, arguments, tunable):
+def autotune(operator, arguments, parameters, tunable):
     """
     Acting as a high-order function, take as input an operator and a list of
     operator arguments to perform empirical autotuning. Some of the operator
     arguments are marked as tunable.
     """
-    at_arguments = arguments.copy()
+    # We get passed all the arguments, but the cfunction only requires a subset
+    at_arguments = OrderedDict([(p.name, arguments[p.name]) for p in parameters])
 
     # User-provided output data must not be altered
     output = [i.name for i in operator.output]
@@ -56,10 +57,9 @@ def autotune(operator, arguments, tunable):
     # ... Defaults (basic mode)
     blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
     # ... Always try the entire iteration space (degenerate block)
-    datashape = [at_arguments[mapper[i].original_dim.symbolic_end.name] -
-                 at_arguments[mapper[i].original_dim.symbolic_start.name] for i in mapper]
-    blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j))
-                      for i, j in zip(mapper, datashape)]))
+    itershape = [mapper[i].iteration.symbolic_extent.subs(arguments) for i in mapper]
+    blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j-1))
+                      for i, j in zip(mapper, itershape)]))
     # ... More attempts if auto-tuning in aggressive mode
     if configuration.core['autotuning'] == 'aggressive':
         blocksizes = more_heuristic_attempts(blocksizes)
@@ -79,8 +79,9 @@ def autotune(operator, arguments, tunable):
         for k, v in at_arguments.items():
             if k in bs:
                 val = bs[k]
-                start = at_arguments[mapper[k].original_dim.symbolic_start.name]
-                end = at_arguments[mapper[k].original_dim.symbolic_end.name]
+                start = mapper[k].original_dim.symbolic_start.subs(arguments)
+                end = mapper[k].original_dim.symbolic_end.subs(arguments)
+
                 if val <= mapper[k].iteration.extent(start, end):
                     at_arguments[k] = val
                 else:
