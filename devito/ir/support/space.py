@@ -117,7 +117,7 @@ class Interval(AbstractInterval):
         self.lower = lower
         self.upper = upper
         self.min_extent = abs(upper - lower)
-        self.extent = dim.symbolic_extent + 1 + self.min_extent
+        self.extent = (dim.symbolic_end - dim.symbolic_start + 1) + self.min_extent
 
     def __repr__(self):
         return "%s[%s, %s]" % (self.dim, self.lower, self.upper)

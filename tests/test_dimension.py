@@ -38,6 +38,30 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, :, -1] == 1)
         assert np.all(u.data[1, 1:3, 1:3, 1:3] == 3)
 
+    def test_subdim_middle(self):
+        """
+        Tests that instantiating SubDimensions using the classmethod
+        constructors works correctly.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim  # noqa
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=1,
+                                 thickness_right=1)
+        eqs = [Eq(u.forward, u + 1)]
+        eqs = [e.subs(x, xi) for e in eqs]
+
+        op = Operator(eqs)
+
+        u.data[:] = 1.0
+        op.apply(time_M=1)
+        assert np.all(u.data[1, 0, :, :] == 1)
+        assert np.all(u.data[1, -1, :, :] == 1)
+        assert np.all(u.data[1, 1:3, :, :] == 2)
+
     def test_flow_detection_interior(self):
         """
         Test detection of flow directions when :class:`SubDimension`s are used

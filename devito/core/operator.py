@@ -1,7 +1,5 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict
-
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
@@ -25,9 +23,7 @@ class OperatorCore(OperatorRunnable):
         best block sizes when loop blocking is in use.
         """
         if self.dle_flags.get('blocking', False):
-            # AT assumes and ordered dict, so let's feed it one
-            args = OrderedDict([(p.name, args[p.name]) for p in self.parameters])
-            return autotune(self, args, self.dle_args)
+            return autotune(self, args, self.parameters, self.dle_args)
         else:
             return args
 
