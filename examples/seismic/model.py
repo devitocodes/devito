@@ -343,7 +343,6 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    _physical_parameters = ('m',)
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
@@ -362,7 +361,7 @@ class Model(object):
             self.m = Function(name="m", grid=self.grid, space_order=space_order)
         else:
             self.m = Constant(name="m", value=1/vp**2)
-
+        self._physical_parameters = ('m',)
         # Set model velocity, which will also set `m`
         self.vp = vp
 
