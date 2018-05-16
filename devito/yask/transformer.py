@@ -139,13 +139,14 @@ def handle(expr, yc_soln, mapper):
     elif expr.is_Indexed:
         function = expr.base.function
         if function not in mapper:
-            if function.is_TimeFunction:
-                dimensions = [nfac.new_step_index(function.indices[0].name)]
-                dimensions += [nfac.new_domain_index(i.name)
-                               for i in function.indices[1:]]
-            else:
-                dimensions = [nfac.new_domain_index(i.name)
-                              for i in function.indices]
+            dimensions = []
+            for i in function.indices:
+                if i.is_Time:
+                    dimensions.append(nfac.new_step_index(i.name))
+                elif i.is_Space:
+                    dimensions.append(nfac.new_domain_index(i.name))
+                else:
+                    dimensions.append(nfac.new_misc_index(i.name))
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
         # Detect offset from dimension. E.g., in `[x+3,y+4]`, detect `[3,4]`
         indices = []
