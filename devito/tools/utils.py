@@ -7,6 +7,7 @@ from itertools import chain, combinations, product, zip_longest
 from operator import attrgetter, mul
 
 import numpy as np
+import sympy
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
@@ -47,7 +48,7 @@ def is_integer(value):
     """
     A thorough instance comparison for all integer types.
     """
-    return isinstance(value, int) or isinstance(value, np.integer)
+    return isinstance(value, (int, np.integer, sympy.Integer))
 
 
 def generator():
