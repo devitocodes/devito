@@ -61,6 +61,10 @@ def iet_make(stree):
             # Generate `uindices`
             uindices = []
             for d, offs in i.sub_iterators:
+                if not d.is_Stepping:
+                    # Apart from SteppingDimension, no other type of Dimension
+                    # requires generation of uindices
+                    continue
                 modulo = len(offs)
                 for n, o in enumerate(filter_ordered(offs)):
                     value = (i.dim + o) % modulo
