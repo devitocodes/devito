@@ -130,36 +130,40 @@ def handle(expr, yc_soln, mapper):
         if function.is_Constant:
             if function not in mapper:
                 mapper[function] = yc_soln.new_grid(function.name, [])
-            return mapper[function].new_relative_grid_point([])
-        elif not function.is_Dimension:
+            return mapper[function].new_grid_point([])
+        elif function.is_Dimension:
+            if expr.is_Time:
+                return nfac.new_step_index(expr.name)
+            elif expr.is_Space:
+                return nfac.new_domain_index(expr.name)
+            else:
+                return nfac.new_misc_index(expr.name)
+        else:
             # A DSE-generated temporary, which must have already been
             # encountered as a LHS of a previous expression
             assert function in mapper
             return mapper[function]
     elif expr.is_Indexed:
+        # Create a YASK compiler grid if it's the first time we encounter a Function
         function = expr.base.function
         if function not in mapper:
-            dimensions = []
-            for i in function.indices:
-                if i.is_Time:
-                    dimensions.append(nfac.new_step_index(i.name))
-                elif i.is_Space:
-                    dimensions.append(nfac.new_domain_index(i.name))
-                else:
-                    dimensions.append(nfac.new_misc_index(i.name))
+            dimensions = [handle(i, yc_soln, mapper) for i in function.indices]
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
-        # Detect offset from dimension. E.g., in `[x+3,y+4]`, detect `[3,4]`
+        # Convert the Indexed into a YASK grid access
         indices = []
-        for i, j in zip(expr.indices, function.indices):
+        for i in expr.indices:
             if isinstance(i, LoweredDimension):
-                access = i.origin
+                indices.append(handle(i.origin, yc_soln, mapper))
+            elif i.is_integer:
+                # A YASK misc dimension causes this
+                indices.append(handle(i, yc_soln, mapper))
             else:
-                # SubDimension require this
+                # We must always use the parent ("main") dimension when creating
+                # YASK expressions
                 af = split_affine(i)
                 dim = af.var.parent if af.var.is_Derived else af.var
-                access = dim + af.shift
-            indices.append(int(access - j))
-        return mapper[function].new_relative_grid_point(indices)
+                indices.append(handle(dim + af.shift, yc_soln, mapper))
+        return mapper[function].new_grid_point(indices)
     elif expr.is_Add:
         return nary2binary(expr.args, nfac.new_add_node)
     elif expr.is_Mul:
