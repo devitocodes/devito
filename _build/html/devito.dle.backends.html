@@ -100,7 +100,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
-<li class="toctree-l3"><a class="reference internal" href="devito.foreign.html">devito.foreign package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
 </ul>
@@ -221,7 +220,7 @@ doesn’t drop denormal numbers, which may sometimes harm the numerical precisio
 <dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.SpeculativeRewriter" title="devito.dle.backends.advanced.SpeculativeRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.advanced.SpeculativeRewriter</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dle.backends.advanced.CustomRewriter.passes_mapper">
-<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14bae89561e0&gt;, 'denormals': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14bae8951950&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14bae8956400&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14bae89562f0&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14bae8951a60&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.CustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
+<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x147250c03158&gt;, 'denormals': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x147250bf28c8&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x147250c03378&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x147250c03268&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x147250bf29d8&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.CustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -310,7 +309,7 @@ greater than this threshold.</p>
 
 <dl class="attribute">
 <dt id="devito.dle.backends.parallelizer.Ompizer.lang">
-<code class="descname">lang</code><em class="property"> = {'atomic': &lt;cgen.Pragma object at 0x14bae89546a0&gt;, 'collapse': &lt;function Ompizer.&lt;lambda&gt; at 0x14bae8951c80&gt;, 'for': &lt;cgen.Pragma object at 0x14bae89545f8&gt;, 'par-for': &lt;cgen.Pragma object at 0x14bae8954630&gt;, 'par-region': &lt;function Ompizer.&lt;lambda&gt; at 0x14bae8951d08&gt;, 'simd-for': &lt;cgen.Pragma object at 0x14bae8954668&gt;, 'simd-for-aligned': &lt;function Ompizer.&lt;lambda&gt; at 0x14bae8951d90&gt;}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.lang" title="Permalink to this definition">¶</a></dt>
+<code class="descname">lang</code><em class="property"> = {'atomic': &lt;cgen.Pragma object at 0x147250bf1c88&gt;, 'collapse': &lt;function Ompizer.&lt;lambda&gt; at 0x147250bf2bf8&gt;, 'for': &lt;cgen.Pragma object at 0x147250bf1be0&gt;, 'par-for': &lt;cgen.Pragma object at 0x147250bf1c18&gt;, 'par-region': &lt;function Ompizer.&lt;lambda&gt; at 0x147250bf2c80&gt;, 'simd-for': &lt;cgen.Pragma object at 0x147250bf1c50&gt;, 'simd-for-aligned': &lt;function Ompizer.&lt;lambda&gt; at 0x147250bf2d08&gt;}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.lang" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shortcuts for the OpenMP language.</p>
 </dd></dl>
 

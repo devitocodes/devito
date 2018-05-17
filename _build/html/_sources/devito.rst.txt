@@ -9,7 +9,6 @@ Subpackages
     devito.core
     devito.dle
     devito.dse
-    devito.foreign
     devito.ir
     devito.symbolics
 
