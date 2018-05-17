@@ -369,11 +369,11 @@ class Iteration(Node):
 
     @property
     def is_Parallel(self):
-        return PARALLEL in self.properties
+        return PARALLEL in self.properties and not self.dim.is_Default
 
     @property
     def is_ParallelAtomic(self):
-        return PARALLEL_IF_ATOMIC in self.properties
+        return PARALLEL_IF_ATOMIC in self.properties and not self.dim.is_Default
 
     @property
     def is_ParallelRelaxed(self):

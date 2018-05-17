@@ -187,7 +187,9 @@ class AdvancedRewriter(BasicRewriter):
 
         mapper = {}
         for tree in retrieve_iteration_tree(nodes):
-            vector_iterations = [i for i in tree if i.is_Vectorizable]
+            vector_iterations = []
+            if not any(i.is_ParallelAtomic for i in tree):
+                vector_iterations = [i for i in tree if i.is_Vectorizable]
             for i in vector_iterations:
                 handle = FindSymbols('symbolics').visit(i)
                 try:
