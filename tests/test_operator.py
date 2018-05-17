@@ -1,16 +1,12 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict
-
 from conftest import EVAL, dims, time, x, y, z, skipif_yask
 
 import numpy as np
 import pytest
 
-from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
-                    TimeFunction, SparseFunction, SparseTimeFunction, Dimension,
-                    configuration, error)
-from devito.foreign import Operator as OperatorForeign
+from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
+                    SparseFunction, SparseTimeFunction, Dimension, error)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -1258,26 +1254,3 @@ class TestLoopScheduler(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(trees[0][0] is i[0] for i in trees)
-
-
-@skipif_yask
-@pytest.mark.xfail
-@pytest.mark.skipif(configuration['backend'] != 'foreign',
-                    reason="'foreign' wasn't selected as backend on startup")
-class TestForeign(object):
-
-    def test_explicit_run(self):
-        time_dim = 6
-        grid = Grid(shape=(11, 11))
-        a = TimeFunction(name='a', grid=grid, time_order=1, save=time_dim)
-        eqn = Eq(a.forward, a + 1.)
-        op = Operator(eqn)
-        assert isinstance(op, OperatorForeign)
-        args = OrderedDict(op.arguments())
-        assert args['a'] is None
-        # Emulate data feeding from outside
-        array = np.ndarray(shape=a.shape, dtype=np.float32)
-        array.fill(0.0)
-        args['a'] = array
-        op.cfunction(*list(args.values()))
-        assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
