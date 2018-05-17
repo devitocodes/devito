@@ -51,7 +51,15 @@ class YaskKernel(object):
         # JIT-compile it
         try:
             compiler = configuration.yask['compiler']
-            opt_level = 1 if configuration['develop-mode'] else 3
+            if configuration['develop-mode']:
+                if yc_soln.get_num_equations() == 0:
+                    # YASK will compile more quickly, and no price has to be paid
+                    # in terms of performance, as this is a void kernel
+                    opt_level = 0
+                else:
+                    opt_level = 1
+            else:
+                opt_level = 3
             make(namespace['path'], ['-j', 'YK_CXX=%s' % compiler.cc,
                                      'YK_CXXOPT=-O%d' % opt_level,
                                      'mpi=0',  # Disable MPI for now
