@@ -459,5 +459,5 @@ class TestOperatorAcoustic(object):
         """
         Full acoustic wave test, forward + adjoint operators
         """
-        from test_adjointA import test_acoustic
-        test_acoustic('layers', shape, kernel, space_order, nbpml)
+        from test_adjoint import TestAdjoint
+        TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
