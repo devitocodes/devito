@@ -812,7 +812,6 @@ class TestDeclarator(object):
 
     def test_heap_perfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle=None)
-        print( str(operator.ccode))
         assert """\
   float (*c)[j_size];
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
