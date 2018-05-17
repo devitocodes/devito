@@ -9,8 +9,9 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log, yask_warning as warning
 from devito.tools import powerset, filter_sorted
 
-from devito.yask import cfac, nfac, ofac, exit, configuration
+from devito.yask import cfac, ofac, exit, configuration
 from devito.yask.utils import namespace, rawpointer
+from devito.yask.transformer import make_yask_ast
 
 
 class YaskKernel(object):
@@ -147,7 +148,7 @@ class YaskKernel(object):
                    if k not in self.local_grids)
 
         # Debug info
-        debug("%s<%s,%s>" % (self.name, self.time_dimension, self.space_dimensions))
+        debug("%s<%s,%s>" % (self.name, self.step_dimension, self.space_dimensions))
         for i in list(self.grids.values()) + list(self.local_grids.values()):
             if i.get_num_dims() == 0:
                 debug("    Scalar: %s", i.get_name())
@@ -156,9 +157,17 @@ class YaskKernel(object):
                 debug("    LocalGrid: %s%s, size=%s" %
                       (i.get_name(), str(i.get_dim_names()), size))
             else:
-                size = [i.get_rank_domain_size(j) for j in self.space_dimensions]
-                lpad = [i.get_left_pad_size(j) for j in self.space_dimensions]
-                rpad = [i.get_right_pad_size(j) for j in self.space_dimensions]
+                size = []
+                lpad, rpad = [], []
+                for j in i.get_dim_names():
+                    if j in self.space_dimensions:
+                        size.append(i.get_rank_domain_size(j))
+                        lpad.append(i.get_left_pad_size(j))
+                        rpad.append(i.get_right_pad_size(j))
+                    else:
+                        size.append(i.get_alloc_size(j))
+                        lpad.append(0)
+                        rpad.append(0)
                 debug("    Grid: %s%s, size=%s, left_pad=%s, right_pad=%s" %
                       (i.get_name(), str(i.get_dim_names()), size, lpad, rpad))
 
@@ -193,7 +202,7 @@ class YaskKernel(object):
         return tuple(self.soln.get_domain_dim_names())
 
     @property
-    def time_dimension(self):
+    def step_dimension(self):
         return self.soln.get_step_dim_name()
 
     @property
@@ -218,22 +227,16 @@ class YaskContext(object):
         """
         self.name = name
         self.space_dimensions = grid.dimensions
-        self.time_dimension = grid.stepping_dim
+        self.step_dimension = grid.stepping_dim
         self.dtype = grid.dtype
 
         # All known solutions and grids in this context
         self.solutions = []
         self.grids = {}
 
-        # Build the hook kernel solution (wrapper) to create grids
-        yc_hook = self.make_yc_solution(namespace['jit-yc-hook'])
-        # Need to add dummy grids to make YASK happy
-        # TODO: improve me
-        handle = [nfac.new_domain_index(str(i)) for i in self.space_dimensions]
-        yc_hook.new_grid('dummy_wo_time', handle)
-        handle = [nfac.new_step_index(str(self.time_dimension))] + handle
-        yc_hook.new_grid('dummy_w_time', handle)
-        self.yk_hook = YaskKernel(namespace['jit-yk-hook'](name, 0), yc_hook)
+    @property
+    def dimensions(self):
+        return (self.step_dimension,) + self.space_dimensions
 
     @property
     def nsolutions(self):
@@ -250,13 +253,25 @@ class YaskContext(object):
 
         :param obj: The :class:`Function` for which a YASK grid is allocated.
         """
-        if set(obj.indices) < set(self.space_dimensions):
-            exit("Need a Function[x,y,z] to create a YASK grid.")
-
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
 
-        # Create the YASK grid
-        grid = self.yk_hook.new_grid(name, obj)
+        # Create the YASK grid. First, a "hook" compiler solution is created
+        # to describe the structure of the grids
+        yc_hook = self.make_yc_solution(namespace['jit-yc-hook'])
+        if obj.indices != self.dimensions:
+            # Note: YASK wants *at least* a grid with *all* space (domain) dimensions
+            # *and* the stepping dimension. `obj`, however, may actually employ a
+            # different set of dimensions (e.g., a strict subset and/or some misc
+            # dimensions). In such a case, an extra dummy grid is attached
+            # `obj` examples: u(x, d), u(x, y, z)
+            dimensions = [make_yask_ast(i, yc_hook, {}) for i in self.dimensions]
+            yc_hook.new_grid('dummy_grid_full', dimensions)
+        dimensions = [make_yask_ast(i, yc_hook, {}) for i in obj.indices]
+        yc_hook.new_grid('dummy_grid_true', dimensions)
+
+        # Then, a "hook" kernel solution is created to actually allocate memory
+        yk_hook = YaskKernel(namespace['jit-yk-hook'](self.name, 0), yc_hook)
+        grid = yk_hook.new_grid(name, obj)
 
         # Where should memory be allocated ?
         alloc = obj._allocator
@@ -305,7 +320,7 @@ class YaskContext(object):
 
         # Apply compile-time optimizations
         if configuration['isa'] != 'cpp':
-            dimensions = [nfac.new_domain_index(str(i)) for i in self.space_dimensions]
+            dimensions = [make_yask_ast(i, yc_soln, {}) for i in self.space_dimensions]
             # Vector folding
             for i, j in zip(dimensions, configuration.yask['folding']):
                 yc_soln.set_fold_len(i, j)
@@ -444,5 +459,5 @@ class YaskNullContext(object):
         return '?'
 
     @property
-    def time_dimension(self):
+    def step_dimension(self):
         return '?'

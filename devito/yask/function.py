@@ -70,8 +70,7 @@ class Function(function.Function):
                 # Fetch the appropriate context
                 context = contexts.fetch(self.grid, self.dtype, self.dimensions)
 
-                # TODO : the following will fail if not using a SteppingDimension,
-                # eg with save=True one gets /time/ instead /t/
+                # Create a YASK grid; this allocates memory
                 grid = context.make_grid(self)
 
                 # /self._padding/ must be updated as (from the YASK docs):
