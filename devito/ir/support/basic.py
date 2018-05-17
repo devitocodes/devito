@@ -4,7 +4,7 @@ from sympy import Basic, S
 from devito.dimension import Dimension
 from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
-from devito.tools import as_tuple, is_integer, filter_sorted
+from devito.tools import as_tuple, is_integer, filter_sorted, flatten
 
 __all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
 
@@ -175,7 +175,6 @@ class IterationInstance(Vector):
 
     def __new__(cls, indexed):
         obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
-        # findices
         obj.findices = tuple(indexed.base.function.indices)
         if len(obj.findices) != len(set(obj.findices)):
             raise ValueError("Illegal non-unique `findices`")
@@ -350,6 +349,10 @@ class Access(IterationInstance):
     def is_increment(self):
         return self.is_read_increment or self.is_write_increment
 
+    @property
+    def is_local(self):
+        return self.function.is_Symbol
+
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
         return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
@@ -465,61 +468,79 @@ class Dependence(object):
         self.distance = source.distance(sink)
 
     @property
+    def _defined_findices(self):
+        return set(flatten(i._defines for i in self.findices))
+
+    @property
     def cause(self):
-        """Return the findex causing the dependence (if any -- return None if
-        the dependence is between scalars)."""
+        """Return the findex causing the dependence."""
         for i, j in zip(self.findices, self.distance):
             try:
                 if j > 0:
-                    return i
+                    return i._defines
             except TypeError:
                 # Conservatively assume this is an offending dimension
-                return i
-
-    @property
-    def is_indirect(self):
-        """Return True if induced by an indirection array (e.g., A[B[i]]),
-        False otherwise."""
-        for d, i, j in zip(self.findices, self.source.index_mode, self.sink.index_mode):
-            if d == self.cause and (i == 'irregular' or j == 'irregular'):
-                return True
-        return False
-
-    @property
-    def is_direct(self):
-        """Return True if the dependence occurs through affine functions,
-        False otherwise."""
-        return not self.is_indirect
+                return i._defines
+        return set()
 
     @property
     def is_increment(self):
         return self.source.is_increment and self.sink.is_increment
 
     def is_carried(self, dim=None):
-        """Return True if a dimension-carried dependence, False otherwise."""
+        """Return True if definitely a dimension-carried dependence,
+        False otherwise."""
         try:
             if dim is None:
                 return self.distance > 0
             else:
-                return any(i == self.cause for i in dim._defines)
+                return len(self.cause & dim._defines) > 0
         except TypeError:
             # Conservatively assume this is a carried dependence
             return True
 
-    def is_independent(self, dim=None):
-        """Return True if a dimension-independent dependence, False otherwise."""
+    def is_reduce(self, dim):
+        """Return True if ``dim`` may represent a reduction dimension for
+        ``self``, False otherwise."""
+        test0 = self.is_increment
+        test1 = self.source.is_regular and self.sink.is_regular
+        test2 = all(i not in self._defined_findices for i in dim._defines)
+        return test0 and test1 and test2
+
+    def is_reduce_atmost(self, dim=None):
+        """More flexible than :meth:`is_reduce`. Return True  if ``dim`` may
+        represent a reduction dimension for ``self`` or if `self`` is definitely
+        independent of ``dim``, False otherwise."""
+        return self.is_reduce(dim) or self.is_indep(dim)
+
+    def is_indep(self, dim=None):
+        """Return True if definitely a dimension-independent dependence,
+        False otherwise."""
         try:
-            if dim is None or self.source.is_irregular or self.sink.is_irregular:
+            if self.source.is_irregular or self.sink.is_irregular:
+                # Note: we cannot just return `self.distance == 0` as an irregular
+                # source/sink might mean that an array is actually accessed indirectly
+                # (e.g., A[B[i]]), thus there would be no guarantee on independence
+                return False
+            elif dim is None:
                 return self.distance == 0
+            elif self.source.is_local and self.sink.is_local:
+                # A dependence between two locally declared scalars
+                return True
             else:
-                return all(i != self.cause for i in dim._defines)
+                # Note: the check `i in self._defined_findices` makes sure that `i`
+                # is not a reduction dimension, in which case `self` would indeed be
+                # a dimension-dependent dependence
+                test0 = any(i in self._defined_findices for i in dim._defines)
+                test1 = len(self.cause & dim._defines) == 0
+                return test0 and test1
         except TypeError:
             # Conservatively assume this is not dimension-independent
             return False
 
     def is_inplace(self, dim=None):
-        """Stronger than ``is_independent()``, as it also compares the timestamps."""
-        return self.is_independent(dim) and self.source.lex_eq(self.sink)
+        """Stronger than ``is_indep()``, as it also compares the timestamps."""
+        return self.is_indep(dim) and self.source.lex_eq(self.sink)
 
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
@@ -529,23 +550,11 @@ class DependenceGroup(list):
 
     @property
     def cause(self):
-        ret = [i.cause for i in self if i.cause is not None]
-        ret.extend([i.parent for i in ret if i.is_Derived])
-        return tuple(filter_sorted(ret, key=lambda i: i.name))
+        return set().union(*[i.cause for i in self])
 
     @property
     def none(self):
         return len(self) == 0
-
-    @property
-    def direct(self):
-        """Return the dependences induced through affine index functions."""
-        return DependenceGroup(i for i in self if i.is_direct)
-
-    @property
-    def indirect(self):
-        """Return the dependences induced through an indirection array."""
-        return DependenceGroup(i for i in self if i.is_indirect)
 
     @property
     def increment(self):
@@ -558,7 +567,7 @@ class DependenceGroup(list):
 
     def independent(self, dim=None):
         """Return the dimension-independent dependences."""
-        return DependenceGroup(i for i in self if i.is_independent(dim))
+        return DependenceGroup(i for i in self if i.is_indep(dim))
 
     def inplace(self, dim=None):
         """Return the in-place dependences."""

@@ -153,7 +153,9 @@ class Operator(Callable):
         # with the rest of the argument derivation procedure.
         for arg in self.dle_args:
             dim = arg.argument
-            osize = args[arg.original_dim.symbolic_size.name]
+            osize = (1 + arg.original_dim.symbolic_end
+                     - arg.original_dim.symbolic_start).subs(args)
+
             if dim.symbolic_size in self.parameters:
                 if arg.value is None:
                     args[dim.symbolic_size.name] = osize

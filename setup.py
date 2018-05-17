@@ -18,7 +18,7 @@ setup(name='devito',
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
       description="Finite Difference DSL for symbolic computation.",
-      long_descritpion="""Devito is a new tool for performing
+      long_description="""Devito is a new tool for performing
       optimised Finite Difference (FD) computation from high-level
       symbolic problem definitions. Devito performs automated code
       generation and Just-In-time (JIT) compilation based on symbolic
