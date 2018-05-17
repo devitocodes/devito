@@ -44,7 +44,6 @@ def buildAndTest (def gccvers, def DEVITO_BACKEND=null, def DEVITO_OPENMP=0, def
             sh "py.test -n 2 -vs --cov"
             // Additional seismic operator tests
             if ( DEVITO_BACKEND!='yask' ) {
-                sh "DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign"
                 sh "python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5"
                 sh "python examples/seismic/benchmark.py test -P acoustic -a"
                 sh "python examples/seismic/acoustic/acoustic_example.py --full"

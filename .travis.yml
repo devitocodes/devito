@@ -105,7 +105,6 @@ script:
   - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test --cov devito tests/; fi
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then DEVITO_BACKEND=foreign py.test tests/test_operator.py -k TestForeign; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
