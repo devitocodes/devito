@@ -6,7 +6,7 @@ from devito.symbolics import split_affine
 
 from devito.yask import nfac
 
-__all__ = ['yaskizer']
+__all__ = ['yaskizer', 'make_yask_ast']
 
 
 def yaskizer(trees, yc_soln):
@@ -92,7 +92,7 @@ def yaskizer(trees, yc_soln):
 
         # Build the YASK equations as well as all necessary grids
         for k, v in conditions:
-            yask_expr = handle(k, yc_soln, mapper)
+            yask_expr = make_yask_ast(k, yc_soln, mapper)
 
             if yask_expr is not None:
                 processed.append(yask_expr)
@@ -112,10 +112,10 @@ def yaskizer(trees, yc_soln):
     return mapper
 
 
-def handle(expr, yc_soln, mapper):
+def make_yask_ast(expr, yc_soln, mapper):
 
     def nary2binary(args, op):
-        r = handle(args[0], yc_soln, mapper)
+        r = make_yask_ast(args[0], yc_soln, mapper)
         return r if len(args) == 1 else op(r, nary2binary(args[1:], op))
 
     if expr.is_Integer:
@@ -147,22 +147,22 @@ def handle(expr, yc_soln, mapper):
         # Create a YASK compiler grid if it's the first time we encounter a Function
         function = expr.base.function
         if function not in mapper:
-            dimensions = [handle(i, yc_soln, mapper) for i in function.indices]
+            dimensions = [make_yask_ast(i, yc_soln, mapper) for i in function.indices]
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
         # Convert the Indexed into a YASK grid access
         indices = []
         for i in expr.indices:
             if isinstance(i, LoweredDimension):
-                indices.append(handle(i.origin, yc_soln, mapper))
+                indices.append(make_yask_ast(i.origin, yc_soln, mapper))
             elif i.is_integer:
                 # A YASK misc dimension causes this
-                indices.append(handle(i, yc_soln, mapper))
+                indices.append(make_yask_ast(i, yc_soln, mapper))
             else:
                 # We must always use the parent ("main") dimension when creating
                 # YASK expressions
                 af = split_affine(i)
                 dim = af.var.parent if af.var.is_Derived else af.var
-                indices.append(handle(dim + af.shift, yc_soln, mapper))
+                indices.append(make_yask_ast(dim + af.shift, yc_soln, mapper))
         return mapper[function].new_grid_point(indices)
     elif expr.is_Add:
         return nary2binary(expr.args, nfac.new_add_node)
@@ -176,8 +176,8 @@ def handle(expr, yc_soln, mapper):
 
         if int(exp) < 0:
             num, den = expr.as_numer_denom()
-            return nfac.new_divide_node(handle(num, yc_soln, mapper),
-                                        handle(den, yc_soln, mapper))
+            return nfac.new_divide_node(make_yask_ast(num, yc_soln, mapper),
+                                        make_yask_ast(den, yc_soln, mapper))
         elif int(exp) >= 1:
             return nary2binary([base] * exp, nfac.new_multiply_node)
         else:
@@ -187,9 +187,9 @@ def handle(expr, yc_soln, mapper):
         if expr.lhs.is_Symbol:
             function = expr.lhs.base.function
             assert function not in mapper
-            mapper[function] = handle(expr.rhs, yc_soln, mapper)
+            mapper[function] = make_yask_ast(expr.rhs, yc_soln, mapper)
         else:
-            return nfac.new_equation_node(*[handle(i, yc_soln, mapper)
+            return nfac.new_equation_node(*[make_yask_ast(i, yc_soln, mapper)
                                             for i in expr.args])
     else:
         warning("Missing handler in Devito-YASK translation")
