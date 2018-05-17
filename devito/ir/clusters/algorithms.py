@@ -207,8 +207,8 @@ def bump_and_contract(targets, source, sink):
             processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
         else:
             for i in sink.tensors[function]:
-                scalarized = Scalar(name='s%s%d' % (i.function.name, len(mapper))).indexify()
-                mapper[i] = scalarized
+                scalar = Scalar(name='s%s%d' % (i.function.name, len(mapper))).indexify()
+                mapper[i] = scalar
 
                 # Index bumping
                 assert len(function.indices) == len(e.lhs.indices) == len(i.indices)
@@ -216,7 +216,7 @@ def bump_and_contract(targets, source, sink):
                             zip(function.indices, e.lhs.indices, i.indices)}
 
                 # Array contraction
-                handle = e.func(scalarized, e.rhs.xreplace(mapper))
+                handle = e.func(scalar, e.rhs.xreplace(mapper))
                 handle = xreplace_indices(handle, shifting)
                 processed.append(handle)
     source.exprs = processed
