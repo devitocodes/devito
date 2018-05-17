@@ -3,9 +3,9 @@ from collections import OrderedDict
 from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
                                force_directions, group_expressions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
-from devito.symbolics import CondEq, CondNe, IntDiv, xreplace_indices
+from devito.symbolics import CondEq, IntDiv, xreplace_indices
 from devito.types import Scalar
-from devito.tools import flatten, powerset
+from devito.tools import filter_sorted, flatten
 
 __all__ = ['clusterize', 'groupby']
 
@@ -73,42 +73,37 @@ def groupby(clusters):
 
 def guard(clusters):
     """
-    Return a new :class:`ClusterGroup` including new :class:`PartialCluster`s
+    Return a new :class:`ClusterGroup` with a new :class:`PartialCluster`
     for each conditional expression encountered in ``clusters``.
     """
     processed = ClusterGroup()
     for c in clusters:
-        # Find out what expressions in /c/ should be guarded
-        mapper = {}
+        # Separate the expressions that should be guarded from the free ones
+        mapper = OrderedDict()
+        free = []
         for e in c.exprs:
+            found = []
             for k, v in e.ispace.sub_iterators.items():
                 for i in v:
                     if i.dim.is_Conditional:
-                        mapper.setdefault(i.dim, []).append(e)
+                        found.append(i.dim)
+            if found:
+                mapper.setdefault(tuple(filter_sorted(found)), []).append(e)
+            else:
+                free.append(e)
 
-        # Build conditional expressions to guard clusters
-        conditions = {d: CondEq(d.parent % d.factor, 0) for d in mapper}
-        negated = {d: CondNe(d.parent % d.factor, 0) for d in mapper}
+        # Some expressions may not require guards at all. We put them in their
+        # own cluster straigh away
+        if free:
+            processed.append(PartialCluster(free, c.ispace, c.dspace, c.atomics))
 
-        # Expand with guarded clusters
-        combs = list(powerset(mapper))
-        for dims, ndims in zip(combs, reversed(combs)):
-            banned = flatten(v for k, v in mapper.items() if k not in dims)
-            exprs = [e.xreplace({i: IntDiv(i.parent, i.factor) for i in mapper})
-                     for e in c.exprs if e not in banned]
+        # Then we add in all guarded clusters
+        for k, v in mapper.items():
+            exprs = [e.xreplace({d: IntDiv(d.parent, d.factor) for d in k}) for e in v]
+            guards = {d.parent: CondEq(d.parent % d.factor, 0) for d in k}
+            processed.append(PartialCluster(exprs, c.ispace, c.dspace, c.atomics, guards))
 
-            if not exprs:
-                # This prevents us from generating an empty cluster
-                # when there are no active expressions over the same iteration
-                # variables when the conditional is false
-                continue
-
-            guards = [(i.parent, conditions[i]) for i in dims]
-            guards.extend([(i.parent, negated[i]) for i in ndims])
-            cluster = PartialCluster(exprs, c.ispace, c.dspace, c.atomics, dict(guards))
-            processed.append(cluster)
-
-    return processed
+    return ClusterGroup(processed)
 
 
 def is_local(array, source, sink, context):
