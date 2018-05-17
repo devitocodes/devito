@@ -19,7 +19,7 @@ presets = {
 class TestAdjoint(object):
 
     def setup_method(self, method):
-        # Some of these tests is memory intensive as it requires to store the entire
+        # Some of these tests are memory intensive as it requires to store the entire
         # forward wavefield to compute the gradient (nx.ny.nz.nt). We therefore call
         # 'clear_cache()' to release any remaining memory from the previous tests or
         # previous instances (different parametrizations) of these tests
@@ -41,6 +41,13 @@ class TestAdjoint(object):
         ('constant', (60, 70), 'OT2', 8, 14), ('constant', (60, 70, 80), 'OT2', 8, 14),
     ])
     def test_adjoint_F(self, mkey, shape, kernel, space_order, nbpml):
+        """
+        Adjoint test for the forward modeling operator.
+        The forward modeling operator F generates a shot record (measurements)
+        from a source while the adjoint of F generates measurments at the source
+        location from data. This test uses the conventional dot test:
+        < Fx, y> = <x, F^T y>
+        """
         t0 = 0.0  # Start time
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
@@ -86,6 +93,14 @@ class TestAdjoint(object):
     @pytest.mark.parametrize('space_order', [4, 8, 12])
     @pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
     def test_adjoint_J(self, shape, space_order):
+        """
+        Adjoint test for the FWI Jacobian operator.
+        The Jacobian operator J generates a linearized shot record (measurements)
+        from a model perturbation dm while the adjoint of J generates the FWI gradient
+        from an adjoint source (usually data residual). This test uses the conventional
+        dot test:
+        < Jx, y> = <x ,J^T y>
+        """
         t0 = 0.0  # Start time
         tn = 500.  # Final time
         nrec = shape[0]  # Number of receivers
@@ -134,9 +149,9 @@ class TestAdjoint(object):
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
         term2 = linalg.norm(du.data)**2
-        info('<Ax,y>: %f, <x, A^Ty>: %f, relative error: %4.4e, ratio: %e'
-             % (term1, term2, 1 - term1/term2, term1 / term2))
-        assert np.isclose(term1 / term2, 1.0, atol=0.001)
+        info('<Jx,y>: %f, <x, J^Ty>: %f, difference: %4.4e, ratio: %f'
+             % (term1, term2, (term1 - term2)/term1, term1 / term2))
+        assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('shape, coords', [
         ((11, 11), [(.05, .9), (.01, .8)]),

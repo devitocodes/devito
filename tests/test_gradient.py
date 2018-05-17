@@ -12,7 +12,7 @@ from examples.seismic import Receiver
 class TestGradient(object):
 
     def setup_method(self, method):
-        # Some of these tests is memory intensive as it requires to store the entire
+        # Some of these tests are memory intensive as it requires to store the entire
         # forward wavefield to compute the gradient (nx.ny.nz.nt). We therefore call
         # 'clear_cache()' to release any remaining memory from the previous tests or
         # previous instances (different parametrizations) of these tests
