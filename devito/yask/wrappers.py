@@ -131,7 +131,7 @@ class YaskKernel(object):
                         grid storage.
         """
         # Sanity check
-        grids = {i.grid for i in toshare if i.is_TensorFunction}
+        grids = {i.grid for i in toshare if i.is_TensorFunction and i.grid is not None}
         assert len(grids) == 1
         grid = grids.pop()
 
