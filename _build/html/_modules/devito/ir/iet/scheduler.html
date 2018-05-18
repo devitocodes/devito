@@ -213,6 +213,10 @@
             <span class="c1"># Generate `uindices`</span>
             <span class="n">uindices</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">offs</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">sub_iterators</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+                    <span class="c1"># Apart from SteppingDimension, no other type of Dimension</span>
+                    <span class="c1"># requires generation of uindices</span>
+                    <span class="k">continue</span>
                 <span class="n">modulo</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">offs</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">offs</span><span class="p">)):</span>
                     <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="o">+</span> <span class="n">o</span><span class="p">)</span> <span class="o">%</span> <span class="n">modulo</span>

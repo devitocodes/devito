@@ -502,6 +502,17 @@
 <span class="sd">        * ``condition``: an arbitrary SymPy expression depending on ``parent``.</span>
 <span class="sd">                         All iterations for which the expression evaluates to</span>
 <span class="sd">                         True are part of the ``SubDimension`` region.</span>
+
+<span class="sd">    ConditionalDimension needs runtime arguments. The generated C code will require</span>
+<span class="sd">    the size of the dimension to initialize the arrays as e.g:</span>
+
+<span class="sd">        .. code-block:: python</span>
+<span class="sd">           x = grid.dimension[0]</span>
+<span class="sd">           x1 = ConditionalDimension(name=&#39;x1&#39;, parent=x, factor=2)</span>
+<span class="sd">           u1 = TimeFunction(name=&#39;u1&#39;, dimensions=(x1,), size=grid.shape[0]/factor)</span>
+<span class="sd">           # The generated code will look like</span>
+<span class="sd">           float (*restrict u1)[x1_size + 1] =</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -509,6 +520,10 @@
         <span class="n">newobj</span><span class="o">.</span><span class="n">_factor</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;factor&#39;</span><span class="p">)</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_condition</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;condition&#39;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">spacing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">spacing</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">factor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -520,20 +535,6 @@
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">condition</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        A :class:`ConditionalDimension` provides no arguments, so this</span>
-<span class="sd">        method returns an empty dict.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{}</span>
-
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        A :class:`ConditionalDimension` provides no arguments, so there are</span>
-<span class="sd">        no argument values to be derived.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{}</span>
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
