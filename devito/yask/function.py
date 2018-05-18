@@ -1,10 +1,12 @@
 from cached_property import cached_property
 import ctypes
+import sympy
 import numpy as np
 
 import devito.function as function
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
+from devito.types import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
 from devito.yask.utils import namespace
@@ -45,6 +47,19 @@ class Constant(function.Constant):
 class Function(function.Function):
 
     from_YASK = True
+
+    def __new__(cls, *args, **kwargs):
+        if cls in _SymbolCache:
+            newobj = sympy.Function.__new__(cls, *args, **kwargs.get('options', {}))
+            newobj._cached_init()
+        else:
+            # If a Function has no SpaceDimension, than for sure it won't be
+            # used by YASK. We then return a devito.Function, which employs
+            # a standard row-major format for data values
+            indices = cls.__indices_setup__(**kwargs)
+            klass = cls if any(i.is_Space for i in indices) else cls.__base__
+            newobj = cls.__base__.__new__(klass, *args, **kwargs)
+        return newobj
 
     def _allocate_memory(func):
         """Allocate memory in terms of YASK grids."""

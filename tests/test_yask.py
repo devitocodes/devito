@@ -5,7 +5,7 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
-from devito import (Eq, Grid, Operator, Constant, Function, TimeFunction,
+from devito import (Eq, Grid, Dimension, Operator, Constant, Function, TimeFunction,
                     SparseTimeFunction, configuration, clear_cache)  # noqa
 from devito.ir.iet import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import contexts  # noqa
@@ -292,6 +292,33 @@ class TestOperatorSimple(object):
         assert np.all(u.data[0] == 30.)
         assert np.all(u.data[1] == 35.)
         assert p.data[0][0] == 6.
+
+    def test_partial_offloading(self):
+        """
+        Check that :class:`Function` objects not using any :class:`SpaceDimension`
+        are computed in Devito-land, rather than via YASK.
+        """
+        shape = (4, 4, 4)
+        grid = Grid(shape=shape)
+        dx = Dimension(name='dx')
+        dy = Dimension(name='dy')
+        dz = Dimension(name='dz')
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='yu4D', grid=grid, space_order=0)
+        f = Function(name='f', dimensions=(dx, dy, dz), shape=shape)
+
+        u.data_with_halo[:] = 0.
+        f.data[:] = 0.
+
+        eqns = [Eq(u.forward, u + 1.),
+                Eq(f, u[1, dx, dy, dz] + 1.)]
+        op = Operator(eqns)
+
+        op(t=0)
+        assert np.all(u.data[0] == 0.)
+        assert np.all(u.data[1] == 1.)
+        assert np.all(f.data == 2.)
 
     def test_repeated_op_calls(self):
         """
