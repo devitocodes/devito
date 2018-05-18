@@ -350,6 +350,17 @@ class ConditionalDimension(DerivedDimension):
         * ``condition``: an arbitrary SymPy expression depending on ``parent``.
                          All iterations for which the expression evaluates to
                          True are part of the ``SubDimension`` region.
+
+    ConditionalDimension needs runtime arguments. The generated C code will require
+    the size of the dimension to initialize the arrays as e.g:
+
+        .. code-block:: python
+           x = grid.dimension[0]
+           x1 = ConditionalDimension(name='x1', parent=x, factor=2)
+           u1 = TimeFunction(name='u1', dimensions=(x1,), size=grid.shape[0]/factor)
+           # The generated code will look like
+           float (*restrict u1)[x1_size + 1] =
+
     """
 
     def __new__(cls, name, parent, **kwargs):
@@ -357,6 +368,10 @@ class ConditionalDimension(DerivedDimension):
         newobj._factor = kwargs.get('factor')
         newobj._condition = kwargs.get('condition')
         return newobj
+
+    @property
+    def spacing(self):
+        return self.factor * self.parent.spacing
 
     @property
     def factor(self):
@@ -368,20 +383,6 @@ class ConditionalDimension(DerivedDimension):
 
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.factor, self.condition)
-
-    def _arg_defaults(self, **kwargs):
-        """
-        A :class:`ConditionalDimension` provides no arguments, so this
-        method returns an empty dict.
-        """
-        return {}
-
-    def _arg_values(self, *args, **kwargs):
-        """
-        A :class:`ConditionalDimension` provides no arguments, so there are
-        no argument values to be derived.
-        """
-        return {}
 
     def _arg_check(self, *args):
         """

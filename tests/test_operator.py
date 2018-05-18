@@ -821,8 +821,8 @@ class TestDeclarator(object):
   {
     for (int j = j_m; j <= j_M; j += 1)
     {
-      float s0 = c[i][j];
-      c[i][j] = s0*c[i][j];
+      float sa0 = c[i][j];
+      c[i][j] = sa0*c[i][j];
     }
   }
   gettimeofday(&end_section0, NULL);
