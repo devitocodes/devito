@@ -27,15 +27,17 @@ class CheckpointOperator(Operator):
         args[self.t_arg_names['t_end']] = t_end - 1 + self.start_offset
         return args
 
-    @silencio(log_level='WARNING')
     def apply(self, t_start, t_end):
         """ If the devito operator requires some extra arguments in the call to apply
             they can be stored in the args property of this object so pyRevolve calls
             pyRevolve.Operator.apply() without caring about these extra arguments while
             this method passes them on correctly to devito.Operator
         """
-        args = self._prepare_args(t_start, t_end)
-        self.op.apply(**args)
+        # Build the arguments list to invoke the kernel function
+        args = self.op.arguments(**self._prepare_args(t_start, t_end))
+        # Invoke kernel function with args
+        arg_values = [args[p.name] for p in self.op.parameters]
+        self.op.cfunction(*arg_values)
 
 
 class DevitoCheckpoint(Checkpoint):
