@@ -71,7 +71,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    preset = 'layers-tti' of args.azi else 'layers-tti-noazimuth'
+    preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
     # 3D preset parameters
     if args.dim2:
         shape = (150, 150)
