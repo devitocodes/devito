@@ -23,7 +23,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('shape', [(70, 80)])
     def test_gradient_checkpointing(self, shape, kernel, space_order):
         """
-        This test ensure that the FWI gradient computed with devito
+        This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
             \Phi(m0 + h dm) = \Phi(m0) + \O(h) \\
@@ -71,7 +71,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('checkpointing', [True, False])
     def test_gradientFWI(self, shape, kernel, space_order, checkpointing):
         """
-        This test ensure that the FWI gradient computed with devito
+        This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
             \Phi(m0 + h dm) = \Phi(m0) + \O(h) \\
@@ -145,7 +145,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('shape', [(70, 80)])
     def test_gradientJ(self, shape, kernel, space_order):
         """
-        This test ensure that the Jacobian computed with devito
+        This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
         .. math::
             F(m0 + h dm) = F(m0) + \O(h) \\
