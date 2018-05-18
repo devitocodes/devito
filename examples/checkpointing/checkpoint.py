@@ -1,5 +1,5 @@
 from pyrevolve import Checkpoint, Operator
-from devito import TimeFunction, silencio
+from devito import TimeFunction
 
 
 class CheckpointOperator(Operator):

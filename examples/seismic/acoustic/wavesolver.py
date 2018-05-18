@@ -6,6 +6,7 @@ from examples.seismic.acoustic.operators import (
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from pyrevolve import Revolver
 
+
 class AcousticWaveSolver(object):
     """
     Solver object that provides operators for seismic inversion problems
@@ -173,8 +174,9 @@ class AcousticWaveSolver(object):
                              time_order=2, space_order=self.space_order)
             cp = DevitoCheckpoint([u])
             n_checkpoints = None
-            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.source, u=u, m=m, dt=dt)
-            wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v, 
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.source,
+                                         u=u, m=m, dt=dt)
+            wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v,
                                           m=m, rec=rec, dt=dt, grad=grad)
 
             # Run forward

@@ -70,7 +70,6 @@ if __name__ == "__main__":
                         help="Devito loop engine (DSE) mode")
     args = parser.parse_args()
 
-
     preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
     # 3D preset parameters
     if args.dim2:

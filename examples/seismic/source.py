@@ -1,4 +1,3 @@
-from scipy import signal
 from scipy import interpolate
 from devito import Dimension
 from devito.function import SparseTimeFunction
@@ -133,7 +132,7 @@ class PointSource(SparseTimeFunction):
             dt = new_time_range.step
         else:
             new_time_range = TimeAxis(start=start, stop=stop, step=dt)
-        
+
         if np.isclose(dt, dt0):
             return
 
@@ -142,12 +141,13 @@ class PointSource(SparseTimeFunction):
         new_traces = np.zeros((new_time_range.num, ntraces))
 
         for i in range(ntraces):
-            tck = interpolate.splrep(self._time_range.time_values, self.data[:, i], k=order)
+            tck = interpolate.splrep(self._time_range.time_values,
+                                     self.data[:, i], k=order)
             new_traces[:, i] = interpolate.splev(new_time_range.time_values, tck)
 
         # Return new object
-        return PointSource(self.name, self.grid, data=new_traces, time_range=new_time_range,
-                           coordinates=self.coordinates.data)
+        return PointSource(self.name, self.grid, data=new_traces,
+                           time_range=new_time_range, coordinates=self.coordinates.data)
 
 
 Receiver = PointSource
