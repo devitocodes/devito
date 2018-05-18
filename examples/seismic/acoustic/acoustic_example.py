@@ -11,14 +11,11 @@ from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 def smooth10(vel, shape):
     if np.isscalar(vel):
         return .9 * vel * np.ones(shape, dtype=np.float32)
-    out = np.ones(shape, dtype=vel.dtype)
+    out = np.copy(vel)
     nz = shape[-1]
 
     for a in range(5, nz-6):
-        if len(shape) == 2:
-            out[:, a] = np.sum(vel[:, a - 5:a + 5], axis=1) / 10
-        else:
-            out[:, :, a] = np.sum(vel[:, :, a - 5:a + 5], axis=2) / 10
+            out[..., a] = np.sum(vel[..., a - 5:a + 5], axis=len(shape)-1) / 10
 
     return out
 
@@ -39,12 +36,13 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     # Define source geometry (center of domain, just below surface)
     src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
-
+    if len(shape) > 1:
+        src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
     # Define receiver geometry (spread across x, just below surface)
     rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    if len(shape) > 1:
+        rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
     # Create solver object to provide relevant operators
     solver = AcousticWaveSolver(model, source=src, receiver=rec, kernel=kernel,
@@ -54,7 +52,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         space_order=4, kernel='OT2', nbpml=40, full_run=False,
-        autotune=False, constant=False, **kwargs):
+        autotune=False, constant=False, checkpointing=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
                             space_order=space_order, kernel=kernel,
@@ -63,15 +61,19 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
+    # Whether or not we save the whole time history. We only need the full wavefield
+    # with 'save=True' if we compute the gradient without checkpointing, if we use
+    # checkpointing, PyRevolve will take care of the time history
+    save = full_run and not checkpointing
     # Define receiver geometry (spread across x, just below surface)
-    rec, u, summary = solver.forward(save=full_run, autotune=autotune)
+    rec, u, summary = solver.forward(save=save, autotune=autotune)
 
     if constant:
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
-        solver.forward(save=full_run, m=m0)
+        solver.forward(save=save, m=m0)
         # With a new m as a scalar value
-        solver.forward(save=full_run, m=.25)
+        solver.forward(save=save, m=.25)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
@@ -81,14 +83,14 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Born")
     solver.born(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, autotune=autotune)
+    solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
 
 
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
-                        help="Preset to determine the physical problem setup")
+    parser.add_argument('-nd', dest='ndim', default=3, type=int,
+                        help="Preset to determine the number of dimensions")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
@@ -109,18 +111,16 @@ if __name__ == "__main__":
                         help="Devito loop engine (DSE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
+    parser.add_argument("--checkpointing", default=False, action='store_true',
+                        help="Constant velocity model, default is a two layer model")
     args = parser.parse_args()
 
     # 3D preset parameters
-    if args.dim2:
-        shape = (150, 150)
-        spacing = (15.0, 15.0)
-        tn = 750.0
-    else:
-        shape = (50, 50, 50)
-        spacing = (20.0, 20.0, 20.0)
-        tn = 250.0
+    shape = tuple(args.ndim * [51])
+    spacing = tuple(args.ndim * [15.0])
+    tn = 750. if args.ndim < 3 else 250.
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, constant=args.constant, kernel=args.kernel,
-        autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full)
+        autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full,
+        checkpointing=args.checkpointing)

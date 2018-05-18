@@ -2,6 +2,7 @@ from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
 from devito.base import Constant
 
+from sympy import prod
 import numpy as np
 
 __all__ = ['Grid']
@@ -102,6 +103,13 @@ class Grid(object):
     def dim(self):
         """Problem dimension, or number of spatial dimensions."""
         return len(self.shape)
+
+    @property
+    def volume_cell(self):
+        """
+        Volume of a single cell e.g  h_x*h_y*h_z in 3D
+        """
+        return prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
 
     @property
     def spacing(self):

@@ -108,11 +108,11 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --full --checkpointing; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/gradient_example.py; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/checkpointing/checkpointing_example.py;fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a --noazimuth; fi
   # Test tutorial notebooks for the website using nbval
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials/0[1-3]*; fi

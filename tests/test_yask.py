@@ -340,10 +340,6 @@ class TestOperatorAcoustic(object):
         return 4
 
     @pytest.fixture
-    def time_order(self):
-        return 2
-
-    @pytest.fixture
     def dtype(self):
         return np.float64
 
@@ -374,9 +370,9 @@ class TestOperatorAcoustic(object):
         return 'OT2'
 
     @pytest.fixture
-    def u(self, model, space_order, time_order):
+    def u(self, model, space_order, kernel):
         return TimeFunction(name='u', grid=model.grid,
-                            space_order=space_order, time_order=time_order)
+                            space_order=space_order, time_order=2)
 
     @pytest.fixture
     def eqn(self, m, damp, u, kernel):
@@ -432,7 +428,7 @@ class TestOperatorAcoustic(object):
 
         op.apply(u=u, m=m, damp=damp, src=src, dt=dt)
 
-        exp_u = 159.94
+        exp_u = 154.05
 
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
 
@@ -453,15 +449,15 @@ class TestOperatorAcoustic(object):
 
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.
-        exp_u = 159.94
+        exp_u = 154.05
         exp_rec = 212.15
 
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
         assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
 
-    def test_acoustic_adjoint(self, shape, time_order, space_order, nbpml):
+    def test_acoustic_adjoint(self, shape, kernel, space_order, nbpml):
         """
         Full acoustic wave test, forward + adjoint operators
         """
-        from test_adjointA import test_acoustic
-        test_acoustic('layers', shape, time_order, space_order, nbpml)
+        from test_adjoint import TestAdjoint
+        TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
