@@ -11,6 +11,7 @@ from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Element, List, PointerCast, MetaCall, Transformer,
                            retrieve_iteration_tree)
+from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
 from devito.tools import ReducerMap, flatten
 from devito.types import Object
@@ -44,7 +45,12 @@ class Operator(OperatorRunnable):
         self._compiler = configuration.yask['compiler'].copy()
 
     def _specialize_exprs(self, expressions):
+        # Align data accesses to the computational domain if not a yask.Function
+        key = lambda i: i.is_TensorFunction and not i.from_YASK
+        expressions = [align_accesses(e, key=key) for e in expressions]
+
         expressions = super(Operator, self)._specialize_exprs(expressions)
+
         # No matter whether offloading will occur or not, all YASK grids accept
         # negative indices when using the get/set_element_* methods (up to the
         # padding extent), so the OOB-relative data space should be adjusted

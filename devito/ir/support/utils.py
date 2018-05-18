@@ -92,21 +92,18 @@ def build_intervals(stencil):
     return intervals, iterators
 
 
-def align_accesses(expr, reverse=False):
+def align_accesses(expr, key=lambda i: False):
     """
     ``expr -> expr'``, with ``expr'`` semantically equivalent to ``expr``, but
-    with data accesses aligned to the computational domain. If the optional flag
-    ``reverse`` is passed as True (defaults False), then the reverse operation
-    takes place; that is, assuming ``expr`` was aligned to the computational
-    domain, ``expr'`` gets aligned back to the first allocated entry.
+    with data accesses aligned to the computational domain if ``key(function)``
+    gives True.
     """
-    shift = lambda i: (-i if reverse is True else i)
     mapper = {}
     for indexed in retrieve_indexed(expr):
         f = indexed.base.function
-        if not f.is_TensorFunction:
+        if not key(f):
             continue
-        subs = {i: i + shift(j.left) for i, j in zip(indexed.indices, f._offset_domain)}
+        subs = {i: i + j.left for i, j in zip(indexed.indices, f._offset_domain)}
         mapper[indexed] = indexed.xreplace(subs)
     return expr.xreplace(mapper)
 
