@@ -19,6 +19,4 @@ multidict
 frozendict
 anytree==2.4.3
 git+https://github.com/opesci/pyrevolve
-dask==0.17.4
-distributed==1.21.8
-tornado==5.0.2
+git+https://github.com/dask/distributed.git@c911406dfc8487d818e5405076d0c054ce8001ed#egg=distributed
