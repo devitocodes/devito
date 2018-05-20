@@ -86,11 +86,10 @@ class Grid(object):
         if time_dimension is None:
             spacing = self._const(name='dt', dtype=self.dtype)
             self.time_dim = TimeDimension(name='time', spacing=spacing)
-            self.stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
+            self.stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
         elif isinstance(time_dimension, TimeDimension):
             self.time_dim = time_dimension
-            self.stepping_dim = SteppingDimension(name='%s_s' % time_dimension.name,
-                                                  parent=self.time_dim)
+            self.stepping_dim = self._make_stepping_dim(self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
@@ -138,3 +137,9 @@ class Grid(object):
     def _const(self):
         """Return the type to create constant symbols."""
         return Constant
+
+    def _make_stepping_dim(self, time_dim, name=None):
+        """Create a stepping dimension for this Grid."""
+        if name is None:
+            name = '%s_s' % time_dim.name
+        return SteppingDimension(name=name, parent=time_dim)

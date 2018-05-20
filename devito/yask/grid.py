@@ -17,3 +17,8 @@ class Grid(grid.Grid):
     @property
     def _const(self):
         return Constant
+
+    def _make_stepping_dim(self, time_dim, **kwargs):
+        # In the `yask` backend, the stepping dimension is an alias of the
+        # time dimension
+        return time_dim

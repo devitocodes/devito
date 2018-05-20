@@ -76,7 +76,7 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', grid=grid, space_order=space_order)
         u.data_with_halo[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
-        op(yu4D=u, t=0)
+        op(yu4D=u, time=0)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(u.data[1] == 1.)
@@ -98,7 +98,7 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data_with_halo[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
-        op(yu4D=u, t=10)
+        op(yu4D=u, time=10)
         assert 'run_solution' in str(op)
         assert np.all(u.data[0] == 10.)
         assert np.all(u.data[1] == 11.)
@@ -120,7 +120,7 @@ class TestOperatorSimple(object):
         v = TimeFunction(name='yv4D', grid=grid, space_order=space_order)
         v.data_with_halo[:] = 1.
         op = Operator(Eq(v.forward, v.laplace + 6*v), subs=grid.spacing_map)
-        op(yv4D=v, t=0)
+        op(yv4D=v, time=0)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 6.)
@@ -143,7 +143,7 @@ class TestOperatorSimple(object):
         u.data_with_halo[:] = 1.
         v.data_with_halo[:] = 2.
         op = Operator(Eq(v.forward, u + v))
-        op(yu4D=u, yv4D=v, t=0)
+        op(yu4D=u, yv4D=v, time=0)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 3.)
@@ -179,7 +179,7 @@ class TestOperatorSimple(object):
                Eq(v.indexed[t + 1, 0, 2, z], v.indexed[t + 1, 0, 2, z] + 2.),
                Eq(v.indexed[t + 1, 0, 5, z], v.indexed[t + 1, 0, 5, z] + 2.)]
         op = Operator(eqs)
-        op(yu4D=u, yv4D=v, t=0)
+        op(yu4D=u, yv4D=v, time=0)
         assert 'run_solution' in str(op)
         assert len(retrieve_iteration_tree(op)) == 3
         assert np.all(u.data[0] == 0.)
@@ -237,7 +237,7 @@ class TestOperatorSimple(object):
         u.data[:] = 2.
         eq = Eq(u.backward, u - 1.)
         op = Operator(eq)
-        op(yu4D=u, t=2)
+        op(yu4D=u, time=2)
         assert 'run_solution' in str(op)
         assert np.all(u.data[2] == 2.)
         assert np.all(u.data[1] == 1.)
@@ -263,7 +263,7 @@ class TestOperatorSimple(object):
         assert 'run_solution' in str(op)
         # No data has been allocated for the temporaries yet
         assert op.yk_soln.grids['r1'].is_storage_allocated() is False
-        op.apply(yu4D=u, yv3D=v, t=0)
+        op.apply(yu4D=u, yv3D=v, time=0)
         # Temporary data has already been released after execution
         assert op.yk_soln.grids['r1'].is_storage_allocated() is False
         assert np.all(v.data == 0.)
@@ -280,7 +280,7 @@ class TestOperatorSimple(object):
         u.data[:] = 0.
         op = Operator([Eq(u.forward, u + c), Eq(p.indexed[0, 0], 1. + c)])
         assert 'run_solution' in str(op)
-        op.apply(yu4D=u, c=c, t=9)
+        op.apply(yu4D=u, c=c, time=9)
         # Check YASK did its job and could read constant grids w/o problems
         assert np.all(u.data[0] == 20.)
         # Check the Constant could be read correctly even in Devito-land, i.e.,
@@ -288,7 +288,7 @@ class TestOperatorSimple(object):
         assert p.data[0][0] == 3.
         # Check re-executing with another constant gives the correct result
         c2 = Constant(name='c', value=5.)
-        op.apply(yu4D=u, c=c2, t=2)
+        op.apply(yu4D=u, c=c2, time=2)
         assert np.all(u.data[0] == 30.)
         assert np.all(u.data[1] == 35.)
         assert p.data[0][0] == 6.
@@ -315,7 +315,7 @@ class TestOperatorSimple(object):
                 Eq(f, u[1, dx, dy, dz] + 1.)]
         op = Operator(eqns)
 
-        op(t=0)
+        op(time=0)
         assert np.all(u.data[0] == 0.)
         assert np.all(u.data[1] == 1.)
         assert np.all(f.data == 2.)
@@ -330,18 +330,18 @@ class TestOperatorSimple(object):
         u.data[:] = 0.
         op = Operator(Eq(u.forward, u + 1.))
         # First run
-        op(t=0)
+        op(time=0)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
         # Nothing should have changed at this point
-        op(t=0, yu4D=u)
+        op(time=0, yu4D=u)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
         # Now try with a different grid
         grid = Grid(shape=(3, 3, 3))
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
-        op(t=0, yu4D=u)
+        op(time=0, yu4D=u)
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
 
@@ -397,7 +397,7 @@ class TestOperatorAdvanced(object):
         assert(np.all(u.data[1, 5:10, :] == 0.0))
 
 
-class TestOperatorAcoustic(object):
+class TestIsotropicAcoustic(object):
 
     """
     Test the acoustic wave model through YASK.
@@ -494,7 +494,7 @@ class TestOperatorAcoustic(object):
         op = Operator(eqn, subs=model.spacing_map)
         assert 'run_solution' in str(op)
 
-        op.apply(u=u, m=m, damp=damp, t=10, dt=dt)
+        op.apply(u=u, m=m, damp=damp, time=10, dt=dt)
 
     def test_acoustic_w_src_wo_rec(self, model, eqn, m, damp, u, src):
         """

@@ -4,6 +4,7 @@ import sympy
 import numpy as np
 
 import devito.function as function
+from devito.exceptions import InvalidArgument
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 from devito.types import _SymbolCache
@@ -166,3 +167,35 @@ class Function(function.Function):
 class TimeFunction(function.TimeFunction, Function):
 
     from_YASK = True
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        indices = list(function.TimeFunction.__indices_setup__(**kwargs))
+        # Never use a SteppingDimension in the yask backend: it is simply
+        # unnecessary and would only complicate things when creating dummy
+        # grids
+        indices[cls._time_position] = kwargs['grid'].time_dim
+        return tuple(indices)
+
+    def _arg_defaults(self, alias=None):
+        args = super(TimeFunction, self)._arg_defaults(alias=alias)
+        # This is a little hack: a TimeFunction originally meant to be accessed
+        # via modulo buffered iteration should never impose anything on the time
+        # dimension
+        if type(self.save) is not int:
+            args.pop(self.time_dim.max_name)
+            args.pop(self.time_dim.size_name)
+        return args
+
+    def _arg_check(self, args, intervals):
+        if type(self.save) is int:
+            super(TimeFunction, self)._arg_check(args, intervals)
+        else:
+            # Using a TimeDimension in place of a SteppingDimension, so we
+            # should silence any errors due to assuming OOB accesses
+            try:
+                super(TimeFunction, self)._arg_check(args, intervals)
+            except InvalidArgument:
+                for i, s in zip(self.indices, args[self.name].shape):
+                    size = np.inf if i.is_Time else s
+                    i._arg_check(args, size, intervals[i])
