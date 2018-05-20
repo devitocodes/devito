@@ -14,7 +14,7 @@ from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
-from devito.logger import debug, error, warning
+from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import AbstractCachedFunction, AbstractCachedSymbol
@@ -520,9 +520,8 @@ class Function(TensorFunction):
         dimensions = kwargs.get('dimensions')
         if grid is None:
             if dimensions is None:
-                error("Creating a Function object requries either "
-                      "a 'grid' or the 'dimensions' argument.")
-                raise ValueError("Unknown symbol dimensions or shape")
+                raise ValueError("Function requires either a 'grid' or the "
+                                 "'dimensions' argument")
         else:
             if dimensions is not None:
                 warning("Creating Function with 'grid' and 'dimensions' "
@@ -668,8 +667,7 @@ class TimeFunction(Function):
         time_dim = kwargs.get('time_dim')
 
         if grid is None:
-            error('TimeFunction objects require a grid parameter.')
-            raise ValueError('No grid provided for TimeFunction.')
+            raise ValueError("TimeFunction needs a 'grid' argument")
 
         if time_dim is None:
             time_dim = grid.time_dim if save else grid.stepping_dim
