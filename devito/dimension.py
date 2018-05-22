@@ -265,7 +265,7 @@ class DerivedDimension(Dimension):
         return self.parent.spacing
 
     def _hashable_content(self):
-        return (self.parent._hashable_content(),)
+        return (self.name, self.parent._hashable_content())
 
     @property
     def _defines(self):
@@ -356,7 +356,8 @@ class SubDimension(DerivedDimension):
             return int(val), self.parent.symbolic_end
 
     def _hashable_content(self):
-        return (self.parent._hashable_content(), self._interval, self._size)
+        return super(SubDimension, self)._hashable_content() + (self._interval,
+                                                                self._size)
 
     def _arg_defaults(self, **kwargs):
         """
@@ -420,7 +421,8 @@ class ConditionalDimension(DerivedDimension):
         return self._condition
 
     def _hashable_content(self):
-        return (self.parent._hashable_content(), self.factor, self.condition)
+        return super(ConditionalDimension, self)._hashable_content() + (self.factor,
+                                                                        self.condition)
 
 
 class SteppingDimension(DerivedDimension):
