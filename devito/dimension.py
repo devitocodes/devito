@@ -335,13 +335,25 @@ class SubDimension(DerivedDimension):
     def symbolic_size(self):
         return self._size
 
-    @property
-    def symbolic_ofs_lower(self):
-        return self._interval.left - self.parent.symbolic_start
+    def offset_lower(self):
+        # The lower extreme of the subdimension can be related to either the
+        # start or end of the parent dimension
+        try:
+            val = self.symbolic_start - self.parent.symbolic_start
+            return int(val), self.parent.symbolic_start
+        except TypeError:
+            val = self.symbolic_start - self.parent.symbolic_end
+            return int(val), self.parent.symbolic_end
 
-    @property
-    def symbolic_ofs_upper(self):
-        return self._interval.right - self.parent.symbolic_end
+    def offset_upper(self):
+        # The upper extreme of the subdimension can be related to either the
+        # start or end of the parent dimension
+        try:
+            val = self.symbolic_end - self.parent.symbolic_start
+            return int(val), self.parent.symbolic_start
+        except TypeError:
+            val = self.symbolic_end - self.parent.symbolic_end
+            return int(val), self.parent.symbolic_end
 
     def _hashable_content(self):
         return (self.parent._hashable_content(), self._interval, self._size)
