@@ -10,7 +10,7 @@ env:
 
 matrix:
   include:
-- os: linux
+    - os: linux
       python: "3.6"
       addons:
         apt:
@@ -51,7 +51,7 @@ matrix:
             - g++-7
       env: RUN_BUNDLE='examples' DEVITO_ARCH=gcc-7 INSTALL_TYPE=conda DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
 
-- os: linux
+    - os: linux
       python: "3.6"
       addons:
         apt:
@@ -92,7 +92,7 @@ matrix:
             - g++-7
       env: RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-7 INSTALL_TYPE=conda DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
 
-- os: linux
+    - os: linux
       python: "3.6"
       addons:
         apt:
@@ -133,7 +133,7 @@ matrix:
             - g++-7
       env: RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-7 INSTALL_TYPE=conda DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
 
-- os: linux
+    - os: linux
       python: "3.6"
       addons:
         apt:
