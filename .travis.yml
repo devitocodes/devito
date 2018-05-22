@@ -19,7 +19,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: RUN_BUNDLE='examples' DEVITO_ARCH=gcc-4.9 INSTALL_TYPE=pip_setup DEVITO_OPENMP=0
+      env: INSTALL_TYPE='pip_setup' RUN_BUNDLE='basic' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
     - os: linux
       python: "3.6"
       addons:
@@ -29,7 +29,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: RUN_BUNDLE='examples' DEVITO_ARCH=gcc-4.9 INSTALL_TYPE=conda DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+      env: INSTALL_TYPE='pip_setup' RUN_BUNDLE='basic' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
     - os: linux
       python: "3.6"
       addons:
@@ -39,7 +39,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: RUN_BUNDLE='examples' DEVITO_ARCH=gcc-5 INSTALL_TYPE=conda DEVITO_OPENMP=0
+      env: INSTALL_TYPE='pip_setup' RUN_BUNDLE='basic' DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
     - os: linux
       python: "3.6"
       addons:
@@ -49,7 +49,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: RUN_BUNDLE='examples' DEVITO_ARCH=gcc-7 INSTALL_TYPE=conda DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='pip_setup' RUN_BUNDLE='basic' DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
 
     - os: linux
       python: "3.6"
@@ -60,7 +60,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-4.9 INSTALL_TYPE=pip_setup DEVITO_OPENMP=0
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='basic' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
     - os: linux
       python: "3.6"
       addons:
@@ -70,7 +70,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-4.9 INSTALL_TYPE=conda DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='basic' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
     - os: linux
       python: "3.6"
       addons:
@@ -80,7 +80,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-5 INSTALL_TYPE=conda DEVITO_OPENMP=0
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='basic' DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
     - os: linux
       python: "3.6"
       addons:
@@ -90,7 +90,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-7 INSTALL_TYPE=conda DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='basic' DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
 
     - os: linux
       python: "3.6"
@@ -101,7 +101,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-4.9 INSTALL_TYPE=pip_setup DEVITO_OPENMP=0
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
     - os: linux
       python: "3.6"
       addons:
@@ -111,7 +111,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-4.9 INSTALL_TYPE=conda DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
     - os: linux
       python: "3.6"
       addons:
@@ -121,7 +121,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-5 INSTALL_TYPE=conda DEVITO_OPENMP=0
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
     - os: linux
       python: "3.6"
       addons:
@@ -131,7 +131,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-7 INSTALL_TYPE=conda DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='benchmark' DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
 
     - os: linux
       python: "3.6"
@@ -142,7 +142,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: RUN_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-4.9 INSTALL_TYPE=pip_setup DEVITO_OPENMP=0
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
     - os: linux
       python: "3.6"
       addons:
@@ -152,7 +152,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: RUN_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-4.9 INSTALL_TYPE=conda DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
     - os: linux
       python: "3.6"
       addons:
@@ -162,7 +162,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: RUN_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-5 INSTALL_TYPE=conda DEVITO_OPENMP=0
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
     - os: linux
       python: "3.6"
       addons:
@@ -172,7 +172,130 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: RUN_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-7 INSTALL_TYPE=conda DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
+
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-5
+            - g++-5
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' RUN_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
+
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-5
+            - g++-5
+      env: INSTALL_TYPE='conda' TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
+
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-5
+            - g++-5
+      env: INSTALL_TYPE='conda' TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7
   allow_failures:
     - os: linux
       python: "2.7"
@@ -222,10 +345,14 @@ before_script:
 
 script:
   - flake8 --builtins=ArgumentError .
-  # Run tests with pip
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py test; fi
-  # Run test with py.tests
-  - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test --cov devito tests/; fi
+  # Run tests
+  - if [[ $RUN_BUNDLE == 'basic' ]]; then
+      if [[ $TEST_INSTALL_TYPE == 'pip_setup' ]]; then
+        python setup.py test
+      elif [[ $TEST_INSTALL_TYPE == 'pip_setup' ]]; then
+        py.test --cov devito tests
+      fi
+    fi
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
   - if [[ $RUN_BUNDLE == 'benchmark' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
