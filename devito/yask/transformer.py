@@ -1,6 +1,6 @@
 from devito.dimension import LoweredDimension
 from devito.ir.iet import FindNodes, Expression
-from devito.ir.support import Backward, Forward
+from devito.ir.support import Backward
 from devito.logger import yask_warning as warning
 from devito.symbolics import split_affine
 
@@ -36,46 +36,59 @@ def yaskizer(trees, yc_soln):
             if not i.dim.is_Sub:
                 continue
 
-            ydim = nfac.new_domain_index(i.dim.parent.name)
+            # Can we express both Iteration extremes as
+            # `FIRST(i.dim) + integer` OR `LAST(i.dim) + integer` ?
+            # If not, one of the following lines will throw a TypeError exception
+            lower_ofs, lower_sym = i.dim.offset_lower()
+            upper_ofs, upper_sym = i.dim.offset_upper()
 
-            try:
-                # Are the extremes statically known ?
-                lower = nfac.new_const_number_node(int(i.dim.symbolic_ofs_lower))
-                upper = nfac.new_const_number_node(int(i.dim.symbolic_ofs_upper))
+            if i.is_Parallel:
+                # At this point, no issues are expected -- we should just be able to
+                # build the YASK conditions under which to execute this parallel Iteration
 
-                # Yes! Can go on adding the conditions
-                expr = nfac.new_add_node(nfac.new_first_domain_index(ydim), lower)
+                ydim = nfac.new_domain_index(i.dim.parent.name)
+
+                # Handle lower extreme
+                if lower_sym == i.dim.parent.symbolic_start:
+                    node = nfac.new_first_domain_index(ydim)
+                else:
+                    node = nfac.new_last_domain_index(ydim)
+                expr = nfac.new_add_node(node, nfac.new_const_number_node(lower_ofs))
                 for _, v in conditions:
                     v.append(nfac.new_not_less_than_node(ydim, expr))
-                expr = nfac.new_add_node(nfac.new_last_domain_index(ydim), upper)
+
+                # Handle upper extreme
+                if upper_sym == i.dim.parent.symbolic_start:
+                    node = nfac.new_first_domain_index(ydim)
+                else:
+                    node = nfac.new_last_domain_index(ydim)
+                expr = nfac.new_add_node(node, nfac.new_const_number_node(upper_ofs))
                 for _, v in conditions:
                     v.append(nfac.new_not_greater_than_node(ydim, expr))
-            except TypeError:
-                # Nope, is at least the Iteration extent statically known? If not,
-                # than a further TypeError exception will be thrown by ``i.extent()``
-                if i.is_Sequential:
-                    extent = i.extent()
 
-                    if i.direction is Backward:
-                        _range = reversed(range(extent))
-                        node = nfac.new_first_domain_index(ydim)
-                    elif i.direction is Forward:
-                        _range = range(-extent + 1, 1)
-                        node = nfac.new_last_domain_index(ydim)
-                    else:
-                        assert False
+            elif i.is_Sequential:
+                # For sequential Iterations, the extent *must* be statically known
+                assert int(i.extent())
+                assert lower_sym == upper_sym  # A corollary of the above condition
+                n = lower_sym
 
-                    unwinded = []
-                    for e, v in conditions:
-                        for r in _range:
-                            expr = nfac.new_add_node(node, nfac.new_const_number_node(r))
-                            condition = nfac.new_equals_node(ydim, expr)
-                            unwinded.append((e, v + [nfac.new_equals_node(ydim, expr)]))
-                    conditions = unwinded
+                ydim = nfac.new_domain_index(i.dim.parent.name)
+                if n == i.dim.parent.symbolic_start:
+                    node = nfac.new_first_domain_index(ydim)
                 else:
-                    # YASK does not support parallel Iterations over sub-dimensions
-                    # with statically unknown extents
-                    raise NotImplementedError
+                    node = nfac.new_last_domain_index(ydim)
+
+                if i.direction is Backward:
+                    _range = range(upper_ofs, lower_ofs - 1, -1)
+                else:
+                    _range = range(lower_ofs, upper_ofs + 1)
+
+                unwound = []
+                for e, v in conditions:
+                    for r in _range:
+                        expr = nfac.new_add_node(node, nfac.new_const_number_node(r))
+                        unwound.append((e, v + [nfac.new_equals_node(ydim, expr)]))
+                conditions = unwound
 
         # Build the YASK equations as well as all necessary grids
         for k, v in conditions:
