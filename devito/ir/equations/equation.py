@@ -101,7 +101,8 @@ class LoweredEq(Eq, IREq):
             mapper = {i: SubDimension.middle("%si" % i, i, 1, 1)
                       for i in ordering if i.is_Space}
             expr = expr.xreplace(mapper)
-            ordering = [mapper.get(i, i) for i in ordering]
+            for k, v in mapper.items():
+                ordering.insert(ordering.index(k) + 1, v)
 
         # Analyze the expression
         mapper = detect_accesses(expr)

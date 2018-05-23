@@ -52,7 +52,7 @@ class YaskKernel(object):
         try:
             compiler = configuration.yask['compiler']
             opt_level = 1 if configuration['develop-mode'] else 3
-            make(namespace['path'], ['-j3', 'YK_CXX=%s' % compiler.cc,
+            make(namespace['path'], ['-j', 'YK_CXX=%s' % compiler.cc,
                                      'YK_CXXOPT=-O%d' % opt_level,
                                      'mpi=0',  # Disable MPI for now
                                      # "EXTRA_MACROS=TRACE",

@@ -163,7 +163,7 @@ class Data(object):
                 if i.stop is None:
                     stop = size - 1
                 elif i.stop < 0:
-                    stop = size + i.stop
+                    stop = size + (i.stop - 1)
                 else:
                     stop = i.stop - 1
                 shape = stop - start + 1
