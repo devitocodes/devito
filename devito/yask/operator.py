@@ -200,17 +200,17 @@ def find_offloadable_trees(iet):
         # nest at least one iteration
         if len(tree) <= 1:
             continue
-        time_iteration = tree[0]
-        if not time_iteration.dim.is_Time:
+        if not tree.root.dim.is_Time:
             continue
         grid_tree = tree[1:]
         if not all(i.is_Affine for i in grid_tree):
             # Non-affine array accesses unsupported by YASK
             continue
-        bundle = tree[-1].nodes[0]
-        if len(tree.inner.nodes) > 1 or not bundle.is_ExpressionBundle:
+        bundles = [i for i in tree.inner.nodes if i.is_ExpressionBundle]
+        if len(bundles) != 1:
             # Illegal nest
             continue
+        bundle = bundles[0]
         # Found an offloadable candidate
         reducer.setdefault('grid_trees', []).append(grid_tree)
         # Track `grid` and `dtype`
