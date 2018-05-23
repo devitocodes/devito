@@ -68,7 +68,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-4.9
     - os: linux
       python: "3.6"
       addons:
@@ -78,7 +78,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-5
     - os: linux
       python: "3.6"
       addons:
@@ -88,7 +88,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-7
     - os: linux
       python: "3.6"
       addons:
@@ -98,7 +98,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -108,7 +108,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-4.9
     - os: linux
       python: "3.6"
       addons:
@@ -118,7 +118,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-5
     - os: linux
       python: "3.6"
       addons:
@@ -128,7 +128,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-7
     - os: linux
       python: "3.6"
       addons:
@@ -138,7 +138,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -148,7 +148,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-4.9
     - os: linux
       python: "3.6"
       addons:
@@ -158,7 +158,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-5
     - os: linux
       python: "3.6"
       addons:
@@ -168,7 +168,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-7
     - os: linux
       python: "3.6"
       addons:
@@ -178,7 +178,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='tutorial_cfd' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -188,7 +188,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='tutorial_seismic123' DEVITO_ARCH=gcc-4.9
     - os: linux
       python: "3.6"
       addons:
@@ -198,7 +198,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='tutorial_seismic123' DEVITO_ARCH=gcc-5
     - os: linux
       python: "3.6"
       addons:
@@ -208,7 +208,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='tutorial_seismic123' DEVITO_ARCH=gcc-7
     - os: linux
       python: "3.6"
       addons:
@@ -218,7 +218,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_BUNDLE='tutorial_seismic' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='tutorial_seismic123' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -228,7 +228,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='tutorial_seismic4' DEVITO_ARCH=gcc-4.9
     - os: linux
       python: "3.6"
       addons:
@@ -238,7 +238,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='tutorial_seismic4' DEVITO_ARCH=gcc-5
     - os: linux
       python: "3.6"
       addons:
@@ -248,7 +248,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='tutorial_seismic4' DEVITO_ARCH=gcc-7
     - os: linux
       python: "3.6"
       addons:
@@ -258,7 +258,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='tutorial_seismic4' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -268,7 +268,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-4.9
     - os: linux
       python: "3.6"
       addons:
@@ -278,7 +278,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-5
     - os: linux
       python: "3.6"
       addons:
@@ -288,7 +288,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-7
     - os: linux
       python: "3.6"
       addons:
@@ -298,7 +298,47 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=4 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-4.9
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-5
+            - g++-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-5
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-7
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -362,7 +402,8 @@ script:
   - if [[ ${TEST_BUNDLE} == 'example' ]]; then python examples/checkpointing/checkpointing_example.py;fi
   # Test tutorial notebooks for the website using nbval
   - if [[ ${TEST_BUNDLE} == 'tutorial_cfd' ]]; then py.test --nbval examples/cfd; fi
-  - if [[ ${TEST_BUNDLE} == 'tutorial_seismic' ]]; then py.test --nbval examples/seismic/tutorials; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorial_seismic123' ]]; then py.test --nbval examples/seismic/tutorials/0[1-3]*; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorial_seismic4' ]]; then py.test --nbval examples/seismic/tutorials/04*; fi
   # Code coverage and documentation generation
   - if [[ ${TEST_DOCS} == 1 ]]; then
       codecov;
