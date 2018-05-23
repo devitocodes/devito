@@ -28,7 +28,7 @@ def yaskizer(trees, yc_soln):
     processed = []
     for tree in trees:
         # All expressions within `tree`
-        expressions = [i.expr for i in FindNodes(Expression).visit(tree.root)]
+        expressions = [i.expr for i in FindNodes(Expression).visit(tree.inner)]
 
         # Attach conditional expression for sub-domains
         conditions = [(i, []) for i in expressions]
