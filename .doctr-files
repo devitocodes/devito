@@ -85,7 +85,6 @@
 ./_build/html/_modules/examples/cfd/tools.html
 ./_build/html/_modules/examples/misc/linalg.html
 ./_build/html/_modules/examples/seismic/acoustic/acoustic_example.html
-./_build/html/_modules/examples/seismic/acoustic/gradient_example.html
 ./_build/html/_modules/examples/seismic/acoustic/operators.html
 ./_build/html/_modules/examples/seismic/acoustic/wavesolver.html
 ./_build/html/_modules/examples/seismic/benchmark.html

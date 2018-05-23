@@ -562,9 +562,9 @@
     <span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">first_stencil</span><span class="p">,</span> <span class="n">second_stencil</span><span class="p">]</span>
 
     <span class="c1"># Source and receivers</span>
-    <span class="n">stencils</span> <span class="o">+=</span> <span class="n">src</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">src</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">/</span> <span class="n">m</span><span class="p">,</span>
+    <span class="n">stencils</span> <span class="o">+=</span> <span class="n">src</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">src</span> <span class="o">*</span> <span class="n">dt</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="n">m</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">volume_cell</span><span class="p">),</span>
                            <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
-    <span class="n">stencils</span> <span class="o">+=</span> <span class="n">src</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">src</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">/</span> <span class="n">m</span><span class="p">,</span>
+    <span class="n">stencils</span> <span class="o">+=</span> <span class="n">src</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">src</span> <span class="o">*</span> <span class="n">dt</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="n">m</span> <span class="o">*</span> <span class="n">v</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">volume_cell</span><span class="p">),</span>
                            <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
     <span class="n">stencils</span> <span class="o">+=</span> <span class="n">rec</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">u</span> <span class="o">+</span> <span class="n">v</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">nbpml</span><span class="p">)</span>
 
@@ -630,9 +630,7 @@
 
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script> 
 

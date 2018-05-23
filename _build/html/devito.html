@@ -1002,7 +1002,7 @@ derived time dimensions symbol. For example:</p>
 
 <dl class="class">
 <dt id="devito.cgen_utils.CodePrinter">
-<em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">CodePrinter</code><span class="sig-paren">(</span><em>settings={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#CodePrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.CodePrinter" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">CodePrinter</code><span class="sig-paren">(</span><em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>settings={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#CodePrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.CodePrinter" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.printing.ccode.C99CodePrinter</span></code></p>
 <dl class="attribute">
 <dt id="devito.cgen_utils.CodePrinter.custom_functions">
@@ -1055,7 +1055,7 @@ derived time dimensions symbol. For example:</p>
 
 <dl class="function">
 <dt id="devito.cgen_utils.ccode">
-<code class="descclassname">devito.cgen_utils.</code><code class="descname">ccode</code><span class="sig-paren">(</span><em>expr</em>, <em>**settings</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#ccode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.ccode" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.cgen_utils.</code><code class="descname">ccode</code><span class="sig-paren">(</span><em>expr</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>**settings</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#ccode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.ccode" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate C++ code from an expression calling CodePrinter class</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -2234,12 +2234,6 @@ than an assignment. Defaults to False.</li>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.function.SparseFunction.point_increments">
-<code class="descname">point_increments</code><a class="headerlink" href="#devito.function.SparseFunction.point_increments" title="Permalink to this definition">¶</a></dt>
-<dd><p>Index increments in each dimension for each point symbol</p>
-</dd></dl>
-
-<dl class="attribute">
 <dt id="devito.function.SparseFunction.point_symbols">
 <code class="descname">point_symbols</code><a class="headerlink" href="#devito.function.SparseFunction.point_symbols" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for coordinate value in each dimension of the point</p>
@@ -2386,6 +2380,12 @@ the conventions for defining the coordinate space in 2D are:</p>
 <dt id="devito.grid.Grid.spacing_symbols">
 <code class="descname">spacing_symbols</code><a class="headerlink" href="#devito.grid.Grid.spacing_symbols" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbols representing the grid spacing in each <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code></p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.grid.Grid.volume_cell">
+<code class="descname">volume_cell</code><a class="headerlink" href="#devito.grid.Grid.volume_cell" title="Permalink to this definition">¶</a></dt>
+<dd><p>Volume of a single cell e.g  h_x*h_y*h_z in 3D</p>
 </dd></dl>
 
 </dd></dl>
@@ -2893,9 +2893,7 @@ or value lists.</p>
 
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script> 
 

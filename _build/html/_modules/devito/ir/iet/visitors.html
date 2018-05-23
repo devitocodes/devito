@@ -361,11 +361,13 @@
         <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">element</span></div>
 
 <div class="viewcode-block" id="CGen.visit_Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Expression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">),</span> <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span></div>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                        <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="CGen.visit_LocalExpression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_LocalExpression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_LocalExpression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
-                             <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)),</span> <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span></div>
+                             <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dtype</span><span class="p">)),</span>
+                             <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="CGen.visit_ForeignExpression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_ForeignExpression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_ForeignExpression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="p">))</span></div>
@@ -850,9 +852,7 @@
 
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script> 
 

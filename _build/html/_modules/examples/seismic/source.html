@@ -150,8 +150,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for examples.seismic.source</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">scipy</span> <span class="k">import</span> <span class="n">signal</span>
-<span class="kn">from</span> <span class="nn">scipy.interpolate</span> <span class="k">import</span> <span class="n">CubicSpline</span>
+<span></span><span class="kn">from</span> <span class="nn">scipy</span> <span class="k">import</span> <span class="n">interpolate</span>
 <span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">SparseTimeFunction</span>
 
@@ -270,7 +269,7 @@
     <span class="k">def</span> <span class="nf">time_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_range</span>
 
-<div class="viewcode-block" id="PointSource.resample"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.PointSource.resample">[docs]</a>    <span class="k">def</span> <span class="nf">resample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
+<div class="viewcode-block" id="PointSource.resample"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.PointSource.resample">[docs]</a>    <span class="k">def</span> <span class="nf">resample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
         <span class="c1"># Only one of dt or num may be set.</span>
         <span class="k">if</span> <span class="n">dt</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">assert</span> <span class="n">num</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
@@ -286,31 +285,21 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">new_time_range</span> <span class="o">=</span> <span class="n">TimeAxis</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="n">stop</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="n">dt</span><span class="p">)</span>
 
-        <span class="n">npad</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_range</span><span class="o">.</span><span class="n">num</span><span class="p">)))</span>
-        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npad</span><span class="p">,</span> <span class="mi">28</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="n">n</span><span class="o">*</span><span class="n">dt0</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="n">n</span><span class="o">*</span><span class="n">dt0</span><span class="o">/</span><span class="n">dt</span><span class="p">)</span> <span class="o">-</span> <span class="n">dt</span><span class="p">)</span><span class="o">/</span><span class="n">dt</span> <span class="o">&lt;</span> <span class="n">rtol</span><span class="p">:</span>
-                <span class="n">npad</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="n">n</span>
-                <span class="k">break</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">dt0</span><span class="p">):</span>
+            <span class="k">return</span>
 
-        <span class="c1"># Create resampled data.</span>
-        <span class="n">npoint</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">new_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">new_time_range</span><span class="o">.</span><span class="n">num</span><span class="p">,</span> <span class="n">npoint</span><span class="p">))</span>
-        <span class="n">scratch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">npad</span><span class="p">)</span>
-        <span class="n">scratch_time_range</span> <span class="o">=</span> <span class="n">TimeAxis</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_range</span><span class="o">.</span><span class="n">step</span><span class="p">,</span> <span class="n">num</span><span class="o">=</span><span class="n">npad</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npoint</span><span class="p">):</span>
-            <span class="n">scratch</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span>
-            <span class="n">resample_num</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">scratch_time_range</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span>
-                                      <span class="n">scratch_time_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span><span class="o">/</span><span class="n">dt</span><span class="p">))</span>
-            <span class="n">approx_data</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="n">signal</span><span class="o">.</span><span class="n">resample</span><span class="p">(</span><span class="n">scratch</span><span class="p">,</span> <span class="n">resample_num</span><span class="p">,</span>
-                                             <span class="n">t</span><span class="o">=</span><span class="n">scratch_time_range</span><span class="o">.</span><span class="n">time_values</span><span class="p">)</span>
+        <span class="n">nsamples</span><span class="p">,</span> <span class="n">ntraces</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span>
 
-            <span class="n">spline</span> <span class="o">=</span> <span class="n">CubicSpline</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">approx_data</span><span class="p">,</span> <span class="n">extrapolate</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">new_traces</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">new_time_range</span><span class="o">.</span><span class="n">num</span><span class="p">,</span> <span class="n">ntraces</span><span class="p">))</span>
 
-            <span class="n">new_data</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">spline</span><span class="p">(</span><span class="n">new_time_range</span><span class="o">.</span><span class="n">time_values</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ntraces</span><span class="p">):</span>
+            <span class="n">tck</span> <span class="o">=</span> <span class="n">interpolate</span><span class="o">.</span><span class="n">splrep</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_range</span><span class="o">.</span><span class="n">time_values</span><span class="p">,</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span> <span class="n">k</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+            <span class="n">new_traces</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">interpolate</span><span class="o">.</span><span class="n">splev</span><span class="p">(</span><span class="n">new_time_range</span><span class="o">.</span><span class="n">time_values</span><span class="p">,</span> <span class="n">tck</span><span class="p">)</span>
 
         <span class="c1"># Return new object</span>
-        <span class="k">return</span> <span class="n">PointSource</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">new_data</span><span class="p">,</span> <span class="n">time_range</span><span class="o">=</span><span class="n">new_time_range</span><span class="p">,</span>
-                           <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="n">PointSource</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">new_traces</span><span class="p">,</span>
+                           <span class="n">time_range</span><span class="o">=</span><span class="n">new_time_range</span><span class="p">,</span> <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div></div>
 
 
 <span class="n">Receiver</span> <span class="o">=</span> <span class="n">PointSource</span>
@@ -388,7 +377,7 @@
 <span class="sd">        :param f0: Peak frequency in kHz</span>
 <span class="sd">        :param t: Discretized values of time in ms</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">f0</span> <span class="o">*</span> <span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="mf">2.</span><span class="o">/</span><span class="n">f0</span><span class="p">))</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">f0</span> <span class="o">*</span> <span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="mf">1.</span><span class="o">/</span><span class="n">f0</span><span class="p">))</span>
         <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mf">2.</span><span class="o">*</span><span class="n">r</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">r</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div></div>
 
 
@@ -472,9 +461,7 @@
 
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script> 
 

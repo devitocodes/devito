@@ -182,7 +182,6 @@
 <li class="toctree-l1"><a class="reference internal" href="examples.seismic.acoustic.html">examples.seismic.acoustic package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#submodules">Submodules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.acoustic_example">examples.seismic.acoustic.acoustic_example module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.gradient_example">examples.seismic.acoustic.gradient_example module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.operators">examples.seismic.acoustic.operators module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.wavesolver">examples.seismic.acoustic.wavesolver module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic">Module contents</a></li>
@@ -321,6 +320,12 @@ creation of seismic wave propagation operators:</p>
 <dt id="examples.seismic.model.Model.dtype">
 <code class="descname">dtype</code><a class="headerlink" href="#examples.seismic.model.Model.dtype" title="Permalink to this definition">¶</a></dt>
 <dd><p>Data type for all assocaited data objects.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.model.Model.physical_params">
+<code class="descname">physical_params</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.physical_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.physical_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all set physical parameters and update to input values if provided</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -522,7 +527,7 @@ representing the number of points in this source.</li>
 
 <dl class="method">
 <dt id="examples.seismic.source.PointSource.resample">
-<code class="descname">resample</code><span class="sig-paren">(</span><em>dt=None</em>, <em>num=None</em>, <em>rtol=1e-05</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#PointSource.resample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.PointSource.resample" title="Permalink to this definition">¶</a></dt>
+<code class="descname">resample</code><span class="sig-paren">(</span><em>dt=None</em>, <em>num=None</em>, <em>rtol=1e-05</em>, <em>order=3</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#PointSource.resample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.PointSource.resample" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -814,9 +819,7 @@ num is None: num = ceil((stop - start + step)/step);</p>
 
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script> 
 

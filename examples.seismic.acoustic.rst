@@ -12,14 +12,6 @@ examples.seismic.acoustic.acoustic\_example module
     :undoc-members:
     :show-inheritance:
 
-examples.seismic.acoustic.gradient\_example module
---------------------------------------------------
-
-.. automodule:: examples.seismic.acoustic.gradient_example
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 examples.seismic.acoustic.operators module
 ------------------------------------------
 

@@ -159,11 +159,11 @@
 
 
 <div class="viewcode-block" id="tti_setup"><a class="viewcode-back" href="../../../../examples.seismic.tti.html#examples.seismic.tti.tti_example.tti_setup">[docs]</a><span class="k">def</span> <span class="nf">tti_setup</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span> <span class="n">spacing</span><span class="o">=</span><span class="p">(</span><span class="mf">20.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">),</span> <span class="n">tn</span><span class="o">=</span><span class="mf">250.0</span><span class="p">,</span>
-              <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+              <span class="n">space_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">preset</span><span class="o">=</span><span class="s1">&#39;layers-tti&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 
     <span class="n">nrec</span> <span class="o">=</span> <span class="mi">101</span>
     <span class="c1"># Two layer model for true velocity</span>
-    <span class="n">model</span> <span class="o">=</span> <span class="n">demo_model</span><span class="p">(</span><span class="s1">&#39;layers-tti&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">demo_model</span><span class="p">(</span><span class="n">preset</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">)</span>
     <span class="c1"># Derive timestepping from model spacing</span>
     <span class="n">dt</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">critical_dt</span>
     <span class="n">t0</span> <span class="o">=</span> <span class="mf">0.0</span>
@@ -202,6 +202,8 @@
     <span class="n">parser</span> <span class="o">=</span> <span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--2d&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s1">&#39;dim2&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
                         <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Preset to determine the physical problem setup&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--noazimuth&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s1">&#39;azi&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Whether or not to use an azimuth angle&quot;</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-a&#39;</span><span class="p">,</span> <span class="s1">&#39;--autotune&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
                         <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable autotuning for block sizes&quot;</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-so&quot;</span><span class="p">,</span> <span class="s2">&quot;--space_order&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
@@ -220,6 +222,7 @@
                         <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Devito loop engine (DSE) mode&quot;</span><span class="p">)</span>
     <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
 
+    <span class="n">preset</span> <span class="o">=</span> <span class="s1">&#39;layers-tti-noazimuth&#39;</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">azi</span> <span class="k">else</span> <span class="s1">&#39;layers-tti&#39;</span>
     <span class="c1"># 3D preset parameters</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">dim2</span><span class="p">:</span>
         <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="mi">150</span><span class="p">,</span> <span class="mi">150</span><span class="p">)</span>
@@ -232,7 +235,7 @@
 
     <span class="n">run</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">nbpml</span><span class="p">,</span> <span class="n">tn</span><span class="o">=</span><span class="n">tn</span><span class="p">,</span>
         <span class="n">space_order</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span> <span class="n">autotune</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">autotune</span><span class="p">,</span> <span class="n">dse</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">dse</span><span class="p">,</span>
-        <span class="n">dle</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">dle</span><span class="p">,</span> <span class="n">kernel</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">kernel</span><span class="p">)</span>
+        <span class="n">dle</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">dle</span><span class="p">,</span> <span class="n">kernel</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">kernel</span><span class="p">,</span> <span class="n">preset</span><span class="o">=</span><span class="n">preset</span><span class="p">)</span>
 </pre></div>
 
            </div>
@@ -289,9 +292,7 @@
 
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script> 
 
