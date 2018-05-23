@@ -16,29 +16,9 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - gcc-4.9
-            - g++-4.9
-      env: INSTALL_TYPE='pip_setup' TEST_FLAKE=1 TEST_BUNDLE='pip' DEVITO_ARCH=gcc-4.9
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-4.9
-            - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='basic_conda' DEVITO_ARCH=gcc-4.9
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-5
-            - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='basic_conda' DEVITO_ARCH=gcc-5
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='pip_setup' TEST_FLAKE=1 DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-7
     - os: linux
       python: "3.6"
       addons:
@@ -49,56 +29,6 @@ matrix:
             - gcc-7
             - g++-7
       env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='basic_conda' DEVITO_ARCH=gcc-7
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-7
-            - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='basic_conda' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-4.9
-            - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-4.9
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-5
-            - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-5
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-7
-            - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-7
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-7
-            - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -139,6 +69,46 @@ matrix:
             - gcc-7
             - g++-7
       env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='benchmark' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='examples' DEVITO_ARCH=gcc-4.9
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-5
+            - g++-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='examples' DEVITO_ARCH=gcc-5
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='examples' DEVITO_ARCH=gcc-7
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='examples' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -266,89 +236,9 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - gcc-4.9
-            - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-4.9
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-5
-            - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-5
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-7
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-7
-            - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='pip_setup' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-4.9
-            - g++-4.9
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-4.9
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-5
-            - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-5
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-7
-            - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-7
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-7
-            - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_INSTALL_TYPE='conda' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-5
-            - g++-5
-      env: INSTALL_TYPE='conda' TEST_DOCS=1 DEVITO_ARCH=gcc-5
+      env: INSTALL_TYPE='conda' TEST_DOCS=1 DEVITO_ARCH=gcc-7
 addons:
   apt:
     sources:
