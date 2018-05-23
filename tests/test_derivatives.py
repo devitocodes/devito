@@ -121,8 +121,8 @@ def test_second_derivatives_space(grid, derivative, dim, order):
 @pytest.mark.parametrize('derivative', ['dx', 'dxl', 'dxr', 'dx2'])
 def test_fd_space(derivative, space_order):
     """
-    This test compare the discrete finite-difference scheme against polynomials
-    For a given order p, the fiunite difference scheme should
+    This test compares the discrete finite-difference scheme against polynomials
+    For a given order p, the finite difference scheme should
     be exact for polynomials of order p
     :param derivative: name of the derivative to be tested
     :param space_order: space order of the finite difference stencil

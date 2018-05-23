@@ -33,8 +33,11 @@ class CheckpointOperator(Operator):
             pyRevolve.Operator.apply() without caring about these extra arguments while
             this method passes them on correctly to devito.Operator
         """
-        args = self._prepare_args(t_start, t_end)
-        self.op.apply(**args)
+        # Build the arguments list to invoke the kernel function
+        args = self.op.arguments(**self._prepare_args(t_start, t_end))
+        # Invoke kernel function with args
+        arg_values = [args[p.name] for p in self.op.parameters]
+        self.op.cfunction(*arg_values)
 
 
 class DevitoCheckpoint(Checkpoint):

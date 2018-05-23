@@ -2,10 +2,12 @@ from __future__ import absolute_import
 
 import pytest
 
+import numpy as np
+
 from sympy import cos, Symbol  # noqa
 
-from devito import (Dimension, Eq, TimeDimension, SteppingDimension, SpaceDimension,  # noqa
-                    Constant, Function, TimeFunction, Grid, configuration)  # noqa
+from devito import (Dimension, Grid, TimeDimension, SteppingDimension, SpaceDimension,  # noqa
+                    Constant, Function, TimeFunction, Eq, configuration, SparseFunction)  # noqa
 from devito.types import Scalar, Array
 from devito.ir.iet import Iteration
 from devito.tools import as_tuple
@@ -41,6 +43,27 @@ def function(name, shape, dimensions):
 
 def timefunction(name, space_order=1):
     return TimeFunction(name=name, grid=grid, space_order=space_order)
+
+
+@pytest.fixture(scope="session")
+def unit_box(name='a', shape=(11, 11)):
+    """Create a field with value 0. to 1. in each dimension"""
+    grid = Grid(shape=shape)
+    a = Function(name=name, grid=grid)
+    dims = tuple([np.linspace(0., 1., d) for d in shape])
+    a.data[:] = np.meshgrid(*dims)[1]
+    return a
+
+
+@pytest.fixture(scope="session")
+def points(grid, ranges, npoints, name='points'):
+    """Create a set of sparse points from a set of coordinate
+    ranges for each spatial dimension.
+    """
+    points = SparseFunction(name=name, grid=grid, npoint=npoints)
+    for i, r in enumerate(ranges):
+        points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
+    return points
 
 
 @pytest.fixture(scope="session")

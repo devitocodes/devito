@@ -1,5 +1,4 @@
-from scipy import signal
-from scipy.interpolate import CubicSpline
+from scipy import interpolate
 from devito import Dimension
 from devito.function import SparseTimeFunction
 
@@ -118,7 +117,7 @@ class PointSource(SparseTimeFunction):
     def time_range(self):
         return self._time_range
 
-    def resample(self, dt=None, num=None, rtol=1e-5):
+    def resample(self, dt=None, num=None, rtol=1e-5, order=3):
         # Only one of dt or num may be set.
         if dt is None:
             assert num is not None
@@ -134,31 +133,21 @@ class PointSource(SparseTimeFunction):
         else:
             new_time_range = TimeAxis(start=start, stop=stop, step=dt)
 
-        npad = int(np.ceil(np.log2(self._time_range.num)))
-        for n in range(npad, 28):
-            if abs(2**n*dt0/np.ceil(2**n*dt0/dt) - dt)/dt < rtol:
-                npad = 2**n
-                break
+        if np.isclose(dt, dt0):
+            return
 
-        # Create resampled data.
-        npoint = self.coordinates.shape[0]
-        new_data = np.zeros((new_time_range.num, npoint))
-        scratch = np.zeros(npad)
-        scratch_time_range = TimeAxis(start=start, step=self._time_range.step, num=npad)
-        for i in range(npoint):
-            scratch[0:self.data.shape[0]] = self.data[:, i]
-            resample_num = int(round((scratch_time_range.stop -
-                                      scratch_time_range.start)/dt))
-            approx_data, t = signal.resample(scratch, resample_num,
-                                             t=scratch_time_range.time_values)
+        nsamples, ntraces = self.data.shape
 
-            spline = CubicSpline(t, approx_data, extrapolate=True)
+        new_traces = np.zeros((new_time_range.num, ntraces))
 
-            new_data[:, i] = spline(new_time_range.time_values)
+        for i in range(ntraces):
+            tck = interpolate.splrep(self._time_range.time_values,
+                                     self.data[:, i], k=order)
+            new_traces[:, i] = interpolate.splev(new_time_range.time_values, tck)
 
         # Return new object
-        return PointSource(self.name, self.grid, data=new_data, time_range=new_time_range,
-                           coordinates=self.coordinates.data)
+        return PointSource(self.name, self.grid, data=new_traces,
+                           time_range=new_time_range, coordinates=self.coordinates.data)
 
 
 Receiver = PointSource
@@ -236,7 +225,7 @@ class RickerSource(WaveletSource):
         :param f0: Peak frequency in kHz
         :param t: Discretized values of time in ms
         """
-        r = (np.pi * f0 * (t - 2./f0))
+        r = (np.pi * f0 * (t - 1./f0))
         return (1-2.*r**2)*np.exp(-r**2)
 
 
