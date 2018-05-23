@@ -1205,7 +1205,7 @@ derived time dimensions symbol. For example:</p>
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Lowered">
 <code class="descname">is_Lowered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Lowered" title="Permalink to this definition">¶</a></dt>
-<dd><p>Index object that represents a problem dimension and thus defines a
+<dd><p>A Dimension is a symbol representing a problem dimension and thus defining a
 potential iteration space.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1366,7 +1366,8 @@ time dimensions should inherit from <a class="reference internal" href="#devito.
 <dl class="attribute">
 <dt id="devito.dimension.DefaultDimension.is_Default">
 <code class="descname">is_Default</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.DefaultDimension.is_Default" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Dimension symbol to represent a dimension that has a statically-known size.</p>
+</dd></dl>
 
 </dd></dl>
 
@@ -1462,6 +1463,16 @@ of the parent variable.</p>
 <dl class="classmethod">
 <dt id="devito.dimension.SubDimension.middle">
 <em class="property">classmethod </em><code class="descname">middle</code><span class="sig-paren">(</span><em>name</em>, <em>parent</em>, <em>thickness_left</em>, <em>thickness_right</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension.middle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension.middle" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.dimension.SubDimension.offset_lower">
+<code class="descname">offset_lower</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension.offset_lower"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension.offset_lower" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.dimension.SubDimension.offset_upper">
+<code class="descname">offset_upper</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension.offset_upper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension.offset_upper" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="classmethod">

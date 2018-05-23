@@ -164,7 +164,7 @@
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">ClusterizedEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">IterationProperty</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">PARALLEL_IF_ATOMIC</span><span class="p">,</span>
-                           <span class="n">VECTOR</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span> <span class="n">ntags</span><span class="p">)</span>
+                           <span class="n">VECTOR</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span> <span class="n">AFFINE</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span> <span class="n">ntags</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">detect_io</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">FunctionFromPointer</span><span class="p">,</span> <span class="n">as_symbol</span>
@@ -512,8 +512,8 @@
         <span class="k">return</span> <span class="n">dims</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">)</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_Linear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">def</span> <span class="nf">is_Affine</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">AFFINE</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Sequential</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -975,7 +975,11 @@
         <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;IterationTree</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationTree</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span></div>
+        <span class="k">return</span> <span class="s2">&quot;IterationTree</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationTree</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationTree</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">IterationTree</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">)</span> <span class="k">else</span> <span class="n">ret</span></div>
 
 
 <div class="viewcode-block" id="UnboundedIndex"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.UnboundedIndex">[docs]</a><span class="k">class</span> <span class="nc">UnboundedIndex</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>

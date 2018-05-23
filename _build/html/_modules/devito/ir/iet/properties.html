@@ -150,39 +150,16 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.ir.iet.properties</h1><div class="highlight"><pre>
-<div class="viewcode-block" id="IterationProperty"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.IterationProperty">[docs]</a><span></span><span class="k">class</span> <span class="nc">IterationProperty</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span></span><span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span>
 
-    <span class="n">_KNOWN</span> <span class="o">=</span> <span class="p">[]</span>
+
+<div class="viewcode-block" id="IterationProperty"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.IterationProperty">[docs]</a><span class="k">class</span> <span class="nc">IterationProperty</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A :class:`Iteration` decorator.</span>
+<span class="sd">    An :class:`Iteration` decorator.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">_KNOWN</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">IterationProperty</span><span class="p">):</span>
-            <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">val</span>
-
-    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s2">&quot;Property: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s2">&quot;Property: </span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span></div>
+    <span class="n">_repr</span> <span class="o">=</span> <span class="s1">&#39;Property&#39;</span></div>
 
 
 <span class="n">SEQUENTIAL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;sequential&#39;</span><span class="p">)</span>
@@ -208,6 +185,11 @@
 <span class="sd">&quot;&quot;&quot;The Iteration implements modulo buffered iteration and its expressions are so that</span>
 <span class="sd">one or more buffer slots can be dropped without affecting correctness. For example,</span>
 <span class="sd">u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --&gt; u[t-1, ...] = f(u[t, ...], u[t-1, ...]).&quot;&quot;&quot;</span>
+
+<span class="n">AFFINE</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;affine&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;All :class:`Indexed`s&#39; access functions using the Iteration dimension ``d`` are</span>
+<span class="sd">affine in ``d``. Further, the Iteration does not contain any Indexed varying in</span>
+<span class="sd">``d`` used to indirectly access some other Indexed.&quot;&quot;&quot;</span>
 
 
 <div class="viewcode-block" id="tagger"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.tagger">[docs]</a><span class="k">def</span> <span class="nf">tagger</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>

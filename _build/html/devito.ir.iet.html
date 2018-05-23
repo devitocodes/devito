@@ -616,6 +616,11 @@ this <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.is_Affine">
+<code class="descname">is_Affine</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Affine" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Iteration.is_Elementizable">
 <code class="descname">is_Elementizable</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Elementizable" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -623,11 +628,6 @@ this <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Iteration.is_Iteration">
 <code class="descname">is_Iteration</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Iteration" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.Iteration.is_Linear">
-<code class="descname">is_Linear</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Linear" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -953,6 +953,14 @@ computation unit).</p>
 <div class="section" id="module-devito.ir.iet.properties">
 <span id="devito-ir-iet-properties-module"></span><h2>devito.ir.iet.properties module<a class="headerlink" href="#module-devito.ir.iet.properties" title="Permalink to this headline">¶</a></h2>
 <dl class="data">
+<dt id="devito.ir.iet.properties.AFFINE">
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">AFFINE</code><em class="property"> = Property: affine</em><a class="headerlink" href="#devito.ir.iet.properties.AFFINE" title="Permalink to this definition">¶</a></dt>
+<dd><p>All <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed`s'</span> <span class="pre">access</span> <span class="pre">functions</span> <span class="pre">using</span> <span class="pre">the</span> <span class="pre">Iteration</span> <span class="pre">dimension</span> <span class="pre">``d`</span></code> are
+affine in <code class="docutils literal notranslate"><span class="pre">d</span></code>. Further, the Iteration does not contain any Indexed varying in
+<code class="docutils literal notranslate"><span class="pre">d</span></code> used to indirectly access some other Indexed.</p>
+</dd></dl>
+
+<dl class="data">
 <dt id="devito.ir.iet.properties.ELEMENTAL">
 <code class="descclassname">devito.ir.iet.properties.</code><code class="descname">ELEMENTAL</code><em class="property"> = Property: elemental</em><a class="headerlink" href="#devito.ir.iet.properties.ELEMENTAL" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration can be pulled out to an elemental function.</p>
@@ -961,7 +969,8 @@ computation unit).</p>
 <dl class="class">
 <dt id="devito.ir.iet.properties.IterationProperty">
 <em class="property">class </em><code class="descclassname">devito.ir.iet.properties.</code><code class="descname">IterationProperty</code><span class="sig-paren">(</span><em>name</em>, <em>val=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/properties.html#IterationProperty"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.properties.IterationProperty" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.Tag</span></code></p>
+<p>An <code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration</span></code> decorator.</p>
 </dd></dl>
 
 <dl class="data">
@@ -1144,7 +1153,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x15086dd34158&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x15086dd340d0&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x150d2e76f7b8&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x150d2e76f730&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1226,7 +1235,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x15086dd33d08&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x15086dd33c80&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x15086dd33bf8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x150d2e76f400&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x150d2e76f378&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x150d2e76f2f0&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">

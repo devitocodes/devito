@@ -177,7 +177,7 @@
     <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Index object that represents a problem dimension and thus defines a</span>
+<span class="sd">    A Dimension is a symbol representing a problem dimension and thus defining a</span>
 <span class="sd">    potential iteration space.</span>
 
 <span class="sd">    :param name: Name of the dimension symbol.</span>
@@ -368,7 +368,12 @@
 
 
 <div class="viewcode-block" id="DefaultDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.DefaultDimension">[docs]</a><span class="k">class</span> <span class="nc">DefaultDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+
     <span class="n">is_Default</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol to represent a dimension that has a statically-known size.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">newobj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
@@ -412,7 +417,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">spacing</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">())</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_defines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -421,6 +426,12 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
+
+    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A :class:`DerivedDimension` performs no runtime checks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span>
 
 
 <div class="viewcode-block" id="SubDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension">[docs]</a><span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -476,8 +487,36 @@
     <span class="k">def</span> <span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span>
 
+<div class="viewcode-block" id="SubDimension.offset_lower"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension.offset_lower">[docs]</a>    <span class="k">def</span> <span class="nf">offset_lower</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># The lower extreme of the subdimension can be related to either the</span>
+        <span class="c1"># start or end of the parent dimension</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_start</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_start</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span></div>
+
+<div class="viewcode-block" id="SubDimension.offset_upper"><a class="viewcode-back" href="../../devito.html#devito.dimension.SubDimension.offset_upper">[docs]</a>    <span class="k">def</span> <span class="nf">offset_upper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># The upper extreme of the subdimension can be related to either the</span>
+        <span class="c1"># start or end of the parent dimension</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_end</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_end</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span></div>
+
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">SubDimension</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_interval</span><span class="p">,</span>
+                                                                <span class="bp">self</span><span class="o">.</span><span class="n">_size</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A :class:`SubDimension` provides no arguments, so this method returns</span>
+<span class="sd">        an empty dict.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{}</span>
 
     <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -534,14 +573,8 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">condition</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        A :class:`ConditionalDimension` provides no arguments, so there are</span>
-<span class="sd">        no checks to be performed.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span></div>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">ConditionalDimension</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">,</span>
+                                                                        <span class="bp">self</span><span class="o">.</span><span class="n">condition</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -601,6 +634,10 @@
         <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">start</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The argument values provided by a :class:`SteppingDimension` are those</span>
+<span class="sd">        of its parent, as it acts as an alias.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
@@ -613,10 +650,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
             <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">values</span>
-
-    <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="k">return</span></div>
+        <span class="k">return</span> <span class="n">values</span></div>
 
 
 <span class="k">class</span> <span class="nc">LoweredDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>

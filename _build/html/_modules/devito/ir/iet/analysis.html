@@ -161,7 +161,7 @@
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">cmp_to_key</span>
 
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Iteration</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">PARALLEL_IF_ATOMIC</span><span class="p">,</span>
-                           <span class="n">VECTOR</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span> <span class="n">MapIteration</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span>
+                           <span class="n">VECTOR</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span> <span class="n">AFFINE</span><span class="p">,</span> <span class="n">MapIteration</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span>
                            <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Scope</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
@@ -201,6 +201,7 @@
     <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_parallel</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
     <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_vectorizable</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
     <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_wrappable</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
+    <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_affine</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
 
     <span class="c1"># Decorate the Iteration/Expression tree with the found properties</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
@@ -222,6 +223,12 @@
         <span class="k">for</span> <span class="n">depth</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tree</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">properties</span><span class="p">:</span>
                 <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">uindices</span><span class="p">:</span>
+                <span class="c1"># Only ++/-- increments of iteration variables are supported</span>
+                <span class="n">properties</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">SEQUENTIAL</span>
+                <span class="k">continue</span>
+
             <span class="c1"># Get all dimensions up to and including Iteration /i/, grouped by Iteration</span>
             <span class="n">dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">filter_ordered</span><span class="p">([</span><span class="n">j</span><span class="o">.</span><span class="n">dim</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">j</span><span class="o">.</span><span class="n">uindices</span><span class="p">])</span>
                     <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">[:</span><span class="n">depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span>
@@ -325,6 +332,22 @@
                 <span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">stepping</span><span class="p">)</span> <span class="o">!=</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">stepping</span><span class="p">):</span>
             <span class="k">return</span>
     <span class="n">analysis</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">stepper</span><span class="p">:</span> <span class="n">WRAPPABLE</span><span class="p">})</span>
+
+
+<span class="nd">@propertizer</span>
+<span class="k">def</span> <span class="nf">mark_affine</span><span class="p">(</span><span class="n">analysis</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Update the ``analysis`` detecting the ``AFFINE`` Iterations within</span>
+<span class="sd">    ``analysis.iet``.&quot;&quot;&quot;</span>
+    <span class="n">properties</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">trees</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">properties</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">array_accesses</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">accesses</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">a</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">_defines</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">findices_affine</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">array_accesses</span><span class="p">):</span>
+                <span class="n">properties</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFFINE</span>
+
+    <span class="n">analysis</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
 </pre></div>
 
            </div>

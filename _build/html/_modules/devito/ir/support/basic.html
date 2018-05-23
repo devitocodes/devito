@@ -156,7 +156,7 @@
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support.space</span> <span class="k">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Backward</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_terminals</span><span class="p">,</span> <span class="n">q_affine</span><span class="p">,</span> <span class="n">q_inc</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Vector&#39;</span><span class="p">,</span> <span class="s1">&#39;IterationInstance&#39;</span><span class="p">,</span> <span class="s1">&#39;Access&#39;</span><span class="p">,</span> <span class="s1">&#39;TimedAccess&#39;</span><span class="p">,</span> <span class="s1">&#39;Scope&#39;</span><span class="p">]</span>
 
@@ -309,6 +309,20 @@
         <span class="k">return</span> <span class="bp">self</span> <span class="o">-</span> <span class="n">other</span></div></div>
 
 
+<span class="k">class</span> <span class="nc">IndexMode</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tag for access functions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_repr</span> <span class="o">=</span> <span class="s1">&#39;IM&#39;</span>
+
+
+<span class="n">CONSTANT</span> <span class="o">=</span> <span class="n">IndexMode</span><span class="p">(</span><span class="s1">&#39;constant&#39;</span><span class="p">)</span>
+<span class="n">AFFINE</span> <span class="o">=</span> <span class="n">IndexMode</span><span class="p">(</span><span class="s1">&#39;affine&#39;</span><span class="p">)</span>
+<span class="n">IRREGULAR</span> <span class="o">=</span> <span class="n">IndexMode</span><span class="p">(</span><span class="s1">&#39;irregular&#39;</span><span class="p">)</span>
+
+
 <div class="viewcode-block" id="IterationInstance"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance">[docs]</a><span class="k">class</span> <span class="nc">IterationInstance</span><span class="p">(</span><span class="n">Vector</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
@@ -376,19 +390,21 @@
     <span class="k">def</span> <span class="nf">index_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">index_mode</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">fi</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="n">q_affine</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">fi</span><span class="p">):</span>
-                <span class="n">index_mode</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;regular&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="n">index_mode</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">CONSTANT</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">q_affine</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">fi</span><span class="p">):</span>
+                <span class="n">index_mode</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">AFFINE</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">dims</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)}</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="c1"># There&#39;s still hope it&#39;s regular if a DerivedDimension is used</span>
                     <span class="n">candidate</span> <span class="o">=</span> <span class="n">dims</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
                     <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">parent</span> <span class="o">==</span> <span class="n">fi</span> <span class="ow">and</span> <span class="n">q_affine</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">candidate</span><span class="p">):</span>
-                        <span class="n">index_mode</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;regular&#39;</span><span class="p">)</span>
+                        <span class="n">index_mode</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">AFFINE</span><span class="p">)</span>
                         <span class="k">continue</span>
                 <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
                     <span class="k">pass</span>
-                <span class="n">index_mode</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;irregular&#39;</span><span class="p">)</span>
+                <span class="n">index_mode</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IRREGULAR</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">index_mode</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
@@ -405,12 +421,20 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">aindices</span><span class="p">)</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">findices_affine</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">fi</span> <span class="k">for</span> <span class="n">fi</span><span class="p">,</span> <span class="n">im</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_mode</span><span class="p">)</span> <span class="k">if</span> <span class="n">im</span> <span class="o">==</span> <span class="n">AFFINE</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_regular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="s1">&#39;regular&#39;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_mode</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">CONSTANT</span><span class="p">,</span> <span class="n">AFFINE</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_mode</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_irregular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_regular</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">0</span>
 
 <div class="viewcode-block" id="IterationInstance.distance"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.distance">[docs]</a>    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">findex</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">view</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Compute the distance from ``self`` to ``other``.</span>
