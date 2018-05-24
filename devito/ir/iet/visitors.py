@@ -643,8 +643,7 @@ class SubstituteExpression(Transformer):
         self.subs = subs
 
     def visit_Expression(self, o):
-        o.substitute(self.subs)
-        return o._rebuild(expr=o.expr)
+        return o._rebuild(expr=o.expr.xreplace(self.subs))
 
 
 def printAST(node, verbose=True):

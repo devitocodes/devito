@@ -228,14 +228,6 @@ class Expression(Node):
         return "<%s::%s>" % (self.__class__.__name__,
                              filter_ordered([f.func for f in self.functions]))
 
-    def substitute(self, substitutions):
-        """Apply substitutions to the expression.
-
-        :param substitutions: Dict containing the substitutions to apply to
-                              the stored expression.
-        """
-        self.expr = self.expr.xreplace(substitutions)
-
     @property
     def dtype(self):
         return self.expr.dtype
