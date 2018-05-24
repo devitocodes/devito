@@ -18,7 +18,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: TEST_FLAKE=1 INSTALL_TYPE='pip_setup' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_pip' DEVITO_ARCH=gcc-4.9
+      env: INSTALL_TYPE='pip' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='unit' DEVITO_ARCH=gcc-4.9
     - os: linux
       python: "3.6"
       addons:
@@ -28,7 +28,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_conda' DEVITO_ARCH=gcc-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='unit' DEVITO_ARCH=gcc-5
     - os: linux
       python: "3.6"
       addons:
@@ -38,7 +38,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_conda' DEVITO_ARCH=gcc-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='unit' DEVITO_ARCH=gcc-7
     - os: linux
       python: "3.6"
       addons:
@@ -48,7 +48,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='basic_conda' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='unit' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
     - os: linux
       python: "3.6"
       addons:
@@ -105,7 +105,7 @@ install:
       conda list;
     fi
   # Install devito with pip
-  - if [[ ${INSTALL_TYPE} == 'pip_setup' ]]; then python setup.py install; fi
+  - if [[ ${INSTALL_TYPE} == 'pip' ]]; then python setup.py install; fi
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
@@ -116,23 +116,22 @@ before_script:
     fi
 
 script:
-  - if [[ ${TEST_FLAKE} == 1 ]]; then flake8 --builtins=ArgumentError .; fi
+  - flake8 --builtins=ArgumentError .
   # Run tests
-  - if [[ ${TEST_BUNDLE} == 'basic_pip' ]]; then python setup.py test; fi
-  - if [[ ${TEST_BUNDLE} == 'basic_conda' ]]; then py.test --cov devito tests; fi
+  - if [[ ${TEST_BUNDLE} == 'unit' && ${INSTALL_TYPE} == 'pip' ]]; then python setup.py test; fi
+  - if [[ ${TEST_BUNDLE} == 'unit' && ${INSTALL_TYPE} == 'conda' ]]; then py.test --cov devito tests; fi
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
-  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then
-    python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5;
-    python examples/seismic/benchmark.py test -P acoustic -a;
-    python examples/seismic/acoustic/acoustic_example.py --full;
-    python examples/seismic/acoustic/acoustic_example.py --constant --full;
-    python examples/seismic/acoustic/gradient_example.py;
-    python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec;
-    python examples/seismic/tti/tti_example.py -a;
-    python examples/checkpointing/checkpointing_example.py;
-    py.test --nbval examples/cfd;
-    py.test --nbval examples/seismic/tutorials; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/acoustic/gradient_example.py; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/tti/tti_example.py -a; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/checkpointing/checkpointing_example.py; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then py.test --nbval examples/cfd; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then py.test --nbval examples/seismic/tutorials; fi
   # Code coverage and documentation generation
   - if [[ ${TEST_DOCS} == 1 ]]; then
       codecov;
