@@ -14,8 +14,9 @@ from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL, REMAINDER,
-                           tagger, FindSymbols, FindNodes, IsPerfectIteration,
+from devito.ir.iet import (Expression, Iteration, List, UnboundedIndex,
+                           PARALLEL, ELEMENTAL, REMAINDER, tagger, FindSymbols,
+                           FindNodes, IsPerfectIteration, NestedTransformer,
                            Transformer, compose_nodes, retrieve_iteration_tree)
 from devito.logger import dle_warning
 from devito.tools import as_tuple
@@ -27,12 +28,38 @@ class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
+        self._loop_wrapping(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
         self._create_elemental_functions(state)
         self._minimize_remainders(state)
+
+    @dle_pass
+    def _loop_wrapping(self, iet, state):
+        """
+        Transform data accesses in WRAPPABLE :class:`Iteration`s to reduce
+        the working set.
+        """
+        mapper = {}
+        for i in FindNodes(Iteration).visit(iet):
+            if not i.is_Wrappable:
+                continue
+            modulo = len(i.uindices) - 1
+            if modulo == 0:
+                continue
+
+            uindices = []
+            for n, ui in enumerate(i.uindices):
+                value = (i.dim + ui.expr - ui.dim) % modulo
+                uindices.append(UnboundedIndex(ui.name, value, value, ui.dim, ui.expr))
+
+            mapper[i] = i._rebuild(uindices=uindices)
+
+        processed = NestedTransformer(mapper).visit(iet)
+
+        return processed, {}
 
     @dle_pass
     def _loop_blocking(self, nodes, state):
