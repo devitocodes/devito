@@ -25,7 +25,7 @@ class Dimension(AbstractSymbol):
     is_Lowered = False
 
     """
-    Index object that represents a problem dimension and thus defines a
+    A Dimension is a symbol representing a problem dimension and thus defining a
     potential iteration space.
 
     :param name: Name of the dimension symbol.
@@ -216,7 +216,12 @@ class TimeDimension(Dimension):
 
 
 class DefaultDimension(Dimension):
+
     is_Default = True
+
+    """
+    Dimension symbol to represent a dimension that has a statically-known size.
+    """
 
     def __new__(cls, name, **kwargs):
         newobj = sympy.Symbol.__new__(cls, name)
@@ -260,7 +265,7 @@ class DerivedDimension(Dimension):
         return self.parent.spacing
 
     def _hashable_content(self):
-        return (self.parent._hashable_content(),)
+        return (self.name, self.parent._hashable_content())
 
     @property
     def _defines(self):
@@ -269,6 +274,12 @@ class DerivedDimension(Dimension):
     @property
     def _arg_names(self):
         return self.parent._arg_names
+
+    def _arg_check(self, *args):
+        """
+        A :class:`DerivedDimension` performs no runtime checks.
+        """
+        return
 
 
 class SubDimension(DerivedDimension):
@@ -324,8 +335,36 @@ class SubDimension(DerivedDimension):
     def symbolic_size(self):
         return self._size
 
+    def offset_lower(self):
+        # The lower extreme of the subdimension can be related to either the
+        # start or end of the parent dimension
+        try:
+            val = self.symbolic_start - self.parent.symbolic_start
+            return int(val), self.parent.symbolic_start
+        except TypeError:
+            val = self.symbolic_start - self.parent.symbolic_end
+            return int(val), self.parent.symbolic_end
+
+    def offset_upper(self):
+        # The upper extreme of the subdimension can be related to either the
+        # start or end of the parent dimension
+        try:
+            val = self.symbolic_end - self.parent.symbolic_start
+            return int(val), self.parent.symbolic_start
+        except TypeError:
+            val = self.symbolic_end - self.parent.symbolic_end
+            return int(val), self.parent.symbolic_end
+
     def _hashable_content(self):
-        return (self.parent._hashable_content(), self._interval, self._size)
+        return super(SubDimension, self)._hashable_content() + (self._interval,
+                                                                self._size)
+
+    def _arg_defaults(self, **kwargs):
+        """
+        A :class:`SubDimension` provides no arguments, so this method returns
+        an empty dict.
+        """
+        return {}
 
     def _arg_values(self, *args, **kwargs):
         """
@@ -382,14 +421,8 @@ class ConditionalDimension(DerivedDimension):
         return self._condition
 
     def _hashable_content(self):
-        return (self.parent._hashable_content(), self.factor, self.condition)
-
-    def _arg_check(self, *args):
-        """
-        A :class:`ConditionalDimension` provides no arguments, so there are
-        no checks to be performed.
-        """
-        return
+        return super(ConditionalDimension, self)._hashable_content() + (self.factor,
+                                                                        self.condition)
 
 
 class SteppingDimension(DerivedDimension):
@@ -449,6 +482,10 @@ class SteppingDimension(DerivedDimension):
         return {self.parent.min_name: start}
 
     def _arg_values(self, *args, **kwargs):
+        """
+        The argument values provided by a :class:`SteppingDimension` are those
+        of its parent, as it acts as an alias.
+        """
         values = {}
 
         if self.min_name in kwargs:
@@ -462,9 +499,6 @@ class SteppingDimension(DerivedDimension):
             values[self.parent.max_name] = kwargs.pop(self.name)
 
         return values
-
-    def _arg_check(self, *args):
-        return
 
 
 class LoweredDimension(Dimension):

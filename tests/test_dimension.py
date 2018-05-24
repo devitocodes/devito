@@ -8,14 +8,34 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, Eq, Oper
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
-@skipif_yask
 class TestSubDimension(object):
 
+    def test_interior(self):
+        """
+        Tests application of an Operator consisting of a single equation
+        over the ``INTERIOR`` region.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eqn = [Eq(u.forward, u + 2, region=INTERIOR)]
+
+        op = Operator(eqn, dle='noop')
+        op.apply(time_M=2)
+        assert np.all(u.data[1, 1:-1, 1:-1, 1:-1] == 6.)
+        assert np.all(u.data[1, :, 0] == 0.)
+        assert np.all(u.data[1, :, -1] == 0.)
+        assert np.all(u.data[1, :, :, 0] == 0.)
+        assert np.all(u.data[1, :, :, -1] == 0.)
+
+    @skipif_yask
     def test_domain_vs_interior(self):
         """
-        Tests regions work properly in terms of code generation and runtime
-        argument derivation. All regions but the default one, ``DOMAIN``,
-        induce one or more :class:`SubDimension`s.
+        Tests application of an Operator consisting of two equations, one
+        over the (default) ``DOMAIN`` region, and one over the (smaller)
+        ``INTERIOR`` region.
         """
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
@@ -62,6 +82,44 @@ class TestSubDimension(object):
         assert np.all(u.data[1, -1, :, :] == 1)
         assert np.all(u.data[1, 1:3, :, :] == 2)
 
+    def test_bcs(self):
+        """
+        Tests application of an Operator consisting of multiple equations
+        defined over different sub-regions, explicitly created through the
+        use of :class:`SubDimension`s.
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        thickness = 4
+
+        u = TimeFunction(name='u', save=None, grid=grid, space_order=0, time_order=1)
+
+        xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=thickness, thickness_right=thickness)
+        xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
+
+        yi = SubDimension.middle(name='yi', parent=y,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        t_in_centre = Eq(u[t+1, xi, yi], 1)
+        leftbc = Eq(u[t+1, xleft, yi], u[t+1, xleft+1, yi] + 1)
+        rightbc = Eq(u[t+1, xright, yi], u[t+1, xright-1, yi] + 1)
+
+        op = Operator([t_in_centre, leftbc, rightbc])
+
+        op.apply(time_m=1, time_M=1)
+
+        assert np.all(u.data[0, :, 0:thickness] == 0.)
+        assert np.all(u.data[0, :, -thickness:] == 0.)
+        assert all(np.all(u.data[0, i, thickness:-thickness] == (thickness+1-i))
+                   for i in range(thickness))
+        assert all(np.all(u.data[0, -i, thickness:-thickness] == (thickness+2-i))
+                   for i in range(1, thickness + 1))
+        assert np.all(u.data[0, thickness:-thickness, thickness:-thickness] == 1.)
+
+    @skipif_yask
     def test_flow_detection_interior(self):
         """
         Test detection of flow directions when :class:`SubDimension`s are used
@@ -108,6 +166,7 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, 0:5] == 0)
         assert np.all(u.data[1, :, 6:] == 0)
 
+    @skipif_yask
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
         (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], region=DOMAIN)'], 'y'),
@@ -137,6 +196,7 @@ class TestSubDimension(object):
         assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
 
+    @skipif_yask
     @pytest.mark.parametrize('exprs,expected,', [
         (['Eq(u[t, x, yleft], u[t, x, yleft] + 1.)'], ['yleft']),
         # All outers are parallel, carried dependence in `yleft`, so no SIMD in `yleft`
@@ -161,6 +221,160 @@ class TestSubDimension(object):
         iterations = FindNodes(Iteration).visit(op)
         vectorizable = [i.dim.name for i in iterations if i.is_Vectorizable]
         assert set(vectorizable) == set(expected)
+
+    def test_subdimmiddle_parallel(self):
+        """
+        Tests application of an Operator consisting of a subdimension
+        defined over different sub-regions, explicitly created through the
+        use of :class:`SubDimension`s.
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        thickness = 4
+
+        u = TimeFunction(name='u', save=None, grid=grid, space_order=0, time_order=1)
+
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        yi = SubDimension.middle(name='yi', parent=y,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        # a 5 point stencil that can be computed in parallel
+        centre = Eq(u[t+1, xi, yi], u[t, xi, yi] + u[t, xi-1, yi]
+                                    + u[t, xi+1, yi] + u[t, xi, yi-1] + u[t, xi, yi+1])
+
+        u.data[0, 10, 10] = 1.0
+
+        op = Operator([centre])
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert all(i.is_Affine and i.is_Parallel for i in iterations if i.dim in [xi, yi])
+
+        op.apply(time_m=0, time_M=0)
+
+        assert np.all(u.data[1, 9:12, 10] == 1.0)
+        assert np.all(u.data[1, 10, 9:12] == 1.0)
+
+        # Other than those, it should all be 0
+        u.data[1, 9:12, 10] = 0.0
+        u.data[1, 10, 9:12] = 0.0
+        assert np.all(u.data[1, :] == 0)
+
+    def test_subdimleft_parallel(self):
+        """
+        Tests application of an Operator consisting of a subdimension
+        defined over different sub-regions, explicitly created through the
+        use of :class:`SubDimension`s.
+
+        This tests that flow direction is not being automatically inferred
+        from whether the subdimension is on the left or right boundary.
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        thickness = 4
+
+        u = TimeFunction(name='u', save=None, grid=grid, space_order=0, time_order=1)
+
+        xl = SubDimension.left(name='xl', parent=x, thickness=thickness)
+
+        yi = SubDimension.middle(name='yi', parent=y,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        # Can be done in parallel
+        eq = Eq(u[t+1, xl, yi], u[t, xl, yi] + 1)
+
+        op = Operator([eq])
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert all(i.is_Affine and i.is_Parallel for i in iterations if i.dim in [xl, yi])
+
+        op.apply(time_m=0, time_M=0)
+
+        assert np.all(u.data[1, 0:thickness, 0:thickness] == 0)
+        assert np.all(u.data[1, 0:thickness, -thickness:] == 0)
+        assert np.all(u.data[1, 0:thickness, thickness:-thickness] == 1)
+        assert np.all(u.data[1, thickness+1:, :] == 0)
+
+    def test_subdimmiddle_notparallel(self):
+        """
+        Tests application of an Operator consisting of a subdimension
+        defined over different sub-regions, explicitly created through the
+        use of :class:`SubDimension`s.
+
+        Different from ``test_subdimmiddle_parallel`` because an interior
+        dimension cannot be evaluated in parallel.
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        thickness = 4
+
+        u = TimeFunction(name='u', save=None, grid=grid, space_order=0, time_order=1)
+
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        yi = SubDimension.middle(name='yi', parent=y,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        # flow dependencies in x and y which should force serial execution
+        # in reverse direction
+        centre = Eq(u[t+1, xi, yi], u[t, xi, yi] + u[t+1, xi+1, yi+1])
+        u.data[0, 10, 10] = 1.0
+
+        op = Operator([centre])
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert all(i.is_Affine and i.is_Sequential for i in iterations if i.dim == xi)
+        assert all(i.is_Affine and i.is_Parallel for i in iterations if i.dim == yi)
+
+        op.apply(time_m=0, time_M=0)
+
+        for i in range(4, 11):
+            assert u.data[1, i, i] == 1.0
+            u.data[1, i, i] = 0.0
+
+        assert np.all(u.data[1, :] == 0)
+
+    def test_subdimleft_notparallel(self):
+        """
+        Tests application of an Operator consisting of a subdimension
+        defined over different sub-regions, explicitly created through the
+        use of :class:`SubDimension`s.
+
+        This tests that flow direction is not being automatically inferred
+        from whether the subdimension is on the left or right boundary.
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        thickness = 4
+
+        u = TimeFunction(name='u', save=None, grid=grid, space_order=1, time_order=0)
+
+        xl = SubDimension.left(name='xl', parent=x, thickness=thickness)
+
+        yi = SubDimension.middle(name='yi', parent=y,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        # Flows inward (i.e. forward) rather than outward
+        eq = Eq(u[t+1, xl, yi], u[t+1, xl-1, yi] + 1)
+
+        op = Operator([eq])
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert all(i.is_Affine and i.is_Sequential for i in iterations if i.dim == xl)
+        assert all(i.is_Affine and i.is_Parallel for i in iterations if i.dim == yi)
+
+        op.apply(time_m=0, time_M=0)
+
+        assert all(np.all(u.data[0, :thickness, thickness+i] == [1, 2, 3, 4])
+                   for i in range(12))
+        assert np.all(u.data[0, thickness:] == 0)
+        assert np.all(u.data[0, :, thickness+12:] == 0)
 
 
 @skipif_yask
