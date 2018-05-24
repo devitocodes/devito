@@ -32,12 +32,12 @@ def buildAndTest (def gccvers, def DEVITO_BACKEND=null, def DEVITO_OPENMP=0, def
         /* Now build the container, saving the returned image value to run with testing
            Note that the context directory has to be the final parameter passed */
         def customImage = 
-             docker.build("opesci/devito-jenkins:gcc${gccvers}${BACKEND_SUFFIX}${OPENMP_SUFFIX}-${env.BUILD_ID}", 
+             docker.build("opesci/devito-jenkins:gcc${gccvers}${BACKEND_SUFFIX}${OPENMP_SUFFIX}-${env.BRANCH_NAME}-${env.BUILD_ID}", 
                          "--no-cache -f Dockerfile.jenkins --build-arg gccvers=${gccvers} ${BACKEND_ARG} .")
         // If the build succeeded, push the container to dockerhub for debugging purposes
         customImage.push()
         // Also push a latest tagged version for easy reference
-        customImage.push('gcc${gccvers}${BACKEND_SUFFIX}${OPENMP_SUFFIX}-latest')
+        customImage.push('gcc${gccvers}${BACKEND_SUFFIX}${OPENMP_SUFFIX}-${env.BRANCH_NAME}-latest')
         // Using the built container, run tests
         customImage.inside("-e DEVITO_OPENMP=${DEVITO_OPENMP} -e OMP_NUM_THREADS=${OMP_NUM_THREADS}") {
             sh "flake8 --builtins=ArgumentError ."
