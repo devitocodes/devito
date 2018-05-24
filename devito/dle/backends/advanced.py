@@ -37,25 +37,7 @@ class AdvancedRewriter(BasicRewriter):
     @dle_pass
     def _loop_blocking(self, nodes, state):
         """
-        Apply loop blocking to :class:`Iteration` trees.
-
-        Blocking is applied to parallel iteration trees. Heuristically, innermost
-        dimensions are not blocked to maximize the trip count of the SIMD loops.
-
-        Different heuristics may be specified by passing the keywords ``blockshape``
-        and ``blockinner`` to the DLE. The former, a dictionary, is used to indicate
-        a specific block size for each blocked dimension. For example, for the
-        :class:`Iteration` tree: ::
-
-            for i
-              for j
-                for k
-                  ...
-
-        one may provide ``blockshape = {i: 4, j: 7}``, in which case the
-        two outer loops will blocked, and the resulting 2-dimensional block will
-        have size 4x7. The latter may be set to True to also block innermost parallel
-        :class:`Iteration` objects.
+        Apply loop blocking to PARALLEL :class:`Iteration` trees.
         """
         exclude_innermost = not self.params.get('blockinner', False)
         ignore_heuristic = self.params.get('blockalways', False)
@@ -76,7 +58,7 @@ class AdvancedRewriter(BasicRewriter):
             if not IsPerfectIteration().visit(root):
                 # Illegal/unsupported
                 continue
-            if not tree[0].is_Sequential and not ignore_heuristic:
+            if not tree.root.is_Sequential and not ignore_heuristic:
                 # Heuristic: avoid polluting the generated code with blocked
                 # nests (thus increasing JIT compilation time and affecting
                 # readability) if the blockable tree isn't embedded in a
