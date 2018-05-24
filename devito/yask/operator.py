@@ -91,7 +91,7 @@ class Operator(OperatorRunnable):
                                                  namespace['code-soln-name'])
                 funcall = Element(c.Statement(ccode(funcall)))
                 mapper = {trees[0].root: funcall}
-                mapper.update({i.root: None for i in trees[1:]})
+                mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
                 iet = Transformer(mapper).visit(iet)
 
                 # Mark `funcall` as an external function call
