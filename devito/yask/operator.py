@@ -105,10 +105,10 @@ class Operator(OperatorRunnable):
                 log("Solution '%s' contains %d grid(s) and %d equation(s)." %
                     (yc_soln.get_name(), yc_soln.get_num_grids(),
                      yc_soln.get_num_equations()))
-            except:
+            except NotImplementedError as e:
                 self.yk_soln = YaskNullKernel()
 
-                log("Unable to offload a candidate tree.")
+                log("Unable to offload a candidate tree. Reason: [%s]" % str(e))
 
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences

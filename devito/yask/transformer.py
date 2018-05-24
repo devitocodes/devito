@@ -67,9 +67,14 @@ def yaskizer(trees, yc_soln):
                     v.append(nfac.new_not_greater_than_node(ydim, expr))
 
             elif i.is_Sequential:
-                # For sequential Iterations, the extent *must* be statically known
-                assert int(i.extent())
-                assert lower_sym == upper_sym  # A corollary of the above condition
+                # For sequential Iterations, the extent *must* be statically known,
+                # otherwise we don't know how to handle this
+                try:
+                    int(i.extent())
+                except TypeError:
+                    raise NotImplementedError("Found sequential Iteration with "
+                                              "statically unknown extent")
+                assert lower_sym == upper_sym  # A corollary of getting up to this point
                 n = lower_sym
 
                 ydim = nfac.new_domain_index(i.dim.parent.name)
@@ -171,8 +176,8 @@ def make_yask_ast(expr, yc_soln, mapper):
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
         if not exp.is_integer:
-            warning("non-integer powers unsupported in Devito-YASK translation")
-            raise NotImplementedError
+            raise NotImplementedError("Non-integer powers unsupported in "
+                                      "Devito-YASK translation")
 
         if int(exp) < 0:
             num, den = expr.as_numer_denom()
@@ -192,5 +197,4 @@ def make_yask_ast(expr, yc_soln, mapper):
             return nfac.new_equation_node(*[make_yask_ast(i, yc_soln, mapper)
                                             for i in expr.args])
     else:
-        warning("Missing handler in Devito-YASK translation")
-        raise NotImplementedError
+        raise NotImplementedError("Missing handler in Devito-YASK translation")
