@@ -28,7 +28,6 @@ class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._loop_wrapping(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
@@ -315,9 +314,9 @@ class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
+        self._loop_wrapping(state)
         self._loop_blocking(state)
         self._simdize(state)
-        self._nontemporal_stores(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
         self._create_elemental_functions(state)
