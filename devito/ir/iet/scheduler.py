@@ -3,7 +3,7 @@ from collections import OrderedDict
 import numpy as np
 
 from devito.cgen_utils import Allocator
-from devito.dimension import LoweredDimension
+from devito.dimension import ModuloDimension
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
                            Conditional, Section, ExpressionBundle, UnboundedIndex,
                            MetaCall, MapExpressions, Transformer, NestedTransformer,
@@ -32,7 +32,8 @@ def iet_build(stree):
     subs = {}
     for tree in retrieve_iteration_tree(iet):
         uindices = flatten(i.uindices for i in tree)
-        subs.update({i.expr: LoweredDimension(name=i.index.name, origin=i.expr)
+        subs.update({i.expr: ModuloDimension(name=i.index.name, parent=i.dim,
+                                             origin=i.expr)
                      for i in uindices})
     iet = SubstituteExpression(subs).visit(iet)
 

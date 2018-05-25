@@ -150,7 +150,7 @@ class CGen(Visitor):
             elif i.is_Tensor:
                 ret.append(c.Value(c.dtype_to_ctype(i.dtype),
                                    '*restrict %s_vec' % i.name))
-            elif i.is_Lowered:
+            elif i.is_Modulo:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             else:
                 ret.append(c.Value('void', '*_%s' % i.name))

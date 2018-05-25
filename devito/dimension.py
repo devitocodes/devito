@@ -24,7 +24,7 @@ class Dimension(AbstractSymbol):
     is_Conditional = False
     is_Stepping = False
 
-    is_Lowered = False
+    is_Modulo = False
 
     """
     A Dimension is a symbol representing a problem dimension and thus defining a
@@ -533,28 +533,42 @@ class SteppingDimension(DerivedDimension):
         return values
 
 
-class LoweredDimension(Dimension):
+class ModuloDimension(DerivedDimension):
 
-    is_Lowered = True
+    is_Modulo = True
 
     """
-    Dimension symbol representing a modulo iteration created when
-    resolving a :class:`SteppingDimension`.
+    Dimension symbol representing a non-contiguous sub-region of a given
+    ``parent`` Dimension, with one point every ``modulo`` points.
 
     :param origin: The expression mapped to this dimension.
     """
 
-    def __new__(cls, name, origin, **kwargs):
-        newobj = sympy.Symbol.__new__(cls, name)
-        newobj._origin = origin
+    def __new__(cls, name, parent, offset, modulo, **kwargs):
+        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
+        newobj._offset = offset
+        newobj._modulo = modulo
         return newobj
 
     @property
+    def offset(self):
+        return self._offset
+
+    @property
+    def modulo(self):
+        return self._modulo
+
+    @property
     def origin(self):
-        return self._origin
+        return self.parent + self.offset
+
+    @property
+    def step(self):
+        return (self.root + self.offset) % self.modulo
 
     def _hashable_content(self):
-        return Symbol._hashable_content(self) + (self.origin,)
+        return super(ModuloDimension, self)._hashable_content() + (self.offset,
+                                                                   self.modulo)
 
 
 def dimensions(names):

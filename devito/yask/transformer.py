@@ -1,4 +1,4 @@
-from devito.dimension import LoweredDimension
+from devito.dimension import ModuloDimension
 from devito.ir.iet import FindNodes, Expression
 from devito.ir.support import Backward
 from devito.logger import yask_warning as warning
@@ -157,7 +157,7 @@ def make_yask_ast(expr, yc_soln, mapper):
         # Convert the Indexed into a YASK grid access
         indices = []
         for i in expr.indices:
-            if isinstance(i, LoweredDimension):
+            if isinstance(i, ModuloDimension):
                 indices.append(make_yask_ast(i.origin, yc_soln, mapper))
             elif i.is_integer:
                 # Typically, if we end up here it's because we have a misc dimension
