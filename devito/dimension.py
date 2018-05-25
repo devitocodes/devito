@@ -100,6 +100,10 @@ class Dimension(AbstractSymbol):
     def base(self):
         return self
 
+    @property
+    def root(self):
+        return self
+
     def _hashable_content(self):
         return super(Dimension, self)._hashable_content() + (self.spacing,)
 
@@ -281,6 +285,10 @@ class DerivedDimension(Dimension):
     @property
     def parent(self):
         return self._parent
+
+    @property
+    def root(self):
+        return self._parent.root
 
     @property
     def spacing(self):
