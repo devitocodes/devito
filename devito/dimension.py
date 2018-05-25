@@ -24,7 +24,7 @@ class Dimension(AbstractSymbol):
     is_Conditional = False
     is_Stepping = False
 
-    is_Modulo = False
+    is_UnboundedModulo = False
 
     """
     A Dimension is a symbol representing a problem dimension and thus defining a
@@ -541,15 +541,53 @@ class SteppingDimension(DerivedDimension):
         return values
 
 
-class ModuloDimension(DerivedDimension):
+class UnboundedDimension(DerivedDimension):
 
-    is_Modulo = True
+    is_NonlinearDerived = True
 
     """
     Dimension symbol representing a non-contiguous sub-region of a given
-    ``parent`` Dimension, with one point every ``modulo`` points.
+    ``parent`` Dimension.
 
-    :param origin: The expression mapped to this dimension.
+    .. note::
+
+        A subclass must implement the properties :meth:`start` and :meth:`step`.
+    """
+
+    @property
+    def start(self):
+        return NotImplementedError
+
+    @property
+    def step(self):
+        return NotImplementedError
+
+    def _arg_defaults(self, **kwargs):
+        """
+        A :class:`UnboundedDimension` provides no arguments, so this method
+        returns an empty dict.
+        """
+        return {}
+
+    def _arg_values(self, *args, **kwargs):
+        """
+        A :class:`UnboundedDimension` provides no arguments, so there are
+        no argument values to be derived.
+        """
+        return {}
+
+
+class ModuloDimension(UnboundedDimension):
+
+    is_UnboundedModulo = True
+
+    """
+    Dimension symbol representing a non-contiguous sub-region of a given
+    ``parent`` Dimension, which cyclically produces a finite range of values,
+    such as ``0, 1, 2, 0, 1, 2, 0, ...``.
+
+    :param offset: An integer representing an offset from the parent dimension.
+    :param modulo: The extent of the range.
     """
 
     def __new__(cls, name, parent, offset, modulo, **kwargs):
@@ -571,8 +609,10 @@ class ModuloDimension(DerivedDimension):
         return self.parent + self.offset
 
     @property
-    def step(self):
+    def start(self):
         return (self.root + self.offset) % self.modulo
+
+    step = start
 
     def _hashable_content(self):
         return super(ModuloDimension, self)._hashable_content() + (self.offset,
