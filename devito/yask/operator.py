@@ -59,7 +59,7 @@ class Operator(OperatorRunnable):
                           e.reads, e.writes)
                 for e in expressions]
 
-    def _specialize_iet(self, iet):
+    def _specialize_iet(self, iet, **kwargs):
         """
         Transform the Iteration/Expression tree to offload the computation of
         one or more loop nests onto YASK. This involves calling the YASK compiler
@@ -115,6 +115,9 @@ class Operator(OperatorRunnable):
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
         iet = make_grid_accesses(iet)
+
+        # Finally optimize all non-yaskized loops
+        iet = super(Operator, self)._specialize_iet(iet, **kwargs)
 
         return iet
 
