@@ -706,7 +706,7 @@ class TimeFunction(Function):
     def forward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[0]
+        _t = self.indices[self._time_position]
 
         return self.subs(_t, _t + i * _t.spacing)
 
@@ -714,14 +714,14 @@ class TimeFunction(Function):
     def backward(self):
         """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[0]
+        _t = self.indices[self._time_position]
 
         return self.subs(_t, _t - i * _t.spacing)
 
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[0]
+        _t = self.indices[self._time_position]
         if self.time_order == 1:
             # This hack is needed for the first-order diffusion test
             indices = [_t, _t + _t.spacing]
