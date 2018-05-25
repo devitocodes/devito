@@ -25,6 +25,7 @@ class Dimension(AbstractSymbol):
     is_Stepping = False
 
     is_UnboundedModulo = False
+    is_UnboundedIncr = False
 
     """
     A Dimension is a symbol representing a problem dimension and thus defining a
@@ -617,6 +618,42 @@ class ModuloDimension(UnboundedDimension):
     def _hashable_content(self):
         return super(ModuloDimension, self)._hashable_content() + (self.offset,
                                                                    self.modulo)
+
+
+class IncrDimension(UnboundedDimension):
+
+    is_UnboundedIncr = True
+
+    """
+    Dimension symbol representing a non-contiguous sub-region of a given
+    ``parent`` Dimension, with one point every ``offset`` points. Thus, if
+    ``offset == k``, the dimension represents the sequence ``start, start + k,
+    start + 2*k, ...``.
+
+    :param start: An integer representing the starting point of the sequence.
+    :param offset: The distance between two consecutive points.
+    """
+
+    def __new__(cls, name, parent, start, offset, **kwargs):
+        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
+        newobj._start = start
+        newobj._offset = offset
+        return newobj
+
+    @property
+    def start(self):
+        return self._start
+
+    @property
+    def offset(self):
+        return self._offset
+
+    @property
+    def step(self):
+        return self + self.offset
+
+    def _hashable_content(self):
+        return super(IncrDimension, self)._hashable_content() + (self.start, self.offset)
 
 
 def dimensions(names):
