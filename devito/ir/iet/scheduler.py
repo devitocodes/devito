@@ -32,9 +32,7 @@ def iet_build(stree):
     subs = {}
     for tree in retrieve_iteration_tree(iet):
         uindices = flatten(i.uindices for i in tree)
-        subs.update({i.expr: ModuloDimension(name=i.index.name, parent=i.dim,
-                                             origin=i.expr)
-                     for i in uindices})
+        subs.update({i.origin: i for i in uindices})
     iet = SubstituteExpression(subs).visit(iet)
 
     return iet
@@ -66,11 +64,10 @@ def iet_make(stree):
                     # Apart from SteppingDimension, no other type of Dimension
                     # requires generation of uindices
                     continue
-                modulo = len(offs)
                 for n, o in enumerate(filter_ordered(offs)):
-                    value = (i.dim + o) % modulo
-                    symbol = Scalar(name="%s%d" % (d.name, n), dtype=np.int32)
-                    uindices.append(UnboundedIndex(symbol, value, value, d, d + o))
+                    uindices.append(ModuloDimension(name="%s%d" % (d.name, n),
+                                                    parent=d, offset=o,
+                                                    modulo=len(offs)))
             # Generate Iteration
             body = [Iteration(queues.pop(i), i.dim, i.dim.limits, offsets=i.limits,
                               direction=i.direction, uindices=uindices)]

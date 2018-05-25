@@ -45,14 +45,14 @@ class AdvancedRewriter(BasicRewriter):
         for i in FindNodes(Iteration).visit(iet):
             if not i.is_Wrappable:
                 continue
-            modulo = len(i.uindices) - 1
-            if modulo == 0:
-                continue
 
             uindices = []
             for n, ui in enumerate(i.uindices):
-                value = (i.dim + ui.expr - ui.dim) % modulo
-                uindices.append(UnboundedIndex(ui.name, value, value, ui.dim, ui.expr))
+                if ui.modulo > 1:
+                    uindices.append(ui.func(name=ui.name, parent=ui.parent,
+                                            offset=ui.offset, modulo=ui.modulo-1))
+                else:
+                    uindices.append(ui)
 
             mapper[i] = i._rebuild(uindices=uindices)
 

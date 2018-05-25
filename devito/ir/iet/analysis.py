@@ -78,8 +78,7 @@ def mark_parallel(analysis):
                 continue
 
             # Get all dimensions up to and including Iteration /i/, grouped by Iteration
-            dims = [filter_ordered([j.dim] + [k.dim for k in j.uindices])
-                    for j in tree[:depth + 1]]
+            dims = [filter_ordered(j.dimensions) for j in tree[:depth + 1]]
             # Get all dimensions up to and including Iteration /i-1/
             prev = flatten(dims[:-1])
             # Get all dimensions up to and including Iteration /i/

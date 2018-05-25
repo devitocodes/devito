@@ -591,11 +591,16 @@ class ModuloDimension(UnboundedDimension):
     :param modulo: The extent of the range.
     """
 
-    def __new__(cls, name, parent, offset, modulo, **kwargs):
-        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
+    def __new__(cls, name, parent, offset, modulo):
+        return ModuloDimension.__xnew_cached_(cls, name, parent, offset, modulo)
+
+    def __new_stage2__(cls, name, parent, offset, modulo):
+        newobj = UnboundedDimension.__xnew__(cls, name, parent)
         newobj._offset = offset
         newobj._modulo = modulo
         return newobj
+
+    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
     @property
     def offset(self):
@@ -634,11 +639,16 @@ class IncrDimension(UnboundedDimension):
     :param offset: The distance between two consecutive points.
     """
 
-    def __new__(cls, name, parent, start, offset, **kwargs):
-        newobj = DerivedDimension.__new__(cls, name, parent, **kwargs)
+    def __new__(cls, name, parent, start, offset):
+        return IncrDimension.__xnew_cached_(cls, name, parent, start, offset)
+
+    def __new_stage2__(cls, name, parent, start, offset):
+        newobj = UnboundedDimension.__xnew__(cls, name, parent)
         newobj._start = start
         newobj._offset = offset
         return newobj
+
+    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
     @property
     def start(self):

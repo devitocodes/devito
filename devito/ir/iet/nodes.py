@@ -302,9 +302,10 @@ class Iteration(Node):
     :param properties: A bag of :class:`IterationProperty` objects, decorating
                        the Iteration (sequential, parallel, vectorizable, ...).
     :param pragmas: A bag of pragmas attached to this Iteration.
-    :param uindices: a bag of UnboundedIndex objects, representing free iteration
-                     variables (i.e., the Iteration end point is independent of
-                     any of these UnboundedIndex).
+    :param uindices: a bag of :class:`DerivedDimension`s with ``dimension`` as root
+                     parent, representing additional Iteration variables with
+                     unbounded extreme (hence the "unbounded indices", shortened
+                     as "uindices").
     """
 
     is_Iteration = True
@@ -335,7 +336,7 @@ class Iteration(Node):
         self.properties = as_tuple(filter_sorted(properties))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
-        assert all(isinstance(i, UnboundedIndex) for i in self.uindices)
+        assert all(i.is_Derived and i.root is dimension for i in self.uindices)
 
     def __repr__(self):
         properties = ""
@@ -344,16 +345,8 @@ class Iteration(Node):
             properties = "WithProperties[%s]::" % ",".join(properties)
         index = self.index
         if self.uindices:
-            index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
+            index += '[%s]' % ','.join(i.name for i in self.uindices)
         return "<%sIteration %s; %s>" % (properties, index, self.limits)
-
-    @property
-    def defines(self):
-        """
-        Return any symbols defined in the :class:`Iteration` header.
-        """
-        dims = (self.dim, self.dim.parent) if self.dim.is_Derived else (self.dim,)
-        return dims + tuple(i.name for i in self.uindices)
 
     @property
     def is_Affine(self):
@@ -488,10 +481,16 @@ class Iteration(Node):
         return self.bounds(finish=finish)[1]
 
     @property
+    def dimensions(self):
+        """
+        Return all :class:`Dimension` objects used in the Iteration header.
+        """
+        return tuple(self.dim._defines) + self.uindices
+
+    @property
     def functions(self):
         """
-        Return all :class:`Function` objects used in the header of
-        this :class:`Iteration`.
+        Return all :class:`Function` objects used in the Iteration header.
         """
         return ()
 
@@ -501,6 +500,13 @@ class Iteration(Node):
         return []
 
     @property
+    def defines(self):
+        """
+        Return any symbols defined in the :class:`Iteration` header.
+        """
+        return self.dimensions
+
+    @property
     def free_symbols(self):
         """
         Return all :class:`Symbol` objects used in the header of this
@@ -508,7 +514,8 @@ class Iteration(Node):
         """
         return tuple(self.symbolic_start.free_symbols) \
             + tuple(self.symbolic_end.free_symbols) \
-            + tuple(flatten(ui.free_symbols for ui in self.uindices))
+            + self.uindices \
+            + tuple(flatten(i.start.free_symbols for i in self.uindices))
 
 
 class Callable(Node):
