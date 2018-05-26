@@ -5,8 +5,8 @@ import pytest
 from conftest import skipif_yask
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Constant,
-                    Operator, Eq, clear_cache)
-from devito.types import _SymbolCache
+                    Operator, Eq, Dimension, clear_cache)
+from devito.types import _SymbolCache, Scalar
 
 
 @skipif_yask
@@ -61,7 +61,7 @@ def test_cache_constant_new():
 
 @skipif_yask
 def test_symbol_cache_aliasing():
-    """Test to assert that our aiasing cache isn't defeated by sympys
+    """Test to assert that our aliasing cache isn't defeated by sympys
     non-aliasing symbol cache.
 
     For further explanation consider the symbol u[x, y] and it's first
@@ -164,6 +164,30 @@ def test_cache_after_indexification():
     for i in [u0, u1, u2]:
         assert i.indexify().base.function.space_order ==\
             (i.indexify() + 1.).args[1].base.function.space_order
+
+
+@skipif_yask
+def test_dimension_cache():
+    """
+    Test that :class:`Dimension`s with same name but different attributes do not
+    alias to the same Dimension.
+    """
+    d0 = Dimension(name='d')
+    d1 = Dimension(name='d')
+    assert d0 is d1
+
+    s0 = Scalar(name='s0')
+    s1 = Scalar(name='s1')
+
+    d2 = Dimension(name='d', spacing=s0)
+    d3 = Dimension(name='d', spacing=s1)
+    assert d2 is not d3
+
+    d4 = Dimension(name='d', spacing=s1)
+    assert d3 is d4
+
+    d5 = Dimension(name='d', spacing=Constant(name='s1'))
+    assert d2 is not d5
 
 
 @skipif_yask
