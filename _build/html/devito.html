@@ -1367,6 +1367,11 @@ time dimensions should inherit from <a class="reference internal" href="#devito.
 <dt id="devito.dimension.DefaultDimension.is_Default">
 <code class="descname">is_Default</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.DefaultDimension.is_Default" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol to represent a dimension that has a statically-known size.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">A DefaultDimension carries a value, so it has a mutable state. Hence, it
+is not cached.</p>
+</div>
 </dd></dl>
 
 </dd></dl>
