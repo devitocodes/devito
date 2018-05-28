@@ -4,7 +4,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.exceptions import InvalidArgument
-from devito.types import AbstractSymbol, Scalar, Symbol
+from devito.types import AbstractSymbol, Scalar
 from devito.logger import debug
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
@@ -24,6 +24,7 @@ class Dimension(AbstractSymbol):
     is_Conditional = False
     is_Stepping = False
 
+    is_Unbounded = False
     is_UnboundedModulo = False
     is_UnboundedIncr = False
 
@@ -105,8 +106,12 @@ class Dimension(AbstractSymbol):
     def root(self):
         return self
 
+    @property
+    def _properties(self):
+        return (self.spacing,)
+
     def _hashable_content(self):
-        return super(Dimension, self)._hashable_content() + (self.spacing,)
+        return super(Dimension, self)._hashable_content() + self._properties
 
     @property
     def _defines(self):
@@ -261,6 +266,10 @@ class DerivedDimension(Dimension):
 
     is_Derived = True
 
+    _keymap = {}
+    """Map all seen instance `_properties` to a unique number. This is used
+    to create unique Dimension names."""
+
     """
     Dimension symbol derived from a ``parent`` Dimension.
 
@@ -283,6 +292,14 @@ class DerivedDimension(Dimension):
     __xnew__ = staticmethod(__new_stage2__)
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
+    @classmethod
+    def _gensuffix(cls, key):
+        return cls._keymap.setdefault(key, len(cls._keymap))
+
+    @classmethod
+    def _genname(cls, prefix, key):
+        return "%s%d" % (prefix, cls._gensuffix(key))
+
     @property
     def parent(self):
         return self._parent
@@ -295,8 +312,12 @@ class DerivedDimension(Dimension):
     def spacing(self):
         return self.parent.spacing
 
+    @property
+    def _properties(self):
+        return ()
+
     def _hashable_content(self):
-        return (self.name, self.parent._hashable_content())
+        return (self.name, self.parent._hashable_content()) + self._properties
 
     @property
     def _defines(self):
@@ -391,9 +412,9 @@ class SubDimension(DerivedDimension):
             val = self.symbolic_end - self.parent.symbolic_end
             return int(val), self.parent.symbolic_end
 
-    def _hashable_content(self):
-        return super(SubDimension, self)._hashable_content() + (self._interval,
-                                                                self._size)
+    @property
+    def _properties(self):
+        return (self._interval, self._size)
 
     def _arg_defaults(self, **kwargs):
         """
@@ -461,9 +482,9 @@ class ConditionalDimension(DerivedDimension):
     def condition(self):
         return self._condition
 
-    def _hashable_content(self):
-        return super(ConditionalDimension, self)._hashable_content() + (self.factor,
-                                                                        self.condition)
+    @property
+    def _properties(self):
+        return (self._factor, self._condition)
 
 
 class SteppingDimension(DerivedDimension):
@@ -544,7 +565,7 @@ class SteppingDimension(DerivedDimension):
 
 class UnboundedDimension(DerivedDimension):
 
-    is_NonlinearDerived = True
+    is_Unbounded = True
 
     """
     Dimension symbol representing a non-contiguous sub-region of a given
@@ -552,15 +573,25 @@ class UnboundedDimension(DerivedDimension):
 
     .. note::
 
-        A subclass must implement the properties :meth:`start` and :meth:`step`.
+        UnboundedDimensions are created internally by Devito and should never
+        be used in application code.
+
+    .. note::
+
+        Subclasses must implement the properties :meth:`symbolic_start` and
+        :meth:`symbolic_incr`.
     """
 
-    @property
-    def start(self):
+    @cached_property
+    def symbolic_start(self):
         return NotImplementedError
 
-    @property
-    def step(self):
+    @cached_property
+    def symbolic_end(self):
+        raise NotImplementedError
+
+    @cached_property
+    def symbolic_incr(self):
         return NotImplementedError
 
     def _arg_defaults(self, **kwargs):
@@ -587,14 +618,18 @@ class ModuloDimension(UnboundedDimension):
     ``parent`` Dimension, which cyclically produces a finite range of values,
     such as ``0, 1, 2, 0, 1, 2, 0, ...``.
 
+    :param parent: Parent dimension from which the ModuloDimension is created.
     :param offset: An integer representing an offset from the parent dimension.
     :param modulo: The extent of the range.
+    :param name: (Optional) force a name for this Dimension.
     """
 
-    def __new__(cls, name, parent, offset, modulo):
-        return ModuloDimension.__xnew_cached_(cls, name, parent, offset, modulo)
+    def __new__(cls, parent, offset, modulo, name=None):
+        return ModuloDimension.__xnew_cached_(cls, parent, offset, modulo, name)
 
-    def __new_stage2__(cls, name, parent, offset, modulo):
+    def __new_stage2__(cls, parent, offset, modulo, name):
+        if name is None:
+            name = cls._genname(parent.name, (offset, modulo))
         newobj = UnboundedDimension.__xnew__(cls, name, parent)
         newobj._offset = offset
         newobj._modulo = modulo
@@ -614,15 +649,15 @@ class ModuloDimension(UnboundedDimension):
     def origin(self):
         return self.parent + self.offset
 
-    @property
-    def start(self):
+    @cached_property
+    def symbolic_start(self):
         return (self.root + self.offset) % self.modulo
 
-    step = start
+    symbolic_incr = symbolic_start
 
-    def _hashable_content(self):
-        return super(ModuloDimension, self)._hashable_content() + (self.offset,
-                                                                   self.modulo)
+    @property
+    def _properties(self):
+        return (self._offset, self._modulo)
 
 
 class IncrDimension(UnboundedDimension):
@@ -635,14 +670,18 @@ class IncrDimension(UnboundedDimension):
     ``offset == k``, the dimension represents the sequence ``start, start + k,
     start + 2*k, ...``.
 
+    :param parent: Parent dimension from which the IncrDimension is created.
     :param start: An integer representing the starting point of the sequence.
     :param offset: The distance between two consecutive points.
+    :param name: (Optional) force a name for this Dimension.
     """
 
-    def __new__(cls, name, parent, start, offset):
-        return IncrDimension.__xnew_cached_(cls, name, parent, start, offset)
+    def __new__(cls, parent, start, offset, name=None):
+        return IncrDimension.__xnew_cached_(cls, parent, start, offset, name)
 
-    def __new_stage2__(cls, name, parent, start, offset):
+    def __new_stage2__(cls, parent, start, offset, name):
+        if name is None:
+            name = cls._genname(parent.name, (start, offset))
         newobj = UnboundedDimension.__xnew__(cls, name, parent)
         newobj._start = start
         newobj._offset = offset
@@ -651,19 +690,20 @@ class IncrDimension(UnboundedDimension):
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
     @property
-    def start(self):
-        return self._start
-
-    @property
     def offset(self):
         return self._offset
 
+    @cached_property
+    def symbolic_start(self):
+        return self._start
+
     @property
-    def step(self):
+    def symbolic_incr(self):
         return self + self.offset
 
-    def _hashable_content(self):
-        return super(IncrDimension, self)._hashable_content() + (self.start, self.offset)
+    @property
+    def _properties(self):
+        return (self._start, self._offset)
 
 
 def dimensions(names):
