@@ -15,10 +15,9 @@ from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
 from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL,
-                           REMAINDER, tagger, FindSymbols, FindNodes,
-                           IsPerfectIteration, NestedTransformer, Transformer,
-                           compose_nodes, retrieve_iteration_tree)
-from devito.logger import dle_warning
+                           REMAINDER, tagger, FindSymbols, FindNodes, Transformer,
+                           IsPerfectIteration, compose_nodes, retrieve_iteration_tree)
+from devito.logger import dle_warning, perf_adv
 from devito.tools import as_tuple
 
 
@@ -38,27 +37,15 @@ class AdvancedRewriter(BasicRewriter):
     @dle_pass
     def _loop_wrapping(self, iet, state):
         """
-        Transform data accesses in WRAPPABLE :class:`Iteration`s to reduce
-        the working set.
+        Emit a performance warning if WRAPPABLE :class:`Iteration`s are found,
+        as these are a symptom that unnecessary memory is being allocated.
         """
-        mapper = {}
         for i in FindNodes(Iteration).visit(iet):
             if not i.is_Wrappable:
                 continue
-
-            uindices = []
-            for n, ui in enumerate(i.uindices):
-                if ui.modulo > 1:
-                    uindices.append(ui.func(name=ui.name, parent=ui.parent,
-                                            offset=ui.offset, modulo=ui.modulo-1))
-                else:
-                    uindices.append(ui)
-
-            mapper[i] = i._rebuild(uindices=uindices)
-
-        processed = NestedTransformer(mapper).visit(iet)
-
-        return processed, {}
+            perf_adv("Functions using modulo iteration along Dimension `%s` "
+                     "may safely allocate a one slot smaller buffer" % i.dim)
+        return iet, {}
 
     @dle_pass
     def _loop_blocking(self, nodes, state):
