@@ -86,7 +86,7 @@ class Constant(AbstractCachedSymbol):
         else:
             return self._arg_defaults()
 
-    def _arg_check(self, args, dspace):
+    def _arg_check(self, args, intervals):
         """
         Check that ``args`` contains legal runtime values bound to ``self``.
         """
@@ -740,6 +740,18 @@ class TimeFunction(Function):
 
         return self.diff(_t, _t).as_finite_difference(indt)
 
+    @property
+    def _time_size(self):
+        return self.shape_allocated[self._time_position]
+
+    def _arg_check(self, args, intervals):
+        super(TimeFunction, self)._arg_check(args, intervals)
+        key = args[self.name]
+        if self.save is not int and self._time_size != key.shape[self._time_position]:
+            raise InvalidArgument("Expected `time_size=%d` for runtime "
+                                  "value `%s`, found `%d` instead"
+                                  % (self._time_size, self.name, key._time_size))
+
 
 class AbstractSparseFunction(TensorFunction):
     """
@@ -1077,6 +1089,10 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+    @property
+    def _time_size(self):
+        return self.shape_allocated[self._time_position]
 
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
