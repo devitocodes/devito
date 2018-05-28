@@ -5,8 +5,8 @@ from devito.equation import DOMAIN, INTERIOR
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Any, Stencil, detect_accesses, detect_oobs, detect_io,
-                               force_directions, detect_free_dimensions,
-                               detect_flow_directions, build_intervals)
+                               force_directions, detect_flow_directions, build_intervals,
+                               build_iterators)
 from devito.symbolics import FrozenExpr
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
@@ -106,23 +106,20 @@ class LoweredEq(Eq, IREq):
 
         # Analyze the expression
         mapper = detect_accesses(expr)
-        free_dims = detect_free_dimensions(expr)
         oobs = detect_oobs(mapper)
-
-        # Derive the stencil
-        stencil = Stencil.union(free_dims, *mapper.values())
 
         # The iteration space is constructed so that information always flows
         # from an iteration to another (i.e., no anti-dependences are created)
         directions, _ = force_directions(detect_flow_directions(expr), lambda i: Any)
-        intervals, iterators = build_intervals(stencil)
+        iterators = build_iterators(mapper)
+        intervals = build_intervals(Stencil.union(*mapper.values()))
         intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
         ispace = IterationSpace([i.zero() for i in intervals], iterators, directions)
 
         # The data space is relative to the computational domain
         intervals = [i if i.dim in oobs else i.zero() for i in intervals]
         intervals += [Interval(i, 0, 0) for i in ordering if i not in ispace.dimensions]
-        parts = {k: IntervalGroup(build_intervals(v)[0]) for k, v in mapper.items()}
+        parts = {k: IntervalGroup(build_intervals(v)) for k, v in mapper.items() if k}
         dspace = DataSpace(intervals, parts)
 
         # Finally create the LoweredEq with all metadata attached

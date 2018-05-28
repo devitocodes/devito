@@ -22,8 +22,8 @@ from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
-           'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression',
-           'IterationTree', 'Section', 'ExpressionBundle']
+           'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression', 'Section',
+           'IterationTree', 'ExpressionBundle']
 
 # First-class IET nodes
 
@@ -515,7 +515,8 @@ class Iteration(Node):
         return tuple(self.symbolic_start.free_symbols) \
             + tuple(self.symbolic_end.free_symbols) \
             + self.uindices \
-            + tuple(flatten(i.start.free_symbols for i in self.uindices))
+            + tuple(flatten(i.symbolic_start.free_symbols for i in self.uindices)) \
+            + tuple(flatten(i.symbolic_incr.free_symbols for i in self.uindices))
 
 
 class Callable(Node):
@@ -831,43 +832,6 @@ class IterationTree(tuple):
     def __getitem__(self, key):
         ret = super(IterationTree, self).__getitem__(key)
         return IterationTree(ret) if isinstance(key, slice) else ret
-
-
-class UnboundedIndex(object):
-
-    """
-    A generic loop iteration index that can be used in a :class:`Iteration` to
-    add a non-linear traversal of the iteration space.
-    """
-
-    def __init__(self, index, start=0, step=None, dim=None, expr=None):
-        self.name = index
-        self.index = index
-        self.dim = dim
-        self.expr = expr
-
-        try:
-            self.start = as_symbol(start)
-        except TypeError:
-            self.start = start
-
-        try:
-            if step is None:
-                self.step = index + 1
-            else:
-                self.step = as_symbol(step)
-        except TypeError:
-            self.step = step
-
-    @property
-    def free_symbols(self):
-        """
-        Return the symbols used by this :class:`UnboundedIndex`.
-        """
-        free = self.index.free_symbols
-        free.update(self.start.free_symbols)
-        free.update(self.step.free_symbols)
-        return tuple(free)
 
 
 MetaCall = namedtuple('MetaCall', 'root local')

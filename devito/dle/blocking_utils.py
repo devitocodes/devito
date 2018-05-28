@@ -1,7 +1,5 @@
 import cgen as c
-from sympy import Symbol
 
-from devito.cgen_utils import ccode
 from devito.dimension import IncrDimension
 from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacentIterations,
                            FindNodes, IsPerfectIteration, NestedTransformer, Transformer,
@@ -150,15 +148,12 @@ def optimize_unfolded_tree(unfolded, root):
 
         # "Shrink" the iteration space
         for t1, t2 in zip(tree, root):
-            t1_udim = IncrDimension(name="%ss%d" % (t1.index, i), parent=t1.dim,
-                                    start=t1.limits[0], offset=1)
-            t2_udim = IncrDimension(name="%ss%d" % (t1.index, i), parent=t1.dim,
-                                    start=-t1.limits[0], offset=1)
-
+            t1_udim = IncrDimension(t1.dim, t1.limits[0], 1, "%ss%d" % (t1.index, i))
             limits = (0, t1.limits[1] - t1.limits[0], t1.symbolic_incr)
             modified_tree.append(t1._rebuild(limits=limits,
                                              uindices=t1.uindices + (t1_udim,)))
 
+            t2_udim = IncrDimension(t1.dim, -t1.limits[0], 1, "%ss%d" % (t1.index, i))
             modified_root.append(t2._rebuild(uindices=t2.uindices + (t2_udim,)))
 
             mapper[t1.dim] = t1_udim

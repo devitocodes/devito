@@ -1,16 +1,12 @@
 from collections import OrderedDict
 
-import numpy as np
-
 from devito.cgen_utils import Allocator
-from devito.dimension import ModuloDimension
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
-                           Conditional, Section, ExpressionBundle, UnboundedIndex,
-                           MetaCall, MapExpressions, Transformer, NestedTransformer,
+                           Conditional, Section, ExpressionBundle, MetaCall,
+                           MapExpressions, Transformer, NestedTransformer,
                            SubstituteExpression, iet_analyze, filter_iterations,
                            retrieve_iteration_tree)
-from devito.tools import filter_ordered, flatten
-from devito.types import Scalar
+from devito.tools import flatten
 
 __all__ = ['iet_build', 'iet_insert_C_decls']
 
@@ -57,17 +53,10 @@ def iet_make(stree):
             body = [Conditional(i.guard, queues.pop(i))]
 
         elif i.is_Iteration:
-            # Generate `uindices`
-            uindices = []
-            for d, offs in i.sub_iterators:
-                if not d.is_Stepping:
-                    # Apart from SteppingDimension, no other type of Dimension
-                    # requires generation of uindices
-                    continue
-                for n, o in enumerate(filter_ordered(offs)):
-                    uindices.append(ModuloDimension(name="%s%d" % (d.name, n),
-                                                    parent=d, offset=o,
-                                                    modulo=len(offs)))
+            # Generate `uindices`, which correspond to the UnboundedDimensions
+            uindices = [d for d in i.sub_iterators if d.is_Unbounded]
+            # Order to ensure deterministic code generation
+            uindices = sorted(uindices, key=lambda d: d.name)
             # Generate Iteration
             body = [Iteration(queues.pop(i), i.dim, i.dim.limits, offsets=i.limits,
                               direction=i.direction, uindices=uindices)]

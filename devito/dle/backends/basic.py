@@ -70,11 +70,11 @@ class BasicRewriter(AbstractRewriter):
                 # Iteration unbounded indices
                 ufunc = [Scalar(name='%s_ub%d' % (name, j), dtype=np.int32)
                          for j in range(len(i.uindices))]
-                defined_args.update({uf.name: j.start
+                defined_args.update({uf.name: j.symbolic_start
                                      for uf, j in zip(ufunc, i.uindices)})
                 limits = [Scalar(name=start.name, dtype=np.int32),
                           Scalar(name=finish.name, dtype=np.int32), 1]
-                uindices = [IncrDimension(j.name, j.parent, i.dim + as_symbol(k), 1)
+                uindices = [IncrDimension(j.parent, i.dim + as_symbol(k), 1, j.name)
                             for j, k in zip(i.uindices, ufunc)]
                 free.append(i._rebuild(limits=limits, offsets=None, uindices=uindices))
 

@@ -150,7 +150,7 @@ class CGen(Visitor):
             elif i.is_Tensor:
                 ret.append(c.Value(c.dtype_to_ctype(i.dtype),
                                    '*restrict %s_vec' % i.name))
-            elif i.is_UnboundedModulo:
+            elif i.is_Unbounded:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             else:
                 ret.append(c.Value('void', '*_%s' % i.name))
@@ -267,9 +267,9 @@ class CGen(Visitor):
 
         # Append unbounded dimensions, if any
         if o.uindices:
-            uinit = ['%s = %s' % (i.name, ccode(i.start)) for i in o.uindices]
+            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_start)) for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
-            ustep = ['%s = %s' % (i.name, ccode(i.step)) for i in o.uindices]
+            ustep = ['%s = %s' % (i.name, ccode(i.symbolic_incr)) for i in o.uindices]
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
 
         # Create For header+body

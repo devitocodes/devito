@@ -14,10 +14,10 @@ from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Expression, Iteration, List, UnboundedIndex,
-                           PARALLEL, ELEMENTAL, REMAINDER, tagger, FindSymbols,
-                           FindNodes, IsPerfectIteration, NestedTransformer,
-                           Transformer, compose_nodes, retrieve_iteration_tree)
+from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL,
+                           REMAINDER, tagger, FindSymbols, FindNodes,
+                           IsPerfectIteration, NestedTransformer, Transformer,
+                           compose_nodes, retrieve_iteration_tree)
 from devito.logger import dle_warning
 from devito.tools import as_tuple
 
