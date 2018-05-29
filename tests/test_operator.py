@@ -651,11 +651,13 @@ class TestArguments(object):
         the aliasing on the SparseFunction name.
         """
         grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension(name='p_src')
-        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
-        time = u.indices[0]
         src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim], nt=10,
                                   npoint=1, coordinates=original_coords, time_order=2)
         src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=[time, p_dim],
@@ -665,7 +667,7 @@ class TestArguments(object):
         # Move the source from the location where the setup put it so we can test
         # whether the override picks up the original coordinates or the changed ones
 
-        args = op.arguments(src1=src2, t=0)
+        args = op.arguments(src1=src2, time=0)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
