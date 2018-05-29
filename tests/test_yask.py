@@ -8,7 +8,6 @@ pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 from devito import (Eq, Grid, Dimension, Operator, Constant, Function, TimeFunction,
                     SparseTimeFunction, configuration, clear_cache)  # noqa
 from devito.ir.iet import retrieve_iteration_tree  # noqa
-from devito.yask.wrappers import contexts  # noqa
 
 # For the acoustic wave test
 from examples.seismic.acoustic import AcousticWaveSolver, iso_stencil  # noqa
@@ -22,6 +21,7 @@ def setup_module(module):
     """Get rid of any YASK modules generated and JIT-compiled in previous runs.
     This is not strictly necessary for the tests, but it helps in keeping the
     lib directory clean, which may be helpful for offline analysis."""
+    from devito.yask.wrappers import contexts  # noqa
     contexts.dump()
 
 
