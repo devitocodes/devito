@@ -182,9 +182,11 @@ def mark_wrappable(analysis):
         if any(a.is_write for a in accesses_back):
             continue
 
-        # There must be NO accesses to the `back` timeslot except in the
-        # equations that write to the `front`
-        if not all(any(d.source.lex_eq(a) for d in scope.d_flow if d.sink is a)
+        # There must be NO further accesses to the `back` timeslot after
+        # any earlier timeslot is written
+        # Note: potentially, this can be relaxed by replacing "any earlier timeslot"
+        # with the `front timeslot`
+        if not all(all(d.sink is not a or d.source.lex_ge(a) for d in scope.d_flow)
                    for a in accesses_back):
             continue
 
