@@ -3,10 +3,9 @@ from collections import OrderedDict
 from devito.cgen_utils import Allocator
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
                            Conditional, Section, ExpressionBundle, MetaCall,
-                           MapExpressions, Transformer, NestedTransformer,
-                           SubstituteExpression, iet_analyze, filter_iterations,
-                           retrieve_iteration_tree)
-from devito.tools import flatten
+                           MapExpressions, Transformer, NestedTransformer, FindNodes,
+                           ReplaceStepIndices, iet_analyze, filter_iterations)
+from devito.tools import as_mapper
 
 __all__ = ['iet_build', 'iet_insert_C_decls']
 
@@ -23,13 +22,8 @@ def iet_build(stree):
     # Data dependency analysis. Properties are attached directly to nodes
     iet = iet_analyze(iet)
 
-    # Substitute derived dimensions (e.g., t -> t0, t + 1 -> t1)
-    # This is postponed up to this point to ease /iet_analyze/'s life
-    subs = {}
-    for tree in retrieve_iteration_tree(iet):
-        uindices = flatten(i.uindices for i in tree)
-        subs.update({i.origin: i for i in uindices})
-    iet = SubstituteExpression(subs).visit(iet)
+    # Replace stepping dimensions with modulo dimensions
+    iet = iet_lower_steppers(iet)
 
     return iet
 
@@ -68,6 +62,28 @@ def iet_make(stree):
         queues.setdefault(i.parent, []).extend(body)
 
     assert False
+
+
+def iet_lower_steppers(iet):
+    """
+    Replace the :class:`SteppingDimension`s within ``iet``'s expressions with
+    suitable :class:`ModuloDimension`s.
+    """
+    for i in FindNodes(Iteration).visit(iet):
+        if not i.uindices:
+            # Be quick: avoid uselessy reconstructing nodes
+            continue
+        # In an expression, there could be `u[t+1, ...]` and `v[t+1, ...]`, where
+        # `u` and `v` are TimeFunction with circular time buffers (save=None) *but*
+        # different modulo extent. The `t+1` indices above are therefore conceptually
+        # different, so they will be replaced with the proper ModuloDimension through
+        # two different calls to `xreplace`
+        groups = as_mapper(i.uindices, lambda d: d.modulo)
+        for k, v in groups.items():
+            mapper = {d.origin: d for d in v}
+            rule = lambda i: i.function._time_size == k
+            iet = ReplaceStepIndices(mapper, rule).visit(iet)
+    return iet
 
 
 def iet_insert_C_decls(iet, func_table):
