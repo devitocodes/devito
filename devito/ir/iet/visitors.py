@@ -13,13 +13,15 @@ import cgen as c
 
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
+from devito.function import TimeFunction
 from devito.ir.iet.nodes import Node
 from devito.ir.support.space import Backward
+from devito.symbolics import xreplace_indices
 from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C, GenericVisitor
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
-           'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
+           'IsPerfectIteration', 'ReplaceStepIndices', 'printAST', 'CGen',
            'Transformer', 'NestedTransformer', 'FindAdjacentIterations',
            'MapIteration']
 
@@ -630,20 +632,23 @@ class NestedTransformer(Transformer):
             return handle._rebuild(*rebuilt, **handle.args_frozen)
 
 
-class SubstituteExpression(Transformer):
+class ReplaceStepIndices(Transformer):
     """
-    :class:`Transformer` that performs symbol substitution on
-    :class:`Expression` objects in a given tree.
+    :class:`Transformer` that performs index substitution on
+    :class:`Expression`s in a given tree.
 
-    :param subs: Dict defining the symbol substitution
+    :param subs: (Optional) dictionary defining the symbol substitution.
+    :param rule: (Optional) the matching rule. See xreplace_constrained.__doc__
+                 for more info.
     """
 
-    def __init__(self, subs={}):
-        super(SubstituteExpression, self).__init__()
-        self.subs = subs
+    def __init__(self, subs=None, rule=lambda i: True):
+        super(ReplaceStepIndices, self).__init__()
+        self.subs = subs or {}
+        self.rule = lambda i: (isinstance(i.function, TimeFunction) and rule(i))
 
     def visit_Expression(self, o):
-        return o._rebuild(expr=o.expr.xreplace(self.subs))
+        return o._rebuild(expr=xreplace_indices(o.expr, self.subs, self.rule))
 
 
 def printAST(node, verbose=True):
