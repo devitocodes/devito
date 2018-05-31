@@ -38,72 +38,13 @@ RUN if [ -f /usr/bin/gcov-dump-$gccvers ] ; then \
 RUN if [ -f /usr/bin/gcov-tool-$gccvers ] ; then \
       update-alternatives --install /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-$gccvers 10 ; \
     fi
-
-# Set up for Miniconda
-WORKDIR /tmp
-RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
-RUN bash miniconda.sh -b -p /usr/local/miniconda
-ENV PATH /usr/local/miniconda/bin:$PATH
+    
+# Set up conda
+RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh
+RUN bash /tmp/miniconda.sh -b -p /usr/local/miniconda
+ENV PATH=/usr/local/miniconda/bin:$PATH
 RUN conda config --set always_yes yes --set changeps1 no
 RUN conda update -q conda
-RUN ln -s /usr/local/miniconda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
-# Debugging step to finish
-RUN conda info -a
 
-# Add working version of devito to image
-WORKDIR /usr/local/devito
-# Obscure syntax: 'recursively add all the contents of docker's working directory to
-#  the working directory in the container
-ADD . / ./
-
-# Install devito into the image
-RUN conda env create -q -f environment.yml python
-# *** NOTE TO FUTURE DEVELOPERS REUSING THIS JENKINSFILE FOR DEPLOYMENT ***
-# Normal activation of virtualenv doesn't persist; set environment explicitly so that
-#  when Jenkins runs the container it will start up with the devito virtualenv active.
-#  Note that this may not be ideal for non-Jenkins-intended containers, BUT does need
-#  to be present before the devito install as 'RUN source activate devito' doesn't
-#  persist into the next RUN and devito will end up being installed into base instead
-#  of into the devito virtualenv. On the other hand, defaulting to a devito virtualenv
-#  in a devito container seems like a pretty sensible thing to happen...
-ENV CONDA_DEFAULT_ENV="devito"
-ENV CONDA_EXE="/usr/local/miniconda/bin/conda"
-ENV CONDA_PREFIX="/usr/local/miniconda/envs/devito"
-ENV CONDA_PROMPT_MODIFIER="(devito) "
-ENV CONDA_PYTHON_EXE="/usr/local/miniconda/bin/python"
-ENV CONDA_SHLVL="1"
-ENV PATH="/usr/local/miniconda/envs/devito/bin:$PATH"
-# Now install devito into the virtualenv
-RUN pip install -e .
-# Add in parallel testing
-RUN pip install pytest-xdist
-# Debugging step to finish
-RUN conda list
-
-# Disable key checking for github.com
-RUN echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> /etc/ssh/config
-
-# Devito back-end set at build-time for Jenkins images
-WORKDIR /usr/localwhich python ; python --version ; gcc --version
-ARG DEVITO_BACKEND
-RUN if [ "x$DEVITO_BACKEND" = "xyask" ] ; then \
-      conda install swig ; \
-      apt-get -y install make ; \
-      git clone https://github.com/opesci/yask.git ; \
-      make -C yask/ compiler compiler-api ; \
-      pip install -e yask/ ; \
-    fi
-
-# Extra environment to get click using utf8
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
-
-# Ensure Matplotlib doesn't look for interactive backends that need
-#  extra libraries (ie, libGL) to be present
-ENV MPLBACKEND=PS
-
-# Codecov token to push coverage reports
-ENV CODECOV_TOKEN=67a18b2a-77f0-4722-9c88-bc1a098473ce
-
-# By default, start the container in the devito directory
-WORKDIR /usr/local/devito
+RUN echo "dash dash/sh boolean false" | debconf-set-selections
+RUN DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash
