@@ -355,6 +355,7 @@ class CustomRewriter(SpeculativeRewriter):
 
     passes_mapper = {
         'denormals': SpeculativeRewriter._avoid_denormals,
+        'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
         'openmp': SpeculativeRewriter._parallelize,
         'simd': SpeculativeRewriter._simdize,
