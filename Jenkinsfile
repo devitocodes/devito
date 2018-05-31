@@ -144,8 +144,10 @@ def runCodecov() {
 }
 
 def buildDocs() {
-    sh 'sphinx-apidoc -f -o docs/ examples'
-    sh 'sphinx-apidoc -f -o docs/ devito devito/yask/*'
-    sh 'cd docs'
-    sh 'make html'
+    sh '''source activate devito
+          sphinx-apidoc -f -o docs/ examples
+          sphinx-apidoc -f -o docs/ devito devito/yask/*
+          cd docs
+          make html
+       '''
 }
