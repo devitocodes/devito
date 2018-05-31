@@ -204,11 +204,12 @@ class Data(object):
         Share self's storage with ``target``.
         """
         for i in self.dimensions:
-            if i.is_Time:
-                target.set_alloc_size(i.name, self.get_alloc_size(i.name))
-            elif i.is_Space:
+            if i.is_Space:
                 target.set_left_halo_size(i.name, self.get_left_halo_size(i.name))
                 target.set_right_halo_size(i.name, self.get_right_halo_size(i.name))
+            else:
+                # time and misc dimensions
+                target.set_alloc_size(i.name, self.get_alloc_size(i.name))
         target.share_storage(self.grid)
 
     def __getattr__(self, name):

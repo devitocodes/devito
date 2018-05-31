@@ -82,6 +82,7 @@ class Function(function.Function):
                         padding.append((grid.get_left_extra_pad_size(i.name),
                                         grid.get_right_extra_pad_size(i.name)))
                     else:
+                        # time and misc dimensions
                         padding.append((0, 0))
                 self._padding = padding
 
