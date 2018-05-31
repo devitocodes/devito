@@ -41,6 +41,8 @@ pipeline {
                          condaInstallDevito()
                          runCondaTests()
                          runExamples()
+                         runCodecov()
+                         buildDocs()
                      }
                 }
                 stage('Build and test gcc-5 container') {
@@ -56,6 +58,8 @@ pipeline {
                          condaInstallDevito()
                          runCondaTests()
                          runExamples()
+                         runCodecov()
+                         buildDocs()
                      }
                 }
                 stage('Build and test gcc-7 container') {
@@ -73,6 +77,8 @@ pipeline {
                          condaInstallDevito()
                          installYask()
                          runCondaTests()
+                         runCodecov()
+                         buildDocs()
                      }
                 }
             }
@@ -134,7 +140,7 @@ def runExamples () {
 }
 
 def runCodecov() {
-    sh 'codecov'
+    sh 'source activate devito; codecov'
 }
 
 def buildDocs() {
