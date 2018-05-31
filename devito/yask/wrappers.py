@@ -282,16 +282,17 @@ class YaskContext(object):
                 grid.set_numa_preferred(namespace['numa-put-local'])
 
         for i, s, h in zip(obj.indices, obj.shape_allocated, obj._extent_halo):
-            if i.is_Time:
-                assert grid.is_dim_used(i.name)
-                assert grid.get_alloc_size(i.name) == s
-            elif i.is_Space:
+            if i.is_Space:
                 # Note:
                 # From the YASK docs: "If the halo is set to a value larger than
                 # the padding size, the padding size will be automatically increased
                 # to accomodate it."
                 grid.set_left_halo_size(i.name, h.left)
                 grid.set_right_halo_size(i.name, h.right)
+            else:
+                # time and misc dimensions
+                assert grid.is_dim_used(i.name)
+                assert grid.get_alloc_size(i.name) == s
         grid.alloc_storage()
 
         self.grids[name] = grid
