@@ -1,4 +1,3 @@
-from abc import ABC
 import os
 import ctypes
 from collections import Iterable, OrderedDict
@@ -12,7 +11,7 @@ import sympy
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'filter_sorted', 'numpy_to_ctypes', 'ctypes_to_C', 'ctypes_pointer',
-           'pprint', 'change_directory', 'Tag', 'sweep']
+           'pprint', 'change_directory', 'sweep']
 
 
 def prod(iterable):
@@ -206,41 +205,3 @@ def sweep(parameters, keys=None):
                     for v in sweep_values]
     for vals in product(*sweep_values):
         yield dict(zip(keys, vals))
-
-
-class Tag(ABC):
-
-    """
-    An abstract class to define categories of object decorators.
-
-    .. note::
-
-        This class must be subclassed for each new category.
-    """
-
-    _repr = 'AbstractTag'
-
-    _KNOWN = []
-
-    def __init__(self, name, val=None):
-        self.name = name
-        self.val = val
-
-        self._KNOWN.append(self)
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        return self.name == other.name and self.val == other.val
-
-    def __hash__(self):
-        return hash((self.name, self.val))
-
-    def __str__(self):
-        return self.name if self.val is None else '%s%s' % (self.name, str(self.val))
-
-    def __repr__(self):
-        if self.val is None:
-            return "%s: %s" % (self._repr, self.name)
-        else:
-            return "%s: %s[%s]" % (self._repr, self.name, str(self.val))
