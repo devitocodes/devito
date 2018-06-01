@@ -4,7 +4,7 @@ import inspect
 import ctypes
 from collections import Callable, Iterable, OrderedDict, Hashable, Mapping
 from decorator import decorator
-from functools import partial, wraps, reduce
+from functools import partial, reduce
 from itertools import chain, combinations, product, zip_longest
 from operator import attrgetter, mul
 
@@ -21,7 +21,7 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'ctypes_to_C', 'ctypes_pointer', 'pprint', 'DefaultOrderedDict',
            'change_directory', 'GenericVisitor', 'Bunch',
            'EnrichedTuple', 'ReducerMap', 'Tag', 'validate_base', 'validate_type',
-           'memoized_func', 'memoized_meth', 'sweep', 'silencio']
+           'memoized_func', 'memoized_meth', 'sweep']
 
 
 def prod(iterable):
@@ -387,25 +387,6 @@ class memoized_meth(object):
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
         return res
-
-
-class silencio(object):
-    """
-    Decorator to temporarily change log levels.
-    """
-
-    def __init__(self, log_level='WARNING'):
-        self.log_level = log_level
-
-    def __call__(self, func, *args, **kwargs):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            previous = configuration['log_level']
-            configuration['log_level'] = self.log_level
-            result = func(*args, **kwargs)
-            configuration['log_level'] = previous
-            return result
-        return wrapper
 
 
 def sweep(parameters, keys=None):

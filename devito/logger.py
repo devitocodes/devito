@@ -3,10 +3,11 @@
 import logging
 import sys
 from contextlib import contextmanager
+from functools import wraps
 
 from devito.parameters import configuration
 
-__all__ = ('set_log_level', 'set_log_noperf', 'log',
+__all__ = ('set_log_level', 'set_log_noperf', 'silencio', 'log',
            'DEBUG', 'AUTOTUNER', 'YASK', 'YASK_WARN', 'INFO', 'DSE', 'DSE_WARN',
            'DLE', 'DLE_WARN', 'WARNING', 'ERROR', 'CRITICAL',
            'log', 'warning', 'error', 'info_at', 'dse', 'dse_warning',
@@ -95,6 +96,26 @@ def set_log_noperf():
 
 configuration.add('log_level', 'INFO', list(logger_registry),
                   lambda i: set_log_level(i))
+
+
+class silencio(object):
+
+    """
+    Decorator to temporarily change log levels.
+    """
+
+    def __init__(self, log_level='WARNING'):
+        self.log_level = log_level
+
+    def __call__(self, func, *args, **kwargs):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            previous = configuration['log_level']
+            configuration['log_level'] = self.log_level
+            result = func(*args, **kwargs)
+            configuration['log_level'] = previous
+            return result
+        return wrapper
 
 
 def log(msg, level=INFO, *args, **kwargs):
