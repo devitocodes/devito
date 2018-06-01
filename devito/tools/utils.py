@@ -7,11 +7,10 @@ from decorator import decorator
 from functools import partial, wraps, reduce
 from itertools import chain, combinations, product, zip_longest
 from operator import attrgetter, mul
-from subprocess import DEVNULL, PIPE, Popen, CalledProcessError, check_output
+from subprocess import PIPE, Popen
 
 import cpuinfo
 import numpy as np
-from distutils import version
 
 from multidict import MultiDict
 
@@ -22,7 +21,7 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'filter_sorted', 'build_dependence_lists', 'toposort', 'numpy_to_ctypes',
            'ctypes_to_C', 'ctypes_pointer', 'pprint', 'DefaultOrderedDict',
-           'change_directory', 'sniff_compiler_version', 'GenericVisitor', 'Bunch',
+           'change_directory', 'GenericVisitor', 'Bunch',
            'EnrichedTuple', 'ReducerMap', 'Tag', 'validate_base', 'validate_type',
            'memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
 
@@ -430,54 +429,6 @@ def infer_cpu():
     if platform not in configuration._accepted['platform']:
         platform = configuration._defaults['platform']
     return isa, platform
-
-
-def sniff_compiler_version(cc):
-    """
-    Try to detect the compiler version.
-
-    Adapted from: ::
-
-        https://github.com/OP2/PyOP2/
-    """
-    try:
-        ver = check_output([cc, "--version"]).decode("utf-8")
-    except (CalledProcessError, UnicodeDecodeError):
-        return version.LooseVersion("unknown")
-
-    if ver.startswith("gcc"):
-        compiler = "gcc"
-    elif ver.startswith("clang"):
-        compiler = "clang"
-    elif ver.startswith("Apple LLVM"):
-        compiler = "clang"
-    elif ver.startswith("icc"):
-        compiler = "icc"
-    else:
-        compiler = "unknown"
-
-    ver = version.LooseVersion("unknown")
-    if compiler in ["gcc", "icc"]:
-        try:
-            # gcc-7 series only spits out patch level on dumpfullversion.
-            ver = check_output([cc, "-dumpfullversion"], stderr=DEVNULL).decode("utf-8")
-            ver = version.StrictVersion(ver.strip())
-        except CalledProcessError:
-            try:
-                ver = check_output([cc, "-dumpversion"], stderr=DEVNULL).decode("utf-8")
-                ver = version.StrictVersion(ver.strip())
-            except (CalledProcessError, UnicodeDecodeError):
-                pass
-        except UnicodeDecodeError:
-            pass
-
-    # Pure integer versions (e.g., ggc5, rather than gcc5.0) need special handling
-    try:
-        ver = version.StrictVersion(float(ver))
-    except TypeError:
-        pass
-
-    return ver
 
 
 class silencio(object):
