@@ -10,9 +10,8 @@ import numpy as np
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
-           'filter_sorted', 'numpy_to_ctypes',
-           'ctypes_to_C', 'ctypes_pointer', 'pprint',
-           'change_directory', 'Tag', 'sweep']
+           'filter_sorted', 'numpy_to_ctypes', 'ctypes_to_C', 'ctypes_pointer',
+           'pprint', 'change_directory', 'Tag', 'sweep']
 
 
 def prod(iterable):
