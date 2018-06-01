@@ -99,7 +99,7 @@ class Basic(object):
 
 class Cached(object):
     """
-    Base class for symbolic objects that caches on the class type.
+    Base class for symbolic objects that cache on the class type.
 
     In order to maintain meta information across the numerous
     re-instantiation SymPy performs during symbolic manipulation, we inject
@@ -135,6 +135,11 @@ class Cached(object):
         """Initialise symbolic object with a cached object state"""
         original = _SymbolCache[self.__class__]
         self.__dict__ = original().__dict__
+
+    def __hash__(self):
+        """The hash value of an object that caches on its type is the
+        hash value of the type itself."""
+        return hash(type(self))
 
 
 class AbstractSymbol(sympy.Symbol, Basic):
@@ -218,6 +223,8 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             # Store new instance in symbol cache
             newcls._cache_put(newobj)
         return newobj
+
+    __hash__ = Cached.__hash__
 
 
 class Symbol(AbstractCachedSymbol):
@@ -342,6 +349,8 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             # Store new instance in symbol cache
             newcls._cache_put(newobj)
         return newobj
+
+    __hash__ = Cached.__hash__
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
