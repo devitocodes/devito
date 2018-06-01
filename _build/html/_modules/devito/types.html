@@ -251,7 +251,7 @@
 
 <span class="k">class</span> <span class="nc">Cached</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Base class for symbolic objects that caches on the class type.</span>
+<span class="sd">    Base class for symbolic objects that cache on the class type.</span>
 
 <span class="sd">    In order to maintain meta information across the numerous</span>
 <span class="sd">    re-instantiation SymPy performs during symbolic manipulation, we inject</span>
@@ -287,6 +287,11 @@
         <span class="sd">&quot;&quot;&quot;Initialise symbolic object with a cached object state&quot;&quot;&quot;</span>
         <span class="n">original</span> <span class="o">=</span> <span class="n">_SymbolCache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span> <span class="o">=</span> <span class="n">original</span><span class="p">()</span><span class="o">.</span><span class="vm">__dict__</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The hash value of an object that caches on its type is the</span>
+<span class="sd">        hash value of the type itself.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
 
 
 <span class="k">class</span> <span class="nc">AbstractSymbol</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
@@ -370,6 +375,8 @@
             <span class="c1"># Store new instance in symbol cache</span>
             <span class="n">newcls</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="n">newobj</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="fm">__hash__</span> <span class="o">=</span> <span class="n">Cached</span><span class="o">.</span><span class="fm">__hash__</span>
 
 
 <div class="viewcode-block" id="Symbol"><a class="viewcode-back" href="../../devito.html#devito.types.Symbol">[docs]</a><span class="k">class</span> <span class="nc">Symbol</span><span class="p">(</span><span class="n">AbstractCachedSymbol</span><span class="p">):</span>
@@ -494,6 +501,8 @@
             <span class="c1"># Store new instance in symbol cache</span>
             <span class="n">newcls</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="n">newobj</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="fm">__hash__</span> <span class="o">=</span> <span class="n">Cached</span><span class="o">.</span><span class="fm">__hash__</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
