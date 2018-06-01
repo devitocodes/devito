@@ -1,4 +1,6 @@
 from hashlib import sha1
+from devito.tools.utils import as_tuple
+
 
 __all__ = ['Signer']
 

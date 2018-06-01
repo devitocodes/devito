@@ -18,7 +18,13 @@ from multidict import MultiDict
 from devito.logger import error
 from devito.parameters import configuration
 
-__all__ = ['memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
+__all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
+           'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
+           'filter_sorted', 'build_dependence_lists', 'toposort', 'numpy_to_ctypes',
+           'ctypes_to_C', 'ctypes_pointer', 'pprint', 'DefaultOrderedDict',
+           'change_directory', 'sniff_compiler_version', 'GenericVisitor', 'Bunch',
+           'EnrichedTuple', 'ReducerMap', 'Tag', 'validate_base', 'validate_type',
+           'memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
 
 
 def prod(iterable):
