@@ -185,6 +185,10 @@ def test_function_hash(FunctionType):
     u1 = FunctionType(name='u', grid=grid1)
     assert u0 is not u1
     assert hash(u0) != hash(u1)
+    # Now with the same grid
+    u2 = FunctionType(name='u', grid=grid0)
+    assert u0 is not u2
+    assert hash(u0) != hash(u2)
 
 
 @skipif_yask
@@ -197,6 +201,10 @@ def test_sparse_function_hash(FunctionType):
     u1 = FunctionType(name='u', grid=grid1, npoint=1, nt=10)
     assert u0 is not u1
     assert hash(u0) != hash(u1)
+    # Now with the same grid
+    u2 = FunctionType(name='u', grid=grid0, npoint=1, nt=10)
+    assert u0 is not u2
+    assert hash(u0) != hash(u2)
 
 
 @skipif_yask
