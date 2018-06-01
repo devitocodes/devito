@@ -87,9 +87,9 @@ def split_increment(expr):
 
 # YASK conventions
 namespace = OrderedDict()
-namespace['jit-yc-hook'] = lambda i, j: 'devito_%s_yc_hook%d' % (i, j)
-namespace['jit-yk-hook'] = lambda i, j: 'devito_%s_yk_hook%d' % (i, j)
-namespace['jit-yc-soln'] = lambda i, j: 'devito_%s_yc_soln%d' % (i, j)
+namespace['jit-yc-hook'] = lambda i: 'yc_hook_%s' % i
+namespace['jit-yk-hook'] = lambda i: 'yk_hook_%s' % i
+namespace['jit-yc-soln'] = lambda i: 'yc_soln_%s' % i
 namespace['jit-yk-soln'] = lambda i, j: 'devito_%s_yk_soln%d' % (i, j)
 namespace['kernel-filename'] = 'yask_stencil_code.hpp'
 namespace['code-soln-type'] = 'yask::yk_solution'

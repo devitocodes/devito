@@ -13,14 +13,14 @@ from devito.ir.iet import (Element, List, PointerCast, MetaCall, Transformer,
                            retrieve_iteration_tree)
 from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
-from devito.tools import ReducerMap, flatten
+from devito.tools import ReducerMap, Signer, flatten
 from devito.types import Object
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
 from devito.yask.utils import (make_grid_accesses, make_sharedptr_funcall, rawpointer,
                                namespace)
-from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
+from devito.yask.wrappers import YaskNullKernel, contexts
 from devito.yask.transformer import yaskizer
 from devito.yask.types import YaskGridObject
 
@@ -69,15 +69,17 @@ class Operator(OperatorRunnable):
         offloadable = find_offloadable_trees(iet)
 
         if len(offloadable.trees) == 0:
-            self.context = YaskNullContext()
             self.yk_soln = YaskNullKernel()
 
             log("No offloadable trees found")
         else:
-            self.context = contexts.fetch(offloadable.grid, offloadable.dtype)
+            context = contexts.fetch(offloadable.grid, offloadable.dtype)
+
+            # A unique name for the 'real' compiler and kernel solutions
+            suffix = Signer.digest(iet, configuration)
 
             # Create a YASK compiler solution for this Operator
-            yc_soln = self.context.make_yc_solution(namespace['jit-yc-soln'])
+            yc_soln = context.make_yc_solution(namespace['jit-yc-soln'](suffix))
 
             try:
                 trees = offloadable.trees
@@ -98,8 +100,8 @@ class Operator(OperatorRunnable):
                 self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
-                self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
-                                                             yc_soln, local_grids)
+                self.yk_soln = context.make_yk_solution(namespace['jit-yk-soln'](suffix),
+                                                        yc_soln, local_grids)
 
                 # Print some useful information about the newly constructed solution
                 log("Solution '%s' contains %d grid(s) and %d equation(s)." %

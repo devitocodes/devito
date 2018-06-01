@@ -3,6 +3,7 @@ import importlib
 from glob import glob
 from subprocess import call
 from collections import OrderedDict
+from hashlib import sha1
 
 from devito.compiler import make
 from devito.exceptions import CompilationError
@@ -115,11 +116,12 @@ class YaskKernel(object):
         self.grids = {i.get_name(): i for i in self.soln.get_grids()}
         self.local_grids = {i.name: self.grids[i.name] for i in (local_grids or [])}
 
-    def new_grid(self, name, obj):
+    def new_grid(self, obj):
         """
         Create a new YASK grid.
         """
-        return self.soln.new_fixed_size_grid(name, [str(i) for i in obj.indices],
+        return self.soln.new_fixed_size_grid('%s_%d' % (obj.name, contexts.ngrids),
+                                             [str(i) for i in obj.indices],
                                              [int(i) for i in obj.shape])  # cast np.int
 
     def run(self, cfunction, arg_values, toshare):
@@ -253,11 +255,18 @@ class YaskContext(object):
 
         :param obj: The :class:`Function` for which a YASK grid is allocated.
         """
-        name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
+        # 'hook' compiler solution: describes the grid
+        # 'hook' kernel solution: allocates memory
 
-        # Create the YASK grid. First, a "hook" compiler solution is created
-        # to describe the structure of the grids
-        yc_hook = self.make_yc_solution(namespace['jit-yc-hook'])
+        # Need unique name for the 'hook' compiler and kernel solutions
+        hashee = [obj.name] + [i.name for i in obj.indices]
+        hashee.extend([i.name for i in self.dimensions])
+        hashee.append(str(sorted(configuration.items())))
+        hashee.append(str(sorted(configuration.backend.items())))
+        hash_signature = sha1(''.join(hashee).encode()).hexdigest()
+
+        # Create 'hook' compiler solution
+        yc_hook = self.make_yc_solution(namespace['jit-yc-hook'](hash_signature))
         if obj.indices != self.dimensions:
             # Note: YASK wants *at least* a grid with *all* space (domain) dimensions
             # *and* the stepping dimension. `obj`, however, may actually employ a
@@ -269,9 +278,9 @@ class YaskContext(object):
         dimensions = [make_yask_ast(i, yc_hook, {}) for i in obj.indices]
         yc_hook.new_grid('dummy_grid_true', dimensions)
 
-        # Then, a "hook" kernel solution is created to actually allocate memory
-        yk_hook = YaskKernel(namespace['jit-yk-hook'](self.name, 0), yc_hook)
-        grid = yk_hook.new_grid(name, obj)
+        # Create 'hook' kernel solution
+        yk_hook = YaskKernel(namespace['jit-yk-hook'](hash_signature), yc_hook)
+        grid = yk_hook.new_grid(obj)
 
         # Where should memory be allocated ?
         alloc = obj._allocator
@@ -295,16 +304,14 @@ class YaskContext(object):
                 assert grid.get_alloc_size(i.name) == s
         grid.alloc_storage()
 
-        self.grids[name] = grid
+        self.grids[grid.get_name()] = grid
 
         return grid
 
-    def make_yc_solution(self, namer):
+    def make_yc_solution(self, name):
         """
         Create and return a YASK compiler solution object.
         """
-        name = namer(self.name, self.nsolutions)
-
         yc_soln = cfac.new_solution(name)
 
         # Redirect stdout/strerr to a string or file
@@ -449,16 +456,3 @@ class YaskNullKernel(object):
     @property
     def rawpointer(self):
         return None
-
-
-class YaskNullContext(object):
-
-    """Used when an Operator doesn't actually have a YASK-offloadable tree."""
-
-    @property
-    def space_dimensions(self):
-        return '?'
-
-    @property
-    def step_dimension(self):
-        return '?'

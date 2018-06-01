@@ -2,6 +2,9 @@
 
 from collections import OrderedDict
 from os import environ
+from hashlib import sha1
+
+from devito.tools import Signer
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
            'add_sub_configuration', 'mode_develop', 'mode_performance', 'mode_benchmark']
@@ -14,7 +17,7 @@ __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state
 # and never modified.
 
 
-class Parameters(OrderedDict):
+class Parameters(OrderedDict, Signer):
     """
     A dictionary-like class to hold global configuration parameters for devito
     On top of a normal dict, this provides the option to provide callback functions
@@ -90,6 +93,10 @@ class Parameters(OrderedDict):
     @property
     def name(self):
         return self._name
+
+    def __signature__(self):
+        hashee = [str(sorted(self.items())), str(sorted(self.backend.items()))]
+        return sha1(''.join(hashee).encode()).hexdigest()
 
 
 env_vars_mapper = {
