@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Constant,
-                    Operator, Eq, Dimension, clear_cache)
+from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
+                    Constant, Operator, Eq, Dimension, clear_cache)
 from devito.types import _SymbolCache, Scalar
 
 
@@ -164,6 +164,39 @@ def test_cache_after_indexification():
     for i in [u0, u1, u2]:
         assert i.indexify().base.function.space_order ==\
             (i.indexify() + 1.).args[1].base.function.space_order
+
+
+@skipif_yask
+def test_constant_hash():
+    """Test that different Constants have different hash value."""
+    c0 = Constant(name='c')
+    c1 = Constant(name='c')
+    assert c0 is not c1
+    assert hash(c0) != hash(c1)
+
+
+@skipif_yask
+@pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
+def test_function_hash(FunctionType):
+    """Test that different Functions have different hash value."""
+    grid0 = Grid(shape=(3, 3))
+    u0 = FunctionType(name='u', grid=grid0)
+    grid1 = Grid(shape=(4, 4))
+    u1 = FunctionType(name='u', grid=grid1)
+    assert u0 is not u1
+    assert hash(u0) != hash(u1)
+
+
+@skipif_yask
+@pytest.mark.parametrize('FunctionType', [SparseFunction, SparseTimeFunction])
+def test_sparse_function_hash(FunctionType):
+    """Test that different Functions have different hash value."""
+    grid0 = Grid(shape=(3, 3))
+    u0 = FunctionType(name='u', grid=grid0, npoint=1, nt=10)
+    grid1 = Grid(shape=(4, 4))
+    u1 = FunctionType(name='u', grid=grid1, npoint=1, nt=10)
+    assert u0 is not u1
+    assert hash(u0) != hash(u1)
 
 
 @skipif_yask
