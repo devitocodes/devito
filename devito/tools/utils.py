@@ -7,9 +7,7 @@ from decorator import decorator
 from functools import partial, wraps, reduce
 from itertools import chain, combinations, product, zip_longest
 from operator import attrgetter, mul
-from subprocess import PIPE, Popen
 
-import cpuinfo
 import numpy as np
 
 from multidict import MultiDict
@@ -23,7 +21,7 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'ctypes_to_C', 'ctypes_pointer', 'pprint', 'DefaultOrderedDict',
            'change_directory', 'GenericVisitor', 'Bunch',
            'EnrichedTuple', 'ReducerMap', 'Tag', 'validate_base', 'validate_type',
-           'memoized_func', 'memoized_meth', 'infer_cpu', 'sweep', 'silencio']
+           'memoized_func', 'memoized_meth', 'sweep', 'silencio']
 
 
 def prod(iterable):
@@ -389,46 +387,6 @@ class memoized_meth(object):
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
         return res
-
-
-def infer_cpu():
-    """
-    Detect the highest Instruction Set Architecture and the platform
-    codename using cpu flags and/or leveraging other tools. Return default
-    values if the detection procedure was unsuccesful.
-    """
-    info = cpuinfo.get_cpu_info()
-    # ISA
-    isa = configuration._defaults['isa']
-    for i in reversed(configuration._accepted['isa']):
-        if any(j.startswith(i) for j in info['flags']):
-            # Using `startswith`, rather than `==`, as a flag such as 'avx512'
-            # appears as 'avx512f, avx512cd, ...'
-            isa = i
-            break
-    # Platform
-    try:
-        # First, try leveraging `gcc`
-        p1 = Popen(['gcc', '-march=native', '-Q', '--help=target'], stdout=PIPE)
-        p2 = Popen(['grep', 'march'], stdin=p1.stdout, stdout=PIPE)
-        p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
-        output, _ = p2.communicate()
-        platform = output.decode("utf-8").split()[1]
-        # Full list of possible /platform/ values at this point at:
-        # https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
-        platform = {'sandybridge': 'snb', 'ivybridge': 'ivb', 'haswell': 'hsw',
-                    'broadwell': 'bdw', 'skylake': 'skx', 'knl': 'knl'}[platform]
-    except:
-        # Then, try infer from the brand name, otherwise fallback to default
-        try:
-            platform = info['brand'].split()[4]
-            platform = {'v2': 'ivb', 'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}[platform]
-        except:
-            platform = None
-    # Is it a known platform?
-    if platform not in configuration._accepted['platform']:
-        platform = configuration._defaults['platform']
-    return isa, platform
 
 
 class silencio(object):
