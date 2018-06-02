@@ -5,7 +5,7 @@ from tempfile import mkdtemp
 from time import time
 from sys import platform
 from distutils import version
-import subprocess
+from subprocess import DEVNULL, CalledProcessError, check_output, check_call
 
 import numpy.ctypeslib as npct
 from codepy.jit import extension_file_from_string
@@ -14,9 +14,57 @@ from codepy.toolchain import GCCToolchain
 from devito.exceptions import CompilationError
 from devito.logger import log
 from devito.parameters import configuration
-from devito.tools import change_directory, sniff_compiler_version
+from devito.tools import change_directory
 
 __all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
+
+
+def sniff_compiler_version(cc):
+    """
+    Try to detect the compiler version.
+
+    Adapted from: ::
+
+        https://github.com/OP2/PyOP2/
+    """
+    try:
+        ver = check_output([cc, "--version"]).decode("utf-8")
+    except (CalledProcessError, UnicodeDecodeError):
+        return version.LooseVersion("unknown")
+
+    if ver.startswith("gcc"):
+        compiler = "gcc"
+    elif ver.startswith("clang"):
+        compiler = "clang"
+    elif ver.startswith("Apple LLVM"):
+        compiler = "clang"
+    elif ver.startswith("icc"):
+        compiler = "icc"
+    else:
+        compiler = "unknown"
+
+    ver = version.LooseVersion("unknown")
+    if compiler in ["gcc", "icc"]:
+        try:
+            # gcc-7 series only spits out patch level on dumpfullversion.
+            ver = check_output([cc, "-dumpfullversion"], stderr=DEVNULL).decode("utf-8")
+            ver = version.StrictVersion(ver.strip())
+        except CalledProcessError:
+            try:
+                ver = check_output([cc, "-dumpversion"], stderr=DEVNULL).decode("utf-8")
+                ver = version.StrictVersion(ver.strip())
+            except (CalledProcessError, UnicodeDecodeError):
+                pass
+        except UnicodeDecodeError:
+            pass
+
+    # Pure integer versions (e.g., ggc5, rather than gcc5.0) need special handling
+    try:
+        ver = version.StrictVersion(float(ver))
+    except TypeError:
+        pass
+
+    return ver
 
 
 class Compiler(GCCToolchain):
@@ -272,8 +320,8 @@ def make(loc, args):
                 lf.write(" ".join(command))
                 lf.write("\n\n")
                 try:
-                    subprocess.check_call(command, stderr=ef, stdout=lf)
-                except subprocess.CalledProcessError as e:
+                    check_call(command, stderr=ef, stdout=lf)
+                except CalledProcessError as e:
                     raise CompilationError('Command "%s" return error status %d. '
                                            'Unable to compile code.\n'
                                            'Compile log in %s\n'
