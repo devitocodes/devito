@@ -6,7 +6,6 @@ import abc
 import inspect
 from cached_property import cached_property
 from collections import Iterable, OrderedDict, namedtuple
-from hashlib import sha1
 
 import cgen as c
 
@@ -129,8 +128,8 @@ class Node(Signer):
         """
         raise NotImplementedError()
 
-    def __signature__(self):
-        return sha1(str(self.ccode).encode()).hexdigest()
+    def _signature_items(self):
+        return (str(self.ccode),)
 
 
 class Block(Node):

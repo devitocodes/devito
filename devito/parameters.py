@@ -2,7 +2,6 @@
 
 from collections import OrderedDict
 from os import environ
-from hashlib import sha1
 
 from devito.tools import Signer
 
@@ -94,9 +93,8 @@ class Parameters(OrderedDict, Signer):
     def name(self):
         return self._name
 
-    def __signature__(self):
-        hashee = [str(sorted(self.items())), str(sorted(self.backend.items()))]
-        return sha1(''.join(hashee).encode()).hexdigest()
+    def _signature_items(self):
+        return tuple(str(sorted(self.items()))) + tuple(str(sorted(self.backend.items())))
 
 
 env_vars_mapper = {

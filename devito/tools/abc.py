@@ -43,16 +43,16 @@ class Tag(ABC):
             return "%s: %s[%s]" % (self._repr, self.name, str(self.val))
 
 
-class Signer(ABC):
+class Signer(object):
 
     """
-    An abstract class to represent types that can emit a unique, deterministic
+    A base class for types that can emit a unique, deterministic
     string representing their internal state. Subclasses may be mutable or
     immutable.
 
     .. note::
 
-        Subclasses must implement the method :meth:`__signature__`.
+        Subclasses must implement the method :meth:`__signature_items___`.
 
     .. note::
 
@@ -61,14 +61,26 @@ class Signer(ABC):
     """
 
     @classmethod
-    def digest(cls, *signable):
+    def _digest(cls, *signers):
         """Produce a unique, deterministic signature out of one or more
-        ``signable`` objects."""
-        signatures = [i.__signature__() for i in signable]
-        if len(signatures) == 1:
-            return signatures[0]
-        else:
-            return sha1(''.join(signatures).encode()).hexdigest()
+        ``signers`` objects."""
+        items = []
+        for i in signers:
+            try:
+                items.extend(list(i._signature_items()))
+            except AttributeError:
+                items.append(str(i))
+        return cls._sign(items)
 
-    def __signature__(self):
-        raise NotImplementedError('Subclasses must implement `__signature__`')
+    @classmethod
+    def _sign(cls, items):
+        return sha1(''.join(items).encode()).hexdigest()
+
+    def _signature_items(self):
+        """Return a tuple of items from which the signature is computed. The
+        items must be string. This method must be deterministic (i.e., the items
+        must always be returned in the same order, even across different runs)."""
+        return ()
+
+    def _signature(self):
+        return Signer._sign(self._signature_items())

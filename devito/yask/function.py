@@ -6,7 +6,7 @@ import numpy as np
 import devito.function as function
 from devito.exceptions import InvalidArgument
 from devito.logger import yask as log
-from devito.tools import numpy_to_ctypes
+from devito.tools import Signer, numpy_to_ctypes
 from devito.types import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
@@ -45,7 +45,7 @@ class Constant(function.Constant):
         return values
 
 
-class Function(function.Function):
+class Function(function.Function, Signer):
 
     from_YASK = True
 
@@ -163,6 +163,9 @@ class Function(function.Function):
         args[namespace['code-grid-name'](key.name)] = self.data.rawpointer
 
         return args
+
+    def _signature_items(self):
+        return (self.name,) + tuple(i.name for i in self.indices)
 
 
 class TimeFunction(function.TimeFunction, Function):

@@ -3,12 +3,11 @@ import importlib
 from glob import glob
 from subprocess import call
 from collections import OrderedDict
-from hashlib import sha1
 
 from devito.compiler import make
 from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log, yask_warning as warning
-from devito.tools import powerset, filter_sorted
+from devito.tools import Signer, powerset, filter_sorted
 
 from devito.yask import cfac, ofac, exit, configuration
 from devito.yask.utils import namespace, rawpointer
@@ -215,7 +214,7 @@ class YaskKernel(object):
         return "YaskKernel [%s]" % self.name
 
 
-class YaskContext(object):
+class YaskContext(Signer):
 
     def __init__(self, name, grid):
         """
@@ -346,6 +345,9 @@ class YaskContext(object):
         soln = YaskKernel(namer(self.name, self.nsolutions), yc_soln, local_grids)
         self.solutions.append(soln)
         return soln
+
+    def _signature_items(self):
+        return tuple(i.name for i in self.dimensions)
 
     def __repr__(self):
         return ("YaskContext: %s\n"
