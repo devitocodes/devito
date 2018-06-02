@@ -102,6 +102,7 @@
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.tools.html">devito.tools package</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
@@ -120,7 +121,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
 </ul>
@@ -220,7 +220,7 @@ doesn’t drop denormal numbers, which may sometimes harm the numerical precisio
 <dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.SpeculativeRewriter" title="devito.dle.backends.advanced.SpeculativeRewriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.advanced.SpeculativeRewriter</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dle.backends.advanced.CustomRewriter.passes_mapper">
-<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x2ab36865ec80&gt;, 'denormals': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x2ab36865e488&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x2ab36865eea0&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x2ab36865ed90&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x2ab36865e598&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.CustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
+<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14e57b0fdea0&gt;, 'denormals': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14e57b0fd6a8&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14e57b10c158&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14e57b10c048&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper at 0x14e57b0fd7b8&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.CustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -309,7 +309,7 @@ greater than this threshold.</p>
 
 <dl class="attribute">
 <dt id="devito.dle.backends.parallelizer.Ompizer.lang">
-<code class="descname">lang</code><em class="property"> = {'atomic': &lt;cgen.Pragma object at 0x2ab368660550&gt;, 'collapse': &lt;function Ompizer.&lt;lambda&gt; at 0x2ab36865e7b8&gt;, 'for': &lt;cgen.Pragma object at 0x2ab3686604a8&gt;, 'par-for': &lt;cgen.Pragma object at 0x2ab3686604e0&gt;, 'par-region': &lt;function Ompizer.&lt;lambda&gt; at 0x2ab36865e840&gt;, 'simd-for': &lt;cgen.Pragma object at 0x2ab368660518&gt;, 'simd-for-aligned': &lt;function Ompizer.&lt;lambda&gt; at 0x2ab36865e8c8&gt;}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.lang" title="Permalink to this definition">¶</a></dt>
+<code class="descname">lang</code><em class="property"> = {'atomic': &lt;cgen.Pragma object at 0x14e57b1032e8&gt;, 'collapse': &lt;function Ompizer.&lt;lambda&gt; at 0x14e57b0fd9d8&gt;, 'for': &lt;cgen.Pragma object at 0x14e57b103240&gt;, 'par-for': &lt;cgen.Pragma object at 0x14e57b103278&gt;, 'par-region': &lt;function Ompizer.&lt;lambda&gt; at 0x14e57b0fda60&gt;, 'simd-for': &lt;cgen.Pragma object at 0x14e57b1032b0&gt;, 'simd-for-aligned': &lt;function Ompizer.&lt;lambda&gt; at 0x14e57b0fdae8&gt;}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.lang" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shortcuts for the OpenMP language.</p>
 </dd></dl>
 

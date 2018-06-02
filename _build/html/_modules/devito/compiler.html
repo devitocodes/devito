@@ -134,6 +134,8 @@
         
           <li><a href="../index.html">Module code</a> &raquo;</li>
         
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+        
       <li>devito.compiler</li>
     
     
@@ -157,7 +159,7 @@
 <span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
 <span class="kn">from</span> <span class="nn">sys</span> <span class="k">import</span> <span class="n">platform</span>
 <span class="kn">from</span> <span class="nn">distutils</span> <span class="k">import</span> <span class="n">version</span>
-<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">DEVNULL</span><span class="p">,</span> <span class="n">CalledProcessError</span><span class="p">,</span> <span class="n">check_output</span><span class="p">,</span> <span class="n">check_call</span>
 
 <span class="kn">import</span> <span class="nn">numpy.ctypeslib</span> <span class="k">as</span> <span class="nn">npct</span>
 <span class="kn">from</span> <span class="nn">codepy.jit</span> <span class="k">import</span> <span class="n">extension_file_from_string</span>
@@ -166,9 +168,57 @@
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">CompilationError</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">log</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">change_directory</span><span class="p">,</span> <span class="n">sniff_compiler_version</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">change_directory</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;make&#39;</span><span class="p">,</span> <span class="s1">&#39;GNUCompiler&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">sniff_compiler_version</span><span class="p">(</span><span class="n">cc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Try to detect the compiler version.</span>
+
+<span class="sd">    Adapted from: ::</span>
+
+<span class="sd">        https://github.com/OP2/PyOP2/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ver</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">([</span><span class="n">cc</span><span class="p">,</span> <span class="s2">&quot;--version&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">CalledProcessError</span><span class="p">,</span> <span class="ne">UnicodeDecodeError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">version</span><span class="o">.</span><span class="n">LooseVersion</span><span class="p">(</span><span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ver</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;gcc&quot;</span><span class="p">):</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;gcc&quot;</span>
+    <span class="k">elif</span> <span class="n">ver</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;clang&quot;</span><span class="p">):</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;clang&quot;</span>
+    <span class="k">elif</span> <span class="n">ver</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Apple LLVM&quot;</span><span class="p">):</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;clang&quot;</span>
+    <span class="k">elif</span> <span class="n">ver</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;icc&quot;</span><span class="p">):</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;icc&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span>
+
+    <span class="n">ver</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">LooseVersion</span><span class="p">(</span><span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">compiler</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;gcc&quot;</span><span class="p">,</span> <span class="s2">&quot;icc&quot;</span><span class="p">]:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># gcc-7 series only spits out patch level on dumpfullversion.</span>
+            <span class="n">ver</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">([</span><span class="n">cc</span><span class="p">,</span> <span class="s2">&quot;-dumpfullversion&quot;</span><span class="p">],</span> <span class="n">stderr</span><span class="o">=</span><span class="n">DEVNULL</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+            <span class="n">ver</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">StrictVersion</span><span class="p">(</span><span class="n">ver</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+        <span class="k">except</span> <span class="n">CalledProcessError</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">ver</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">([</span><span class="n">cc</span><span class="p">,</span> <span class="s2">&quot;-dumpversion&quot;</span><span class="p">],</span> <span class="n">stderr</span><span class="o">=</span><span class="n">DEVNULL</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+                <span class="n">ver</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">StrictVersion</span><span class="p">(</span><span class="n">ver</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+            <span class="k">except</span> <span class="p">(</span><span class="n">CalledProcessError</span><span class="p">,</span> <span class="ne">UnicodeDecodeError</span><span class="p">):</span>
+                <span class="k">pass</span>
+        <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="c1"># Pure integer versions (e.g., ggc5, rather than gcc5.0) need special handling</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ver</span> <span class="o">=</span> <span class="n">version</span><span class="o">.</span><span class="n">StrictVersion</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">ver</span><span class="p">))</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="k">return</span> <span class="n">ver</span>
 
 
 <span class="k">class</span> <span class="nc">Compiler</span><span class="p">(</span><span class="n">GCCToolchain</span><span class="p">):</span>
@@ -424,8 +474,8 @@
                 <span class="n">lf</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">))</span>
                 <span class="n">lf</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">try</span><span class="p">:</span>
-                    <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">ef</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">lf</span><span class="p">)</span>
-                <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">check_call</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">ef</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">lf</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="n">CompilationError</span><span class="p">(</span><span class="s1">&#39;Command &quot;</span><span class="si">%s</span><span class="s1">&quot; return error status </span><span class="si">%d</span><span class="s1">. &#39;</span>
                                            <span class="s1">&#39;Unable to compile code.</span><span class="se">\n</span><span class="s1">&#39;</span>
                                            <span class="s1">&#39;Compile log in </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span>

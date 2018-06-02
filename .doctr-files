@@ -13,6 +13,7 @@
 ./_build/doctrees/devito.ir.stree.doctree
 ./_build/doctrees/devito.ir.support.doctree
 ./_build/doctrees/devito.symbolics.doctree
+./_build/doctrees/devito.tools.doctree
 ./_build/doctrees/download.doctree
 ./_build/doctrees/environment.pickle
 ./_build/doctrees/examples.cfd.doctree
@@ -27,6 +28,7 @@
 ./_build/html/_images/data_structures.png
 ./_build/html/_modules/abc.html
 ./_build/html/_modules/cached_property.html
+./_build/html/_modules/devito.html
 ./_build/html/_modules/devito/backends.html
 ./_build/html/_modules/devito/base.html
 ./_build/html/_modules/devito/cgen_utils.html
@@ -79,7 +81,13 @@
 ./_build/html/_modules/devito/symbolics/manipulation.html
 ./_build/html/_modules/devito/symbolics/queries.html
 ./_build/html/_modules/devito/symbolics/search.html
-./_build/html/_modules/devito/tools.html
+./_build/html/_modules/devito/tools/algorithms.html
+./_build/html/_modules/devito/tools/data_structures.html
+./_build/html/_modules/devito/tools/memoization.html
+./_build/html/_modules/devito/tools/mixins.html
+./_build/html/_modules/devito/tools/utils.html
+./_build/html/_modules/devito/tools/validators.html
+./_build/html/_modules/devito/tools/visitors.html
 ./_build/html/_modules/devito/types.html
 ./_build/html/_modules/examples/cfd/example_diffusion.html
 ./_build/html/_modules/examples/cfd/tools.html
@@ -110,6 +118,7 @@
 ./_build/html/_sources/devito.ir.support.rst.txt
 ./_build/html/_sources/devito.rst.txt
 ./_build/html/_sources/devito.symbolics.rst.txt
+./_build/html/_sources/devito.tools.rst.txt
 ./_build/html/_sources/download.rst.txt
 ./_build/html/_sources/examples.cfd.rst.txt
 ./_build/html/_sources/examples.misc.rst.txt
@@ -172,6 +181,7 @@
 ./_build/html/devito.ir.stree.html
 ./_build/html/devito.ir.support.html
 ./_build/html/devito.symbolics.html
+./_build/html/devito.tools.html
 ./_build/html/download.html
 ./_build/html/examples.cfd.html
 ./_build/html/examples.html
@@ -202,6 +212,7 @@
 ./devito.ir.support.rst
 ./devito.rst
 ./devito.symbolics.rst
+./devito.tools.rst
 ./download.rst
 ./examples.cfd.rst
 ./examples.misc.rst

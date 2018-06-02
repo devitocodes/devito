@@ -11,6 +11,7 @@ Subpackages
     devito.dse
     devito.ir
     devito.symbolics
+    devito.tools
 
 Submodules
 ----------
@@ -131,14 +132,6 @@ devito.profiling module
 -----------------------
 
 .. automodule:: devito.profiling
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito.tools module
--------------------
-
-.. automodule:: devito.tools
     :members:
     :undoc-members:
     :show-inheritance:

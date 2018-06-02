@@ -1,0 +1,326 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="index.html">Module code</a> &raquo;</li>
+        
+      <li>devito</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">PIPE</span><span class="p">,</span> <span class="n">Popen</span>
+
+<span class="kn">import</span> <span class="nn">cpuinfo</span>
+
+<span class="kn">from</span> <span class="nn">devito.base</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.grid</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">set_log_level</span><span class="p">,</span> <span class="n">silencio</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">compiler_registry</span>
+<span class="kn">from</span> <span class="nn">devito.backends</span> <span class="k">import</span> <span class="n">backends_registry</span><span class="p">,</span> <span class="n">init_backend</span>
+
+
+<span class="kn">from</span> <span class="nn">._version</span> <span class="k">import</span> <span class="n">get_versions</span>  <span class="c1"># noqa</span>
+<span class="n">__version__</span> <span class="o">=</span> <span class="n">get_versions</span><span class="p">()[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span>
+<span class="k">del</span> <span class="n">get_versions</span>
+
+<span class="c1"># First add the compiler configuration option...</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;compiler&#39;</span><span class="p">,</span> <span class="s1">&#39;custom&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">compiler_registry</span><span class="p">),</span>
+                  <span class="n">callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">i</span><span class="p">]())</span>
+
+
+<span class="k">def</span> <span class="nf">_cast_and_update_compiler</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+    <span class="c1"># Force re-build the compiler</span>
+    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">callback</span><span class="o">=</span><span class="n">_cast_and_update_compiler</span><span class="p">)</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;debug_compiler&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+
+<span class="c1"># ... then the backend configuration. The order is important since the</span>
+<span class="c1"># backend might depend on the compiler configuration.</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="s1">&#39;core&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">backends_registry</span><span class="p">),</span>
+                  <span class="n">callback</span><span class="o">=</span><span class="n">init_backend</span><span class="p">)</span>
+
+<span class="c1"># Set the Instruction Set Architecture (ISA)</span>
+<span class="n">ISAs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cpp&#39;</span><span class="p">,</span> <span class="s1">&#39;avx&#39;</span><span class="p">,</span> <span class="s1">&#39;avx2&#39;</span><span class="p">,</span> <span class="s1">&#39;avx512&#39;</span><span class="p">]</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;isa&#39;</span><span class="p">,</span> <span class="s1">&#39;cpp&#39;</span><span class="p">,</span> <span class="n">ISAs</span><span class="p">)</span>
+
+<span class="c1"># Set the CPU architecture (only codename)</span>
+<span class="n">PLATFORMs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;intel64&#39;</span><span class="p">,</span> <span class="s1">&#39;snb&#39;</span><span class="p">,</span> <span class="s1">&#39;ivb&#39;</span><span class="p">,</span> <span class="s1">&#39;hsw&#39;</span><span class="p">,</span> <span class="s1">&#39;bdw&#39;</span><span class="p">,</span> <span class="s1">&#39;skx&#39;</span><span class="p">,</span> <span class="s1">&#39;knl&#39;</span><span class="p">]</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;platform&#39;</span><span class="p">,</span> <span class="s1">&#39;intel64&#39;</span><span class="p">,</span> <span class="n">PLATFORMs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="infer_cpu"><a class="viewcode-back" href="../devito.html#devito.infer_cpu">[docs]</a><span class="k">def</span> <span class="nf">infer_cpu</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Detect the highest Instruction Set Architecture and the platform</span>
+<span class="sd">    codename using cpu flags and/or leveraging other tools. Return default</span>
+<span class="sd">    values if the detection procedure was unsuccesful.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cpu_info</span> <span class="o">=</span> <span class="n">cpuinfo</span><span class="o">.</span><span class="n">get_cpu_info</span><span class="p">()</span>
+    <span class="c1"># ISA</span>
+    <span class="n">isa</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">cpu_info</span><span class="p">[</span><span class="s1">&#39;flags&#39;</span><span class="p">]):</span>
+            <span class="c1"># Using `startswith`, rather than `==`, as a flag such as &#39;avx512&#39;</span>
+            <span class="c1"># appears as &#39;avx512f, avx512cd, ...&#39;</span>
+            <span class="n">isa</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="k">break</span>
+    <span class="c1"># Platform</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># First, try leveraging `gcc`</span>
+        <span class="n">p1</span> <span class="o">=</span> <span class="n">Popen</span><span class="p">([</span><span class="s1">&#39;gcc&#39;</span><span class="p">,</span> <span class="s1">&#39;-march=native&#39;</span><span class="p">,</span> <span class="s1">&#39;-Q&#39;</span><span class="p">,</span> <span class="s1">&#39;--help=target&#39;</span><span class="p">],</span> <span class="n">stdout</span><span class="o">=</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="n">p2</span> <span class="o">=</span> <span class="n">Popen</span><span class="p">([</span><span class="s1">&#39;grep&#39;</span><span class="p">,</span> <span class="s1">&#39;march&#39;</span><span class="p">],</span> <span class="n">stdin</span><span class="o">=</span><span class="n">p1</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="n">p1</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>  <span class="c1"># Allow p1 to receive a SIGPIPE if p2 exits.</span>
+        <span class="n">output</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">p2</span><span class="o">.</span><span class="n">communicate</span><span class="p">()</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># Full list of possible /platform/ values at this point at:</span>
+        <span class="c1"># https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;sandybridge&#39;</span><span class="p">:</span> <span class="s1">&#39;snb&#39;</span><span class="p">,</span> <span class="s1">&#39;ivybridge&#39;</span><span class="p">:</span> <span class="s1">&#39;ivb&#39;</span><span class="p">,</span> <span class="s1">&#39;haswell&#39;</span><span class="p">:</span> <span class="s1">&#39;hsw&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;broadwell&#39;</span><span class="p">:</span> <span class="s1">&#39;bdw&#39;</span><span class="p">,</span> <span class="s1">&#39;skylake&#39;</span><span class="p">:</span> <span class="s1">&#39;skx&#39;</span><span class="p">,</span> <span class="s1">&#39;knl&#39;</span><span class="p">:</span> <span class="s1">&#39;knl&#39;</span><span class="p">}[</span><span class="n">platform</span><span class="p">]</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="c1"># Then, try infer from the brand name, otherwise fallback to default</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">platform</span> <span class="o">=</span> <span class="n">cpu_info</span><span class="p">[</span><span class="s1">&#39;brand&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">4</span><span class="p">]</span>
+            <span class="n">platform</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;v2&#39;</span><span class="p">:</span> <span class="s1">&#39;ivb&#39;</span><span class="p">,</span> <span class="s1">&#39;v3&#39;</span><span class="p">:</span> <span class="s1">&#39;hsw&#39;</span><span class="p">,</span> <span class="s1">&#39;v4&#39;</span><span class="p">:</span> <span class="s1">&#39;bdw&#39;</span><span class="p">,</span> <span class="s1">&#39;v5&#39;</span><span class="p">:</span> <span class="s1">&#39;skx&#39;</span><span class="p">}[</span><span class="n">platform</span><span class="p">]</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">platform</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># Is it a known platform?</span>
+    <span class="k">if</span> <span class="n">platform</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]:</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">isa</span><span class="p">,</span> <span class="n">platform</span></div>
+
+
+<span class="c1"># In develop-mode:</span>
+<span class="c1"># - Some optimizations may not be applied to the generated code.</span>
+<span class="c1"># - The compiler performs more type and value checking</span>
+<span class="k">def</span> <span class="nf">_switch_cpu</span><span class="p">(</span><span class="n">develop_mode</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">develop_mode</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+        <span class="n">isa</span><span class="p">,</span> <span class="n">platform</span> <span class="o">=</span> <span class="n">infer_cpu</span><span class="p">()</span>
+        <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_ISA&#39;</span><span class="p">,</span> <span class="n">isa</span><span class="p">)</span>
+        <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_PLATFORM&#39;</span><span class="p">,</span> <span class="n">platform</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;isa&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpp&#39;</span>
+        <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;intel64&#39;</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;develop-mode&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="p">[</span><span class="kc">False</span><span class="p">,</span> <span class="kc">True</span><span class="p">],</span> <span class="n">_switch_cpu</span><span class="p">)</span>  <span class="c1"># noqa</span>
+
+<span class="c1"># Initialize the configuration, either from the environment or</span>
+<span class="c1"># defaults. This will also trigger the backend initialization</span>
+<span class="n">init_configuration</span><span class="p">()</span>
+
+<span class="c1"># Expose a mechanism to clean up the symbol caches (SymPy&#39;s, Devito&#39;s)</span>
+<span class="n">clear_cache</span> <span class="o">=</span> <span class="n">CacheManager</span><span class="p">()</span><span class="o">.</span><span class="n">clear</span>  <span class="c1"># noqa</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../',
+            VERSION:'1',
+            LANGUAGE:'en',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../_static/jquery.js"></script>
+      <script type="text/javascript" src="../_static/underscore.js"></script>
+      <script type="text/javascript" src="../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,698 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.tools package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="devito.symbolics package" href="devito.symbolics.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.tools package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.algorithms">devito.tools.algorithms module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.data_structures">devito.tools.data_structures module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.memoization">devito.tools.memoization module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.mixins">devito.tools.mixins module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.utils">devito.tools.utils module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.validators">devito.tools.validators module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.visitors">devito.tools.visitors module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.grid">devito.grid module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.logger">devito.logger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="devito.html">devito package</a> &raquo;</li>
+        
+      <li>devito.tools package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/devito.tools.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="devito-tools-package">
+<h1>devito.tools package<a class="headerlink" href="#devito-tools-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-devito.tools.algorithms">
+<span id="devito-tools-algorithms-module"></span><h2>devito.tools.algorithms module<a class="headerlink" href="#module-devito.tools.algorithms" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.tools.algorithms.toposort">
+<code class="descclassname">devito.tools.algorithms.</code><code class="descname">toposort</code><span class="sig-paren">(</span><em>data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/algorithms.html#toposort"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.algorithms.toposort" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given items that depend on other items, a topological sort arranges items in
+order that no one item precedes an item it depends on.</p>
+<p><code class="docutils literal notranslate"><span class="pre">data</span></code> captures the various dependencies. It may be:</p>
+<blockquote>
+<div><ul class="simple">
+<li>A dictionary whose keys are items and whose values are a set of
+dependent items. The dictionary may contain self-dependencies
+(which are ignored), and dependent items that are not also
+dict keys.</li>
+<li>An iterable of dependences as expected by <code class="xref py py-func docutils literal notranslate"><span class="pre">build_dependence_lists()</span></code>.</li>
+</ul>
+</div></blockquote>
+<p>Readapted from:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span><span class="p">:</span><span class="o">//</span><span class="n">code</span><span class="o">.</span><span class="n">activestate</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">recipes</span><span class="o">/</span><span class="mi">577413</span><span class="o">/</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.tools.data_structures">
+<span id="devito-tools-data-structures-module"></span><h2>devito.tools.data_structures module<a class="headerlink" href="#module-devito.tools.data_structures" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.tools.data_structures.Bunch">
+<em class="property">class </em><code class="descclassname">devito.tools.data_structures.</code><code class="descname">Bunch</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/data_structures.html#Bunch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.Bunch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Bind together an arbitrary number of generic items. This is a mutable
+alternative to a <code class="docutils literal notranslate"><span class="pre">namedtuple</span></code>.</p>
+<p>From:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>http://code.activestate.com/recipes/52308-the-simple-but-handy-collector-of        -a-bunch-of-named/?in=user-97991
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.tools.data_structures.EnrichedTuple">
+<em class="property">class </em><code class="descclassname">devito.tools.data_structures.</code><code class="descname">EnrichedTuple</code><a class="reference internal" href="_modules/devito/tools/data_structures.html#EnrichedTuple"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.EnrichedTuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
+<p>A tuple with an arbitrary number of additional attributes.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.tools.data_structures.ReducerMap">
+<em class="property">class </em><code class="descclassname">devito.tools.data_structures.</code><code class="descname">ReducerMap</code><a class="reference internal" href="_modules/devito/tools/data_structures.html#ReducerMap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.ReducerMap" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">multidict._multidict.MultiDict</span></code></p>
+<p>Specialised <code class="xref py py-class docutils literal notranslate"><span class="pre">MultiDict</span></code> object that maps a single key to a
+list of potential values and provides a reduction method for
+retrieval.</p>
+<dl class="method">
+<dt id="devito.tools.data_structures.ReducerMap.reduce">
+<code class="descname">reduce</code><span class="sig-paren">(</span><em>key</em>, <em>op=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/data_structures.html#ReducerMap.reduce"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.ReducerMap.reduce" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a reduction of all candidate values for a given key.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>key</strong> – Key for which to retrieve candidate values</li>
+<li><strong>op</strong> – Operator for reduction among candidate values.
+If not provided, a unique value will be returned,
+or a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> raised if no unique value exists.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.tools.data_structures.ReducerMap.reduce_all">
+<code class="descname">reduce_all</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/data_structures.html#ReducerMap.reduce_all"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.ReducerMap.reduce_all" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a dictionary with reduced/unique values for all keys.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.tools.data_structures.ReducerMap.unique">
+<code class="descname">unique</code><span class="sig-paren">(</span><em>key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/data_structures.html#ReducerMap.unique"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.ReducerMap.unique" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a unique value for a given key, if such a value
+exists, and raises a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if it does not.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>key</strong> – Key for which to retrieve a unique value</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.tools.data_structures.ReducerMap.update">
+<code class="descname">update</code><span class="sig-paren">(</span><em>values</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/data_structures.html#ReducerMap.update"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.ReducerMap.update" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update internal mapping with standard dictionary semantics.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.tools.data_structures.DefaultOrderedDict">
+<em class="property">class </em><code class="descclassname">devito.tools.data_structures.</code><code class="descname">DefaultOrderedDict</code><span class="sig-paren">(</span><em>default_factory=None</em>, <em>*a</em>, <em>**kw</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/data_structures.html#DefaultOrderedDict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.DefaultOrderedDict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></p>
+<dl class="method">
+<dt id="devito.tools.data_structures.DefaultOrderedDict.copy">
+<code class="descname">copy</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; a shallow copy of od<a class="reference internal" href="_modules/devito/tools/data_structures.html#DefaultOrderedDict.copy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.DefaultOrderedDict.copy" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.tools.memoization">
+<span id="devito-tools-memoization-module"></span><h2>devito.tools.memoization module<a class="headerlink" href="#module-devito.tools.memoization" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.tools.memoization.memoized_func">
+<em class="property">class </em><code class="descclassname">devito.tools.memoization.</code><code class="descname">memoized_func</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/memoization.html#memoized_func"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.memoization.memoized_func" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Decorator. Caches a function’s return value each time it is called.
+If called later with the same arguments, the cached value is returned
+(not reevaluated). This decorator may also be used on class methods,
+but it will cache at the class level; to cache at the instance level,
+use <code class="docutils literal notranslate"><span class="pre">memoized_meth</span></code>.</p>
+<p>Adapted from:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">wiki</span><span class="o">.</span><span class="n">python</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">moin</span><span class="o">/</span><span class="n">PythonDecoratorLibrary</span><span class="c1">#Memoize</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.tools.memoization.memoized_meth">
+<em class="property">class </em><code class="descclassname">devito.tools.memoization.</code><code class="descname">memoized_meth</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/memoization.html#memoized_meth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.memoization.memoized_meth" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Decorator. Cache the return value of a class method.</p>
+<p>Unlike <code class="docutils literal notranslate"><span class="pre">memoized_func</span></code>, the return value of a given method invocation
+will be cached on the instance whose method was invoked. All arguments
+passed to a method decorated with memoize must be hashable.</p>
+<p>If a memoized method is invoked directly on its class the result will not
+be cached. Instead the method will be invoked like a static method:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">Obj</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="nd">@memoize</span>
+    <span class="k">def</span> <span class="nf">add_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="o">+</span> <span class="n">arg</span>
+<span class="n">Obj</span><span class="o">.</span><span class="n">add_to</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># not enough arguments</span>
+<span class="n">Obj</span><span class="o">.</span><span class="n">add_to</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="c1"># returns 3, result is not cached</span>
+</pre></div>
+</div>
+<p>Adapted from:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">code</span><span class="o">.</span><span class="n">activestate</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">recipes</span><span class="o">/</span><span class="mi">577452</span><span class="o">-</span><span class="n">a</span><span class="o">-</span><span class="n">memoize</span><span class="o">-</span><span class="n">decorator</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">instance</span><span class="o">-</span><span class="n">methods</span><span class="o">/</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.tools.mixins">
+<span id="devito-tools-mixins-module"></span><h2>devito.tools.mixins module<a class="headerlink" href="#module-devito.tools.mixins" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.tools.mixins.Signer">
+<em class="property">class </em><code class="descclassname">devito.tools.mixins.</code><code class="descname">Signer</code><a class="reference internal" href="_modules/devito/tools/mixins.html#Signer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.mixins.Signer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A mixin for classes that can emit a unique, deterministic string
+representing their state. Subclasses may be mutable or immutable; if
+immutable, the signature depends on the internal state of the object.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Subclasses must implement the method <code class="xref py py-meth docutils literal notranslate"><span class="pre">__signature__()</span></code>.</p>
+</div>
+<dl class="classmethod">
+<dt id="devito.tools.mixins.Signer.digest">
+<em class="property">classmethod </em><code class="descname">digest</code><span class="sig-paren">(</span><em>signable</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/mixins.html#Signer.digest"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.mixins.Signer.digest" title="Permalink to this definition">¶</a></dt>
+<dd><p>Produce a unique, deterministic signature out of one or more
+<code class="docutils literal notranslate"><span class="pre">signable</span></code> objects.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.tools.utils">
+<span id="devito-tools-utils-module"></span><h2>devito.tools.utils module<a class="headerlink" href="#module-devito.tools.utils" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.tools.utils.prod">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">prod</code><span class="sig-paren">(</span><em>iterable</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#prod"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.prod" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.as_tuple">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">as_tuple</code><span class="sig-paren">(</span><em>item</em>, <em>type=None</em>, <em>length=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#as_tuple"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.as_tuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Force item to a tuple.</p>
+<p>Partly extracted from: <a class="reference external" href="https://github.com/OP2/PyOP2/">https://github.com/OP2/PyOP2/</a>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.is_integer">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">is_integer</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#is_integer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.is_integer" title="Permalink to this definition">¶</a></dt>
+<dd><p>A thorough instance comparison for all integer types.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.generator">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">generator</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#generator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.generator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a function <code class="docutils literal notranslate"><span class="pre">f</span></code> that generates integer numbers starting at 0
+with stepping 1.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.grouper">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">grouper</code><span class="sig-paren">(</span><em>iterable</em>, <em>n</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#grouper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.grouper" title="Permalink to this definition">¶</a></dt>
+<dd><p>Split an interable into groups of size n, plus a reminder</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.split">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">split</code><span class="sig-paren">(</span><em>iterable</em>, <em>f</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#split"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.split" title="Permalink to this definition">¶</a></dt>
+<dd><p>Split an iterable <code class="docutils literal notranslate"><span class="pre">I</span></code> into two iterables <code class="docutils literal notranslate"><span class="pre">I1</span></code> and <code class="docutils literal notranslate"><span class="pre">I2</span></code> of the
+same type as <code class="docutils literal notranslate"><span class="pre">I</span></code>. <code class="docutils literal notranslate"><span class="pre">I1</span></code> contains all elements <code class="docutils literal notranslate"><span class="pre">e</span></code> in <code class="docutils literal notranslate"><span class="pre">I</span></code> for
+which <code class="docutils literal notranslate"><span class="pre">f(e)</span></code> returns True; <code class="docutils literal notranslate"><span class="pre">I2</span></code> is the complement of <code class="docutils literal notranslate"><span class="pre">I1</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.roundm">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">roundm</code><span class="sig-paren">(</span><em>x</em>, <em>y</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#roundm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.roundm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return x rounded up to the closest multiple of y.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.powerset">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">powerset</code><span class="sig-paren">(</span><em>[1,2,3]) --&gt; () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#powerset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.powerset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.invert">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">invert</code><span class="sig-paren">(</span><em>mapper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#invert"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.invert" title="Permalink to this definition">¶</a></dt>
+<dd><p>Invert a dict of lists preserving the order.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.flatten">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">flatten</code><span class="sig-paren">(</span><em>l</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#flatten"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.flatten" title="Permalink to this definition">¶</a></dt>
+<dd><p>Flatten a hierarchy of nested lists into a plain list.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.single_or">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">single_or</code><span class="sig-paren">(</span><em>l</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#single_or"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.single_or" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True iff only one item is different than <code class="docutils literal notranslate"><span class="pre">None</span></code>, False otherwise.
+Note that this is not a XOR function, according to the truth table of the XOR
+boolean function with n &gt; 2 inputs. Hence the name <code class="docutils literal notranslate"><span class="pre">single_or</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.filter_ordered">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">filter_ordered</code><span class="sig-paren">(</span><em>elements</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#filter_ordered"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.filter_ordered" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filter elements in a list while preserving order.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>key</strong> – Optional conversion key used during equality comparison.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.filter_sorted">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">filter_sorted</code><span class="sig-paren">(</span><em>elements</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#filter_sorted"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.filter_sorted" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filter elements in a list and sort them by key. The default key is
+<code class="docutils literal notranslate"><span class="pre">operator.attrgetter('name')</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.numpy_to_ctypes">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">numpy_to_ctypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#numpy_to_ctypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.numpy_to_ctypes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map numpy types to ctypes types.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.ctypes_to_C">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">ctypes_to_C</code><span class="sig-paren">(</span><em>ctype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#ctypes_to_C"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.ctypes_to_C" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map ctypes types to C types.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.ctypes_pointer">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">ctypes_pointer</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#ctypes_pointer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.ctypes_pointer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a ctypes type representing a C pointer to a custom data type <code class="docutils literal notranslate"><span class="pre">name</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.pprint">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">pprint</code><span class="sig-paren">(</span><em>node</em>, <em>verbose=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#pprint"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.pprint" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shortcut to pretty print Iteration/Expression trees.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.tools.utils.change_directory">
+<em class="property">class </em><code class="descclassname">devito.tools.utils.</code><code class="descname">change_directory</code><span class="sig-paren">(</span><em>newPath</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#change_directory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.change_directory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Context manager for changing the current working directory.</p>
+<p>Adapted from:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">stackoverflow</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">questions</span><span class="o">/</span><span class="mi">431684</span><span class="o">/</span><span class="n">how</span><span class="o">-</span><span class="n">do</span><span class="o">-</span><span class="n">i</span><span class="o">-</span><span class="n">cd</span><span class="o">-</span><span class="ow">in</span><span class="o">-</span><span class="n">python</span><span class="o">/</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.tools.utils.Tag">
+<em class="property">class </em><code class="descclassname">devito.tools.utils.</code><code class="descname">Tag</code><span class="sig-paren">(</span><em>name</em>, <em>val=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#Tag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.Tag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
+<p>An abstract class to define categories of object decorators.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This class must be subclassed for each new category.</p>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.sweep">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">sweep</code><span class="sig-paren">(</span><em>parameters</em>, <em>keys=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#sweep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.sweep" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generator to create a parameter sweep from a dictionary of values
+or value lists.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.tools.validators">
+<span id="devito-tools-validators-module"></span><h2>devito.tools.validators module<a class="headerlink" href="#module-devito.tools.validators" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.tools.validators.validate_type">
+<em class="property">class </em><code class="descclassname">devito.tools.validators.</code><code class="descname">validate_type</code><span class="sig-paren">(</span><em>*checks</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/validators.html#validate_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.validators.validate_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.validators.validate_base</span></code></p>
+<p>Decorator to validate argument types.</p>
+<p>The decorator expects one or more arguments, which are 3-tuples of
+(name, type, exception), where name is the argument name in the
+function being decorated, type is the argument type to be validated
+and exception is the exception type to be raised if validation fails.</p>
+<p>Readapted from:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">OP2</span><span class="o">/</span><span class="n">PyOP2</span><span class="o">/</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="devito.tools.validators.validate_type.check_arg">
+<code class="descname">check_arg</code><span class="sig-paren">(</span><em>arg</em>, <em>argtype</em>, <em>exception</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/validators.html#validate_type.check_arg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.validators.validate_type.check_arg" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.tools.visitors">
+<span id="devito-tools-visitors-module"></span><h2>devito.tools.visitors module<a class="headerlink" href="#module-devito.tools.visitors" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.tools.visitors.GenericVisitor">
+<em class="property">class </em><code class="descclassname">devito.tools.visitors.</code><code class="descname">GenericVisitor</code><a class="reference internal" href="_modules/devito/tools/visitors.html#GenericVisitor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.visitors.GenericVisitor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A generic visitor.</p>
+<p>To define handlers, subclasses should define <code class="xref py py-data docutils literal notranslate"><span class="pre">visit_Foo</span></code>
+methods for each class <code class="xref py py-data docutils literal notranslate"><span class="pre">Foo</span></code> they want to handle.
+If a specific method for a class <code class="xref py py-data docutils literal notranslate"><span class="pre">Foo</span></code> is not found, the MRO
+of the class is walked in order until a matching method is found.</p>
+<p>The method signature is:</p>
+<blockquote>
+<div></div></blockquote>
+<p>The handler is responsible for visiting the children (if any) of
+the node <code class="xref py py-data docutils literal notranslate"><span class="pre">o</span></code>.  <code class="xref py py-data docutils literal notranslate"><span class="pre">*args</span></code> and <code class="xref py py-data docutils literal notranslate"><span class="pre">**kwargs</span></code> may be
+used to pass information up and down the call stack.  You can also
+pass named keyword arguments, e.g.:</p>
+<blockquote>
+<div></div></blockquote>
+<dl class="attribute">
+<dt id="devito.tools.visitors.GenericVisitor.default_args">
+<code class="descname">default_args</code><em class="property"> = {}</em><a class="headerlink" href="#devito.tools.visitors.GenericVisitor.default_args" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.tools.visitors.GenericVisitor.default_retval">
+<em class="property">classmethod </em><code class="descname">default_retval</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/visitors.html#GenericVisitor.default_retval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.visitors.GenericVisitor.default_retval" title="Permalink to this definition">¶</a></dt>
+<dd><p>A method that returns an object to use to populate return values.</p>
+<p>If your visitor combines values in a tree-walk, it may be useful to
+provide a object to combine the results into. <a class="reference internal" href="#devito.tools.visitors.GenericVisitor.default_retval" title="devito.tools.visitors.GenericVisitor.default_retval"><code class="xref py py-meth docutils literal notranslate"><span class="pre">default_retval()</span></code></a>
+may be defined by the visitor to be called to provide an empty object
+of appropriate type.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.tools.visitors.GenericVisitor.lookup_method">
+<code class="descname">lookup_method</code><span class="sig-paren">(</span><em>instance</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/visitors.html#GenericVisitor.lookup_method"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.visitors.GenericVisitor.lookup_method" title="Permalink to this definition">¶</a></dt>
+<dd><p>Look up a handler method for a visitee.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>instance</strong> – The instance to look up a method for.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.tools.visitors.GenericVisitor.visit">
+<code class="descname">visit</code><span class="sig-paren">(</span><em>o</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/visitors.html#GenericVisitor.visit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.visitors.GenericVisitor.visit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply this <code class="xref py py-class docutils literal notranslate"><span class="pre">Visitor</span></code> to an object.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>o</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">Node</span></code> to visit.</li>
+<li><strong>args</strong> – Optional arguments to pass to the visit methods.</li>
+<li><strong>kwargs</strong> – Optional keyword arguments to pass to the visit methods.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.tools.visitors.GenericVisitor.visit_object">
+<code class="descname">visit_object</code><span class="sig-paren">(</span><em>o</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/visitors.html#GenericVisitor.visit_object"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.visitors.GenericVisitor.visit_object" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.tools">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.tools" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="devito.symbolics.html" class="btn btn-neutral" title="devito.symbolics package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1',
+            LANGUAGE:'en',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
