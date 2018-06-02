@@ -76,10 +76,10 @@ class Operator(OperatorRunnable):
             context = contexts.fetch(offloadable.grid, offloadable.dtype)
 
             # A unique name for the 'real' compiler and kernel solutions
-            suffix = Signer.digest(iet, configuration)
+            name = namespace['jit-soln'](Signer._digest(iet, configuration))
 
             # Create a YASK compiler solution for this Operator
-            yc_soln = context.make_yc_solution(namespace['jit-yc-soln'](suffix))
+            yc_soln = context.make_yc_solution(name)
 
             try:
                 trees = offloadable.trees
@@ -100,8 +100,7 @@ class Operator(OperatorRunnable):
                 self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
-                self.yk_soln = context.make_yk_solution(namespace['jit-yk-soln'](suffix),
-                                                        yc_soln, local_grids)
+                self.yk_soln = context.make_yk_solution(name, yc_soln, local_grids)
 
                 # Print some useful information about the newly constructed solution
                 log("Solution '%s' contains %d grid(s) and %d equation(s)." %
