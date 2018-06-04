@@ -744,6 +744,10 @@ class TimeFunction(Function):
     def _time_size(self):
         return self.shape_allocated[self._time_position]
 
+    @property
+    def _time_buffering(self):
+        return self.save is not int
+
     def _arg_check(self, args, intervals):
         super(TimeFunction, self)._arg_check(args, intervals)
         key = args[self.name]
