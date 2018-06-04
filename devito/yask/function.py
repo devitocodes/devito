@@ -186,13 +186,13 @@ class TimeFunction(function.TimeFunction, Function):
         # This is a little hack: a TimeFunction originally meant to be accessed
         # via modulo buffered iteration should never impose anything on the time
         # dimension
-        if type(self.save) is not int:
+        if self.save is not int:
             args.pop(self.time_dim.max_name)
             args.pop(self.time_dim.size_name)
         return args
 
     def _arg_check(self, args, intervals):
-        if type(self.save) is int:
+        if self.save is int:
             super(TimeFunction, self)._arg_check(args, intervals)
         else:
             # Using a TimeDimension in place of a SteppingDimension, so we
