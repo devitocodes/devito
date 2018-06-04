@@ -152,7 +152,7 @@ def mark_wrappable(analysis):
         accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
 
         # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
-        if not accesses or any(a.function.save is int for a in accesses):
+        if not accesses or any(not a.function._time_buffering for a in accesses):
             continue
 
         stepping = {a.function.time_dim for a in accesses}

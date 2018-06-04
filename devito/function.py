@@ -751,7 +751,7 @@ class TimeFunction(Function):
     def _arg_check(self, args, intervals):
         super(TimeFunction, self)._arg_check(args, intervals)
         key = args[self.name]
-        if self.save is not int and self._time_size != key.shape[self._time_position]:
+        if self._time_buffering and self._time_size != key.shape[self._time_position]:
             raise InvalidArgument("Expected `time_size=%d` for runtime "
                                   "value `%s`, found `%d` instead"
                                   % (self._time_size, self.name, key._time_size))
