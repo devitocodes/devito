@@ -285,10 +285,8 @@ class IterationInstance(Vector):
         return self.rank == 0
 
     def affine_if_present(self, findices):
-        """
-        Return True if the provided ``findices`` appear in ``self`` and are
-        affine, False otherwise.
-        """
+        """Return False if any of the provided findices appears in self and
+        is not affine, True otherwise."""
         return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
 
     def distance(self, other, findex=None, view=None):
