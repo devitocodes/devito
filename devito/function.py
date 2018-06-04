@@ -431,7 +431,7 @@ class Function(TensorFunction):
                 self.space_order, left_points, right_points = space_order
                 halo = (left_points, right_points)
             else:
-                raise ValueError("'space_order' must be int or 3-tuple of ints")
+                raise TypeError("`space_order` must be int or 3-tuple of ints")
             self._halo = tuple(halo if i in self._halo_indices else (0, 0)
                                for i in self.indices)
 
@@ -442,7 +442,7 @@ class Function(TensorFunction):
             elif isinstance(padding, tuple) and len(padding) == self.ndim:
                 padding = tuple((i,)*2 if isinstance(i, int) else i for i in padding)
             else:
-                raise ValueError("'padding' must be int or %d-tuple of ints" % self.ndim)
+                raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
             self._padding = padding
 
             # Dynamically add derivative short-cuts
@@ -520,12 +520,11 @@ class Function(TensorFunction):
         dimensions = kwargs.get('dimensions')
         if grid is None:
             if dimensions is None:
-                raise ValueError("Function requires either a 'grid' or the "
-                                 "'dimensions' argument")
+                raise TypeError("Function needs either `grid` or `dimensions` argument")
         else:
             if dimensions is not None:
-                warning("Creating Function with 'grid' and 'dimensions' "
-                        "argument; ignoring the 'dimensions' and using 'grid'.")
+                warning("Creating Function with `grid` and `dimensions` "
+                        "argument; ignoring the `dimensions` and using `grid`.")
             dimensions = grid.dimensions
         return dimensions
 
@@ -535,7 +534,7 @@ class Function(TensorFunction):
         if grid is None:
             shape = kwargs.get('shape')
             if shape is None:
-                raise ValueError("Function needs either 'shape' or 'grid' argument")
+                raise TypeError("Function needs either 'grid' or 'shape' argument")
         else:
             shape = grid.shape_domain
         return shape
@@ -665,9 +664,10 @@ class TimeFunction(Function):
 
             self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
             self.time_order = kwargs.get('time_order', 1)
-            self.save = type(kwargs.get('save', None) or None)
             if not isinstance(self.time_order, int):
-                raise ValueError("'time_order' must be int")
+                raise TypeError("`time_order` must be int")
+
+            self.save = type(kwargs.get('save', None) or None)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -678,7 +678,7 @@ class TimeFunction(Function):
         if time_dim is None:
             time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
         elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
-            raise ValueError("'time_dim' must be a time dimension")
+            raise TypeError("`time_dim` must be a time dimension")
 
         indices = list(Function.__indices_setup__(**kwargs))
         indices.insert(cls._time_position, time_dim)
@@ -783,14 +783,16 @@ class AbstractSparseFunction(TensorFunction):
             super(AbstractSparseFunction, self).__init__(*args, **kwargs)
 
             npoint = kwargs.get('npoint')
-            if not isinstance(npoint, int) and npoint > 0:
-                raise ValueError('SparseFunction requires parameter `npoint` (> 0)')
+            if not isinstance(npoint, int):
+                raise TypeError('SparseFunction needs `npoint` int argument')
+            if npoint <= 0:
+                raise ValueError('`npoint` must be > 0')
             self.npoint = npoint
 
             # Grid must be provided
             grid = kwargs.get('grid')
             if kwargs.get('grid') is None:
-                raise ValueError('SparseFunction objects require a grid parameter')
+                raise TypeError('SparseFunction needs `grid` argument')
             self.grid = grid
 
             self.dtype = kwargs.get('dtype', self.grid.dtype)
@@ -1081,14 +1083,16 @@ class SparseTimeFunction(SparseFunction):
             super(SparseTimeFunction, self).__init__(*args, **kwargs)
 
             nt = kwargs.get('nt')
-            if not isinstance(nt, int) and nt > 0:
-                raise ValueError('SparseTimeFunction requires int parameter `nt`')
+            if not isinstance(nt, int):
+                raise TypeError('SparseTimeFunction needs `nt` int argument')
+            if nt <= 0:
+                raise ValueError('`nt` must be > 0')
             self.nt = nt
 
             self.time_dim = self.indices[self._time_position]
             self.time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
-                raise ValueError("'time_order' must be int")
+                raise ValueError("`time_order` must be int")
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1159,8 +1163,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
             # Grid points per sparse point (2 in the case of bilinear and trilinear)
             r = kwargs.get('r')
-            if not isinstance(r, int) and r > 0:
-                raise ValueError('Interpolation requires parameter `r` (>0)')
+            if not isinstance(r, int):
+                raise TypeError('Interpolation needs `r` int argument')
+            if r <= 0:
+                raise ValueError('`r` must be > 0')
             self.r = r
 
             gridpoints = Function(name="%s_gridpoints" % self.name, dtype=np.int32,
