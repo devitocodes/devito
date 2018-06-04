@@ -15,15 +15,9 @@ class Tag(ABC):
         This class must be subclassed for each new category.
     """
 
-    _repr = 'AbstractTag'
-
-    _KNOWN = []
-
     def __init__(self, name, val=None):
         self.name = name
         self.val = val
-
-        self._KNOWN.append(self)
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -34,13 +28,13 @@ class Tag(ABC):
         return hash((self.name, self.val))
 
     def __str__(self):
-        return self.name if self.val is None else '%s%s' % (self.name, str(self.val))
-
-    def __repr__(self):
         if self.val is None:
-            return "%s: %s" % (self._repr, self.name)
+            ret = self.name
         else:
-            return "%s: %s[%s]" % (self._repr, self.name, str(self.val))
+            ret = "%s[%s]" % (self.name, str(self.val))
+        return ret
+
+    __repr__ = __str__
 
 
 class Signer(object):
