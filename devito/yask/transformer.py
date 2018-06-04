@@ -160,7 +160,7 @@ def make_yask_ast(expr, yc_soln, mapper):
             if isinstance(i, LoweredDimension):
                 indices.append(make_yask_ast(i.origin, yc_soln, mapper))
             elif i.is_integer:
-                # A YASK misc dimension causes this
+                # Typically, if we end up here it's because we have a misc dimension
                 indices.append(make_yask_ast(i, yc_soln, mapper))
             else:
                 # We must always use the parent ("main") dimension when creating
