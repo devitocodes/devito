@@ -152,12 +152,13 @@ def mark_wrappable(analysis):
         accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
 
         # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
-        if not accesses or any(not a.function._time_buffering for a in accesses):
+        if not accesses or any(not a.function._time_buffering_default for a in accesses):
             continue
 
         stepping = {a.function.time_dim for a in accesses}
-        stepping = {d for d in stepping if d.is_Stepping}
-        assert len(stepping) == 1
+        if len(stepping) > 1:
+            # E.g., with ConditionalDimensions we may have `stepping={t, tsub}`
+            continue
         stepping = stepping.pop()
 
         # All accesses must be affine in `stepping`
