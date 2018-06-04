@@ -5,6 +5,7 @@ JIT-compile, and run kernels.
 
 import os
 
+from devito.compiler import get_tmp_dir
 from devito.dle import BasicRewriter, init_dle
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
@@ -34,9 +35,14 @@ except ImportError:
 path = os.path.dirname(os.path.dirname(yc.__file__))
 namespace['path'] = path
 namespace['kernel-path'] = os.path.join(path, 'src', 'kernel')
-namespace['kernel-path-gen'] = os.path.join(namespace['kernel-path'], 'gen')
-namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
-                                          namespace['kernel-filename'])
+namespace['yask-output-dir'] = get_tmp_dir()
+# The YASK compiler expects the generated code under:
+# $YASK_OUTPUT_DIR/build/kernel/$stencil.$arch/gen/yask_stencil_code.hpp
+namespace['yask-lib'] = os.path.join(namespace['yask-output-dir'], 'lib')
+namespace['yask-codegen'] = lambda i, j, k: os.path.join(namespace['yask-output-dir'],
+                                                         'build', 'kernel',
+                                                         '%s.%s.%s' % (i, j, k), 'gen')
+namespace['yask-codegen-file'] = 'yask_stencil_code.hpp'
 
 
 # Need a custom compiler to compile YASK kernels
@@ -51,8 +57,8 @@ class YaskCompiler(configuration['compiler'].__class__):
                        if not i.startswith('-std')] + ['-std=c++11']
         # Tell the compiler where to get YASK header files and shared objects
         self.include_dirs.append(os.path.join(namespace['path'], 'include'))
-        self.library_dirs.append(os.path.join(namespace['path'], 'lib'))
-        self.ldflags.append('-Wl,-rpath,%s' % os.path.join(namespace['path'], 'lib'))
+        self.library_dirs.append(namespace['yask-lib'])
+        self.ldflags.append('-Wl,-rpath,%s' % namespace['yask-lib'])
 
 
 yask_configuration = Parameters('yask')
