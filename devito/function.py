@@ -18,10 +18,10 @@ from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import AbstractCachedFunction, AbstractCachedSymbol
-from devito.tools import ReducerMap, prod, powerset
+from devito.tools import Tag, ReducerMap, prod, powerset
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'SparseTimeFunction']
+           'SparseTimeFunction', 'PrecomputedSparseFunction', 'Buffer']
 
 
 class Constant(AbstractCachedSymbol):
@@ -590,10 +590,19 @@ class TimeFunction(Function):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data
-    :param save: (Optional) Save the intermediate results to the data buffer.
-                 Defaults to `None`, indicating the use of alternating buffers.
-                 If intermediate results are required, the value of save must be
-                 set to the required size of the time dimension.
+    :param save: (Optional) Defaults to `None`, which indicates the use of
+                 alternating buffers. This enables cyclic writes to the
+                 TimeFunction. For example, if the TimeFunction ``u(t, x)`` has
+                 shape (3, 100), then, in an :class:`Operator`, ``t`` will
+                 assume the values ``1, 2, 0, 1, 2, 0, 1, ...`` (note that the
+                 very first value depends on the stencil equation in which
+                 ``u`` is written.). The default size of the time buffer when
+                 ``save=None`` is ``time_order + 1``.  To specify a different
+                 size for the time buffer, one should use the syntax
+                 ``save=Buffer(mysize)``. Alternatively, if all of the
+                 intermediate results are required (or, simply, to forbid the
+                 usage of an alternating buffer), an explicit value for ``save``
+                 (i.e., an integer) must be provided.
     :param time_dim: (Optional) The :class:`Dimension` object to use to represent
                      time in this symbol. Defaults to the time dimension provided
                      by the :class:`Grid`.
@@ -666,11 +675,8 @@ class TimeFunction(Function):
         grid = kwargs.get('grid')
         time_dim = kwargs.get('time_dim')
 
-        if grid is None:
-            raise ValueError("TimeFunction needs a 'grid' argument")
-
         if time_dim is None:
-            time_dim = grid.time_dim if save else grid.stepping_dim
+            time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
         elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
             raise ValueError("'time_dim' must be a time dimension")
 
@@ -688,18 +694,19 @@ class TimeFunction(Function):
 
         if grid is None:
             if shape is None:
-                raise ValueError("TimeFunction needs either 'shape' or 'grid' argument")
+                raise TypeError("TimeFunction needs either `shape` or `grid` argument")
             if save is not None:
-                raise ValueError("Ambiguity detected: provide either 'grid' and 'save' "
-                                 "or 'shape', where 'shape[0] == save'")
+                raise TypeError("Ambiguity detected: provide either `grid` and `save` "
+                                "or just `shape` ")
         else:
-            if save is not None:
-                if not isinstance(save, int):
-                    raise ValueError("save must be an int indicating the number of " +
-                                     "timesteps to be saved (is %s)" % type(save))
+            if save is None:
+                shape = (time_order + 1,) + grid.shape_domain
+            elif isinstance(save, Buffer):
+                shape = (save.val,) + grid.shape_domain
+            elif isinstance(save, int):
                 shape = (save,) + grid.shape_domain
             else:
-                shape = (time_order + 1,) + grid.shape_domain
+                raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
         return shape
 
     @property
@@ -747,6 +754,10 @@ class TimeFunction(Function):
     @property
     def _time_buffering(self):
         return self.save is not int
+
+    @property
+    def _time_buffering_default(self):
+        return self._time_buffering and self.save != Buffer
 
     def _arg_check(self, args, intervals):
         super(TimeFunction, self)._arg_check(args, intervals)
@@ -1243,3 +1254,11 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
+
+
+# Additional Function-related APIs
+
+class Buffer(Tag):
+
+    def __init__(self, value):
+        super(Buffer, self).__init__('Buffer', value)
