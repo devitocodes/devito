@@ -5,6 +5,7 @@ from cached_property import cached_property
 
 from devito.exceptions import InvalidArgument
 from devito.types import AbstractSymbol, Scalar, Symbol
+from devito.logger import debug
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
@@ -192,6 +193,10 @@ class Dimension(AbstractSymbol):
         if args[self.max_name] < args[self.min_name]-1:
             raise InvalidArgument("Illegal max=%s < min=%s"
                                   % (args[self.max_name], args[self.min_name]))
+        elif args[self.max_name] == args[self.min_name]-1:
+            debug("%s=%d and %s=%d might cause no iterations along Dimension %s",
+                  self.min_name, args[self.min_name],
+                  self.max_name, args[self.max_name], self.name)
 
 
 class SpaceDimension(Dimension):
