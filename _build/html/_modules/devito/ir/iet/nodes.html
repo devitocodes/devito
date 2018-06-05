@@ -170,7 +170,8 @@
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">detect_io</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">FunctionFromPointer</span><span class="p">,</span> <span class="n">as_symbol</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">validate_type</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">Signer</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span>
+                          <span class="n">validate_type</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">AbstractFunction</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Indexed</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Element&#39;</span><span class="p">,</span> <span class="s1">&#39;Callable&#39;</span><span class="p">,</span>
@@ -181,7 +182,7 @@
 <span class="c1"># First-class IET nodes</span>
 
 
-<div class="viewcode-block" id="Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Node">[docs]</a><span class="k">class</span> <span class="nc">Node</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="Node"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Node">[docs]</a><span class="k">class</span> <span class="nc">Node</span><span class="p">(</span><span class="n">Signer</span><span class="p">):</span>
 
     <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span>
 
@@ -279,7 +280,10 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return all :class:`Symbol` objects defined by this :class:`Node`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_signature_items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">),)</span></div>
 
 
 <div class="viewcode-block" id="Block"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Block">[docs]</a><span class="k">class</span> <span class="nc">Block</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>

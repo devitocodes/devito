@@ -438,6 +438,11 @@
     <span class="k">def</span> <span class="nf">is_scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">0</span>
 
+<div class="viewcode-block" id="IterationInstance.affine_if_present"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.affine_if_present">[docs]</a>    <span class="k">def</span> <span class="nf">affine_if_present</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">findices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return False if any of the provided findices appears in self and</span>
+<span class="sd">        is not affine, True otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">findices</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">))</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices_affine</span><span class="p">))</span></div>
+
 <div class="viewcode-block" id="IterationInstance.distance"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.distance">[docs]</a>    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">findex</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">view</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Compute the distance from ``self`` to ``other``.</span>
 

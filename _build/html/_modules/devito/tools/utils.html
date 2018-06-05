@@ -152,8 +152,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.tools.utils</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABC</span>
-<span class="kn">import</span> <span class="nn">os</span>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">ctypes</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
@@ -161,11 +160,12 @@
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span><span class="p">,</span> <span class="n">mul</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">sympy</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;prod&#39;</span><span class="p">,</span> <span class="s1">&#39;as_tuple&#39;</span><span class="p">,</span> <span class="s1">&#39;is_integer&#39;</span><span class="p">,</span> <span class="s1">&#39;generator&#39;</span><span class="p">,</span> <span class="s1">&#39;grouper&#39;</span><span class="p">,</span> <span class="s1">&#39;split&#39;</span><span class="p">,</span>
            <span class="s1">&#39;roundm&#39;</span><span class="p">,</span> <span class="s1">&#39;powerset&#39;</span><span class="p">,</span> <span class="s1">&#39;invert&#39;</span><span class="p">,</span> <span class="s1">&#39;flatten&#39;</span><span class="p">,</span> <span class="s1">&#39;single_or&#39;</span><span class="p">,</span> <span class="s1">&#39;filter_ordered&#39;</span><span class="p">,</span>
            <span class="s1">&#39;filter_sorted&#39;</span><span class="p">,</span> <span class="s1">&#39;numpy_to_ctypes&#39;</span><span class="p">,</span> <span class="s1">&#39;ctypes_to_C&#39;</span><span class="p">,</span> <span class="s1">&#39;ctypes_pointer&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;pprint&#39;</span><span class="p">,</span> <span class="s1">&#39;change_directory&#39;</span><span class="p">,</span> <span class="s1">&#39;Tag&#39;</span><span class="p">,</span> <span class="s1">&#39;sweep&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;pprint&#39;</span><span class="p">,</span> <span class="s1">&#39;change_directory&#39;</span><span class="p">,</span> <span class="s1">&#39;sweep&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="prod"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.prod">[docs]</a><span class="k">def</span> <span class="nf">prod</span><span class="p">(</span><span class="n">iterable</span><span class="p">):</span>
@@ -201,7 +201,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A thorough instance comparison for all integer types.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">,</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Integer</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="generator"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.generator">[docs]</a><span class="k">def</span> <span class="nf">generator</span><span class="p">():</span>
@@ -359,44 +359,6 @@
                     <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">sweep_values</span><span class="p">]</span>
     <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="o">*</span><span class="n">sweep_values</span><span class="p">):</span>
         <span class="k">yield</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">vals</span><span class="p">))</span></div>
-
-
-<div class="viewcode-block" id="Tag"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.Tag">[docs]</a><span class="k">class</span> <span class="nc">Tag</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    An abstract class to define categories of object decorators.</span>
-
-<span class="sd">    .. note::</span>
-
-<span class="sd">        This class must be subclassed for each new category.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">_repr</span> <span class="o">=</span> <span class="s1">&#39;AbstractTag&#39;</span>
-
-    <span class="n">_KNOWN</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">_KNOWN</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">):</span>
-            <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">val</span>
-
-    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_repr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_repr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">val</span><span class="p">))</span></div>
 </pre></div>
 
            </div>

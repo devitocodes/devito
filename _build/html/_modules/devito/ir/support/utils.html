@@ -246,21 +246,18 @@
     <span class="k">return</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">iterators</span></div>
 
 
-<div class="viewcode-block" id="align_accesses"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.align_accesses">[docs]</a><span class="k">def</span> <span class="nf">align_accesses</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="align_accesses"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.utils.align_accesses">[docs]</a><span class="k">def</span> <span class="nf">align_accesses</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    ``expr -&gt; expr&#39;``, with ``expr&#39;`` semantically equivalent to ``expr``, but</span>
-<span class="sd">    with data accesses aligned to the computational domain. If the optional flag</span>
-<span class="sd">    ``reverse`` is passed as True (defaults False), then the reverse operation</span>
-<span class="sd">    takes place; that is, assuming ``expr`` was aligned to the computational</span>
-<span class="sd">    domain, ``expr&#39;`` gets aligned back to the first allocated entry.</span>
+<span class="sd">    with data accesses aligned to the computational domain if ``key(function)``</span>
+<span class="sd">    gives True.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">shift</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="n">i</span> <span class="k">if</span> <span class="n">reverse</span> <span class="ow">is</span> <span class="kc">True</span> <span class="k">else</span> <span class="n">i</span><span class="p">)</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">indexed</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
         <span class="n">f</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
             <span class="k">continue</span>
-        <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="n">shift</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">left</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">)}</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="n">j</span><span class="o">.</span><span class="n">left</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">)}</span>
         <span class="n">mapper</span><span class="p">[</span><span class="n">indexed</span><span class="p">]</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span></div>
 

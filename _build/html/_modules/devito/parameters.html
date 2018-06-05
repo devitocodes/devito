@@ -157,6 +157,8 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">environ</span>
 
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Signer</span>
+
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;print_defaults&#39;</span><span class="p">,</span> <span class="s1">&#39;print_state&#39;</span><span class="p">,</span>
            <span class="s1">&#39;add_sub_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;mode_develop&#39;</span><span class="p">,</span> <span class="s1">&#39;mode_performance&#39;</span><span class="p">,</span> <span class="s1">&#39;mode_benchmark&#39;</span><span class="p">]</span>
 
@@ -168,7 +170,7 @@
 <span class="c1"># and never modified.</span>
 
 
-<span class="k">class</span> <span class="nc">Parameters</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Parameters</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">,</span> <span class="n">Signer</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A dictionary-like class to hold global configuration parameters for devito</span>
 <span class="sd">    On top of a normal dict, this provides the option to provide callback functions</span>
@@ -244,6 +246,9 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
+
+    <span class="k">def</span> <span class="nf">_signature_items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">())))</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">items</span><span class="p">())))</span>
 
 
 <span class="n">env_vars_mapper</span> <span class="o">=</span> <span class="p">{</span>

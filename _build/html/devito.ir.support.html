@@ -275,6 +275,13 @@ in such a case, None is used as placeholder.</li>
 is accessed.</li>
 </ul>
 </div></blockquote>
+<dl class="method">
+<dt id="devito.ir.support.basic.IterationInstance.affine_if_present">
+<code class="descname">affine_if_present</code><span class="sig-paren">(</span><em>findices</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/basic.html#IterationInstance.affine_if_present"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.affine_if_present" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return False if any of the provided findices appears in self and
+is not affine, True otherwise.</p>
+</dd></dl>
+
 <dl class="attribute">
 <dt id="devito.ir.support.basic.IterationInstance.aindices">
 <code class="descname">aindices</code><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.aindices" title="Permalink to this definition">¶</a></dt>
@@ -994,12 +1001,10 @@ for a given dimension in order to have a flow dependence), the function
 
 <dl class="function">
 <dt id="devito.ir.support.utils.align_accesses">
-<code class="descclassname">devito.ir.support.utils.</code><code class="descname">align_accesses</code><span class="sig-paren">(</span><em>expr</em>, <em>reverse=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#align_accesses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.align_accesses" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">align_accesses</code><span class="sig-paren">(</span><em>expr</em>, <em>key=&lt;function &lt;lambda&gt;&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#align_accesses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.align_accesses" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="docutils literal notranslate"><span class="pre">expr</span> <span class="pre">-&gt;</span> <span class="pre">expr'</span></code>, with <code class="docutils literal notranslate"><span class="pre">expr'</span></code> semantically equivalent to <code class="docutils literal notranslate"><span class="pre">expr</span></code>, but
-with data accesses aligned to the computational domain. If the optional flag
-<code class="docutils literal notranslate"><span class="pre">reverse</span></code> is passed as True (defaults False), then the reverse operation
-takes place; that is, assuming <code class="docutils literal notranslate"><span class="pre">expr</span></code> was aligned to the computational
-domain, <code class="docutils literal notranslate"><span class="pre">expr'</span></code> gets aligned back to the first allocated entry.</p>
+with data accesses aligned to the computational domain if <code class="docutils literal notranslate"><span class="pre">key(function)</span></code>
+gives True.</p>
 </dd></dl>
 
 <dl class="function">

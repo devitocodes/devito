@@ -81,10 +81,10 @@
 ./_build/html/_modules/devito/symbolics/manipulation.html
 ./_build/html/_modules/devito/symbolics/queries.html
 ./_build/html/_modules/devito/symbolics/search.html
+./_build/html/_modules/devito/tools/abc.html
 ./_build/html/_modules/devito/tools/algorithms.html
 ./_build/html/_modules/devito/tools/data_structures.html
 ./_build/html/_modules/devito/tools/memoization.html
-./_build/html/_modules/devito/tools/mixins.html
 ./_build/html/_modules/devito/tools/utils.html
 ./_build/html/_modules/devito/tools/validators.html
 ./_build/html/_modules/devito/tools/visitors.html

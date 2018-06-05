@@ -96,10 +96,10 @@
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">devito.tools package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.abc">devito.tools.abc module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.algorithms">devito.tools.algorithms module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.data_structures">devito.tools.data_structures module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.memoization">devito.tools.memoization module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.mixins">devito.tools.mixins module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.utils">devito.tools.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.validators">devito.tools.validators module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.visitors">devito.tools.visitors module</a></li>
@@ -198,6 +198,38 @@
 <h1>devito.tools package<a class="headerlink" href="#devito-tools-package" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-devito.tools.abc">
+<span id="devito-tools-abc-module"></span><h2>devito.tools.abc module<a class="headerlink" href="#module-devito.tools.abc" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.tools.abc.Tag">
+<em class="property">class </em><code class="descclassname">devito.tools.abc.</code><code class="descname">Tag</code><span class="sig-paren">(</span><em>name</em>, <em>val=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/abc.html#Tag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.abc.Tag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
+<p>An abstract class to define categories of object decorators.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This class must be subclassed for each new category.</p>
+</div>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.tools.abc.Signer">
+<em class="property">class </em><code class="descclassname">devito.tools.abc.</code><code class="descname">Signer</code><a class="reference internal" href="_modules/devito/tools/abc.html#Signer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.abc.Signer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A base class for types that can emit a unique, deterministic
+string representing their internal state. Subclasses may be mutable or
+immutable.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Subclasses must implement the method <code class="xref py py-meth docutils literal notranslate"><span class="pre">__signature_items___()</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Regardless of whether an object is mutable or immutable, the returned
+signature must be immutable, and thus hashable.</p>
+</div>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.tools.algorithms">
 <span id="devito-tools-algorithms-module"></span><h2>devito.tools.algorithms module<a class="headerlink" href="#module-devito.tools.algorithms" title="Permalink to this headline">¶</a></h2>
@@ -354,29 +386,6 @@ be cached. Instead the method will be invoked like a static method:</p>
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.tools.mixins">
-<span id="devito-tools-mixins-module"></span><h2>devito.tools.mixins module<a class="headerlink" href="#module-devito.tools.mixins" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.tools.mixins.Signer">
-<em class="property">class </em><code class="descclassname">devito.tools.mixins.</code><code class="descname">Signer</code><a class="reference internal" href="_modules/devito/tools/mixins.html#Signer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.mixins.Signer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>A mixin for classes that can emit a unique, deterministic string
-representing their state. Subclasses may be mutable or immutable; if
-immutable, the signature depends on the internal state of the object.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Subclasses must implement the method <code class="xref py py-meth docutils literal notranslate"><span class="pre">__signature__()</span></code>.</p>
-</div>
-<dl class="classmethod">
-<dt id="devito.tools.mixins.Signer.digest">
-<em class="property">classmethod </em><code class="descname">digest</code><span class="sig-paren">(</span><em>signable</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/mixins.html#Signer.digest"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.mixins.Signer.digest" title="Permalink to this definition">¶</a></dt>
-<dd><p>Produce a unique, deterministic signature out of one or more
-<code class="docutils literal notranslate"><span class="pre">signable</span></code> objects.</p>
-</dd></dl>
-
-</dd></dl>
-
-</div>
 <div class="section" id="module-devito.tools.utils">
 <span id="devito-tools-utils-module"></span><h2>devito.tools.utils module<a class="headerlink" href="#module-devito.tools.utils" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
@@ -502,17 +511,6 @@ boolean function with n &gt; 2 inputs. Hence the name <code class="docutils lite
 <p>Adapted from:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">stackoverflow</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">questions</span><span class="o">/</span><span class="mi">431684</span><span class="o">/</span><span class="n">how</span><span class="o">-</span><span class="n">do</span><span class="o">-</span><span class="n">i</span><span class="o">-</span><span class="n">cd</span><span class="o">-</span><span class="ow">in</span><span class="o">-</span><span class="n">python</span><span class="o">/</span>
 </pre></div>
-</div>
-</dd></dl>
-
-<dl class="class">
-<dt id="devito.tools.utils.Tag">
-<em class="property">class </em><code class="descclassname">devito.tools.utils.</code><code class="descname">Tag</code><span class="sig-paren">(</span><em>name</em>, <em>val=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#Tag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.Tag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
-<p>An abstract class to define categories of object decorators.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">This class must be subclassed for each new category.</p>
 </div>
 </dd></dl>
 

@@ -159,6 +159,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">with_metaclass</span>
 
 <span class="kn">from</span> <span class="nn">devito.backends</span> <span class="k">import</span> <span class="n">_BackendSelector</span>
+<span class="kn">from</span> <span class="nn">devito.grid</span> <span class="k">import</span> <span class="n">Grid</span>
 <span class="kn">import</span> <span class="nn">devito.types</span> <span class="k">as</span> <span class="nn">types</span>
 <span class="kn">import</span> <span class="nn">devito.function</span> <span class="k">as</span> <span class="nn">function</span>
 <span class="kn">import</span> <span class="nn">devito.operator</span> <span class="k">as</span> <span class="nn">operator</span>
@@ -189,6 +190,10 @@
 
 
 <div class="viewcode-block" id="SparseTimeFunction"><a class="viewcode-back" href="../../devito.html#devito.base.SparseTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseTimeFunction</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">SparseTimeFunction</span><span class="p">)):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../devito.html#devito.base.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">Grid</span><span class="p">)):</span>
     <span class="k">pass</span></div>
 
 

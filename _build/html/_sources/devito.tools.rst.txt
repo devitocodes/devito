@@ -4,6 +4,14 @@ devito.tools package
 Submodules
 ----------
 
+devito.tools.abc module
+-----------------------
+
+.. automodule:: devito.tools.abc
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.tools.algorithms module
 ------------------------------
 
@@ -24,14 +32,6 @@ devito.tools.memoization module
 -------------------------------
 
 .. automodule:: devito.tools.memoization
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito.tools.mixins module
---------------------------
-
-.. automodule:: devito.tools.mixins
     :members:
     :undoc-members:
     :show-inheritance:

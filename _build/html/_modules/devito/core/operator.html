@@ -168,7 +168,8 @@
 
     <span class="k">def</span> <span class="nf">_specialize_exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">):</span>
         <span class="c1"># Align data accesses to the computational domain</span>
-        <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">align_accesses</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorFunction</span>
+        <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">align_accesses</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">OperatorCore</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
