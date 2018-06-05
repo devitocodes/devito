@@ -16,7 +16,8 @@ from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_
 from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
 from devito.symbolics import FunctionFromPointer, as_symbol
-from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, validate_type
+from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
+                          validate_type)
 from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
@@ -27,7 +28,7 @@ __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
 # First-class IET nodes
 
 
-class Node(object):
+class Node(Signer):
 
     __metaclass__ = abc.ABCMeta
 
@@ -126,6 +127,9 @@ class Node(object):
         Return all :class:`Symbol` objects defined by this :class:`Node`.
         """
         raise NotImplementedError()
+
+    def _signature_items(self):
+        return (str(self.ccode),)
 
 
 class Block(Node):

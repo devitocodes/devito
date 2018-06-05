@@ -1,10 +1,13 @@
 from cached_property import cached_property
 import ctypes
+import sympy
 import numpy as np
 
 import devito.function as function
+from devito.exceptions import InvalidArgument
 from devito.logger import yask as log
-from devito.tools import numpy_to_ctypes
+from devito.tools import Signer, numpy_to_ctypes
+from devito.types import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
 from devito.yask.utils import namespace
@@ -42,9 +45,22 @@ class Constant(function.Constant):
         return values
 
 
-class Function(function.Function):
+class Function(function.Function, Signer):
 
     from_YASK = True
+
+    def __new__(cls, *args, **kwargs):
+        if cls in _SymbolCache:
+            newobj = sympy.Function.__new__(cls, *args, **kwargs.get('options', {}))
+            newobj._cached_init()
+        else:
+            # If a Function has no SpaceDimension, than for sure it won't be
+            # used by YASK. We then return a devito.Function, which employs
+            # a standard row-major format for data values
+            indices = cls.__indices_setup__(**kwargs)
+            klass = cls if any(i.is_Space for i in indices) else cls.__base__
+            newobj = cls.__base__.__new__(klass, *args, **kwargs)
+        return newobj
 
     def _allocate_memory(func):
         """Allocate memory in terms of YASK grids."""
@@ -53,18 +69,22 @@ class Function(function.Function):
                 log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
 
                 # Fetch the appropriate context
-                context = contexts.fetch(self.grid, self.dtype)
+                context = contexts.fetch(self.grid, self.dtype, self.dimensions)
 
-                # TODO : the following will fail if not using a SteppingDimension,
-                # eg with save=True one gets /time/ instead /t/
+                # Create a YASK grid; this allocates memory
                 grid = context.make_grid(self)
 
                 # /self._padding/ must be updated as (from the YASK docs):
                 # "The value may be slightly larger [...] due to rounding"
-                pad = [(0, 0) if i.is_Time else (grid.get_left_extra_pad_size(i.name),
-                                                 grid.get_right_extra_pad_size(i.name))
-                       for i in self.indices]
-                self._padding = pad
+                padding = []
+                for i in self.dimensions:
+                    if i.is_Space:
+                        padding.append((grid.get_left_extra_pad_size(i.name),
+                                        grid.get_right_extra_pad_size(i.name)))
+                    else:
+                        # time and misc dimensions
+                        padding.append((0, 0))
+                self._padding = padding
 
                 self._data = Data(grid, self.shape_allocated, self.indices, self.dtype)
                 self._data.reset()
@@ -144,7 +164,42 @@ class Function(function.Function):
 
         return args
 
+    def _signature_items(self):
+        return (self.name,) + tuple(i.name for i in self.indices)
+
 
 class TimeFunction(function.TimeFunction, Function):
 
     from_YASK = True
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        indices = list(function.TimeFunction.__indices_setup__(**kwargs))
+        # Never use a SteppingDimension in the yask backend: it is simply
+        # unnecessary and would only complicate things when creating dummy
+        # grids
+        indices[cls._time_position] = kwargs['grid'].time_dim
+        return tuple(indices)
+
+    def _arg_defaults(self, alias=None):
+        args = super(TimeFunction, self)._arg_defaults(alias=alias)
+        # This is a little hack: a TimeFunction originally meant to be accessed
+        # via modulo buffered iteration should never impose anything on the time
+        # dimension
+        if self.save is not int:
+            args.pop(self.time_dim.max_name)
+            args.pop(self.time_dim.size_name)
+        return args
+
+    def _arg_check(self, args, intervals):
+        if self.save is int:
+            super(TimeFunction, self)._arg_check(args, intervals)
+        else:
+            # Using a TimeDimension in place of a SteppingDimension, so we
+            # should silence any errors due to assuming OOB accesses
+            try:
+                super(TimeFunction, self)._arg_check(args, intervals)
+            except InvalidArgument:
+                for i, s in zip(self.indices, args[self.name].shape):
+                    size = np.inf if i.is_Time else s
+                    i._arg_check(args, size, intervals[i])

@@ -6,7 +6,7 @@ import numpy as np
 
 from sympy import cos, Symbol  # noqa
 
-from devito import (Dimension, Grid, TimeDimension, SteppingDimension, SpaceDimension,  # noqa
+from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension,  # noqa
                     Constant, Function, TimeFunction, Eq, configuration, SparseFunction)  # noqa
 from devito.types import Scalar, Array
 from devito.ir.iet import Iteration
@@ -68,12 +68,12 @@ def points(grid, ranges, npoints, name='points'):
 
 @pytest.fixture(scope="session")
 def dims():
-    return {'i': Dimension(name='i'),
-            'j': Dimension(name='j'),
-            'k': Dimension(name='k'),
-            'l': Dimension(name='l'),
-            's': Dimension(name='s'),
-            'q': Dimension(name='q')}
+    return {'i': SpaceDimension(name='i'),
+            'j': SpaceDimension(name='j'),
+            'k': SpaceDimension(name='k'),
+            'l': SpaceDimension(name='l'),
+            's': SpaceDimension(name='s'),
+            'q': SpaceDimension(name='q')}
 
 
 @pytest.fixture(scope="session")

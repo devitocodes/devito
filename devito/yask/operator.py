@@ -11,15 +11,16 @@ from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Element, List, PointerCast, MetaCall, Transformer,
                            retrieve_iteration_tree)
+from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
-from devito.tools import ReducerMap, flatten
+from devito.tools import ReducerMap, Signer, flatten
 from devito.types import Object
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
 from devito.yask.utils import (make_grid_accesses, make_sharedptr_funcall, rawpointer,
                                namespace)
-from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
+from devito.yask.wrappers import YaskNullKernel, contexts
 from devito.yask.transformer import yaskizer
 from devito.yask.types import YaskGridObject
 
@@ -44,7 +45,12 @@ class Operator(OperatorRunnable):
         self._compiler = configuration.yask['compiler'].copy()
 
     def _specialize_exprs(self, expressions):
+        # Align data accesses to the computational domain if not a yask.Function
+        key = lambda i: i.is_TensorFunction and not i.from_YASK
+        expressions = [align_accesses(e, key=key) for e in expressions]
+
         expressions = super(Operator, self)._specialize_exprs(expressions)
+
         # No matter whether offloading will occur or not, all YASK grids accept
         # negative indices when using the get/set_element_* methods (up to the
         # padding extent), so the OOB-relative data space should be adjusted
@@ -63,15 +69,17 @@ class Operator(OperatorRunnable):
         offloadable = find_offloadable_trees(iet)
 
         if len(offloadable.trees) == 0:
-            self.context = YaskNullContext()
             self.yk_soln = YaskNullKernel()
 
             log("No offloadable trees found")
         else:
-            self.context = contexts.fetch(offloadable.grid, offloadable.dtype)
+            context = contexts.fetch(offloadable.grid, offloadable.dtype)
+
+            # A unique name for the 'real' compiler and kernel solutions
+            name = namespace['jit-soln'](Signer._digest(iet, configuration))
 
             # Create a YASK compiler solution for this Operator
-            yc_soln = self.context.make_yc_solution(namespace['jit-yc-soln'])
+            yc_soln = context.make_yc_solution(name)
 
             try:
                 trees = offloadable.trees
@@ -85,24 +93,23 @@ class Operator(OperatorRunnable):
                                                  namespace['code-soln-name'])
                 funcall = Element(c.Statement(ccode(funcall)))
                 mapper = {trees[0].root: funcall}
-                mapper.update({i.root: None for i in trees[1:]})
+                mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
                 iet = Transformer(mapper).visit(iet)
 
                 # Mark `funcall` as an external function call
                 self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
-                self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
-                                                             yc_soln, local_grids)
+                self.yk_soln = context.make_yk_solution(name, yc_soln, local_grids)
 
                 # Print some useful information about the newly constructed solution
                 log("Solution '%s' contains %d grid(s) and %d equation(s)." %
                     (yc_soln.get_name(), yc_soln.get_num_grids(),
                      yc_soln.get_num_equations()))
-            except:
+            except NotImplementedError as e:
                 self.yk_soln = YaskNullKernel()
 
-                log("Unable to offload a candidate tree.")
+                log("Unable to offload a candidate tree. Reason: [%s]" % str(e))
 
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
