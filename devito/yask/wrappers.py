@@ -67,7 +67,7 @@ class YaskKernel(object):
                 # No MPI support at the moment
                 'mpi=0',
                 # To locate the YASK compiler
-                'YC_EXEC=%s' % '/data/opesci/yask/bin',
+                'YC_EXEC=%s' % os.path.join(namespace['path'], 'bin'),
                 # Error out if a grid not explicitly defined in the compiler is created
                 'allow_new_grid_types=0',
                 # To give a unique name to the generated Python modules, rather
