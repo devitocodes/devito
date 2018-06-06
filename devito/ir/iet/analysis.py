@@ -191,8 +191,8 @@ def mark_affine(analysis):
         for i in tree:
             if i in properties:
                 continue
-            array_accesses = [a for a in analysis.scopes[i].accesses if not a.is_scalar]
-            if all(i.dim._defines & set(a.findices_affine) for a in array_accesses):
+            arrays = [a for a in analysis.scopes[i].accesses if not a.is_scalar]
+            if all(a.is_regular and a.affine_if_present(i.dim._defines) for a in arrays):
                 properties[i] = AFFINE
 
     analysis.update(properties)

@@ -1,14 +1,16 @@
 from __future__ import absolute_import
 
 import os
+from subprocess import PIPE, Popen
+
+import cpuinfo
 
 from devito.base import *  # noqa
 from devito.data import *  # noqa
 from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
 from devito.finite_difference import *  # noqa
-from devito.grid import *  # noqa
-from devito.logger import error, warning, info, set_log_level  # noqa
+from devito.logger import error, warning, info, set_log_level, silencio  # noqa
 from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
 
@@ -46,6 +48,46 @@ configuration.add('isa', 'cpp', ISAs)
 # Set the CPU architecture (only codename)
 PLATFORMs = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
 configuration.add('platform', 'intel64', PLATFORMs)
+
+
+def infer_cpu():
+    """
+    Detect the highest Instruction Set Architecture and the platform
+    codename using cpu flags and/or leveraging other tools. Return default
+    values if the detection procedure was unsuccesful.
+    """
+    cpu_info = cpuinfo.get_cpu_info()
+    # ISA
+    isa = configuration._defaults['isa']
+    for i in reversed(configuration._accepted['isa']):
+        if any(j.startswith(i) for j in cpu_info['flags']):
+            # Using `startswith`, rather than `==`, as a flag such as 'avx512'
+            # appears as 'avx512f, avx512cd, ...'
+            isa = i
+            break
+    # Platform
+    try:
+        # First, try leveraging `gcc`
+        p1 = Popen(['gcc', '-march=native', '-Q', '--help=target'], stdout=PIPE)
+        p2 = Popen(['grep', 'march'], stdin=p1.stdout, stdout=PIPE)
+        p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
+        output, _ = p2.communicate()
+        platform = output.decode("utf-8").split()[1]
+        # Full list of possible /platform/ values at this point at:
+        # https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
+        platform = {'sandybridge': 'snb', 'ivybridge': 'ivb', 'haswell': 'hsw',
+                    'broadwell': 'bdw', 'skylake': 'skx', 'knl': 'knl'}[platform]
+    except:
+        # Then, try infer from the brand name, otherwise fallback to default
+        try:
+            platform = cpu_info['brand'].split()[4]
+            platform = {'v2': 'ivb', 'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}[platform]
+        except:
+            platform = None
+    # Is it a known platform?
+    if platform not in configuration._accepted['platform']:
+        platform = configuration._defaults['platform']
+    return isa, platform
 
 
 # In develop-mode:

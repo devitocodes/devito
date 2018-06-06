@@ -1,6 +1,6 @@
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.base import Constant
+from devito.function import Constant
 
 from sympy import prod
 import numpy as np
@@ -71,26 +71,25 @@ class Grid(object):
             # Create the spatial dimensions and constant spacing symbols
             assert(self.dim <= 3)
             dim_names = self._default_dimensions[:self.dim]
-            dim_spacing = tuple(Constant(name='h_%s' % name, value=val, dtype=self.dtype)
-                                for name, val in zip(dim_names, self.spacing))
-            self.dimensions = tuple(SpaceDimension(name=name, spacing=spc)
-                                    for name, spc in zip(dim_names, dim_spacing))
+            dim_spacing = tuple(self._const(name='h_%s' % n, value=v, dtype=self.dtype)
+                                for n, v in zip(dim_names, self.spacing))
+            self.dimensions = tuple(SpaceDimension(name=n, spacing=s)
+                                    for n, s in zip(dim_names, dim_spacing))
         else:
             self.dimensions = dimensions
 
-        self.origin = tuple(Constant(name='o_%s' % dim.name, value=val, dtype=self.dtype)
-                            for dim, val in zip(self.dimensions, origin))
+        self.origin = tuple(self._const(name='o_%s' % d.name, value=v, dtype=self.dtype)
+                            for d, v in zip(self.dimensions, origin))
         # TODO: Raise proper exceptions and logging
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
-            self.time_dim = TimeDimension(name='time',
-                                          spacing=Constant(name='dt', dtype=self.dtype))
-            self.stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
+            spacing = self._const(name='dt', dtype=self.dtype)
+            self.time_dim = TimeDimension(name='time', spacing=spacing)
+            self.stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
         elif isinstance(time_dimension, TimeDimension):
             self.time_dim = time_dimension
-            self.stepping_dim = SteppingDimension(name='%s_s' % time_dimension.name,
-                                                  parent=self.time_dim)
+            self.stepping_dim = self._make_stepping_dim(self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
@@ -133,3 +132,14 @@ class Grid(object):
     def shape_domain(self):
         """Shape of the physical domain (without external boundary layer)"""
         return self.shape
+
+    @property
+    def _const(self):
+        """Return the type to create constant symbols."""
+        return Constant
+
+    def _make_stepping_dim(self, time_dim, name=None):
+        """Create a stepping dimension for this Grid."""
+        if name is None:
+            name = '%s_s' % time_dim.name
+        return SteppingDimension(name=name, parent=time_dim)
