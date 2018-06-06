@@ -950,7 +950,7 @@ class SparseFunction(AbstractSparseFunction):
         # Substitute coordinate base symbols into the coefficients
         return OrderedDict(zip(self.point_symbols, self.coordinate_bases)), idx_subs
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
+    def interpolate(self, expr, offset=0, cummulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
@@ -966,26 +966,18 @@ class SparseFunction(AbstractSparseFunction):
         """
         expr = indexify(expr)
 
-        # Apply optional time symbol substitutions to expr
-        if u_t is not None:
-            time = self.grid.time_dim
-            t = self.grid.stepping_dim
-            expr = expr.subs(t, u_t).subs(time, u_t)
-
         variables = list(retrieve_indexed(expr))
         # List of indirection indices for all adjacent grid points
         subs, idx_subs = self._interpolation_indices(variables, offset)
         # Substitute coordinate base symbols into the coefficients
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
-        # Apply optional time symbol substitutions to lhs of assignment
-        lhs = self if p_t is None else self.subs(self.indices[0], p_t)
 
-        rhs = rhs + lhs if cummulative is True else rhs
+        rhs = rhs + self if cummulative is True else rhs
 
-        return [Eq(lhs, rhs)]
+        return [Eq(self, rhs)]
 
-    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+    def inject(self, field, expr, offset=0):
         """Symbol for injection of an expression onto a grid
 
         :param field: The grid field into which we inject.
@@ -998,12 +990,6 @@ class SparseFunction(AbstractSparseFunction):
         expr = indexify(expr)
         field = indexify(field)
         variables = list(retrieve_indexed(expr)) + [field]
-
-        # Apply optional time symbol substitutions to field and expr
-        if u_t is not None:
-            field = field.subs(field.indices[0], u_t)
-        if p_t is not None:
-            expr = expr.subs(self.indices[0], p_t)
 
         # List of indirection indices for all adjacent grid points
         subs, idx_subs = self._interpolation_indices(variables, offset)
@@ -1077,6 +1063,62 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
+        """Creates a :class:`sympy.Eq` equation for the interpolation
+        of an expression onto this sparse point collection.
+
+        :param expr: The expression to interpolate.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into
+                    field data in `expr`.
+        :param p_t: (Optional) time index to use for indexing into
+                    the sparse point data.
+        :param cummulative: (Optional) If True, perform an increment rather
+                            than an assignment. Defaults to False.
+        """
+        expr = indexify(expr)
+
+        # Apply optional time symbol substitutions to expr
+        if u_t is not None:
+            time = self.grid.time_dim
+            t = self.grid.stepping_dim
+            expr = expr.subs(t, u_t).subs(time, u_t)
+
+        variables = list(retrieve_indexed(expr))
+        # List of indirection indices for all adjacent grid points
+        subs, idx_subs = self._interpolation_indices(variables, offset)
+        # Substitute coordinate base symbols into the coefficients
+        rhs = sum([expr.subs(vsub) * b.subs(subs)
+                   for b, vsub in zip(self.coefficients, idx_subs)])
+        # Apply optional time symbol substitutions to lhs of assignment
+        lhs = self if p_t is None else self.subs(self.indices[0], p_t)
+
+        rhs = rhs + lhs if cummulative is True else rhs
+
+        return [Eq(lhs, rhs)]
+
+    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+        """Symbol for injection of an expression onto a grid
+
+        :param field: The grid field into which we inject.
+        :param expr: The expression to inject.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into `field`.
+        :param p_t: (Optional) time index to use for indexing into `expr`.
+        """
+        expr = indexify(expr)
+        field = indexify(field)
+
+        # Apply optional time symbol substitutions to field and expr
+        if u_t is not None:
+            field = field.subs(field.indices[0], u_t)
+        if p_t is not None:
+            expr = expr.subs(self.indices[0], p_t)
+
+        return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
 
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
