@@ -4,7 +4,7 @@ from conftest import skipif_yask, unit_box, points, unit_box_time, time_points
 from math import sin, floor
 
 from devito.cgen_utils import FLOAT
-from devito import Grid, Operator, Function, SparseFunction, Dimension, TimeFunction, Eq
+from devito import Grid, Operator, Function, SparseFunction, Dimension, TimeFunction
 from devito.function import PrecomputedSparseFunction
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver

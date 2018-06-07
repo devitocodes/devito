@@ -65,7 +65,11 @@ def iet_make(stree):
                     # Apart from SteppingDimension, no other type of Dimension
                     # requires generation of uindices
                     continue
-                modulo = len(offs)
+                # Get the modul span. First at 0 (no offset) if not present then
+                # get full offset
+                offs.update({0})
+                offs = [o for o in offs]
+                modulo = np.max(offs) - np.min(offs) + 1
                 for n, o in enumerate(filter_ordered(offs)):
                     value = (i.dim + o) % modulo
                     symbol = Scalar(name="%s%d" % (d.name, n), dtype=np.int32)

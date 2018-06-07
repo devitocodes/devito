@@ -950,7 +950,7 @@ class SparseFunction(AbstractSparseFunction):
         # Substitute coordinate base symbols into the coefficients
         return OrderedDict(zip(self.point_symbols, self.coordinate_bases)), idx_subs
 
-    def interpolate(self, expr, offset=0, cummulative=False, self_subs=None):
+    def interpolate(self, expr, offset=0, cummulative=False, self_subs={}):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 

@@ -60,7 +60,7 @@ def unit_box(name='a', shape=(11, 11)):
 def unit_box_time(name='a', shape=(11, 11)):
     """Create a field with value 0. to 1. in each dimension"""
     grid = Grid(shape=shape)
-    a = TimeFunction(name=name, grid=grid, time_order=2)
+    a = TimeFunction(name=name, grid=grid, time_order=1)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
     a.data[0, :] = np.meshgrid(*dims)[1]
     a.data[1, :] = np.meshgrid(*dims)[1]
