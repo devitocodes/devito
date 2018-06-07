@@ -194,6 +194,10 @@ def mode_performance():
     mode will also try to allocate any future :class:`TensorFunction` with
     a suitable NUMA strategy."""
     configuration['develop-mode'] = False
+    if configuration['backend'] == 'core':
+        configuration.backend['autotuning'] = 'aggressive'
+    elif configuration['backend'] == 'yask':
+        configuration.backend['autotuning'] = 'runtime'
 
 
 def mode_benchmark():
