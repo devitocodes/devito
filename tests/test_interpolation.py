@@ -4,7 +4,7 @@ from conftest import skipif_yask, unit_box, points, unit_box_time, time_points
 from math import sin, floor
 
 from devito.cgen_utils import FLOAT
-from devito import Grid, Operator, Function, SparseFunction, Dimension, TimeFunction
+from devito import Grid, Operator, Function, SparseFunction, Dimension, TimeFunction, Eq
 from devito.function import PrecomputedSparseFunction
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -142,28 +142,27 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
     abitrary set of points going across the grid.
     """
     a = unit_box_time(shape=shape)
-    print(a.shape, a.indices)
     p = time_points(a.grid, coords, npoints=npoints, nt=10)
     xcoords = p.coordinates.data[:, 0]
 
     p.data[:] = 1.
-    expr = p.interpolate(a, cummulative=True, u_t=a.indices[0]+1)
+    expr = p.interpolate(a, u_t=a.indices[0]+1)
     Operator(expr)(a=a)
 
-    assert np.allclose(p.data[0, :], xcoords + 1., rtol=1e-6)
+    assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
 
     p.data[:] = 1.
-    expr = p.interpolate(a, cummulative=True, p_t=p.indices[0]+1)
+    expr = p.interpolate(a, p_t=p.indices[0]+1)
     Operator(expr)(a=a)
 
-    assert np.allclose(p.data[1, :], xcoords + 1., rtol=1e-6)
+    assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
 
     p.data[:] = 1.
-    expr = p.interpolate(a, cummulative=True, u_t=a.indices[0]+1,
+    expr = p.interpolate(a, u_t=a.indices[0]+1,
                          p_t=p.indices[0]+1)
     Operator(expr)(a=a)
 
-    assert np.allclose(p.data[1, :], xcoords + 1., rtol=1e-6)
+    assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
 
 
 @skipif_yask
@@ -362,7 +361,3 @@ def test_position(shape):
                                  o_x=100., o_y=100., o_z=100.)
 
     assert(np.allclose(rec.data, rec1.data, atol=1e-5))
-
-
-if __name__ == "__main__":
-    test_inject_time_shift((11, 11), [(.05, .95), (.45, .45)], 1.)
