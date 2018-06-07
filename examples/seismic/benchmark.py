@@ -5,7 +5,8 @@ import numpy as np
 import click
 
 from devito import clear_cache, configuration, sweep, mode_develop, mode_benchmark
-from devito.logger import warning
+from devito.exceptions import InvalidOperator
+from devito.logger import warning, silencio
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run
 from examples.seismic.tti.tti_example import run as tti_run
 
@@ -23,7 +24,7 @@ def benchmark():
 
     Further, this script can generate a roofline plot from a benchmark
     """
-    mode_benchmark()
+    pass
 
 
 def option_simulation(f):
@@ -56,16 +57,12 @@ def option_performance(f):
 
     _preset = {
         # Fixed
-        'O1': {'autotune': True, 'dse': 'basic', 'dle': 'basic'},
-        'O2': {'autotune': True, 'dse': 'advanced', 'dle': 'advanced'},
-        'O3': {'autotune': True, 'dse': 'aggressive', 'dle': 'advanced'},
+        'O1': {'dse': 'basic', 'dle': 'basic'},
+        'O2': {'dse': 'advanced', 'dle': 'advanced'},
+        'O3': {'dse': 'aggressive', 'dle': 'advanced'},
         # Parametric
-        'dse': {'autotune': True,
-                'dse': ['basic', 'advanced', 'aggressive'],
-                'dle': 'advanced'},
-        'dle': {'autotune': True,
-                'dse': 'advanced',
-                'dle': ['basic', 'advanced']}
+        'dse': {'dse': ['basic', 'advanced', 'aggressive'], 'dle': 'advanced'},
+        'dle': {'dse': 'advanced', 'dle': ['basic', 'advanced']}
     }
 
     def from_preset(ctx, param, value):
@@ -90,8 +87,11 @@ def option_performance(f):
         click.option('--dle', callback=from_value,
                      type=click.Choice(['noop'] + configuration._accepted['dle']),
                      help='Devito loop engine (DLE) mode'),
-        click.option('-a', '--autotune', is_flag=True, callback=from_value,
+        click.option('-a', '--autotune', is_flag=True, default=True,
                      help='Switch auto tuning on/off'),
+        click.option('--backend', default='core',
+                     type=click.Choice(configuration._accepted['backend']),
+                     help='Execution backend (e.g., core, yask)')
     ]
     for option in reversed(options):
         f = option(f)
@@ -105,6 +105,8 @@ def cli_run(problem, **kwargs):
     """
     A single run with a specific set of performance parameters.
     """
+    configuration['backend'] = kwargs.pop('backend')
+    mode_benchmark()
     run(problem, **kwargs)
 
 
@@ -115,6 +117,7 @@ def run(problem, **kwargs):
     run = tti_run if problem == 'tti' else acoustic_run
     time_order = kwargs.pop('time_order')[0]
     space_order = kwargs.pop('space_order')[0]
+    kwargs.pop('backend')
     run(space_order=space_order, time_order=time_order, **kwargs)
 
 
@@ -125,6 +128,7 @@ def cli_test(problem, **kwargs):
     """
     Test numerical correctness with different parameters.
     """
+    configuration['backend'] = kwargs.pop('backend')
     mode_develop()
     test(problem, **kwargs)
 
@@ -134,7 +138,7 @@ def test(problem, **kwargs):
     Test numerical correctness with different parameters.
     """
     run = tti_run if problem == 'tti' else acoustic_run
-    sweep_options = ('space_order', 'time_order', 'dse', 'dle', 'autotune')
+    sweep_options = ('space_order', 'time_order', 'dse', 'dle')
 
     last_res = None
     for params in sweep(kwargs, keys=sweep_options):
@@ -159,6 +163,8 @@ def cli_bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
+    configuration['backend'] = kwargs.pop('backend')
+    mode_benchmark()
     bench(problem, **kwargs)
 
 
@@ -196,6 +202,7 @@ def cli_plot(problem, **kwargs):
     """
     Plotting mode to generate plots for performance analysis.
     """
+    mode_benchmark()
     plot(problem, **kwargs)
 
 
@@ -203,6 +210,7 @@ def plot(problem, **kwargs):
     """
     Plotting mode to generate plots for performance analysis.
     """
+    backend = kwargs.pop('backend')
     resultsdir = kwargs.pop('resultsdir')
     max_bw = kwargs.pop('max_bw')
     flop_ceils = kwargs.pop('flop_ceil')
@@ -212,8 +220,6 @@ def plot(problem, **kwargs):
     space_order = "[%s]" % ",".join(str(i) for i in kwargs['space_order'])
     time_order = kwargs['time_order']
     shape = "[%s]" % ",".join(str(i) for i in kwargs['shape'])
-
-    backend = configuration['backend']
 
     RooflinePlotter = get_ob_plotter()
     bench = get_ob_bench(problem, resultsdir, kwargs)
@@ -311,8 +317,7 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['to'] = params['time_order']
             devito_params['dse'] = params['dse']
             devito_params['dle'] = params['dle']
-            devito_params['at'] = (params['autotune'] and
-                                   configuration.backend['autotuning'])
+            devito_params['at'] = configuration.backend['autotuning']
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
     return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)
