@@ -361,7 +361,7 @@ class TestSubDimension(object):
                                  thickness_left=thickness, thickness_right=thickness)
 
         # Flows inward (i.e. forward) rather than outward
-        eq = Eq(u[t+1, xl, yi], u[t+1, xl-1, yi] + 1)
+        eq = Eq(u[t, xl, yi], u[t, xl-1, yi] + 1)
 
         op = Operator([eq])
 
