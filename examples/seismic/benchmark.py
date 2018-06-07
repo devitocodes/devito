@@ -239,7 +239,7 @@ def plot(problem, **kwargs):
     # Legend setup. Do not plot a legend if there's no variation in performance
     # options (dse, dle, autotuning)
     if modes:
-        legend = {'loc': 'upper left', 'fontsize': 5, 'ncol': 4}
+        legend = {'loc': 'upper left', 'fontsize': 7, 'ncol': 4}
     else:
         legend = 'drop'
 
@@ -273,18 +273,18 @@ def plot(problem, **kwargs):
             marker = used_markers[so] if so in used_markers else avail_markers.pop(0)
             used_markers.setdefault(so, marker)
 
-            oi_loc = 0.05 if len(str(so)) == 1 else 0.06
-            oi_annotate = {'s': 'SO=%s' % so, 'size': 4, 'xy': (oi_value, oi_loc)}
+            oi_loc = 0.076 if len(str(so)) == 1 else 0.09
+            oi_annotate = {'s': 'SO=%s' % so, 'size': 6, 'xy': (oi_value, oi_loc)}
             if time_value in min_max[oi_value] and point_runtime:
                 # Only annotate min and max runtimes on each OI line, to avoid
                 # polluting the plot too much
-                point_annotate = {'s': "%.1f s" % time_value, 'xytext': (0, 5.2),
-                                  'size': 3.5, 'weight': 'bold', 'rotation': 0}
+                point_annotate = {'s': "%.0fs" % time_value, 'xytext': (0.0, 5.5),
+                                  'size': 6, 'rotation': 0}
             else:
                 point_annotate = None
             oi_line = time_value == min_max[oi_value][0]
             if oi_line:
-                perf_annotate = {'size': 4, 'xytext': (-4, 4)}
+                perf_annotate = {'size': 6, 'xytext': (-4, 5)}
 
             plot.add_point(gflops=v, oi=oi_value, marker=marker, color=color,
                            oi_line=oi_line, label=label, perf_annotate=perf_annotate,
