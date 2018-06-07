@@ -1,4 +1,5 @@
 import os
+import sys
 import importlib
 from glob import glob
 from subprocess import call
@@ -40,15 +41,14 @@ class YaskKernel(object):
         # Shared object name
         self.soname = "%s.devito.%s" % (name, configuration['platform'])
 
-        # It's necessary to `clean` the YASK kernel directory *before*
-        # writing out the first `yask_stencil_code.hpp`
-        make(namespace['path'], ['-C', namespace['kernel-path'], 'clean'])
+        # The directory in which the YASK-generated code (.hpp) will be placed
+        yk_codegen = namespace['yask-codegen'](name, 'devito', configuration['platform'])
+        if not os.path.exists(yk_codegen):
+            os.makedirs(yk_codegen)
 
         # Write out the stencil file
-        if not os.path.exists(namespace['kernel-path-gen']):
-            os.makedirs(namespace['kernel-path-gen'])
-        yc_soln.format(configuration['isa'],
-                       ofac.new_file_output(namespace['kernel-output']))
+        yk_codegen_file = os.path.join(yk_codegen, namespace['yask-codegen-file'])
+        yc_soln.format(configuration['isa'], ofac.new_file_output(yk_codegen_file))
 
         # JIT-compile it
         try:
@@ -62,27 +62,37 @@ class YaskKernel(object):
                     opt_level = 1
             else:
                 opt_level = 3
-            make(namespace['path'], ['-j', 'YK_CXX=%s' % compiler.cc,
-                                     'YK_CXXOPT=-O%d' % opt_level,
-                                     'mpi=0',  # Disable MPI for now
-                                     # "EXTRA_MACROS=TRACE",
-                                     'YK_BASE=%s' % name,
-                                     'stencil=%s' % 'devito',
-                                     'arch=%s' % configuration['platform'],
-                                     '-C', namespace['kernel-path'], 'api'])
+            args = [
+                '-j', 'YK_CXX=%s' % compiler.cc, 'YK_CXXOPT=-O%d' % opt_level,
+                # No MPI support at the moment
+                'mpi=0',
+                # To locate the YASK compiler
+                'YC_EXEC=%s' % os.path.join(namespace['path'], 'bin'),
+                # Error out if a grid not explicitly defined in the compiler is created
+                'allow_new_grid_types=0',
+                # To give a unique name to the generated Python modules, rather
+                # than creating `yask_kernel.py`
+                'YK_BASE=%s' % name,
+                # `stencil` and `arch` should always be provided
+                'stencil=%s' % 'devito', 'arch=%s' % configuration['platform'],
+                # The root directory of generated code files, shared libs, Python modules
+                'YASK_OUTPUT_DIR=%s' % namespace['yask-output-dir'],
+                # Pick the YASK kernel Makefile, i.e. the one under `yask/src/kernel`
+                '-C', namespace['kernel-path'], 'api'
+            ]
+            # Other potentially useful args:
+            # - "EXTRA_MACROS=TRACE", -- debugging option
+            make(namespace['path'], args)
         except CompilationError:
             exit("Kernel solution compilation")
 
         # Import the corresponding Python (SWIG-generated) module
         try:
-            yk = getattr(__import__('yask', fromlist=[name]), name)
+            sys.path.append(os.path.join(namespace['yask-output-dir'], 'yask'))
+            importlib.invalidate_caches()
+            yk = importlib.import_module(name)
         except ImportError:
             exit("Python YASK kernel bindings")
-        try:
-            yk = reload(yk)
-        except NameError:
-            # Python 3.5 compatibility
-            yk = importlib.reload(yk)
 
         # Create the YASK solution object
         kfac = yk.yk_factory()
