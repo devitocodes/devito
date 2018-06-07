@@ -94,7 +94,7 @@ before_script:
   - if [[ $DEVITO_BACKEND == 'yask' ]]; then
       conda install swig; cd ../;
       git clone https://github.com/opesci/yask.git;
-      cd yask; make compiler && make compiler-api; pip install -e .; cd ../devito;
+      cd yask; make compiler-api; pip install -e .; cd ../devito;
     fi
 
 script:
