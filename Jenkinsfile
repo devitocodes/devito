@@ -111,7 +111,6 @@ def installYask () {
     dir ("${WORKSPACE}/scratch") { sh 'git clone https://github.com/opesci/yask.git' }
     dir ("${WORKSPACE}/scratch/yask") { 
         sh '''source activate devito
-              make compiler
               make compiler-api
               pip install -e .
            '''

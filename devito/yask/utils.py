@@ -89,7 +89,6 @@ def split_increment(expr):
 namespace = OrderedDict()
 namespace['jit-hook'] = lambda i: 'hook_%s' % i
 namespace['jit-soln'] = lambda i: 'soln_%s' % i
-namespace['kernel-filename'] = 'yask_stencil_code.hpp'
 namespace['code-soln-type'] = 'yask::yk_solution'
 namespace['code-soln-name'] = 'soln'
 namespace['code-soln-run'] = 'run_solution'
