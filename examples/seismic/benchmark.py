@@ -150,8 +150,6 @@ def test(problem, **kwargs):
 @benchmark.command(name='bench')
 @option_simulation
 @option_performance
-@click.option('-a', '--autotune', is_flag=True,
-              help='Switch auto tuning on/off')
 @click.option('-r', '--resultsdir', default='results',
               help='Directory containing results')
 @click.option('-x', '--repeats', default=3,
@@ -161,6 +159,7 @@ def cli_bench(problem, **kwargs):
     Complete benchmark with multiple simulation and performance parameters.
     """
     mode_benchmark()
+    kwargs['autotune'] = configuration['autotuning'].level
     bench(problem, **kwargs)
 
 
@@ -316,8 +315,7 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['to'] = params['time_order']
             devito_params['dse'] = params['dse']
             devito_params['dle'] = params['dle']
-            devito_params['at'] = params.get('autotune',
-                                             configuration['autotuning'].level)
+            devito_params['at'] = params['autotune']
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
     return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)
