@@ -122,11 +122,12 @@ class Profiler(object):
                 continue
 
             # Derived metrics
+            # Note: some casts to `float` are simply to turn `sympy.Float` into `float`
             gflops = float(ops)/10**9
             gpoints = float(points)/10**9
             gflopss = gflops/time
             gpointss = gpoints/time
-            oi = ops/traffic
+            oi = float(ops/traffic)
 
             # Keep track of performance achieved
             summary.add(section.name, time, gflopss, gpointss, oi, data.sops, itershapes)
