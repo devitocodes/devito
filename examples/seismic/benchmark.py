@@ -317,7 +317,7 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['dse'] = params['dse']
             devito_params['dle'] = params['dle']
             devito_params['at'] = params.get('autotune',
-                                             configuration.backend['autotuning'])
+                                             configuration['autotuning'].level)
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
     return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)

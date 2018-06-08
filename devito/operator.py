@@ -171,7 +171,7 @@ class Operator(Callable):
         args.update(kwargs.pop('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        if kwargs.pop('autotune', False):
+        if kwargs.pop('autotune', configuration['autotuning'].level):
             args = self._autotune(args)
 
         # Check all user-provided keywords are known to the Operator
