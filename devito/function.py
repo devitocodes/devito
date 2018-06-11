@@ -973,9 +973,10 @@ class SparseFunction(AbstractSparseFunction):
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
 
-        rhs = rhs + self.subs(self_subs) if cummulative is True else rhs
+        lhs = self.subs(self_subs)
+        rhs = rhs + lhs if cummulative else rhs
 
-        return [Eq(self.subs(self_subs), rhs)]
+        return [Inc(lhs, rhs)] if cummulative else [Eq(lhs, rhs)]
 
     def inject(self, field, expr, offset=0):
         """Symbol for injection of an expression onto a grid

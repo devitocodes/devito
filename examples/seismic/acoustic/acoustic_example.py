@@ -11,11 +11,14 @@ from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 def smooth10(vel, shape):
     if np.isscalar(vel):
         return .9 * vel * np.ones(shape, dtype=np.float32)
-    out = np.copy(vel)
+    out = np.zeros(vel.shape)
+    out[:] = vel[:]
     nz = shape[-1]
 
+    full_dims = [slice(0, d) for d in shape[:-1]]
     for a in range(5, nz-6):
-            out[..., a] = np.sum(vel[..., a - 5:a + 5], axis=len(shape)-1) / 10
+            slicessum = full_dims + [slice(a - 5, a + 5)]
+            out[..., a] = np.sum(vel[slicessum], axis=len(shape)-1) / 10
 
     return out
 

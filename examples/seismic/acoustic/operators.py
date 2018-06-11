@@ -1,6 +1,6 @@
 from sympy import solve, Symbol
 
-from devito import Eq, Operator, Function, TimeFunction
+from devito import Eq, Operator, Function, TimeFunction, Inc
 from devito.logger import error
 from examples.seismic import PointSource, Receiver
 
@@ -147,10 +147,10 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
     eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
 
     if kernel == 'OT2':
-        gradient_update = Eq(grad, grad - u.dt2 * v)
+        gradient_update = Inc(grad, grad - u.dt2 * v)
     elif kernel == 'OT4':
-        gradient_update = Eq(grad, grad - (u.dt2 +
-                                           s**2 / 12.0 * u.laplace2(m**(-2))) * v)
+        gradient_update = Inc(grad, grad - (u.dt2 +
+                                            s**2 / 12.0 * u.laplace2(m**(-2))) * v)
     else:
         error("Unrecognized kernel, has to be OT2 or OT4")
     # Add expression for receiver injection
