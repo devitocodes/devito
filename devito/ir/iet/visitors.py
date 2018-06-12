@@ -545,6 +545,9 @@ class IsPerfectIteration(Visitor):
             return False
         return all(self.visit(i, found=found, **kwargs) for i in o.children)
 
+    def visit_Conditional(self, o, **kwargs):
+        return False
+
     def visit_Iteration(self, o, found=False, multi=False):
         if found and multi:
             return False
