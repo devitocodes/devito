@@ -545,14 +545,16 @@ class IsPerfectIteration(Visitor):
             return False
         return all(self.visit(i, found=found, **kwargs) for i in o.children)
 
-    def visit_Conditional(self, o, **kwargs):
-        return False
-
-    def visit_Iteration(self, o, found=False, multi=False):
-        if found and multi:
+    def visit_Conditional(self, o, found=False, **kwargs):
+        if not found:
             return False
-        multi = len(o.nodes) > 1
-        return all(self.visit(i, found=True, multi=multi) for i in o.children)
+        return all(self.visit(i, found=found, nomore=True) for i in o.children)
+
+    def visit_Iteration(self, o, found=False, nomore=False):
+        if found and nomore:
+            return False
+        nomore = len(o.nodes) > 1
+        return all(self.visit(i, found=True, nomore=nomore) for i in o.children)
 
 
 class Transformer(Visitor):
