@@ -252,13 +252,20 @@ class NumaAllocator(MemoryAllocator):
             c_pointer = self.lib.numa_alloc_local(c_bytesize)
         else:
             c_pointer = self.lib.numa_alloc(c_bytesize)
+
+        # note!  even though restype was set above, ctypes returns a
+        # python integer.
+        # See https://stackoverflow.com/questions/17840144/
         if c_pointer == 0:
             return None, None
         else:
-            return c_pointer, (c_pointer, size)
+            # Convert it back to a void * - this is
+            # _very_ important when later # passing it to numa_free
+            c_pointer = ctypes.c_void_p(c_pointer)
+            return c_pointer, (c_pointer, c_bytesize)
 
-    def free(self, c_pointer, size):
-        self.lib.numa_free(c_pointer, size)
+    def free(self, c_pointer, c_bytesize):
+        self.lib.numa_free(c_pointer, c_bytesize)
 
     @property
     def node(self):
