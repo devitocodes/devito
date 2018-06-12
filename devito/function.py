@@ -565,6 +565,9 @@ class Function(TensorFunction):
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
 
+    # Pickling support
+    _pickle_kwargs = TensorFunction._pickle_kwargs + ['grid']
+
 
 class TimeFunction(Function):
     """

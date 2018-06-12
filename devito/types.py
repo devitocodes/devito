@@ -11,7 +11,7 @@ import numpy as np
 import sympy
 
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, single_or
+from devito.tools import EnrichedTuple, Pickable, single_or
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -198,7 +198,7 @@ class AbstractSymbol(sympy.Symbol, Basic):
         return self
 
 
-class AbstractCachedSymbol(AbstractSymbol, Cached):
+class AbstractCachedSymbol(AbstractSymbol, Cached, Pickable):
     """
     Base class for dimension-free symbols, cached by both Devito and Sympy.
 
@@ -206,7 +206,6 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
     """
 
     def __new__(cls, *args, **kwargs):
-        print("__new__ ", args, kwargs)
         options = kwargs.get('options', {})
         if cls in _SymbolCache:
             newobj = sympy.Symbol.__new__(cls, *args, **options)
@@ -225,20 +224,11 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             newcls._cache_put(newobj)
         return newobj
 
-    def __reduce__(self):
-        print("__reduce__ ", type(self), self.__getnewargs__(), self.__getstate__())
-        """ Pickling support."""
-        return type(self), self.__getnewargs__(), self.__getstate__()
-
-    def __getnewargs__(self):
-        return (self.name, )
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        state['name'] = self.name
-        return state
-
     __hash__ = Cached.__hash__
+
+    # Pickling support
+    _pickle_kwargs = ['name']
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class Symbol(AbstractCachedSymbol):
@@ -291,7 +281,7 @@ class Scalar(Symbol):
         return self
 
 
-class AbstractFunction(sympy.Function, Basic):
+class AbstractFunction(sympy.Function, Basic, Pickable):
     """
     Base class for tensor symbols, only cached by SymPy. It inherits from and
     mimick the behaviour of a :class:`sympy.Function`.
@@ -525,6 +515,10 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """A mask to access the domain+halo region of the allocated data."""
         return tuple(slice(i, -j) if j != 0 else slice(i, None)
                      for i, j in self._offset_halo)
+
+    # Pickling support
+    _pickle_kwargs = ['name']
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class Array(AbstractCachedFunction):
