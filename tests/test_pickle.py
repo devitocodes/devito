@@ -17,6 +17,18 @@ def test_pickle():
     model = demo_model(preset='layers-isotropic', vp_top=1., vp_bottom=2.,
                        spacing=spacing, shape=shape, nbpml=nbpml)
 
+    print("to test :: ", model.grid.__dict__.keys())
+    for child in model.grid.__dict__:
+        print("testing ", child, type(model.grid.__dict__[child]))
+        pkl_child = pickle.dumps(model.grid.__dict__[child])
+        new_child = pickle.loads(pkl_child)
+
+    print("to test :: ", model.__dict__.keys())
+    for child in model.__dict__:
+        print("testing ", child)
+        pkl_child = pickle.dumps(model.__dict__[child])
+        new_child = pickle.loads(pkl_child)
+
     # Test Model pickling
     pkl_model = pickle.dumps(model)
     new_model = pickle.loads(pkl_model)
