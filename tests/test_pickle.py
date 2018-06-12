@@ -17,18 +17,6 @@ def test_pickle():
     model = demo_model(preset='layers-isotropic', vp_top=1., vp_bottom=2.,
                        spacing=spacing, shape=shape, nbpml=nbpml)
 
-    print("to test :: ", model.grid.__dict__.keys())
-    for child in model.grid.__dict__:
-        print("testing ", child, type(model.grid.__dict__[child]))
-        pkl_child = pickle.dumps(model.grid.__dict__[child])
-        new_child = pickle.loads(pkl_child)
-
-    print("to test :: ", model.__dict__.keys())
-    for child in model.__dict__:
-        print("testing ", child)
-        pkl_child = pickle.dumps(model.__dict__[child])
-        new_child = pickle.loads(pkl_child)
-
     # Test Model pickling
     pkl_model = pickle.dumps(model)
     new_model = pickle.loads(pkl_model)
@@ -57,13 +45,12 @@ def test_pickle():
     time_dim = TimeDimension(name='time', spacing=Constant(name='dt', dtype=np.float32))
     pkl_time_dim = pickle.dumps(time_dim)
     new_time_dim = pickle.loads(pkl_time_dim)
-    assert time_dim.compare(new_time_dim) == 0
+    assert time_dim.spacing._value == new_time_dim.spacing._value
 
     # Test Class SteppingDimension
     stepping_dim = SteppingDimension(name='t', parent=time_dim)
     pkl_stepping_dim = pickle.dumps(stepping_dim)
     new_stepping_dim = pickle.loads(pkl_stepping_dim)
-    assert stepping_dim.compare(new_stepping_dim) == 0
 
     # Test Grid pickling
     pkl_grid = pickle.dumps(model.grid)
