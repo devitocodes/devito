@@ -2,7 +2,7 @@ from abc import ABC
 from hashlib import sha1
 
 
-__all__ = ['Tag', 'Signer']
+__all__ = ['Tag', 'Signer', 'Pickable']
 
 
 class Tag(ABC):
@@ -78,3 +78,38 @@ class Signer(object):
 
     def _signature(self):
         return Signer._sign(self._signature_items())
+
+
+class Pickable(object):
+
+    """
+    A base class for types that require pickling. There are several complications
+    that this class aim to help with: ::
+
+        * Packages such as SymPy have their own way of handling pickling -- though
+          still based upon Python's pickle module. This may get in conflict with
+          other packages, or simply with Devito itself. For example, most of Devito
+          symbolic objects are created via ``def __new__(..., **kwargs)``; SymPy1.1
+          pickling does not cope nicely with ``new`` and ``kwargs``, since it is
+          based on the low-level copy protocol (__reduce__, __reduce_ex__) and
+          simply end up ignoring ``__getnewargs_ex__``, the function responsible
+          for processing __new__'s kwargs.
+
+    .. note::
+
+        All sub-classes using multiple inheritance may have to explicitly set
+        ``__reduce_ex__ = Pickable.__reduce_ex__`` depending on the MRO.
+    """
+
+    _pickle_args = []
+    """The positional arguments that need to be passed to __new__ upon unpickling."""
+
+    _pickle_kwargs = []
+    """The keyword arguments that need to be passed to __new__ upon unpickling."""
+
+    def __reduce_ex__(self, proto):
+        return object.__reduce_ex__(self, proto)
+
+    def __getnewargs_ex__(self):
+        return (tuple(getattr(self, i) for i in self._pickle_args),
+                {i: getattr(self, i) for i in self._pickle_kwargs})
