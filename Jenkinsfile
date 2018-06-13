@@ -13,7 +13,7 @@ pipeline {
             parallel {
                 // For each combination of parameters required, build and test
                 stage('Build and test gcc-4.9 container') {
-                     agent { dockerfile { label 'azure-linux'
+                     agent { dockerfile { label 'azure-linux-8core'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=4.9" } }
                      environment { 
@@ -28,7 +28,7 @@ pipeline {
                      }
                 }
                 stage('Build and test gcc-4.9 OpenMP container') {
-                     agent { dockerfile { label 'azure-linux' 
+                     agent { dockerfile { label 'azure-linux-8core' 
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=4.9" } }
                      environment { 
@@ -46,7 +46,7 @@ pipeline {
                      }
                 }
                 stage('Build and test gcc-5 container') {
-                     agent { dockerfile { label 'azure-linux' 
+                     agent { dockerfile { label 'azure-linux-8core' 
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=5" } }
                      environment { 
