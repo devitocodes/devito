@@ -51,10 +51,12 @@ def test_pickle():
     stepping_dim = SteppingDimension(name='t', parent=time_dim)
     pkl_stepping_dim = pickle.dumps(stepping_dim)
     new_stepping_dim = pickle.loads(pkl_stepping_dim)
+    assert stepping_dim.is_Time == new_stepping_dim.is_Time
 
     # Test Grid pickling
     pkl_grid = pickle.dumps(model.grid)
     new_grid = pickle.loads(pkl_grid)
+    assert model.grid.shape == new_grid.shape
 
     assert model.grid.extent == new_grid.extent
     assert model.grid.shape == new_grid.shape

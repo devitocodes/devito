@@ -169,7 +169,7 @@ class WaveletSource(PointSource):
         npoint = kwargs.get('npoint', 1)
         options = kwargs.copy()
         options['npoint'] = npoint
-        
+
         name = options.pop('name')
         grid = options.pop('grid')
         time_range = options.pop('time_range')
@@ -211,7 +211,6 @@ class WaveletSource(PointSource):
 
     # Pickling support
     _pickle_kwargs = PointSource._pickle_kwargs + ['grid', 'time_range', 'f0', 'npoint']
-
 
 
 class RickerSource(WaveletSource):
