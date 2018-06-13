@@ -1153,7 +1153,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x146bb809a1e0&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x146bb809a158&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14b65e499268&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14b65e4991e0&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1235,7 +1235,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x146bb8099d90&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x146bb8099d08&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x146bb8099c80&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b65e497e18&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b65e497d90&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b65e497d08&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1299,8 +1299,13 @@ tree to their respective section.</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.visitors.Visitor</span></code></p>
 <p>Return True if an <code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration</span></code> defines a perfect loop nest, False otherwise.</p>
 <dl class="method">
+<dt id="devito.ir.iet.visitors.IsPerfectIteration.visit_Conditional">
+<code class="descname">visit_Conditional</code><span class="sig-paren">(</span><em>o</em>, <em>found=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#IsPerfectIteration.visit_Conditional"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.IsPerfectIteration.visit_Conditional" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
 <dt id="devito.ir.iet.visitors.IsPerfectIteration.visit_Iteration">
-<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em>, <em>found=False</em>, <em>multi=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#IsPerfectIteration.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.IsPerfectIteration.visit_Iteration" title="Permalink to this definition">¶</a></dt>
+<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em>, <em>found=False</em>, <em>nomore=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#IsPerfectIteration.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.IsPerfectIteration.visit_Iteration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
