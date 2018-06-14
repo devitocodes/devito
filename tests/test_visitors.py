@@ -5,7 +5,8 @@ from conftest import skipif_yask
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
-                           NestedTransformer, printAST)
+                           Conditional, NestedTransformer, printAST)
+from sympy import Mod, Eq
 
 
 @pytest.fixture(scope="module")
@@ -54,8 +55,17 @@ def block3(exprs, iters):
                      iters[4](exprs[3])])
 
 
+@pytest.fixture(scope="module")
+def block4(exprs, iters, dims):
+    # Non-perfect loop nest due to conditional
+    # for i
+    #   if i % 2 == 0
+    #   for j
+    return iters[0](Conditional(Eq(Mod(dims['i'], 2), 0), iters[1](exprs[0])))
+
+
 @skipif_yask
-def test_printAST(block1, block2, block3):
+def test_printAST(block1, block2, block3, block4):
     str1 = printAST(block1)
     assert str1 in """
 <Iteration i::i::(0, 3, 1)::(0, 0)>
@@ -84,6 +94,14 @@ def test_printAST(block1, block2, block3):
       <Expression a[i] = 4*a[i]*b[i]>
   <Iteration q::q::(0, 4, 1)::(0, 0)>
     <Expression a[i] = 8.0*a[i] + 6.0/b[i]>
+"""
+
+    str4 = printAST(block4)
+    assert str4 in """
+<Iteration i::i::(0, 3, 1)::(0, 0)>
+  <If Eq(Mod(i, 2), 0)>
+    <Iteration j::j::(0, 5, 1)::(0, 0)>
+      <Expression a[i] = a[i] + b[i] + 5.0>
 """
 
 
@@ -165,7 +183,7 @@ def test_find_sections(exprs, block1, block2, block3):
 
 
 @skipif_yask
-def test_is_perfect_iteration(block1, block2, block3):
+def test_is_perfect_iteration(block1, block2, block3, block4):
     checker = IsPerfectIteration()
 
     assert checker.visit(block1) is True
@@ -180,6 +198,10 @@ def test_is_perfect_iteration(block1, block2, block3):
     assert checker.visit(block3.nodes[0]) is True
     assert checker.visit(block3.nodes[1]) is True
     assert checker.visit(block3.nodes[2]) is True
+
+    assert checker.visit(block4) is False
+    assert checker.visit(block4.nodes[0]) is False
+    assert checker.visit(block4.nodes[0].then_body) is True
 
 
 @skipif_yask
