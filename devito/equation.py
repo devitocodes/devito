@@ -82,6 +82,6 @@ def solve(eq, target, **kwargs):
     """
     # Enforce certain parameters to values that are known to guarantee a quick
     # turnaround time
-    kwargs['rational'] = False
-    kwargs['simplify'] = False
+    kwargs['rational'] = False  # Avoid float indices
+    kwargs['simplify'] = False  # Do not attempt premature optimisation
     return sympy.solve(eq, target, **kwargs)[0]
