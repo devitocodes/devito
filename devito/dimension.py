@@ -24,10 +24,6 @@ class Dimension(AbstractSymbol):
     is_Conditional = False
     is_Stepping = False
 
-    is_Unbounded = False
-    is_UnboundedModulo = False
-    is_UnboundedIncr = False
-
     """
     A Dimension is a symbol representing a problem dimension and thus defining a
     potential iteration space.
@@ -563,55 +559,7 @@ class SteppingDimension(DerivedDimension):
         return values
 
 
-class UnboundedDimension(DerivedDimension):
-
-    is_Unbounded = True
-
-    """
-    Dimension symbol representing a non-contiguous sub-region of a given
-    ``parent`` Dimension.
-
-    .. note::
-
-        UnboundedDimensions are created internally by Devito and should never
-        be used in application code.
-
-    .. note::
-
-        Subclasses must implement the properties :meth:`symbolic_start` and
-        :meth:`symbolic_incr`.
-    """
-
-    @cached_property
-    def symbolic_start(self):
-        return NotImplementedError
-
-    @cached_property
-    def symbolic_end(self):
-        raise NotImplementedError
-
-    @cached_property
-    def symbolic_incr(self):
-        return NotImplementedError
-
-    def _arg_defaults(self, **kwargs):
-        """
-        A :class:`UnboundedDimension` provides no arguments, so this method
-        returns an empty dict.
-        """
-        return {}
-
-    def _arg_values(self, *args, **kwargs):
-        """
-        A :class:`UnboundedDimension` provides no arguments, so there are
-        no argument values to be derived.
-        """
-        return {}
-
-
-class ModuloDimension(UnboundedDimension):
-
-    is_UnboundedModulo = True
+class ModuloDimension(DerivedDimension):
 
     """
     Dimension symbol representing a non-contiguous sub-region of a given
@@ -630,7 +578,7 @@ class ModuloDimension(UnboundedDimension):
     def __new_stage2__(cls, parent, offset, modulo, name):
         if name is None:
             name = cls._genname(parent.name, (offset, modulo))
-        newobj = UnboundedDimension.__xnew__(cls, name, parent)
+        newobj = DerivedDimension.__xnew__(cls, name, parent)
         newobj._offset = offset
         newobj._modulo = modulo
         return newobj
@@ -659,39 +607,51 @@ class ModuloDimension(UnboundedDimension):
     def _properties(self):
         return (self._offset, self._modulo)
 
+    def _arg_defaults(self, **kwargs):
+        """
+        A :class:`ModuloDimension` provides no arguments, so this method
+        returns an empty dict.
+        """
+        return {}
 
-class IncrDimension(UnboundedDimension):
+    def _arg_values(self, *args, **kwargs):
+        """
+        A :class:`ModuloDimension` provides no arguments, so there are
+        no argument values to be derived.
+        """
+        return {}
 
-    is_UnboundedIncr = True
+
+class IncrDimension(DerivedDimension):
 
     """
     Dimension symbol representing a non-contiguous sub-region of a given
-    ``parent`` Dimension, with one point every ``offset`` points. Thus, if
-    ``offset == k``, the dimension represents the sequence ``start, start + k,
+    ``parent`` Dimension, with one point every ``step`` points. Thus, if
+    ``step == k``, the dimension represents the sequence ``start, start + k,
     start + 2*k, ...``.
 
     :param parent: Parent dimension from which the IncrDimension is created.
     :param start: An integer representing the starting point of the sequence.
-    :param offset: The distance between two consecutive points.
+    :param step: The distance between two consecutive points.
     :param name: (Optional) force a name for this Dimension.
     """
 
-    def __new__(cls, parent, start, offset, name=None):
-        return IncrDimension.__xnew_cached_(cls, parent, start, offset, name)
+    def __new__(cls, parent, start, step, name=None):
+        return IncrDimension.__xnew_cached_(cls, parent, start, step, name)
 
-    def __new_stage2__(cls, parent, start, offset, name):
+    def __new_stage2__(cls, parent, start, step, name):
         if name is None:
-            name = cls._genname(parent.name, (start, offset))
-        newobj = UnboundedDimension.__xnew__(cls, name, parent)
+            name = cls._genname(parent.name, (start, step))
+        newobj = DerivedDimension.__xnew__(cls, name, parent)
         newobj._start = start
-        newobj._offset = offset
+        newobj._step = step
         return newobj
 
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
     @property
-    def offset(self):
-        return self._offset
+    def step(self):
+        return self._step
 
     @cached_property
     def symbolic_start(self):
@@ -699,11 +659,25 @@ class IncrDimension(UnboundedDimension):
 
     @property
     def symbolic_incr(self):
-        return self + self.offset
+        return self + self.step
 
     @property
     def _properties(self):
-        return (self._start, self._offset)
+        return (self._start, self._step)
+
+    def _arg_defaults(self, **kwargs):
+        """
+        A :class:`IncrDimension` provides no arguments, so this method
+        returns an empty dict.
+        """
+        return {}
+
+    def _arg_values(self, *args, **kwargs):
+        """
+        A :class:`IncrDimension` provides no arguments, so there are
+        no argument values to be derived.
+        """
+        return {}
 
 
 def dimensions(names):

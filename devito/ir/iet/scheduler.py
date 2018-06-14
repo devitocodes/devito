@@ -47,10 +47,8 @@ def iet_make(stree):
             body = [Conditional(i.guard, queues.pop(i))]
 
         elif i.is_Iteration:
-            # Generate `uindices`, which correspond to the UnboundedDimensions
-            uindices = [d for d in i.sub_iterators if d.is_Unbounded]
             # Order to ensure deterministic code generation
-            uindices = sorted(uindices, key=lambda d: d.name)
+            uindices = sorted(i.sub_iterators, key=lambda d: d.name)
             # Generate Iteration
             body = [Iteration(queues.pop(i), i.dim, i.dim.limits, offsets=i.limits,
                               direction=i.direction, uindices=uindices)]

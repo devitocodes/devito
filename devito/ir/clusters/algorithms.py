@@ -82,9 +82,7 @@ def guard(clusters):
         mapper = OrderedDict()
         free = []
         for e in c.exprs:
-            found = []
-            for k, v in e.ispace.sub_iterators.items():
-                found.extend([i for i in v if i.is_Conditional])
+            found = [d for d in e.dimensions if d.is_Conditional]
             if found:
                 mapper.setdefault(tuple(filter_sorted(found)), []).append(e)
             else:

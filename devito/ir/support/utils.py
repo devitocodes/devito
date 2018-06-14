@@ -71,7 +71,7 @@ def build_iterators(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return a mapper ``M' : D -> V``,
     where D is the set of :class:`Dimension`s in M, and V is a set of
-    :class:`UnboundedDimension`s. M'[d] provides the sub-iterators along the
+    :class:`DerivedDimension`s. M'[d] provides the sub-iterators along the
     Dimension `d`.
     """
     iterators = OrderedDict()
@@ -82,7 +82,8 @@ def build_iterators(mapper):
                 sub_iterators.update({ModuloDimension(d, i, k._time_size)
                                       for i in offs})
             elif d.is_Conditional:
-                iterators.setdefault(d.parent, set()).update({d})
+                # There are no iterators associated to a ConditionalDimension
+                continue
             else:
                 iterators.setdefault(d, set())
     return {k: tuple(v) for k, v in iterators.items()}
