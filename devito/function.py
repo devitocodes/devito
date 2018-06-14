@@ -761,11 +761,11 @@ class TimeFunction(Function):
 
     def _arg_check(self, args, intervals):
         super(TimeFunction, self)._arg_check(args, intervals)
-        key = args[self.name]
-        if self._time_buffering and self._time_size != key.shape[self._time_position]:
+        key_time_size = args[self.name].shape[self._time_position]
+        if self._time_buffering and self._time_size != key_time_size:
             raise InvalidArgument("Expected `time_size=%d` for runtime "
                                   "value `%s`, found `%d` instead"
-                                  % (self._time_size, self.name, key._time_size))
+                                  % (self._time_size, self.name, key_time_size))
 
 
 class AbstractSparseFunction(TensorFunction):
