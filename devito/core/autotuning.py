@@ -7,7 +7,7 @@ from operator import mul
 import resource
 
 from devito.ir.iet import Iteration, FindNodes, FindSymbols
-from devito.logger import info, perf
+from devito.logger import info, perf, warning
 from devito.parameters import configuration
 
 __all__ = ['autotune']
@@ -49,7 +49,7 @@ def autotune(operator, arguments, parameters, tunable):
             at_arguments[stepper.dim.parent.min_name] = start
             at_arguments[stepper.dim.parent.max_name] = timesteps
     else:
-        perf("AT: Couldn't understand loop structure; giving up")
+        warning("AT: Couldn't understand loop structure; giving up")
         return arguments
 
     # Attempted block sizes ...
@@ -107,7 +107,7 @@ def autotune(operator, arguments, parameters, tunable):
                 continue
         except TypeError:
             # We should never get here
-            perf("AT: Couldn't determine stack size; skipping block size %s" % str(bs))
+            warning("AT: Couldn't determine stack size; skipping block size %s" % str(bs))
             continue
 
         # Use AT-specific profiler structs
