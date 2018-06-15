@@ -385,6 +385,8 @@ class OperatorRunnable(Operator):
         profiler = create_profile('timers')
         iet = profiler.instrument(iet)
         self._globals.append(profiler.cdef)
+        self._includes.extend(profiler._default_includes)
+        self.func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
         return iet, profiler
 
 

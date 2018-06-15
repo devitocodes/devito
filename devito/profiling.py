@@ -9,8 +9,8 @@ import os
 from ctypes import Structure, byref, c_double
 from cgen import Struct, Value
 
-from devito.ir.iet import (ExpressionBundle, TimedList, Section, FindNodes,
-                           Transformer)
+from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
+                           FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning
 from devito.parameters import configuration
@@ -24,6 +24,7 @@ class Profiler(object):
 
     _default_includes = []
     _default_libs = []
+    _ext_calls = []
 
     def __init__(self, name):
         self.name = name
@@ -147,8 +148,12 @@ class AdvisorProfiler(Profiler):
 
     """Rely on Intel Advisor ``v >= 2018`` for performance profiling."""
 
+    _api_resume = '__itt_resume'
+    _api_pause = '__itt_pause'
+
     _default_includes = ['ittnotify.h']
     _default_libs = ['ittnotify']
+    _ext_calls = [_api_resume, _api_pause]
 
     def __init__(self, name):
 
@@ -162,11 +167,19 @@ class AdvisorProfiler(Profiler):
             compiler = configuration['compiler']
             compiler.add_include_dirs(self.path.joinpath('include').as_posix())
             compiler.add_libraries(self._default_libs)
-            libdir = self.path.joinpath('lib64', 'runtime').as_posix()
+            libdir = self.path.joinpath('lib64').as_posix()
             compiler.add_library_dirs(libdir)
             compiler.add_ldflags('-Wl,-rpath,%s' % libdir)
 
     def instrument(self, iet):
+        sections = FindNodes(Section).visit(iet)
+
+        # Transform the Iteration/Expression tree introducing Advisor calls that
+        # resume and stop data collection
+        mapper = {i: List(body=[Call(self._api_resume), i, Call(self._api_pause)])
+                  for i in sections}
+        iet = Transformer(mapper).visit(iet)
+
         return iet
 
 
