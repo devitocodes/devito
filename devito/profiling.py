@@ -3,6 +3,8 @@ from __future__ import absolute_import
 from collections import OrderedDict, namedtuple
 from functools import reduce
 from operator import mul
+from pathlib import Path
+import os
 
 from ctypes import Structure, byref, c_double
 from cgen import Struct, Value
@@ -10,6 +12,7 @@ from cgen import Struct, Value
 from devito.ir.iet import (ExpressionBundle, TimedList, Section, FindNodes,
                            Transformer)
 from devito.ir.support import IntervalGroup
+from devito.logger import warning
 from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
@@ -17,18 +20,16 @@ from devito.tools import flatten
 __all__ = ['create_profile']
 
 
-def create_profile(name):
-    """
-    Create a new :class:`Profiler`.
-    """
-    return profiler_registry[configuration['profiling']](name)
-
-
 class Profiler(object):
+
+    _default_includes = []
+    _default_libs = []
 
     def __init__(self, name):
         self.name = name
         self._sections = OrderedDict()
+
+        self.initialized = True
 
     def new(self):
         """
@@ -144,7 +145,29 @@ class Profiler(object):
 
 class AdvisorProfiler(Profiler):
 
-    pass
+    """Rely on Intel Advisor ``v >= 2018`` for performance profiling."""
+
+    _default_includes = ['ittnotify.h']
+    _default_libs = ['ittnotify']
+
+    def __init__(self, name):
+
+        self.path = locate_intel_advisor()
+        if self.path is None:
+            self.initialized = False
+        else:
+            super(AdvisorProfiler, self).__init__(name)
+            # Make sure future compilations will get the proper header and
+            # shared object files
+            compiler = configuration['compiler']
+            compiler.add_include_dirs(self.path.joinpath('include').as_posix())
+            compiler.add_libraries(self._default_libs)
+            libdir = self.path.joinpath('lib64', 'runtime').as_posix()
+            compiler.add_library_dirs(libdir)
+            compiler.add_ldflags('-Wl,-rpath,%s' % libdir)
+
+    def instrument(self, iet):
+        return iet
 
 
 class PerformanceSummary(OrderedDict):
@@ -177,9 +200,39 @@ PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
 """Runtime profiling data for a :class:`Section`."""
 
 
+def create_profile(name):
+    """
+    Create a new :class:`Profiler`.
+    """
+    level = configuration['profiling']
+    profiler = profiler_registry[level](name)
+    if profiler.initialized:
+        return profiler
+    else:
+        warning("Couldn't set up `%s` profiler; reverting to `basic`" % level)
+        profiler = profiler_registry['basic'](name)
+        # We expect the `basic` profiler to always initialize successfully
+        assert profiler.initialized
+        return profiler
+
+
 # Set up profiling levels
 profiler_registry = {
     'basic': Profiler,
     'advisor': AdvisorProfiler
 }
 configuration.add('profiling', 'basic', list(profiler_registry))
+
+
+def locate_intel_advisor():
+    try:
+        path = Path(os.environ['ADVISOR_HOME'])
+        # Little hack: assuming a 64bit system
+        if path.joinpath('bin64').joinpath('advixe-cl').is_file():
+            return path
+        else:
+            warning("Requested `advisor` profiler, but couldn't locate executable")
+            return None
+    except KeyError:
+        warning("Requested `advisor` profiler, but ADVISOR_HOME isn't set")
+        return None
