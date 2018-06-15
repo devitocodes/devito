@@ -10,59 +10,18 @@ from cgen import Struct, Value
 from devito.ir.iet import (ExpressionBundle, TimedList, Section, FindNodes,
                            Transformer)
 from devito.ir.support import IntervalGroup
+from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
 
 __all__ = ['create_profile']
 
 
-def create_profile(name, iet):
+def create_profile(name):
     """
-    Enrich the Iteration/Expression tree ``iet`` adding nodes for C-level
-    performance profiling. In particular, turn all :class:`Section`s within ``iet``
-    into :class:`TimedList`s.
-
-    A :class:`Profiler` is returned to access profiling data.
+    Create a new :class:`Profiler`.
     """
-    sections = FindNodes(Section).visit(iet)
-
-    # Construct the Profiler
-    profiler = Profiler(name)
-    for section in sections:
-        # All ExpressionBundles within `section`
-        bundles = FindNodes(ExpressionBundle).visit(section)
-
-        # Total operation count
-        ops = sum(i.ops for i in bundles)
-
-        # Operation count at each section iteration
-        sops = sum(estimate_cost(i.expr) for i in flatten(b.exprs for b in bundles))
-
-        # Total memory traffic
-        mapper = {}
-        for i in bundles:
-            for k, v in i.traffic.items():
-                mapper.setdefault(k, []).append(v)
-        traffic = [IntervalGroup.generate('merge', *i) for i in mapper.values()]
-        traffic = sum(i.extent for i in traffic)
-
-        # Each ExpressionBundle lives in its own iteration space
-        itershapes = [i.shape for i in bundles]
-
-        # Track how many grid points are written within `section`
-        points = []
-        for i in bundles:
-            writes = {e.write for e in i.exprs if e.is_tensor and e.write.is_TimeFunction}
-            points.append(reduce(mul, i.shape)*len(writes))
-        points = sum(points)
-
-        profiler.add(section, SectionData(ops, sops, points, traffic, itershapes))
-
-    # Transform the Iteration/Expression tree introducing the C-level timers
-    mapper = {i: TimedList(gname=name, lname=i.name, body=i.body) for i in sections}
-    iet = Transformer(mapper).visit(iet)
-
-    return iet, profiler
+    return profiler_registry[configuration['profiling']](name)
 
 
 class Profiler(object):
@@ -71,24 +30,56 @@ class Profiler(object):
         self.name = name
         self._sections = OrderedDict()
 
-    def add(self, section, data):
-        """
-        Add a profiling section.
-
-        :param section: The :class:`Section` node being profiled.
-        :param data: An iterable of :class:`SectionData`s. Each SectionData represents
-                     an IET rooted in the Section, and includes the number of
-                     floating-point operations performed in the IET as well as the
-                     compulsory memory traffic, as bytes moved from/to memory.
-        """
-        self._sections[section] = data
-
     def new(self):
         """
         Allocate and return a pointer to a new C-level Struct capable of storing
-        all timers added through ``self.add(...)``.
+        all timers inserted by :meth:`instrument`.
         """
         return byref(self.dtype())
+
+    def instrument(self, iet):
+        """
+        Enrich the Iteration/Expression tree ``iet`` adding nodes for C-level
+        performance profiling. In particular, turn all :class:`Section`s within ``iet``
+        into :class:`TimedList`s.
+        """
+        sections = FindNodes(Section).visit(iet)
+        for section in sections:
+            bundles = FindNodes(ExpressionBundle).visit(section)
+
+            # Total operation count
+            ops = sum(i.ops for i in bundles)
+
+            # Operation count at each section iteration
+            sops = sum(estimate_cost(i.expr) for i in flatten(b.exprs for b in bundles))
+
+            # Total memory traffic
+            mapper = {}
+            for i in bundles:
+                for k, v in i.traffic.items():
+                    mapper.setdefault(k, []).append(v)
+            traffic = [IntervalGroup.generate('merge', *i) for i in mapper.values()]
+            traffic = sum(i.extent for i in traffic)
+
+            # Each ExpressionBundle lives in its own iteration space
+            itershapes = [i.shape for i in bundles]
+
+            # Track how many grid points are written within `section`
+            points = []
+            for i in bundles:
+                writes = {e.write for e in i.exprs
+                          if e.is_tensor and e.write.is_TimeFunction}
+                points.append(reduce(mul, i.shape)*len(writes))
+            points = sum(points)
+
+            self._sections[section] = SectionData(ops, sops, points, traffic, itershapes)
+
+        # Transform the Iteration/Expression tree introducing the C-level timers
+        mapper = {i: TimedList(gname=self.name, lname=i.name, body=i.body)
+                  for i in sections}
+        iet = Transformer(mapper).visit(iet)
+
+        return iet
 
     def summary(self, arguments, dtype):
         """
@@ -144,11 +135,16 @@ class Profiler(object):
     @property
     def cdef(self):
         """
-        Returns a :class:`cgen.Struct` representing the profiler data structure in C
+        Return a :class:`cgen.Struct` representing the profiler data structure in C
         (a ``struct``).
         """
         return Struct(Profiler.__name__,
                       [Value('double', i.name) for i in self._sections])
+
+
+class AdvisorProfiler(Profiler):
+
+    pass
 
 
 class PerformanceSummary(OrderedDict):
@@ -179,3 +175,11 @@ SectionData = namedtuple('SectionData', 'ops sops points traffic itershapes')
 
 PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
 """Runtime profiling data for a :class:`Section`."""
+
+
+# Set up profiling levels
+profiler_registry = {
+    'basic': Profiler,
+    'advisor': AdvisorProfiler
+}
+configuration.add('profiling', 'basic', list(profiler_registry))

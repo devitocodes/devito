@@ -380,9 +380,10 @@ class OperatorRunnable(Operator):
                      (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
-    def _profile_sections(self, iet,):
-        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        iet, profiler = create_profile('timers', iet)
+    def _profile_sections(self, iet):
+        """Instrument the Iteration/Expression tree for C-level profiling."""
+        profiler = create_profile('timers')
+        iet = profiler.instrument(iet)
         self._globals.append(profiler.cdef)
         return iet, profiler
 
