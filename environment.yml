@@ -5,20 +5,20 @@ channels:
 dependencies:
   - python>=3.6
   - numpy>=1.11
-  - sympy==1.1
+  - sympy>=1.1
   - cgen
   - scipy
   - matplotlib
   - pytest
   - flake8>=2.1.0
-  - parso==0.1.0
+  - parso>=0.1.0
   - nbval
   - cached-property
   - psutil>=5.1.0
   - sphinx
   - sphinx_rtd_theme
   - dask
-  - distributed
+  - distributed>=1.21.8
   - scikit-image
   - cython
   - click
@@ -30,3 +30,4 @@ dependencies:
     - "git+https://github.com/inducer/codepy"
     - "git+https://github.com/opesci/pyrevolve"
     - py-cpuinfo
+    - anytree>=2.4.3
