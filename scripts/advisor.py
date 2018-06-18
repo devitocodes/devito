@@ -7,7 +7,7 @@ import shutil
 
 import click
 
-from devito.logger import info
+from devito.logger import info, error
 
 
 @click.command()
@@ -70,18 +70,39 @@ def run_with_advisor(path, output, name, exec_args, advisor_home):
         'advixe-cl',
         '-q',  # Silence advisor
         '-data-limit=500',
-        '-collect survey',
         '-start-paused',  # The generated code will enable/disable Advisor on a loop basis
         '-project-dir', str(output),
         '-search-dir src:r=%s' % gettempdir(),  # Root directory where Devito stores the generated code  # noqa
+        '-loops="-total-time>5"'
+    ]
+    advisor_survey = [
+        '-collect survey',
         '-run-pass-thru=--no-altstack',  # Avoids `https://software.intel.com/en-us/vtune-amplifier-help-error-message-stack-size-is-too-small`  # noqa
         '-strategy ldconfig:notrace:notrace'  # Avoids `https://software.intel.com/en-us/forums/intel-vtune-amplifier-xe/topic/779309`  # noqa
     ]
+    advisor_flops = [
+        '-collect tripcounts',
+        '-flop',
+        '-no-trip-counts'
+    ]
     py_command = ['python', str(path)] + exec_args.split()
-    command = advisor_command + ['--'] + py_command
 
-    check_call(command)
-    info('Advisor data successfully stored in %s' % str(output))
+    # To build a roofline with Advisor, we need to run two analyses,
+    # one after the other: `survey` and `tripcounts`
+
+    info('Advisor: running `survey` analysis on `%s`' % name)
+    command = advisor_command + advisor_survey + ['--'] + py_command
+    if check_call(command) == 0:
+        info('Advisor `survey` data successfully stored in `%s`' % str(output))
+    else:
+        error('Advisor failed to run a `survey` analysis')
+
+    info('Advisor: running `tripcounts` analysis on `%s`' % name)
+    command = advisor_command + advisor_flops + ['--'] + py_command
+    if check_call(command) == 0:
+        info('Advisor `flops` data successfully stored in `%s`' % str(output))
+    else:
+        error('Advisor failed to run a `tripcounts` analysis')
 
 
 def check(cond, msg):
