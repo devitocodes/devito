@@ -2,9 +2,12 @@ import os
 import sys
 from pathlib import Path
 from subprocess import check_call
-from tempfile import gettempdir
+from tempfile import gettempdir, mkdtemp
+import shutil
 
 import click
+
+from devito.logger import info
 
 
 @click.command()
@@ -12,21 +15,35 @@ import click
 @click.option('--path', '-p', help='Absolute path to the Devito executable.',
               required=True)
 @click.option('--output', '-o', help='A directory for storing profiling reports. '
-                                     'The directory is created if it does not exist.',
-              required=True)
+                                     'The directory is created if it does not exist. '
+                                     'If unspecified, reports are stored within '
+                                     'the OS temporary directory')
 # Optional arguments
+@click.option('--name', '-n', help='A unique name identifying the run. '
+                                   'If unspecified, a name is assigned joining '
+                                   'the executable name with the options specified '
+                                   'in --exec-args (if any).')
 @click.option('--exec-args', type=click.UNPROCESSED,
               help='Arguments passed to the executable.')
 @click.option('--advisor-home', help='Path to Intel Advisor. Defaults to /opt/intel'
                                      '/advisor, which is the directory in which '
                                      'Intel Compiler suite is installed.')
-def run_with_advisor(path, output, exec_args, advisor_home):
+def run_with_advisor(path, output, name, exec_args, advisor_home):
     path = Path(path)
     check(path.is_file(), '%s not found' % path)
     check(path.suffix == '.py', '%s not a regular Python file' % path)
 
-    output = Path(output)
-    output.mkdir(parents=True, exist_ok=True)
+    # Create a directory to store the profiling report
+    if name is None:
+        name = path.stem
+        if exec_args:
+            name = "%s_%s" % (name, ''.join(exec_args))
+    if output is None:
+        output = Path(gettempdir()).joinpath('devito-profilings')
+        output.mkdir(parents=True, exist_ok=True)
+    else:
+        output = Path(output)
+    output = Path(mkdtemp(dir=str(output), prefix="%s-" % name))
 
     # Devito must be told where to find Advisor, because it uses its C API
     if advisor_home:
@@ -51,6 +68,7 @@ def run_with_advisor(path, output, exec_args, advisor_home):
 
     advisor_command = [
         'advixe-cl',
+        '-q',  # Silence advisor
         '-data-limit=500',
         '-collect survey',
         '-start-paused',  # The generated code will enable/disable Advisor on a loop basis
@@ -63,6 +81,7 @@ def run_with_advisor(path, output, exec_args, advisor_home):
     command = advisor_command + ['--'] + py_command
 
     check_call(command)
+    info('Advisor data successfully stored in %s' % str(output))
 
 
 def check(cond, msg):
