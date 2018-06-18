@@ -412,21 +412,6 @@ appears in this list are treated as traversable fields.</p>
 <dd><p>Return the symbol written by this Expression.</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="devito.ir.iet.nodes.Expression.substitute">
-<code class="descname">substitute</code><span class="sig-paren">(</span><em>substitutions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Expression.substitute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Expression.substitute" title="Permalink to this definition">¶</a></dt>
-<dd><p>Apply substitutions to the expression.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>substitutions</strong> – Dict containing the substitutions to apply to
-the stored expression.</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Expression.write">
 <code class="descname">write</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.write" title="Permalink to this definition">¶</a></dt>
@@ -563,9 +548,10 @@ to <code class="docutils literal notranslate"><span class="pre">Forward</span></
 <li><strong>properties</strong> – A bag of <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationProperty</span></code> objects, decorating
 the Iteration (sequential, parallel, vectorizable, …).</li>
 <li><strong>pragmas</strong> – A bag of pragmas attached to this Iteration.</li>
-<li><strong>uindices</strong> – a bag of UnboundedIndex objects, representing free iteration
-variables (i.e., the Iteration end point is independent of
-any of these UnboundedIndex).</li>
+<li><strong>uindices</strong> – a bag of <code class="xref py py-class docutils literal notranslate"><span class="pre">DerivedDimension`s</span> <span class="pre">with</span> <span class="pre">``dimension`</span></code> as root
+parent, representing additional Iteration variables with
+unbounded extreme (hence the “unbounded indices”, shortened
+as “uindices”).</li>
 </ul>
 </td>
 </tr>
@@ -584,6 +570,12 @@ if a limit is unknown.</p>
 <dt id="devito.ir.iet.nodes.Iteration.defines">
 <code class="descname">defines</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.defines" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return any symbols defined in the <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration</span></code></a> header.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.dimensions">
+<code class="descname">dimensions</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> objects used in the Iteration header.</p>
 </dd></dl>
 
 <dl class="method">
@@ -610,8 +602,7 @@ if a limit is unknown.</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Iteration.functions">
 <code class="descname">functions</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.functions" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return all <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> objects used in the header of
-this <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration</span></code></a>.</p>
+<dd><p>Return all <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> objects used in the Iteration header.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -760,20 +751,6 @@ an internally generated tag is used.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.ir.iet.nodes.UnboundedIndex">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">UnboundedIndex</code><span class="sig-paren">(</span><em>index</em>, <em>start=0</em>, <em>step=None</em>, <em>dim=None</em>, <em>expr=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#UnboundedIndex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.UnboundedIndex" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>A generic loop iteration index that can be used in a <a class="reference internal" href="#devito.ir.iet.nodes.Iteration" title="devito.ir.iet.nodes.Iteration"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration</span></code></a> to
-add a non-linear traversal of the iteration space.</p>
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.UnboundedIndex.free_symbols">
-<code class="descname">free_symbols</code><a class="headerlink" href="#devito.ir.iet.nodes.UnboundedIndex.free_symbols" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the symbols used by this <a class="reference internal" href="#devito.ir.iet.nodes.UnboundedIndex" title="devito.ir.iet.nodes.UnboundedIndex"><code class="xref py py-class docutils literal notranslate"><span class="pre">UnboundedIndex</span></code></a>.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
 <dt id="devito.ir.iet.nodes.MetaCall">
 <em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">MetaCall</code><span class="sig-paren">(</span><em>root</em>, <em>local</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.nodes.MetaCall" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
@@ -893,23 +870,6 @@ defines the data, as well as the dimension sizes.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.ir.iet.nodes.IterationTree">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">IterationTree</code><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#IterationTree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
-<p>Represent a sequence of nested :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Iteration`s.</p>
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.IterationTree.inner">
-<code class="descname">inner</code><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree.inner" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.IterationTree.root">
-<code class="descname">root</code><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree.root" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
 <dt id="devito.ir.iet.nodes.Section">
 <em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Section</code><span class="sig-paren">(</span><em>name</em>, <em>body=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Section"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Section" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.List" title="devito.ir.iet.nodes.List"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.List</span></code></a></p>
@@ -927,6 +887,23 @@ computation unit).</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Section.roots">
 <code class="descname">roots</code><a class="headerlink" href="#devito.ir.iet.nodes.Section.roots" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.iet.nodes.IterationTree">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">IterationTree</code><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#IterationTree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
+<p>Represent a sequence of nested :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Iteration`s.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.IterationTree.inner">
+<code class="descname">inner</code><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree.inner" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.IterationTree.root">
+<code class="descname">root</code><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree.root" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -953,7 +930,7 @@ computation unit).</p>
 <span id="devito-ir-iet-properties-module"></span><h2>devito.ir.iet.properties module<a class="headerlink" href="#module-devito.ir.iet.properties" title="Permalink to this headline">¶</a></h2>
 <dl class="data">
 <dt id="devito.ir.iet.properties.AFFINE">
-<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">AFFINE</code><em class="property"> = Property: affine</em><a class="headerlink" href="#devito.ir.iet.properties.AFFINE" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">AFFINE</code><em class="property"> = affine</em><a class="headerlink" href="#devito.ir.iet.properties.AFFINE" title="Permalink to this definition">¶</a></dt>
 <dd><p>All <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed`s'</span> <span class="pre">access</span> <span class="pre">functions</span> <span class="pre">using</span> <span class="pre">the</span> <span class="pre">Iteration</span> <span class="pre">dimension</span> <span class="pre">``d`</span></code> are
 affine in <code class="docutils literal notranslate"><span class="pre">d</span></code>. Further, the Iteration does not contain any Indexed varying in
 <code class="docutils literal notranslate"><span class="pre">d</span></code> used to indirectly access some other Indexed.</p>
@@ -961,7 +938,7 @@ affine in <code class="docutils literal notranslate"><span class="pre">d</span><
 
 <dl class="data">
 <dt id="devito.ir.iet.properties.ELEMENTAL">
-<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">ELEMENTAL</code><em class="property"> = Property: elemental</em><a class="headerlink" href="#devito.ir.iet.properties.ELEMENTAL" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">ELEMENTAL</code><em class="property"> = elemental</em><a class="headerlink" href="#devito.ir.iet.properties.ELEMENTAL" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration can be pulled out to an elemental function.</p>
 </dd></dl>
 
@@ -974,38 +951,38 @@ affine in <code class="docutils literal notranslate"><span class="pre">d</span><
 
 <dl class="data">
 <dt id="devito.ir.iet.properties.PARALLEL">
-<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">PARALLEL</code><em class="property"> = Property: parallel</em><a class="headerlink" href="#devito.ir.iet.properties.PARALLEL" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">PARALLEL</code><em class="property"> = parallel</em><a class="headerlink" href="#devito.ir.iet.properties.PARALLEL" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration can be executed in parallel w/o need for synchronization.</p>
 </dd></dl>
 
 <dl class="data">
 <dt id="devito.ir.iet.properties.PARALLEL_IF_ATOMIC">
-<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">PARALLEL_IF_ATOMIC</code><em class="property"> = Property: parallel_if_atomic</em><a class="headerlink" href="#devito.ir.iet.properties.PARALLEL_IF_ATOMIC" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">PARALLEL_IF_ATOMIC</code><em class="property"> = parallel_if_atomic</em><a class="headerlink" href="#devito.ir.iet.properties.PARALLEL_IF_ATOMIC" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration can be executed in parallel as long as all increments are
 guaranteed to be atomic.</p>
 </dd></dl>
 
 <dl class="data">
 <dt id="devito.ir.iet.properties.REMAINDER">
-<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">REMAINDER</code><em class="property"> = Property: remainder</em><a class="headerlink" href="#devito.ir.iet.properties.REMAINDER" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">REMAINDER</code><em class="property"> = remainder</em><a class="headerlink" href="#devito.ir.iet.properties.REMAINDER" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration implements a remainder/peeler loop.</p>
 </dd></dl>
 
 <dl class="data">
 <dt id="devito.ir.iet.properties.SEQUENTIAL">
-<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">SEQUENTIAL</code><em class="property"> = Property: sequential</em><a class="headerlink" href="#devito.ir.iet.properties.SEQUENTIAL" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">SEQUENTIAL</code><em class="property"> = sequential</em><a class="headerlink" href="#devito.ir.iet.properties.SEQUENTIAL" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration is inherently serial, i.e., its iterations cannot run in parallel.</p>
 </dd></dl>
 
 <dl class="data">
 <dt id="devito.ir.iet.properties.VECTOR">
-<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">VECTOR</code><em class="property"> = Property: vector-dim</em><a class="headerlink" href="#devito.ir.iet.properties.VECTOR" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">VECTOR</code><em class="property"> = vector-dim</em><a class="headerlink" href="#devito.ir.iet.properties.VECTOR" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration can be SIMD-vectorized.</p>
 </dd></dl>
 
 <dl class="data">
 <dt id="devito.ir.iet.properties.WRAPPABLE">
-<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">WRAPPABLE</code><em class="property"> = Property: wrappable</em><a class="headerlink" href="#devito.ir.iet.properties.WRAPPABLE" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">WRAPPABLE</code><em class="property"> = wrappable</em><a class="headerlink" href="#devito.ir.iet.properties.WRAPPABLE" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Iteration implements modulo buffered iteration and its expressions are so that
 one or more buffer slots can be dropped without affecting correctness. For example,
 u[t+1, …] = f(u[t, …], u[t-1, …]) –&gt; u[t-1, …] = f(u[t, …], u[t-1, …]).</p>
@@ -1152,7 +1129,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14b9a6ada950&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14b9a6ada8c8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x14766dc74268&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x14766dc741e0&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1234,7 +1211,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b9a6ada598&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b9a6ada510&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14b9a6ada488&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x14766dc70e18&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x14766dc70d90&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x14766dc70d08&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1325,22 +1302,27 @@ tree to their respective section.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.ir.iet.visitors.SubstituteExpression">
-<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">SubstituteExpression</code><span class="sig-paren">(</span><em>subs={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#SubstituteExpression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.SubstituteExpression" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.ReplaceStepIndices">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">ReplaceStepIndices</code><span class="sig-paren">(</span><em>subs=None</em>, <em>rule=&lt;function ReplaceStepIndices.&lt;lambda&gt;&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#ReplaceStepIndices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.ReplaceStepIndices" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.visitors.Transformer" title="devito.ir.iet.visitors.Transformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.visitors.Transformer</span></code></a></p>
-<p><a class="reference internal" href="#devito.ir.iet.visitors.Transformer" title="devito.ir.iet.visitors.Transformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Transformer</span></code></a> that performs symbol substitution on
-<code class="xref py py-class docutils literal notranslate"><span class="pre">Expression</span></code> objects in a given tree.</p>
+<p><a class="reference internal" href="#devito.ir.iet.visitors.Transformer" title="devito.ir.iet.visitors.Transformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Transformer</span></code></a> that performs index substitution on
+:class:<a href="#id5"><span class="problematic" id="id6">`</span></a>Expression`s in a given tree.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>subs</strong> – Dict defining the symbol substitution</td>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>subs</strong> – (Optional) dictionary defining the symbol substitution.</li>
+<li><strong>rule</strong> – (Optional) the matching rule. See xreplace_constrained.__doc__
+for more info.</li>
+</ul>
+</td>
 </tr>
 </tbody>
 </table>
 <dl class="method">
-<dt id="devito.ir.iet.visitors.SubstituteExpression.visit_Expression">
-<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#SubstituteExpression.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.SubstituteExpression.visit_Expression" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.ir.iet.visitors.ReplaceStepIndices.visit_Expression">
+<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#ReplaceStepIndices.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.ReplaceStepIndices.visit_Expression" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1354,7 +1336,7 @@ tree to their respective section.</p>
 <dt id="devito.ir.iet.visitors.CGen">
 <em class="property">class </em><code class="descclassname">devito.ir.iet.visitors.</code><code class="descname">CGen</code><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.visitors.Visitor</span></code></p>
-<p>Return a representation of the Iteration/Expression tree as a <a href="#id5"><span class="problematic" id="id6">:module:`cgen`</span></a> tree.</p>
+<p>Return a representation of the Iteration/Expression tree as a <a href="#id7"><span class="problematic" id="id8">:module:`cgen`</span></a> tree.</p>
 <dl class="method">
 <dt id="devito.ir.iet.visitors.CGen.visit_ArrayCast">
 <code class="descname">visit_ArrayCast</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_ArrayCast"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_ArrayCast" title="Permalink to this definition">¶</a></dt>

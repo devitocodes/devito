@@ -160,7 +160,7 @@
 <span class="kn">import</span> <span class="nn">resource</span>
 
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">info_at</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span>
@@ -195,14 +195,14 @@
         <span class="n">timesteps</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="o">=</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
         <span class="k">if</span> <span class="n">timesteps</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">timesteps</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">timesteps</span>
-            <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Adjusted auto-tuning timestep to </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">timesteps</span><span class="p">)</span>
+            <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;AT: Number of timesteps adjusted to </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">timesteps</span><span class="p">)</span>
         <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">start</span>
         <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timesteps</span>
         <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
             <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">start</span>
             <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timesteps</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t understand loop structure, giving up auto-tuning&quot;</span><span class="p">)</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AT: Couldn&#39;t understand loop structure; giving up&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">arguments</span>
 
     <span class="c1"># Attempted block sizes ...</span>
@@ -260,7 +260,7 @@
                 <span class="k">continue</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
             <span class="c1"># We should never get here</span>
-            <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t determine stack size, skipping block size </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">bs</span><span class="p">))</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AT: Couldn&#39;t determine stack size; skipping block size </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">bs</span><span class="p">))</span>
             <span class="k">continue</span>
 
         <span class="c1"># Use AT-specific profiler structs</span>
@@ -270,8 +270,8 @@
         <span class="n">operator</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">at_arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
         <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">_fields_</span><span class="p">)</span>
         <span class="n">timings</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">bs</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span> <span class="o">=</span> <span class="n">elapsed</span>
-        <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Block shape &lt;</span><span class="si">%s</span><span class="s2">&gt; took </span><span class="si">%f</span><span class="s2"> (s) in </span><span class="si">%d</span><span class="s2"> time steps&quot;</span> <span class="o">%</span>
-                <span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bs</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">elapsed</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">))</span>
+        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;AT: Block shape &lt;</span><span class="si">%s</span><span class="s2">&gt; took </span><span class="si">%f</span><span class="s2"> (s) in </span><span class="si">%d</span><span class="s2"> timesteps&quot;</span> <span class="o">%</span>
+             <span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bs</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">elapsed</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">))</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">best</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">timings</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">timings</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>

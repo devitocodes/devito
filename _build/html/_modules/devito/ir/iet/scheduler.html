@@ -153,17 +153,12 @@
   <h1>Source code for devito.ir.iet.scheduler</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">Allocator</span>
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">LoweredDimension</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">LocalExpression</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
-                           <span class="n">Conditional</span><span class="p">,</span> <span class="n">Section</span><span class="p">,</span> <span class="n">ExpressionBundle</span><span class="p">,</span> <span class="n">UnboundedIndex</span><span class="p">,</span>
-                           <span class="n">MetaCall</span><span class="p">,</span> <span class="n">MapExpressions</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span>
-                           <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">iet_analyze</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span>
-                           <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
+                           <span class="n">Conditional</span><span class="p">,</span> <span class="n">Section</span><span class="p">,</span> <span class="n">ExpressionBundle</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span>
+                           <span class="n">MapExpressions</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span>
+                           <span class="n">ReplaceStepIndices</span><span class="p">,</span> <span class="n">iet_analyze</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_mapper</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;iet_build&#39;</span><span class="p">,</span> <span class="s1">&#39;iet_insert_C_decls&#39;</span><span class="p">]</span>
 
@@ -180,14 +175,8 @@
     <span class="c1"># Data dependency analysis. Properties are attached directly to nodes</span>
     <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_analyze</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
-    <span class="c1"># Substitute derived dimensions (e.g., t -&gt; t0, t + 1 -&gt; t1)</span>
-    <span class="c1"># This is postponed up to this point to ease /iet_analyze/&#39;s life</span>
-    <span class="n">subs</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
-        <span class="n">uindices</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">uindices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">)</span>
-        <span class="n">subs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">:</span> <span class="n">LoweredDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
-                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">uindices</span><span class="p">})</span>
-    <span class="n">iet</span> <span class="o">=</span> <span class="n">SubstituteExpression</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+    <span class="c1"># Replace stepping dimensions with modulo dimensions</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_lower_steppers</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">iet</span></div>
 
@@ -211,18 +200,8 @@
             <span class="n">body</span> <span class="o">=</span> <span class="p">[</span><span class="n">Conditional</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">guard</span><span class="p">,</span> <span class="n">queues</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">))]</span>
 
         <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Iteration</span><span class="p">:</span>
-            <span class="c1"># Generate `uindices`</span>
-            <span class="n">uindices</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">offs</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">sub_iterators</span><span class="p">:</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
-                    <span class="c1"># Apart from SteppingDimension, no other type of Dimension</span>
-                    <span class="c1"># requires generation of uindices</span>
-                    <span class="k">continue</span>
-                <span class="n">modulo</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">offs</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">offs</span><span class="p">)):</span>
-                    <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="o">+</span> <span class="n">o</span><span class="p">)</span> <span class="o">%</span> <span class="n">modulo</span>
-                    <span class="n">symbol</span> <span class="o">=</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-                    <span class="n">uindices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">UnboundedIndex</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">d</span> <span class="o">+</span> <span class="n">o</span><span class="p">))</span>
+            <span class="c1"># Order to ensure deterministic code generation</span>
+            <span class="n">uindices</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">sub_iterators</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
             <span class="c1"># Generate Iteration</span>
             <span class="n">body</span> <span class="o">=</span> <span class="p">[</span><span class="n">Iteration</span><span class="p">(</span><span class="n">queues</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span>
                               <span class="n">direction</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">direction</span><span class="p">,</span> <span class="n">uindices</span><span class="o">=</span><span class="n">uindices</span><span class="p">)]</span>
@@ -234,6 +213,28 @@
         <span class="n">queues</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
 
     <span class="k">assert</span> <span class="kc">False</span>
+
+
+<span class="k">def</span> <span class="nf">iet_lower_steppers</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Replace the :class:`SteppingDimension`s within ``iet``&#39;s expressions with</span>
+<span class="sd">    suitable :class:`ModuloDimension`s.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Iteration</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">uindices</span><span class="p">:</span>
+            <span class="c1"># Be quick: avoid uselessy reconstructing nodes</span>
+            <span class="k">continue</span>
+        <span class="c1"># In an expression, there could be `u[t+1, ...]` and `v[t+1, ...]`, where</span>
+        <span class="c1"># `u` and `v` are TimeFunction with circular time buffers (save=None) *but*</span>
+        <span class="c1"># different modulo extent. The `t+1` indices above are therefore conceptually</span>
+        <span class="c1"># different, so they will be replaced with the proper ModuloDimension through</span>
+        <span class="c1"># two different calls to `xreplace`</span>
+        <span class="n">groups</span> <span class="o">=</span> <span class="n">as_mapper</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">uindices</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">modulo</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">origin</span><span class="p">:</span> <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">v</span><span class="p">}</span>
+            <span class="n">rule</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">_time_size</span> <span class="o">==</span> <span class="n">k</span>
+            <span class="n">iet</span> <span class="o">=</span> <span class="n">ReplaceStepIndices</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">rule</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">iet</span>
 
 
 <div class="viewcode-block" id="iet_insert_C_decls"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.scheduler.iet_insert_C_decls">[docs]</a><span class="k">def</span> <span class="nf">iet_insert_C_decls</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="n">func_table</span><span class="p">):</span>

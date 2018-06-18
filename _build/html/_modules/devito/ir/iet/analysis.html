@@ -231,8 +231,7 @@
                 <span class="k">continue</span>
 
             <span class="c1"># Get all dimensions up to and including Iteration /i/, grouped by Iteration</span>
-            <span class="n">dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">filter_ordered</span><span class="p">([</span><span class="n">j</span><span class="o">.</span><span class="n">dim</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">j</span><span class="o">.</span><span class="n">uindices</span><span class="p">])</span>
-                    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">[:</span><span class="n">depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span>
+            <span class="n">dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">[:</span><span class="n">depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span>
             <span class="c1"># Get all dimensions up to and including Iteration /i-1/</span>
             <span class="n">prev</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">dims</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
             <span class="c1"># Get all dimensions up to and including Iteration /i/</span>
@@ -298,41 +297,54 @@
 <span class="k">def</span> <span class="nf">mark_wrappable</span><span class="p">(</span><span class="n">analysis</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Update the ``analysis`` detecting the ``WRAPPABLE`` Iterations within</span>
 <span class="sd">    ``analysis.iet``.&quot;&quot;&quot;</span>
-    <span class="c1"># All potential WRAPPABLEs are Stepping dimensions</span>
-    <span class="n">stepper</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="k">for</span> <span class="n">iteration</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">:</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">iteration</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">:</span>
             <span class="k">continue</span>
-        <span class="n">stepper</span> <span class="o">=</span> <span class="n">iteration</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">stepper</span><span class="p">:</span>
-        <span class="k">return</span>
-    <span class="n">stepping</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span>
-    <span class="n">accesses</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">stepper</span><span class="p">]</span><span class="o">.</span><span class="n">accesses</span> <span class="k">if</span> <span class="n">stepping</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">findices</span><span class="p">]</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">accesses</span><span class="p">:</span>
-        <span class="k">return</span>
-    <span class="c1"># Pick the /back/ and /front/ slots accessed</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">accesses</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">accesses</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">cmp_to_key</span><span class="p">(</span><span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">stepping</span><span class="p">)))</span>
-        <span class="n">back</span><span class="p">,</span> <span class="n">front</span> <span class="o">=</span> <span class="n">accesses</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">stepping</span><span class="p">],</span> <span class="n">accesses</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">stepping</span><span class="p">]</span>
-    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-        <span class="k">return</span>
-    <span class="k">if</span> <span class="n">back</span> <span class="o">==</span> <span class="n">front</span><span class="p">:</span>
-        <span class="k">return</span>
-    <span class="c1"># Finally check that all data dependences would be honored by using the</span>
-    <span class="c1"># /front/ index function in place of the /back/ index function</span>
-    <span class="c1"># There must be NO writes to the /back/ timeslot</span>
-    <span class="k">for</span> <span class="n">access</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">stepper</span><span class="p">]</span><span class="o">.</span><span class="n">accesses</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">access</span><span class="o">.</span><span class="n">is_write</span> <span class="ow">and</span> <span class="n">access</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">==</span> <span class="n">back</span><span class="p">:</span>
-            <span class="k">return</span>
-    <span class="c1"># All reads from the /front/ timeslot must not cause dependences with</span>
-    <span class="c1"># the writes in the /back/ timeslot along the /i/ dimension</span>
-    <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">stepper</span><span class="p">]</span><span class="o">.</span><span class="n">d_flow</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">!=</span> <span class="n">front</span> <span class="ow">or</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">!=</span> <span class="n">back</span><span class="p">:</span>
+
+        <span class="n">scope</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">accesses</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">accesses</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_TimeFunction</span><span class="p">]</span>
+
+        <span class="c1"># If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">accesses</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">a</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">_time_buffering_default</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">accesses</span><span class="p">):</span>
             <span class="k">continue</span>
-        <span class="k">if</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">lex_gt</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="p">)</span> <span class="ow">and</span>\
-                <span class="n">dep</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">stepping</span><span class="p">)</span> <span class="o">!=</span> <span class="n">dep</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">section</span><span class="p">(</span><span class="n">stepping</span><span class="p">):</span>
-            <span class="k">return</span>
-    <span class="n">analysis</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">stepper</span><span class="p">:</span> <span class="n">WRAPPABLE</span><span class="p">})</span>
+
+        <span class="n">stepping</span> <span class="o">=</span> <span class="p">{</span><span class="n">a</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">time_dim</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">accesses</span><span class="p">}</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">stepping</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># E.g., with ConditionalDimensions we may have `stepping={t, tsub}`</span>
+            <span class="k">continue</span>
+        <span class="n">stepping</span> <span class="o">=</span> <span class="n">stepping</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+        <span class="c1"># All accesses must be affine in `stepping`</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">a</span><span class="o">.</span><span class="n">affine_if_present</span><span class="p">(</span><span class="n">stepping</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">accesses</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Pick the `back` and `front` slots accessed</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">compareto</span> <span class="o">=</span> <span class="n">cmp_to_key</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a0</span><span class="p">,</span> <span class="n">a1</span><span class="p">:</span> <span class="n">a0</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">a1</span><span class="p">,</span> <span class="n">stepping</span><span class="p">))</span>
+            <span class="n">accesses</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">accesses</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">compareto</span><span class="p">)</span>
+            <span class="n">back</span><span class="p">,</span> <span class="n">front</span> <span class="o">=</span> <span class="n">accesses</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">stepping</span><span class="p">],</span> <span class="n">accesses</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">stepping</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Check we&#39;re not accessing (read, write) always the same slot</span>
+        <span class="k">if</span> <span class="n">back</span> <span class="o">==</span> <span class="n">front</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">accesses_back</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">accesses</span> <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="n">stepping</span><span class="p">]</span> <span class="o">==</span> <span class="n">back</span><span class="p">]</span>
+
+        <span class="c1"># There must be NO writes to the `back` timeslot</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">is_write</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">accesses_back</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># There must be NO further accesses to the `back` timeslot after</span>
+        <span class="c1"># any earlier timeslot is written</span>
+        <span class="c1"># Note: potentially, this can be relaxed by replacing &quot;any earlier timeslot&quot;</span>
+        <span class="c1"># with the `front timeslot`</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">sink</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">a</span> <span class="ow">or</span> <span class="n">d</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">lex_ge</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="p">)</span>
+                   <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">accesses_back</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="n">analysis</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="n">WRAPPABLE</span><span class="p">})</span>
 
 
 <span class="nd">@propertizer</span>

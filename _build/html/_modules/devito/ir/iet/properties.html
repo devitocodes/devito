@@ -160,7 +160,11 @@
 <span class="sd">    An :class:`Iteration` decorator.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">_repr</span> <span class="o">=</span> <span class="s1">&#39;Property&#39;</span></div>
+    <span class="n">_KNOWN</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">IterationProperty</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+        <span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
 
 
 <span class="n">SEQUENTIAL</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;sequential&#39;</span><span class="p">)</span>

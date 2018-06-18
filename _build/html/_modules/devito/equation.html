@@ -155,7 +155,7 @@
 
 <span class="kn">import</span> <span class="nn">sympy</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;DOMAIN&#39;</span><span class="p">,</span> <span class="s1">&#39;INTERIOR&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;DOMAIN&#39;</span><span class="p">,</span> <span class="s1">&#39;INTERIOR&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../devito.html#devito.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">):</span>
@@ -217,6 +217,27 @@
 <span class="sd">Represent the physical interior domain of the PDE; that is, PDE boundaries are</span>
 <span class="sd">not included.</span>
 <span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="solve"><a class="viewcode-back" href="../../devito.html#devito.equation.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    solve(expr, target, **kwargs)</span>
+
+<span class="sd">    Algebraically rearrange an equation w.r.t. a given symbol.</span>
+
+<span class="sd">    This is a wrapper around ``sympy.solve``.</span>
+
+<span class="sd">    :param eq: The :class:`sympy.Eq` to be rearranged.</span>
+<span class="sd">    :param target: The symbol w.r.t. which the equation is rearranged.</span>
+<span class="sd">    :param kwargs: (Optional) Symbolic optimizations applied while rearranging</span>
+<span class="sd">                   the equation. For more information. refer to</span>
+<span class="sd">                   ``sympy.solve.__doc__``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Enforce certain parameters to values that are known to guarantee a quick</span>
+    <span class="c1"># turnaround time</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;rational&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Avoid float indices</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Do not attempt premature optimisation</span>
+    <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
 </pre></div>
 
            </div>

@@ -437,19 +437,23 @@
 
 <span class="sd">    The sub-hierarchy is structured as follows</span>
 
-<span class="sd">                          AbstractFunction</span>
-<span class="sd">                                 |</span>
-<span class="sd">                       AbstractCachedFunction</span>
-<span class="sd">                                 |</span>
-<span class="sd">               -------------------------------------</span>
-<span class="sd">               |                                   |</span>
-<span class="sd">             Array                          TensorFunction</span>
-<span class="sd">                                                   |</span>
-<span class="sd">                                     ------------------------------</span>
-<span class="sd">                                     |                            |</span>
-<span class="sd">                                  Function                  SparseFunction</span>
-<span class="sd">                                     |                            |</span>
-<span class="sd">                                TimeFunction              SparseTimeFunction</span>
+<span class="sd">                        AbstractFunction</span>
+<span class="sd">                               |</span>
+<span class="sd">                     AbstractCachedFunction</span>
+<span class="sd">                               |</span>
+<span class="sd">             -------------------------------------</span>
+<span class="sd">             |                                   |</span>
+<span class="sd">           Array                          TensorFunction</span>
+<span class="sd">                                                 |</span>
+<span class="sd">                                   ------------------------------</span>
+<span class="sd">                                   |                            |</span>
+<span class="sd">                                Function             AbstractSparseFunction</span>
+<span class="sd">                                   |                            |</span>
+<span class="sd">                              TimeFunction        --------------------------</span>
+<span class="sd">                                                  |                        |</span>
+<span class="sd">                                           SparseFunction      PrecomputedSparseFunction</span>
+<span class="sd">                                                  |</span>
+<span class="sd">                                         SparseTimeFunction</span>
 
 <span class="sd">    There are five relevant :class:`AbstractFunction` sub-types: ::</span>
 

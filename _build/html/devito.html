@@ -1111,10 +1111,19 @@ and right (<code class="docutils literal notranslate"><span class="pre">rp</span
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
-<li><strong>save</strong> – (Optional) Save the intermediate results to the data buffer.
-Defaults to <cite>None</cite>, indicating the use of alternating buffers.
-If intermediate results are required, the value of save must be
-set to the required size of the time dimension.</li>
+<li><strong>save</strong> – (Optional) Defaults to <cite>None</cite>, which indicates the use of
+alternating buffers. This enables cyclic writes to the
+TimeFunction. For example, if the TimeFunction <code class="docutils literal notranslate"><span class="pre">u(t,</span> <span class="pre">x)</span></code> has
+shape (3, 100), then, in an <a class="reference internal" href="#devito.base.Operator" title="devito.base.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a>, <code class="docutils literal notranslate"><span class="pre">t</span></code> will
+assume the values <code class="docutils literal notranslate"><span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">...</span></code> (note that the
+very first value depends on the stencil equation in which
+<code class="docutils literal notranslate"><span class="pre">u</span></code> is written.). The default size of the time buffer when
+<code class="docutils literal notranslate"><span class="pre">save=None</span></code> is <code class="docutils literal notranslate"><span class="pre">time_order</span> <span class="pre">+</span> <span class="pre">1</span></code>.  To specify a different
+size for the time buffer, one should use the syntax
+<code class="docutils literal notranslate"><span class="pre">save=Buffer(mysize)</span></code>. Alternatively, if all of the
+intermediate results are required (or, simply, to forbid the
+usage of an alternating buffer), an explicit value for <code class="docutils literal notranslate"><span class="pre">save</span></code>
+(i.e., an integer) must be provided.</li>
 <li><strong>time_dim</strong> – (Optional) The <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent
 time in this symbol. Defaults to the time dimension provided
 by the <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
@@ -1403,8 +1412,18 @@ derived time dimensions symbol. For example:</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.is_Lowered">
-<code class="descname">is_Lowered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Lowered" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.dimension.Dimension.is_NonlinearDerived">
+<code class="descname">is_NonlinearDerived</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_NonlinearDerived" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Space">
+<code class="descname">is_Space</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Space" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Stepping">
+<code class="descname">is_Stepping</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Stepping" title="Permalink to this definition">¶</a></dt>
 <dd><p>A Dimension is a symbol representing a problem dimension and thus defining a
 potential iteration space.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1420,21 +1439,6 @@ potential iteration space.</p>
 </tbody>
 </table>
 </dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.is_NonlinearDerived">
-<code class="descname">is_NonlinearDerived</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_NonlinearDerived" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.is_Space">
-<code class="descname">is_Space</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Space" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.is_Stepping">
-<code class="descname">is_Stepping</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Stepping" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Sub">
@@ -1459,6 +1463,11 @@ potential iteration space.</p>
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.min_name">
 <code class="descname">min_name</code><a class="headerlink" href="#devito.dimension.Dimension.min_name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.root">
+<code class="descname">root</code><a class="headerlink" href="#devito.dimension.Dimension.root" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -1872,6 +1881,28 @@ but xreplace does:</p>
 not included.</p>
 </dd></dl>
 
+<dl class="function">
+<dt id="devito.equation.solve">
+<code class="descclassname">devito.equation.</code><code class="descname">solve</code><span class="sig-paren">(</span><em>expr</em>, <em>target</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/equation.html#solve"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.equation.solve" title="Permalink to this definition">¶</a></dt>
+<dd><p>Algebraically rearrange an equation w.r.t. a given symbol.</p>
+<p>This is a wrapper around <code class="docutils literal notranslate"><span class="pre">sympy.solve</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>eq</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> to be rearranged.</li>
+<li><strong>target</strong> – The symbol w.r.t. which the equation is rearranged.</li>
+<li><strong>kwargs</strong> – (Optional) Symbolic optimizations applied while rearranging
+the equation. For more information. refer to
+<code class="docutils literal notranslate"><span class="pre">sympy.solve.__doc__</span></code>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.exceptions">
 <span id="devito-exceptions-module"></span><h2>devito.exceptions module<a class="headerlink" href="#module-devito.exceptions" title="Permalink to this headline">¶</a></h2>
@@ -2233,10 +2264,19 @@ and right (<code class="docutils literal notranslate"><span class="pre">rp</span
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
-<li><strong>save</strong> – (Optional) Save the intermediate results to the data buffer.
-Defaults to <cite>None</cite>, indicating the use of alternating buffers.
-If intermediate results are required, the value of save must be
-set to the required size of the time dimension.</li>
+<li><strong>save</strong> – (Optional) Defaults to <cite>None</cite>, which indicates the use of
+alternating buffers. This enables cyclic writes to the
+TimeFunction. For example, if the TimeFunction <code class="docutils literal notranslate"><span class="pre">u(t,</span> <span class="pre">x)</span></code> has
+shape (3, 100), then, in an <code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code>, <code class="docutils literal notranslate"><span class="pre">t</span></code> will
+assume the values <code class="docutils literal notranslate"><span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">...</span></code> (note that the
+very first value depends on the stencil equation in which
+<code class="docutils literal notranslate"><span class="pre">u</span></code> is written.). The default size of the time buffer when
+<code class="docutils literal notranslate"><span class="pre">save=None</span></code> is <code class="docutils literal notranslate"><span class="pre">time_order</span> <span class="pre">+</span> <span class="pre">1</span></code>.  To specify a different
+size for the time buffer, one should use the syntax
+<code class="docutils literal notranslate"><span class="pre">save=Buffer(mysize)</span></code>. Alternatively, if all of the
+intermediate results are required (or, simply, to forbid the
+usage of an alternating buffer), an explicit value for <code class="docutils literal notranslate"><span class="pre">save</span></code>
+(i.e., an integer) must be provided.</li>
 <li><strong>time_dim</strong> – (Optional) The <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent
 time in this symbol. Defaults to the time dimension provided
 by the <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code>.</li>
@@ -2508,6 +2548,122 @@ symbolic function.</p>
 
 </dd></dl>
 
+<dl class="class">
+<dt id="devito.function.PrecomputedSparseFunction">
+<em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">PrecomputedSparseFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#PrecomputedSparseFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.PrecomputedSparseFunction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.AbstractSparseFunction</span></code></p>
+<p>A specialised type of SparseFunction where the interpolation is externally defined.
+Currently, this means that the grid points and associated coefficients for each
+sparse point is precomputed at the time this object is being created.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the function.</li>
+<li><strong>nt</strong> – Size of the time dimension for point data.</li>
+<li><strong>npoint</strong> – Number of points to sample.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>r</strong> – The number of gridpoints in each dimension to interpolate a single sparse
+point to. e.g. 2 for linear interpolation.</li>
+<li><strong>gridpoints</strong> – The <em>reference</em> grid point corresponding to each sparse point.
+Of all the gridpoints that one sparse point would be interpolated
+to, this is the grid point closest to the origin, i.e. the one
+with the lowest value of each coordinate dimension. Must be a
+two-dimensional array of shape [npoint][grid.ndim].</li>
+<li><strong>coefficients</strong> – An array containing the coefficient for each of the r^2 (2D) or
+r^3 (3D) gridpoints that each sparsefunction will be interpolated
+to. The coefficient is split across the n dimensions such that
+the contribution of the point (i, j, k) will be multiplied by
+coefficients[…, i]*coefficients[…, j]*coefficients[…,k]. So
+for r=6, we will store 18 coefficients per sparse point (instead
+of potentially 216). Shape must be [npoint][grid.ndim][r].</li>
+<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout and function indices of this symbol.</li>
+<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
+Default to 1.</li>
+<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <cite>*args</cite> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
+<dl class="attribute">
+<dt id="devito.function.PrecomputedSparseFunction.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.function.PrecomputedSparseFunction.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.function.PrecomputedSparseFunction.inject">
+<code class="descname">inject</code><span class="sig-paren">(</span><em>field</em>, <em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#PrecomputedSparseFunction.inject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.PrecomputedSparseFunction.inject" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for injection of an expression onto a grid</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>field</strong> – The grid field into which we inject.</li>
+<li><strong>expr</strong> – The expression to inject.</li>
+<li><strong>offset</strong> – Additional offset from the boundary for
+absorbing boundary conditions.</li>
+<li><strong>u_t</strong> – (Optional) time index to use for indexing into <cite>field</cite>.</li>
+<li><strong>p_t</strong> – (Optional) time index to use for indexing into <cite>expr</cite>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.function.PrecomputedSparseFunction.interpolate">
+<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>cummulative=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#PrecomputedSparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.PrecomputedSparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> equation for the interpolation
+of an expression onto this sparse point collection.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>expr</strong> – The expression to interpolate.</li>
+<li><strong>offset</strong> – Additional offset from the boundary for
+absorbing boundary conditions.</li>
+<li><strong>u_t</strong> – (Optional) time index to use for indexing into
+field data in <cite>expr</cite>.</li>
+<li><strong>p_t</strong> – (Optional) time index to use for indexing into
+the sparse point data.</li>
+<li><strong>cummulative</strong> – (Optional) If True, perform an increment rather
+than an assignment. Defaults to False.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.PrecomputedSparseFunction.is_PrecomputedSparseFunction">
+<code class="descname">is_PrecomputedSparseFunction</code><em class="property"> = True</em><a class="headerlink" href="#devito.function.PrecomputedSparseFunction.is_PrecomputedSparseFunction" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.function.Buffer">
+<em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">Buffer</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Buffer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Buffer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.tools.html#devito.tools.abc.Tag" title="devito.tools.abc.Tag"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Tag</span></code></a></p>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.grid">
 <span id="devito-grid-module"></span><h2>devito.grid module<a class="headerlink" href="#module-devito.grid" title="Permalink to this headline">¶</a></h2>
@@ -2618,7 +2774,7 @@ the conventions for defining the coordinate space in 2D are:</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>level</strong> – accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
 DLE, DLE_WARN, WARNING, ERROR, CRITICAL</td>
 </tr>
 </tbody>
@@ -2649,7 +2805,7 @@ the severity ‘level’.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>msg</strong> – the message to be printed.</li>
-<li><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
+<li><strong>level</strong> – accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
 DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 </ul>
 </td>
@@ -2669,7 +2825,7 @@ the severity ‘level’.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>msg</strong> – the message to be printed.</li>
-<li><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
+<li><strong>level</strong> – accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
 DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 </ul>
 </td>
@@ -2689,8 +2845,13 @@ DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 <dd></dd></dl>
 
 <dl class="function">
-<dt id="devito.logger.info_at">
-<code class="descclassname">devito.logger.</code><code class="descname">info_at</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#info_at"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.info_at" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.logger.perf">
+<code class="descclassname">devito.logger.</code><code class="descname">perf</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#perf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.perf" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.perf_adv">
+<code class="descclassname">devito.logger.</code><code class="descname">perf_adv</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#perf_adv"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.perf_adv" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">

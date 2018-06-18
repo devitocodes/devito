@@ -935,14 +935,8 @@ Dimension in <code class="docutils literal notranslate"><span class="pre">o</spa
 <code class="descclassname">devito.ir.support.utils.</code><code class="descname">detect_accesses</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#detect_accesses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.detect_accesses" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a mapper <code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">:</span> <span class="pre">F</span> <span class="pre">-&gt;</span> <span class="pre">S</span></code>, where F are <code class="xref py py-class docutils literal notranslate"><span class="pre">Function`s</span> <span class="pre">appearing</span>
 <span class="pre">in</span> <span class="pre">``expr`</span></code> and S are <code class="xref py py-class docutils literal notranslate"><span class="pre">Stencil`s.</span> <span class="pre">``M[f]`</span></code> represents all data accesses
-to <code class="docutils literal notranslate"><span class="pre">f</span></code> within <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.ir.support.utils.detect_free_dimensions">
-<code class="descclassname">devito.ir.support.utils.</code><code class="descname">detect_free_dimensions</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#detect_free_dimensions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.detect_free_dimensions" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a degenerate <code class="xref py py-class docutils literal notranslate"><span class="pre">Stencil</span></code> for the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">used</span>
-<span class="pre">as</span> <span class="pre">plain</span> <span class="pre">symbols,</span> <span class="pre">rather</span> <span class="pre">than</span> <span class="pre">as</span> <span class="pre">array</span> <span class="pre">indices,</span> <span class="pre">in</span> <span class="pre">``expr`</span></code>.</p>
+to <code class="docutils literal notranslate"><span class="pre">f</span></code> within <code class="docutils literal notranslate"><span class="pre">expr</span></code>. Also map <code class="docutils literal notranslate"><span class="pre">M[None]</span></code> to all Dimensions used in
+<code class="docutils literal notranslate"><span class="pre">expr</span></code> as plain symbols, rather than as array indices.</p>
 </dd></dl>
 
 <dl class="function">
@@ -954,15 +948,19 @@ computational domain, to avoid out-of-bounds (OOB) accesses.</p>
 </dd></dl>
 
 <dl class="function">
+<dt id="devito.ir.support.utils.build_iterators">
+<code class="descclassname">devito.ir.support.utils.</code><code class="descname">build_iterators</code><span class="sig-paren">(</span><em>mapper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#build_iterators"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.build_iterators" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given M as produced by <a class="reference internal" href="#devito.ir.support.utils.detect_accesses" title="devito.ir.support.utils.detect_accesses"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_accesses()</span></code></a>, return a mapper <code class="docutils literal notranslate"><span class="pre">M'</span> <span class="pre">:</span> <span class="pre">D</span> <span class="pre">-&gt;</span> <span class="pre">V</span></code>,
+where D is the set of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">in</span> <span class="pre">M,</span> <span class="pre">and</span> <span class="pre">V</span> <span class="pre">is</span> <span class="pre">a</span> <span class="pre">set</span> <span class="pre">of</span>
+<span class="pre">:class:`DerivedDimension`s.</span> <span class="pre">M'[d]</span> <span class="pre">provides</span> <span class="pre">the</span> <span class="pre">sub-iterators</span> <span class="pre">along</span> <span class="pre">the</span>
+<span class="pre">Dimension</span> <span class="pre">`d</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
 <dt id="devito.ir.support.utils.build_intervals">
 <code class="descclassname">devito.ir.support.utils.</code><code class="descname">build_intervals</code><span class="sig-paren">(</span><em>stencil</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#build_intervals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.build_intervals" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given <code class="docutils literal notranslate"><span class="pre">stencil</span></code>, an object of type :class`Stencil`, return:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* An iterable of :class:`Interval`s, one for each :class:`Dimension`
-  in ``stencil``.
-* A dictionary of ``iterators``, suitable to build an
-  :class:`IterationSpace`.
-</pre></div>
-</div>
+<dd><p>Given a <code class="xref py py-class docutils literal notranslate"><span class="pre">Stencil</span></code>, return an iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">Interval`s,</span> <span class="pre">one</span>
+<span class="pre">for</span> <span class="pre">each</span> <span class="pre">:class:`Dimension</span></code> in the stencil.</p>
 </dd></dl>
 
 <dl class="function">

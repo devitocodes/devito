@@ -627,10 +627,25 @@ possible (optional, defaults to False).</li>
 
 <dl class="function">
 <dt id="devito.symbolics.manipulation.xreplace_indices">
-<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">xreplace_indices</code><span class="sig-paren">(</span><em>exprs</em>, <em>mapper</em>, <em>candidates=None</em>, <em>only_rhs=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#xreplace_indices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.xreplace_indices" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create new expressions from <code class="docutils literal notranslate"><span class="pre">exprs</span></code>, by replacing all index variables
-specified in mapper appearing as a tensor index. Only tensors whose symbolic
-name appears in <code class="docutils literal notranslate"><span class="pre">candidates</span></code> are considered if <code class="docutils literal notranslate"><span class="pre">candidates</span></code> is not None.</p>
+<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">xreplace_indices</code><span class="sig-paren">(</span><em>exprs</em>, <em>mapper</em>, <em>key=None</em>, <em>only_rhs=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#xreplace_indices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.xreplace_indices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Replace indices in SymPy equations.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>exprs</strong> – The target SymPy expression, or a collection of SymPy expressions.</li>
+<li><strong>mapper</strong> – A dictionary containing the index substitution rules.</li>
+<li><strong>key</strong> – (Optional) either an iterable or a function. In the former case,
+all objects whose name does not appear in <code class="docutils literal notranslate"><span class="pre">key</span></code> are ruled out.
+Likewise, if a function, all objects for which <code class="docutils literal notranslate"><span class="pre">key(obj)</span></code> gives
+False are ruled out.</li>
+<li><strong>only_rhs</strong> – (Optional) apply the substitution rules to right-hand sides only.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="function">
