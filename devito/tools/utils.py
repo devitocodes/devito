@@ -11,7 +11,7 @@ import sympy
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'filter_sorted', 'numpy_to_ctypes', 'ctypes_to_C', 'ctypes_pointer',
-           'pprint', 'change_directory', 'sweep']
+           'pprint', 'change_directory', 'sweep', 'as_mapper']
 
 
 def prod(iterable):
@@ -41,6 +41,17 @@ def as_tuple(item, type=None, length=None):
     if type and not all(isinstance(i, type) for i in t):
         raise TypeError("Items need to be of type %s" % type)
     return t
+
+
+def as_mapper(iterable, key):
+    """
+    Rearrange an iterable into a dictionary of lists in which keys are
+    produced by the function ``key``.
+    """
+    mapper = {}
+    for i in iterable:
+        mapper.setdefault(key(i), []).append(i)
+    return mapper
 
 
 def is_integer(value):

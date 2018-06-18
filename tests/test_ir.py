@@ -591,6 +591,45 @@ else
         assert all([i.is_Parallel for i in iters if i.dim.name in parallel])
         assert all([not i.is_Parallel for i in iters if i.dim.name not in parallel])
 
+    @pytest.mark.parametrize('exprs,wrappable', [
+        # Easy: wrappable
+        (['Eq(u.forward, u + 1)'], True),
+        # Easy: wrappable
+        (['Eq(w.forward, w + 1)'], True),
+        # Not wrappable, as we're accessing w's back in a subsequent equation
+        (['Eq(w.forward, w + 1)', 'Eq(v.forward, w)'], False),
+        # Wrappable, but need to touch multiple indices with different modulos
+        (['Eq(w.forward, u + w + 1)'], True),
+        # Wrappable as the back timeslot is accessed only once, even though
+        # later equations are writing again to w.forward
+        (['Eq(w.forward, w + 1)', 'Eq(w.forward, w.forward + 2)'], True),
+        # Not wrappable as the front is written before the back timeslot could be read
+        (['Eq(w.forward, w + 1)', 'Eq(u.forward, u + w + 2)'], False),
+    ])
+    def test_loop_wrapping(self, exprs, wrappable):
+        """Tests detection of WRAPPABLE property."""
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid, time_order=4)  # noqa
+        w = TimeFunction(name='w', grid=grid, time_order=4)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
+
+        op = Operator(exprs, dle='speculative')
+
+        iters = FindNodes(Iteration).visit(op)
+
+        # Dependence analysis checks
+        time_iter = [i for i in iters if i.dim.is_Time]
+        assert len(time_iter) == 1
+        time_iter = time_iter[0]
+        if wrappable:
+            assert time_iter.is_Wrappable
+        assert all(not i.is_Wrappable for i in iters if i is not time_iter)
+
 
 @skipif_yask
 class TestEquationAlgorithms(object):

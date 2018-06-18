@@ -14,10 +14,10 @@ from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL, REMAINDER,
-                           tagger, FindSymbols, FindNodes, IsPerfectIteration,
-                           Transformer, compose_nodes, retrieve_iteration_tree)
-from devito.logger import dle_warning
+from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL,
+                           REMAINDER, tagger, FindSymbols, FindNodes, Transformer,
+                           IsPerfectIteration, compose_nodes, retrieve_iteration_tree)
+from devito.logger import dle_warning, perf_adv
 from devito.tools import as_tuple
 
 
@@ -35,27 +35,22 @@ class AdvancedRewriter(BasicRewriter):
         self._minimize_remainders(state)
 
     @dle_pass
+    def _loop_wrapping(self, iet, state):
+        """
+        Emit a performance warning if WRAPPABLE :class:`Iteration`s are found,
+        as these are a symptom that unnecessary memory is being allocated.
+        """
+        for i in FindNodes(Iteration).visit(iet):
+            if not i.is_Wrappable:
+                continue
+            perf_adv("Functions using modulo iteration along Dimension `%s` "
+                     "may safely allocate a one slot smaller buffer" % i.dim)
+        return iet, {}
+
+    @dle_pass
     def _loop_blocking(self, nodes, state):
         """
-        Apply loop blocking to :class:`Iteration` trees.
-
-        Blocking is applied to parallel iteration trees. Heuristically, innermost
-        dimensions are not blocked to maximize the trip count of the SIMD loops.
-
-        Different heuristics may be specified by passing the keywords ``blockshape``
-        and ``blockinner`` to the DLE. The former, a dictionary, is used to indicate
-        a specific block size for each blocked dimension. For example, for the
-        :class:`Iteration` tree: ::
-
-            for i
-              for j
-                for k
-                  ...
-
-        one may provide ``blockshape = {i: 4, j: 7}``, in which case the
-        two outer loops will blocked, and the resulting 2-dimensional block will
-        have size 4x7. The latter may be set to True to also block innermost parallel
-        :class:`Iteration` objects.
+        Apply loop blocking to PARALLEL :class:`Iteration` trees.
         """
         exclude_innermost = not self.params.get('blockinner', False)
         ignore_heuristic = self.params.get('blockalways', False)
@@ -76,7 +71,7 @@ class AdvancedRewriter(BasicRewriter):
             if not IsPerfectIteration().visit(root):
                 # Illegal/unsupported
                 continue
-            if not tree[0].is_Sequential and not ignore_heuristic:
+            if not tree.root.is_Sequential and not ignore_heuristic:
                 # Heuristic: avoid polluting the generated code with blocked
                 # nests (thus increasing JIT compilation time and affecting
                 # readability) if the blockable tree isn't embedded in a
@@ -306,9 +301,9 @@ class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
+        self._loop_wrapping(state)
         self._loop_blocking(state)
         self._simdize(state)
-        self._nontemporal_stores(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
         self._create_elemental_functions(state)
@@ -347,6 +342,7 @@ class CustomRewriter(SpeculativeRewriter):
 
     passes_mapper = {
         'denormals': SpeculativeRewriter._avoid_denormals,
+        'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
         'openmp': SpeculativeRewriter._parallelize,
         'simd': SpeculativeRewriter._simdize,

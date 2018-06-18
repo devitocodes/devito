@@ -18,10 +18,10 @@ from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import AbstractCachedFunction, AbstractCachedSymbol
-from devito.tools import ReducerMap, prod, powerset
+from devito.tools import Tag, ReducerMap, prod, powerset
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'SparseTimeFunction']
+           'SparseTimeFunction', 'PrecomputedSparseFunction', 'Buffer']
 
 
 class Constant(AbstractCachedSymbol):
@@ -86,7 +86,7 @@ class Constant(AbstractCachedSymbol):
         else:
             return self._arg_defaults()
 
-    def _arg_check(self, args, dspace):
+    def _arg_check(self, args, intervals):
         """
         Check that ``args`` contains legal runtime values bound to ``self``.
         """
@@ -431,7 +431,7 @@ class Function(TensorFunction):
                 self.space_order, left_points, right_points = space_order
                 halo = (left_points, right_points)
             else:
-                raise ValueError("'space_order' must be int or 3-tuple of ints")
+                raise TypeError("`space_order` must be int or 3-tuple of ints")
             self._halo = tuple(halo if i in self._halo_indices else (0, 0)
                                for i in self.indices)
 
@@ -442,7 +442,7 @@ class Function(TensorFunction):
             elif isinstance(padding, tuple) and len(padding) == self.ndim:
                 padding = tuple((i,)*2 if isinstance(i, int) else i for i in padding)
             else:
-                raise ValueError("'padding' must be int or %d-tuple of ints" % self.ndim)
+                raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
             self._padding = padding
 
             # Dynamically add derivative short-cuts
@@ -520,12 +520,11 @@ class Function(TensorFunction):
         dimensions = kwargs.get('dimensions')
         if grid is None:
             if dimensions is None:
-                raise ValueError("Function requires either a 'grid' or the "
-                                 "'dimensions' argument")
+                raise TypeError("Function needs either `grid` or `dimensions` argument")
         else:
             if dimensions is not None:
-                warning("Creating Function with 'grid' and 'dimensions' "
-                        "argument; ignoring the 'dimensions' and using 'grid'.")
+                warning("Creating Function with `grid` and `dimensions` "
+                        "argument; ignoring the `dimensions` and using `grid`.")
             dimensions = grid.dimensions
         return dimensions
 
@@ -535,7 +534,7 @@ class Function(TensorFunction):
         if grid is None:
             shape = kwargs.get('shape')
             if shape is None:
-                raise ValueError("Function needs either 'shape' or 'grid' argument")
+                raise TypeError("Function needs either 'grid' or 'shape' argument")
         else:
             shape = grid.shape_domain
         return shape
@@ -590,10 +589,19 @@ class TimeFunction(Function):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data
-    :param save: (Optional) Save the intermediate results to the data buffer.
-                 Defaults to `None`, indicating the use of alternating buffers.
-                 If intermediate results are required, the value of save must be
-                 set to the required size of the time dimension.
+    :param save: (Optional) Defaults to `None`, which indicates the use of
+                 alternating buffers. This enables cyclic writes to the
+                 TimeFunction. For example, if the TimeFunction ``u(t, x)`` has
+                 shape (3, 100), then, in an :class:`Operator`, ``t`` will
+                 assume the values ``1, 2, 0, 1, 2, 0, 1, ...`` (note that the
+                 very first value depends on the stencil equation in which
+                 ``u`` is written.). The default size of the time buffer when
+                 ``save=None`` is ``time_order + 1``.  To specify a different
+                 size for the time buffer, one should use the syntax
+                 ``save=Buffer(mysize)``. Alternatively, if all of the
+                 intermediate results are required (or, simply, to forbid the
+                 usage of an alternating buffer), an explicit value for ``save``
+                 (i.e., an integer) must be provided.
     :param time_dim: (Optional) The :class:`Dimension` object to use to represent
                      time in this symbol. Defaults to the time dimension provided
                      by the :class:`Grid`.
@@ -656,9 +664,10 @@ class TimeFunction(Function):
 
             self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
             self.time_order = kwargs.get('time_order', 1)
-            self.save = type(kwargs.get('save', None) or None)
             if not isinstance(self.time_order, int):
-                raise ValueError("'time_order' must be int")
+                raise TypeError("`time_order` must be int")
+
+            self.save = type(kwargs.get('save', None) or None)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -666,13 +675,10 @@ class TimeFunction(Function):
         grid = kwargs.get('grid')
         time_dim = kwargs.get('time_dim')
 
-        if grid is None:
-            raise ValueError("TimeFunction needs a 'grid' argument")
-
         if time_dim is None:
-            time_dim = grid.time_dim if save else grid.stepping_dim
+            time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
         elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
-            raise ValueError("'time_dim' must be a time dimension")
+            raise TypeError("`time_dim` must be a time dimension")
 
         indices = list(Function.__indices_setup__(**kwargs))
         indices.insert(cls._time_position, time_dim)
@@ -688,25 +694,26 @@ class TimeFunction(Function):
 
         if grid is None:
             if shape is None:
-                raise ValueError("TimeFunction needs either 'shape' or 'grid' argument")
+                raise TypeError("TimeFunction needs either `shape` or `grid` argument")
             if save is not None:
-                raise ValueError("Ambiguity detected: provide either 'grid' and 'save' "
-                                 "or 'shape', where 'shape[0] == save'")
+                raise TypeError("Ambiguity detected: provide either `grid` and `save` "
+                                "or just `shape` ")
         else:
-            if save is not None:
-                if not isinstance(save, int):
-                    raise ValueError("save must be an int indicating the number of " +
-                                     "timesteps to be saved (is %s)" % type(save))
+            if save is None:
+                shape = (time_order + 1,) + grid.shape_domain
+            elif isinstance(save, Buffer):
+                shape = (save.val,) + grid.shape_domain
+            elif isinstance(save, int):
                 shape = (save,) + grid.shape_domain
             else:
-                shape = (time_order + 1,) + grid.shape_domain
+                raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
         return shape
 
     @property
     def forward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[0]
+        _t = self.indices[self._time_position]
 
         return self.subs(_t, _t + i * _t.spacing)
 
@@ -714,14 +721,14 @@ class TimeFunction(Function):
     def backward(self):
         """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[0]
+        _t = self.indices[self._time_position]
 
         return self.subs(_t, _t - i * _t.spacing)
 
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[0]
+        _t = self.indices[self._time_position]
         if self.time_order == 1:
             # This hack is needed for the first-order diffusion test
             indices = [_t, _t + _t.spacing]
@@ -740,6 +747,26 @@ class TimeFunction(Function):
 
         return self.diff(_t, _t).as_finite_difference(indt)
 
+    @property
+    def _time_size(self):
+        return self.shape_allocated[self._time_position]
+
+    @property
+    def _time_buffering(self):
+        return self.save is not int
+
+    @property
+    def _time_buffering_default(self):
+        return self._time_buffering and self.save != Buffer
+
+    def _arg_check(self, args, intervals):
+        super(TimeFunction, self)._arg_check(args, intervals)
+        key_time_size = args[self.name].shape[self._time_position]
+        if self._time_buffering and self._time_size != key_time_size:
+            raise InvalidArgument("Expected `time_size=%d` for runtime "
+                                  "value `%s`, found `%d` instead"
+                                  % (self._time_size, self.name, key_time_size))
+
 
 class AbstractSparseFunction(TensorFunction):
     """
@@ -756,14 +783,16 @@ class AbstractSparseFunction(TensorFunction):
             super(AbstractSparseFunction, self).__init__(*args, **kwargs)
 
             npoint = kwargs.get('npoint')
-            if not isinstance(npoint, int) and npoint > 0:
-                raise ValueError('SparseFunction requires parameter `npoint` (> 0)')
+            if not isinstance(npoint, int):
+                raise TypeError('SparseFunction needs `npoint` int argument')
+            if npoint <= 0:
+                raise ValueError('`npoint` must be > 0')
             self.npoint = npoint
 
             # Grid must be provided
             grid = kwargs.get('grid')
             if kwargs.get('grid') is None:
-                raise ValueError('SparseFunction objects require a grid parameter')
+                raise TypeError('SparseFunction needs `grid` argument')
             self.grid = grid
 
             self.dtype = kwargs.get('dtype', self.grid.dtype)
@@ -1041,14 +1070,16 @@ class SparseTimeFunction(SparseFunction):
             super(SparseTimeFunction, self).__init__(*args, **kwargs)
 
             nt = kwargs.get('nt')
-            if not isinstance(nt, int) and nt > 0:
-                raise ValueError('SparseTimeFunction requires int parameter `nt`')
+            if not isinstance(nt, int):
+                raise TypeError('SparseTimeFunction needs `nt` int argument')
+            if nt <= 0:
+                raise ValueError('`nt` must be > 0')
             self.nt = nt
 
             self.time_dim = self.indices[self._time_position]
             self.time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
-                raise ValueError("'time_order' must be int")
+                raise ValueError("`time_order` must be int")
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1111,6 +1142,10 @@ class SparseTimeFunction(SparseFunction):
 
         return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
 
+    @property
+    def _time_size(self):
+        return self.shape_allocated[self._time_position]
+
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
     """
@@ -1161,8 +1196,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
             # Grid points per sparse point (2 in the case of bilinear and trilinear)
             r = kwargs.get('r')
-            if not isinstance(r, int) and r > 0:
-                raise ValueError('Interpolation requires parameter `r` (>0)')
+            if not isinstance(r, int):
+                raise TypeError('Interpolation needs `r` int argument')
+            if r <= 0:
+                raise ValueError('`r` must be > 0')
             self.r = r
 
             gridpoints = Function(name="%s_gridpoints" % self.name, dtype=np.int32,
@@ -1256,3 +1293,11 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
+
+
+# Additional Function-related APIs
+
+class Buffer(Tag):
+
+    def __init__(self, value):
+        super(Buffer, self).__init__('Buffer', value)

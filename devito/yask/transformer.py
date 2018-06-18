@@ -1,4 +1,3 @@
-from devito.dimension import LoweredDimension
 from devito.ir.iet import FindNodes, Expression
 from devito.ir.support import Backward
 from devito.logger import yask_warning as warning
@@ -131,7 +130,7 @@ def make_yask_ast(expr, yc_soln, mapper):
         a, b = expr.as_numer_denom()
         return nfac.new_const_number_node(float(a)/float(b))
     elif expr.is_Symbol:
-        function = expr.base.function
+        function = expr.function
         if function.is_Constant:
             if function not in mapper:
                 mapper[function] = yc_soln.new_grid(function.name, [])
@@ -150,16 +149,14 @@ def make_yask_ast(expr, yc_soln, mapper):
             return mapper[function]
     elif expr.is_Indexed:
         # Create a YASK compiler grid if it's the first time we encounter a Function
-        function = expr.base.function
+        function = expr.function
         if function not in mapper:
             dimensions = [make_yask_ast(i, yc_soln, mapper) for i in function.indices]
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
         # Convert the Indexed into a YASK grid access
         indices = []
         for i in expr.indices:
-            if isinstance(i, LoweredDimension):
-                indices.append(make_yask_ast(i.origin, yc_soln, mapper))
-            elif i.is_integer:
+            if i.is_integer:
                 # Typically, if we end up here it's because we have a misc dimension
                 indices.append(make_yask_ast(i, yc_soln, mapper))
             else:

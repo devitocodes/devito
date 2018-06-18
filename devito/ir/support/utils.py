@@ -1,24 +1,26 @@
 from collections import OrderedDict, defaultdict
 from itertools import groupby
 
-from devito.dimension import Dimension
+from devito.dimension import Dimension, ModuloDimension
 from devito.ir.support.basic import Access, Scope
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
 
-__all__ = ['detect_accesses', 'detect_free_dimensions', 'detect_oobs',
-           'build_intervals', 'detect_flow_directions', 'force_directions',
-           'group_expressions', 'align_accesses', 'detect_io']
+__all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
+           'detect_flow_directions', 'force_directions', 'group_expressions',
+           'align_accesses', 'detect_io']
 
 
 def detect_accesses(expr):
     """
     Return a mapper ``M : F -> S``, where F are :class:`Function`s appearing
     in ``expr`` and S are :class:`Stencil`s. ``M[f]`` represents all data accesses
-    to ``f`` within ``expr``.
+    to ``f`` within ``expr``. Also map ``M[None]`` to all Dimensions used in
+    ``expr`` as plain symbols, rather than as array indices.
     """
+    # Compute M : F -> S
     mapper = defaultdict(Stencil)
     for e in retrieve_indexed(expr, mode='all', deep=True):
         f = e.base.function
@@ -34,15 +36,12 @@ def detect_accesses(expr):
                     off += [int(i)]
             if d is not None:
                 mapper[f][d].update(off or [0])
+
+    # Compute M[None]
+    mapper[None] = Stencil([(i, 0) for i in retrieve_terminals(expr)
+                            if isinstance(i, Dimension)])
+
     return mapper
-
-
-def detect_free_dimensions(expr):
-    """
-    Return a degenerate :class:`Stencil` for the :class:`Dimension`s used
-    as plain symbols, rather than as array indices, in ``expr``.
-    """
-    return Stencil([(i, 0) for i in retrieve_terminals(expr) if isinstance(i, Dimension)])
 
 
 def detect_oobs(mapper):
@@ -53,7 +52,7 @@ def detect_oobs(mapper):
     """
     found = set()
     for f, stencil in mapper.items():
-        if not f.is_TensorFunction:
+        if f is None or not f.is_TensorFunction:
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
@@ -68,28 +67,38 @@ def detect_oobs(mapper):
     return found | {i.parent for i in found if i.is_Derived}
 
 
-def build_intervals(stencil):
+def build_iterators(mapper):
     """
-    Given ``stencil``, an object of type :class`Stencil`, return: ::
-
-        * An iterable of :class:`Interval`s, one for each :class:`Dimension`
-          in ``stencil``.
-        * A dictionary of ``iterators``, suitable to build an
-          :class:`IterationSpace`.
+    Given M as produced by :func:`detect_accesses`, return a mapper ``M' : D -> V``,
+    where D is the set of :class:`Dimension`s in M, and V is a set of
+    :class:`DerivedDimension`s. M'[d] provides the sub-iterators along the
+    Dimension `d`.
     """
     iterators = OrderedDict()
-    for i in stencil.dimensions:
-        if i.is_NonlinearDerived:
-            iterators.setdefault(i.parent, []).append(stencil.entry(i))
-        else:
-            iterators.setdefault(i, [])
+    for k, v in mapper.items():
+        for d, offs in v.items():
+            if d.is_Stepping:
+                sub_iterators = iterators.setdefault(d.parent, set())
+                sub_iterators.update({ModuloDimension(d, i, k._time_size)
+                                      for i in offs})
+            elif d.is_Conditional:
+                # There are no iterators associated to a ConditionalDimension
+                continue
+            else:
+                iterators.setdefault(d, set())
+    return {k: tuple(v) for k, v in iterators.items()}
 
-    intervals = []
-    for k, v in iterators.items():
-        offs = set.union(set(stencil.get(k)), *[i.ofs for i in v])
-        intervals.append(Interval(k, min(offs), max(offs)))
 
-    return intervals, iterators
+def build_intervals(stencil):
+    """
+    Given a :class:`Stencil`, return an iterable of :class:`Interval`s, one
+    for each :class:`Dimension` in the stencil.
+    """
+    mapper = {}
+    for d, offs in stencil.items():
+        dim = d.parent if d.is_NonlinearDerived else d
+        mapper.setdefault(dim, set()).update(offs)
+    return [Interval(d, min(offs), max(offs)) for d, offs in mapper.items()]
 
 
 def align_accesses(expr, key=lambda i: False):

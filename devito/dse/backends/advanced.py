@@ -150,8 +150,8 @@ class AdvancedRewriter(BasicRewriter):
 
             # Construct a data space suitable for /alias/
             mapper = detect_accesses(expression)
-            parts = {k: IntervalGroup(build_intervals(v)[0]).add(intervals)
-                     for k, v in mapper.items()}
+            parts = {k: IntervalGroup(build_intervals(v)).add(intervals)
+                     for k, v in mapper.items() if k}
             dspace = DataSpace([i.zero() for i in intervals], parts)
 
             # Create a new Cluster for /alias/
