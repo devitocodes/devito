@@ -10,7 +10,8 @@ from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFun
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
-from devito.symbolics import indexify
+from devito.symbolics import indexify, retrieve_indexed
+from devito.tools import flatten
 
 
 def dimify(dimensions):
@@ -97,6 +98,35 @@ class TestCodeGen(object):
         assert len(casts) == 1
         cast = casts[0]
         assert cast.ccode.data.replace(' ', '') == expected
+
+    @pytest.mark.parametrize('expr,exp_uindices,exp_mods', [
+        ('Eq(v.forward, u[0, x, y, z] + v + 1)', [(0, 5), (2, 5)], {'v': 5}),
+        ('Eq(v.forward, u + v + 1)', [(0, 5), (2, 5), (0, 2)], {'v': 5, 'u': 2}),
+    ])
+    def test_multiple_steppers(self, expr, exp_uindices, exp_mods):
+        """Tests generation of multiple, mixed time stepping indices."""
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid, time_order=4)  # noqa
+
+        op = Operator(eval(expr), dle='noop')
+
+        iters = FindNodes(Iteration).visit(op)
+        time_iter = [i for i in iters if i.dim.is_Time]
+        assert len(time_iter) == 1
+        time_iter = time_iter[0]
+
+        # Check uindices in Iteration header
+        signatures = [i._properties for i in time_iter.uindices]
+        assert len(signatures) == len(exp_uindices)
+        assert all(i in signatures for i in exp_uindices)
+
+        # Check uindices within each TimeFunction
+        exprs = [i.expr for i in FindNodes(Expression).visit(op)]
+        assert(i.indices[i.function._time_position].modulo == exp_mods[i.function.name]
+               for i in flatten(retrieve_indexed(i) for i in exprs))
 
 
 @skipif_yask
@@ -621,11 +651,13 @@ class TestArguments(object):
         the aliasing on the SparseFunction name.
         """
         grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension(name='p_src')
-        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
-        time = u.indices[0]
         src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim], nt=10,
                                   npoint=1, coordinates=original_coords, time_order=2)
         src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=[time, p_dim],
@@ -635,7 +667,7 @@ class TestArguments(object):
         # Move the source from the location where the setup put it so we can test
         # whether the override picks up the original coordinates or the changed ones
 
-        args = op.arguments(src1=src2, t=0)
+        args = op.arguments(src1=src2, time=0)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 

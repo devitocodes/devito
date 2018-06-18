@@ -78,8 +78,7 @@ def mark_parallel(analysis):
                 continue
 
             # Get all dimensions up to and including Iteration /i/, grouped by Iteration
-            dims = [filter_ordered([j.dim] + [k.dim for k in j.uindices])
-                    for j in tree[:depth + 1]]
+            dims = [filter_ordered(j.dimensions) for j in tree[:depth + 1]]
             # Get all dimensions up to and including Iteration /i-1/
             prev = flatten(dims[:-1])
             # Get all dimensions up to and including Iteration /i/
@@ -145,41 +144,54 @@ def mark_vectorizable(analysis):
 def mark_wrappable(analysis):
     """Update the ``analysis`` detecting the ``WRAPPABLE`` Iterations within
     ``analysis.iet``."""
-    # All potential WRAPPABLEs are Stepping dimensions
-    stepper = None
-    for iteration in analysis.scopes:
-        if not iteration.dim.is_Stepping:
+    for i in analysis.scopes:
+        if not i.dim.is_Time:
             continue
-        stepper = iteration
-    if not stepper:
-        return
-    stepping = stepper.dim
-    accesses = [i for i in analysis.scopes[stepper].accesses if stepping in i.findices]
-    if not accesses:
-        return
-    # Pick the /back/ and /front/ slots accessed
-    try:
-        accesses = sorted(accesses, key=cmp_to_key(lambda i, j: i.distance(j, stepping)))
-        back, front = accesses[0][stepping], accesses[-1][stepping]
-    except TypeError:
-        return
-    if back == front:
-        return
-    # Finally check that all data dependences would be honored by using the
-    # /front/ index function in place of the /back/ index function
-    # There must be NO writes to the /back/ timeslot
-    for access in analysis.scopes[stepper].accesses:
-        if access.is_write and access[stepping] == back:
-            return
-    # All reads from the /front/ timeslot must not cause dependences with
-    # the writes in the /back/ timeslot along the /i/ dimension
-    for dep in analysis.scopes[stepper].d_flow:
-        if dep.source[stepping] != front or dep.sink[stepping] != back:
+
+        scope = analysis.scopes[i]
+        accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
+
+        # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
+        if not accesses or any(not a.function._time_buffering_default for a in accesses):
             continue
-        if dep.sink.lex_gt(dep.source) and\
-                dep.source.section(stepping) != dep.sink.section(stepping):
-            return
-    analysis.update({stepper: WRAPPABLE})
+
+        stepping = {a.function.time_dim for a in accesses}
+        if len(stepping) > 1:
+            # E.g., with ConditionalDimensions we may have `stepping={t, tsub}`
+            continue
+        stepping = stepping.pop()
+
+        # All accesses must be affine in `stepping`
+        if any(not a.affine_if_present(stepping._defines) for a in accesses):
+            continue
+
+        # Pick the `back` and `front` slots accessed
+        try:
+            compareto = cmp_to_key(lambda a0, a1: a0.distance(a1, stepping))
+            accesses = sorted(accesses, key=compareto)
+            back, front = accesses[0][stepping], accesses[-1][stepping]
+        except TypeError:
+            continue
+
+        # Check we're not accessing (read, write) always the same slot
+        if back == front:
+            continue
+
+        accesses_back = [a for a in accesses if a[stepping] == back]
+
+        # There must be NO writes to the `back` timeslot
+        if any(a.is_write for a in accesses_back):
+            continue
+
+        # There must be NO further accesses to the `back` timeslot after
+        # any earlier timeslot is written
+        # Note: potentially, this can be relaxed by replacing "any earlier timeslot"
+        # with the `front timeslot`
+        if not all(all(d.sink is not a or d.source.lex_ge(a) for d in scope.d_flow)
+                   for a in accesses_back):
+            continue
+
+        analysis.update({i: WRAPPABLE})
 
 
 @propertizer

@@ -163,7 +163,7 @@ class IndexMode(Tag):
     Tag for access functions.
     """
 
-    _repr = 'IM'
+    pass
 
 
 CONSTANT = IndexMode('constant')
