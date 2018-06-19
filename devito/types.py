@@ -198,7 +198,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
         return self
 
 
-class AbstractCachedSymbol(AbstractSymbol, Cached, Pickable):
+class AbstractCachedSymbol(AbstractSymbol, Cached):
     """
     Base class for dimension-free symbols, cached by both Devito and Sympy.
 
@@ -229,6 +229,10 @@ class AbstractCachedSymbol(AbstractSymbol, Cached, Pickable):
     # Pickling support
     _pickle_kwargs = ['name']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+    @property
+    def _pickle_reconstruct(self):
+        return self.__class__.__base__
 
 
 class Symbol(AbstractCachedSymbol):
@@ -519,6 +523,10 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     # Pickling support
     _pickle_kwargs = ['name']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+    @property
+    def _pickle_reconstruct(self):
+        return self.__class__.__base__
 
 
 class Array(AbstractCachedFunction):

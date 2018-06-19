@@ -84,7 +84,7 @@ class Pickable(object):
 
     """
     A base class for types that require pickling. There are several complications
-    that this class aim to help with: ::
+    that this class tries to handle: ::
 
         * Packages such as SymPy have their own way of handling pickling -- though
           still based upon Python's pickle module. This may get in conflict with
@@ -107,8 +107,25 @@ class Pickable(object):
     _pickle_kwargs = []
     """The keyword arguments that need to be passed to __new__ upon unpickling."""
 
+    @property
+    def _pickle_reconstruct(self):
+        """
+        Return the callable that should be used to reconstruct ``self`` upon
+        unpickling. If None, default to whatever Python's pickle uses.
+        """
+        return None
+
     def __reduce_ex__(self, proto):
-        return object.__reduce_ex__(self, proto)
+        ret = object.__reduce_ex__(self, proto)
+        reconstructor = self._pickle_reconstruct
+        if reconstructor is None:
+            return ret
+        else:
+            # Instead of the following wrapper function, we could use Python's copyreg
+            def wrapper(cls, args, kwargs):
+                return cls.__new__(cls, *args, **kwargs)
+            _, (_, args, kwargs), state, iter0, iter1 = ret
+            return (wrapper, (reconstructor, args, kwargs), state, iter0, iter1)
 
     def __getnewargs_ex__(self):
         return (tuple(getattr(self, i) for i in self._pickle_args),

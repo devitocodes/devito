@@ -34,7 +34,7 @@ def test_pickle():
     assert np.isclose(np.linalg.norm(time_range.time_values),
                       np.linalg.norm(new_time_range.time_values))
 
-    # Test Class ConstantFunction pickling
+    # Test Class Constant pickling
     pkl_origin = pickle.dumps(model.grid.origin)
     new_origin = pickle.loads(pkl_origin)
 
