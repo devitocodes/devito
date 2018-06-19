@@ -142,7 +142,7 @@ class Cached(object):
         return hash(type(self))
 
 
-class AbstractSymbol(sympy.Symbol, Basic):
+class AbstractSymbol(sympy.Symbol, Basic, Pickable):
     """
     Base class for dimension-free symbols, only cached by SymPy.
 

@@ -12,7 +12,7 @@ __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
 
 
-class Dimension(AbstractSymbol, Pickable):
+class Dimension(AbstractSymbol):
 
     is_Dimension = True
     is_Space = False
