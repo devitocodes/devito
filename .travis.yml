@@ -7,7 +7,6 @@ env:
     # Doctr deploy key for opesci/devito
     - secure: "A6t8XTNLC7HS3Wip3Qnn93ZlHM8Y6JEQ1jFv9eLbQx+tGIvpCNXoM4QGaL2tphqHcVQDQGO6rVX9hjm8Cz2bRwOdCNTqbukChnd2tcCuF/2u+Ua0ev+/2o8/N1IaQxM62XI73PEgX+NTaYHpcTmFHfkfHnxpAlGpycW0aiNxzrGM400Wq6ap8zmq1SdFxWms7w1+li1P3zoGd7In+Gg8Kxd6Ty5qsy/qsl3rDQExT8Li8P0NWcthmTvMokUpb3ocLRfrpdobk9x3YTtwoRXaZFyp80nD2pVzjZSI3oiqHMNJF9lWbLVTInNvoK4nCR4gB8gYg34RcE50JoBsqFFN/qQMJtsEUc00/8Y9SLAsxMve0JtZnBBjmR+LWy89DHpAy8MlPhc40JVh53LSyzYglXlSkMwfDhWnollOQjyhC5ndV8tpuHW/9c+SqaG9SwVktAot+OGKogn1FT6bIxgMslRJpBhUROM9KO7qDssT+iC26wAUagsUtEpSFz4CqiYThyGcvnKFnlxAIOG/yWFF6GcfI/swsEixHjQdeMx7ICV2bWm+jAoS/ojjtDdPzgoxnsWnIChMvGCDCChNoAl3IlAJNKR5VsVr7bwr4eHSR9DBWJCZSfg1lyzU2nOQz4q8y/C0gfP1N0zv5kKWn8HKTr7FjLfofMWVCguwUS7hIVU="
     - DEVITO_LOGGING: "INFO"
-
 matrix:
   include:
     - os: linux
@@ -15,83 +14,102 @@ matrix:
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+            - ubuntu-toolchain-r-test
           packages:
             - gcc-4.9
             - g++-4.9
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 INSTALL_TYPE=pip_setup RUN_EXAMPLES=False
+      env: INSTALL_TYPE='pip' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='unit' DEVITO_ARCH=gcc-4.9
     - os: linux
       python: "3.6"
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+            - ubuntu-toolchain-r-test
           packages:
             - gcc-5
             - g++-5
-      env: DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0 RUN_EXAMPLES=True INSTALL_TYPE=conda
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='unit' DEVITO_ARCH=gcc-5
     - os: linux
       python: "3.6"
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
-          packages:
-            - gcc-4.9
-            - g++-4.9
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2 RUN_EXAMPLES=True INSTALL_TYPE=conda
-    - os: linux
-      python: "3.6"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+            - ubuntu-toolchain-r-test
           packages:
             - gcc-7
             - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False
-  allow_failures:
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='unit' DEVITO_ARCH=gcc-7
     - os: linux
-      python: "2.7"
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
-    - os: osx
-      python: "2.7"
-      env: DEVITO_ARCH=clang DEVITO_OPENMP=0
-
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=1 OMP_NUM_THREADS=2 TEST_BUNDLE='unit' DEVITO_ARCH=gcc-7 DEVITO_BACKEND=yask YC_CXX=g++-7
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-4.9
+            - g++-4.9
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='tutorials' DEVITO_ARCH=gcc-4.9
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-5
+            - g++-5
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='tutorials' DEVITO_ARCH=gcc-5
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-7
+            - g++-7
+      env: INSTALL_TYPE='conda' DEVITO_OPENMP=0 TEST_BUNDLE='tutorials' TEST_DOCS=1 DEVITO_ARCH=gcc-7
 addons:
   apt:
     sources:
-      - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+      - ubuntu-toolchain-r-test
 
 before_install:
   # Setup anaconda
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
+  - if [[ ${INSTALL_TYPE} == 'conda' ]]; then
       wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+      bash miniconda.sh -b -p $HOME/miniconda;
+      export PATH="$HOME/miniconda/bin:$PATH";
+      hash -r;
+      conda config --set always_yes yes --set changeps1 no;
+      conda update -q conda;
+      conda info -a;
     fi
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  # Useful for debugging any issues with conda
-  - conda info -a
 
 install:
   # Install devito with conda
-  - if [[ $INSTALL_TYPE == 'conda' ]]; then
+  - if [[ ${INSTALL_TYPE} == 'conda' ]]; then
       conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION;
       source activate devito;
       pip install -e .;
       conda list;
     fi
   # Install devito with pip
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py install; fi
+  - if [[ ${INSTALL_TYPE} == 'pip' ]]; then python setup.py install; fi
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
-  - if [[ $DEVITO_BACKEND == 'yask' ]]; then
+  - if [[ ${DEVITO_BACKEND} == 'yask' ]]; then
       conda install swig; cd ../;
       git clone https://github.com/opesci/yask.git;
       cd yask; make compiler-api; pip install -e .; cd ../devito;
@@ -99,25 +117,21 @@ before_script:
 
 script:
   - flake8 --builtins=ArgumentError .
-  # Run tests with pip
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py test; fi
-  # Run test with py.tests
-  - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test --cov devito tests/; fi
+  # Run tests
+  - if [[ ${TEST_BUNDLE} == 'unit' && ${INSTALL_TYPE} == 'pip' ]]; then python setup.py test; fi
+  - if [[ ${TEST_BUNDLE} == 'unit' && ${INSTALL_TYPE} == 'conda' ]]; then py.test --cov devito tests; fi
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --full --checkpointing; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a --noazimuth; fi
-  # Test tutorial notebooks for the website using nbval
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials/0[1-3]*; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/benchmark.py test -P acoustic -a; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/acoustic/acoustic_example.py --full; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then python examples/seismic/tti/tti_example.py -a; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then py.test --nbval examples/cfd; fi
+  - if [[ ${TEST_BUNDLE} == 'tutorials' ]]; then py.test --nbval examples/seismic/tutorials; fi
   # Code coverage and documentation generation
-  - if [[ $INSTALL_TYPE == 'conda' ]]; then
+  - if [[ ${TEST_DOCS} == 1 ]]; then
       codecov;
       sphinx-apidoc -f -o docs/ examples;
       sphinx-apidoc -f -o docs/ devito devito/yask/*;
@@ -126,7 +140,7 @@ script:
       cd ..;
     fi
   # Docs deployment only once from a single build
-  - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
+  - if [[ ${TEST_DOCS} == 1 ]]; then
           set -e;
           pip install doctr;
           doctr deploy . --built-docs docs --key-path .deploy_key.enc;
