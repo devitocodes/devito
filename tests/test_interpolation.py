@@ -140,6 +140,7 @@ def test_interpolate_cumm(shape, coords, npoints=20):
 def test_interpolate_time_shift(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid.
+    This test verifies the optional time shifting for SparseTimeFunctions
     """
     a = unit_box_time(shape=shape)
     p = time_points(a.grid, coords, npoints=npoints, nt=10)
@@ -234,8 +235,9 @@ def test_inject(shape, coords, result, npoints=19):
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
 ])
 def test_inject_time_shift(shape, coords, result, npoints=19):
-    """Test generic point interpolation testing the x-coordinate of an
+    """Test generic point injection testing the x-coordinate of an
     abitrary set of points going across the grid.
+    This test verifies the optional time shifting for SparseTimeFunctions
     """
     a = unit_box_time(shape=shape)
     a.data[:] = 0.
