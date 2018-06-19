@@ -57,7 +57,6 @@ class Operator(Callable):
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         dse = kwargs.get("dse", configuration['dse'])
-        dle = kwargs.get("dle", configuration['dle'])
 
         # Header files, etc.
         self._headers = list(self._default_headers)
@@ -98,23 +97,11 @@ class Operator(Callable):
         # Insert code for C-level performance profiling
         iet, self.profiler = self._profile_sections(iet)
 
-        # Translate into backend-specific representation (e.g., GPU, Yask)
-        iet = self._specialize_iet(iet)
-
-        # Apply the Devito Loop Engine (DLE) for loop optimization
-        dle_state = transform(iet, *set_dle_mode(dle))
-
-        # Update the Operator state based on the DLE
-        self.dle_args = dle_state.arguments
-        self.dle_flags = dle_state.flags
-        self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                            for i in dle_state.elemental_functions]))
-        self.dimensions.extend([i.argument for i in self.dle_args
-                                if isinstance(i.argument, Dimension)])
-        self._includes.extend(list(dle_state.includes))
+        # Translate into backend-specific representation
+        iet = self._specialize_iet(iet, **kwargs)
 
         # Insert the required symbol declarations
-        iet = iet_insert_C_decls(dle_state.nodes, self.func_table)
+        iet = iet_insert_C_decls(iet, self.func_table)
 
         # Insert data and pointer casts for array parameters and profiling structs
         iet = self._build_casts(iet)
@@ -151,7 +138,7 @@ class Operator(Callable):
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
         # with the rest of the argument derivation procedure.
-        for arg in self.dle_args:
+        for arg in self._dle_args:
             dim = arg.argument
             osize = (1 + arg.original_dim.symbolic_end
                      - arg.original_dim.symbolic_start).subs(args)
@@ -254,11 +241,24 @@ class Operator(Callable):
         """Transform ``expressions`` into a backend-specific representation."""
         return [LoweredEq(i) for i in expressions]
 
-    def _specialize_iet(self, iet):
+    def _specialize_iet(self, iet, **kwargs):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
-        return iet
+        # Apply the Devito Loop Engine (DLE) for loop optimization
+        dle = kwargs.get("dle", configuration['dle'])
+
+        dle_state = transform(iet, *set_dle_mode(dle))
+
+        self._dle_args = dle_state.arguments
+        self._dle_flags = dle_state.flags
+        self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
+                                            for i in dle_state.elemental_functions]))
+        self.dimensions.extend([i.argument for i in self._dle_args
+                                if isinstance(i.argument, Dimension)])
+        self._includes.extend(list(dle_state.includes))
+
+        return dle_state.nodes
 
     def _build_parameters(self, iet):
         """Determine the Operator parameters based on the Iteration/Expression

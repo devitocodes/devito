@@ -13,13 +13,15 @@ import cgen as c
 
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
+from devito.function import TimeFunction
 from devito.ir.iet.nodes import Node
 from devito.ir.support.space import Backward
+from devito.symbolics import xreplace_indices
 from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C, GenericVisitor
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
-           'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
+           'IsPerfectIteration', 'ReplaceStepIndices', 'printAST', 'CGen',
            'Transformer', 'NestedTransformer', 'FindAdjacentIterations',
            'MapIteration']
 
@@ -150,7 +152,7 @@ class CGen(Visitor):
             elif i.is_Tensor:
                 ret.append(c.Value(c.dtype_to_ctype(i.dtype),
                                    '*restrict %s_vec' % i.name))
-            elif i.is_Lowered:
+            elif i.is_Dimension:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             else:
                 ret.append(c.Value('void', '*_%s' % i.name))
@@ -166,7 +168,7 @@ class CGen(Visitor):
                     ret.append('*_%s' % i.name)
                 elif i.is_Array:
                     ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
-                elif i.is_Scalar:
+                elif i.is_Symbol:
                     ret.append(i.name)
                 elif i.is_TensorFunction:
                     ret.append('%s_vec' % i.name)
@@ -267,9 +269,9 @@ class CGen(Visitor):
 
         # Append unbounded indices, if any
         if o.uindices:
-            uinit = ['%s = %s' % (i.index, ccode(i.start)) for i in o.uindices]
+            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_start)) for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
-            ustep = ['%s = %s' % (i.index, ccode(i.step)) for i in o.uindices]
+            ustep = ['%s = %s' % (i.name, ccode(i.symbolic_incr)) for i in o.uindices]
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
 
         # Create For header+body
@@ -630,21 +632,23 @@ class NestedTransformer(Transformer):
             return handle._rebuild(*rebuilt, **handle.args_frozen)
 
 
-class SubstituteExpression(Transformer):
+class ReplaceStepIndices(Transformer):
     """
-    :class:`Transformer` that performs symbol substitution on
-    :class:`Expression` objects in a given tree.
+    :class:`Transformer` that performs index substitution on
+    :class:`Expression`s in a given tree.
 
-    :param subs: Dict defining the symbol substitution
+    :param subs: (Optional) dictionary defining the symbol substitution.
+    :param rule: (Optional) the matching rule. See xreplace_constrained.__doc__
+                 for more info.
     """
 
-    def __init__(self, subs={}):
-        super(SubstituteExpression, self).__init__()
-        self.subs = subs
+    def __init__(self, subs=None, rule=lambda i: True):
+        super(ReplaceStepIndices, self).__init__()
+        self.subs = subs or {}
+        self.rule = lambda i: (isinstance(i.function, TimeFunction) and rule(i))
 
     def visit_Expression(self, o):
-        o.substitute(self.subs)
-        return o._rebuild(expr=o.expr)
+        return o._rebuild(expr=xreplace_indices(o.expr, self.subs, self.rule))
 
 
 def printAST(node, verbose=True):

@@ -284,19 +284,23 @@ class AbstractFunction(sympy.Function, Basic):
 
     The sub-hierarchy is structured as follows
 
-                          AbstractFunction
-                                 |
-                       AbstractCachedFunction
-                                 |
-               -------------------------------------
-               |                                   |
-             Array                          TensorFunction
-                                                   |
-                                     ------------------------------
-                                     |                            |
-                                  Function                  SparseFunction
-                                     |                            |
-                                TimeFunction              SparseTimeFunction
+                        AbstractFunction
+                               |
+                     AbstractCachedFunction
+                               |
+             -------------------------------------
+             |                                   |
+           Array                          TensorFunction
+                                                 |
+                                   ------------------------------
+                                   |                            |
+                                Function             AbstractSparseFunction
+                                   |                            |
+                              TimeFunction        --------------------------
+                                                  |                        |
+                                           SparseFunction      PrecomputedSparseFunction
+                                                  |
+                                         SparseTimeFunction
 
     There are five relevant :class:`AbstractFunction` sub-types: ::
 

@@ -7,7 +7,11 @@ class IterationProperty(Tag):
     An :class:`Iteration` decorator.
     """
 
-    _repr = 'Property'
+    _KNOWN = []
+
+    def __init__(self, name, val=None):
+        super(IterationProperty, self).__init__(name, val)
+        IterationProperty._KNOWN.append(self)
 
 
 SEQUENTIAL = IterationProperty('sequential')

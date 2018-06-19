@@ -23,8 +23,8 @@ class OperatorCore(OperatorRunnable):
         Use auto-tuning on this Operator to determine empirically the
         best block sizes when loop blocking is in use.
         """
-        if self.dle_flags.get('blocking', False):
-            return autotune(self, args, self.parameters, self.dle_args)
+        if self._dle_flags.get('blocking', False):
+            return autotune(self, args, self.parameters, self._dle_args)
         else:
             return args
 

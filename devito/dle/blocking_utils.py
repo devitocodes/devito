@@ -1,11 +1,9 @@
 import cgen as c
-from sympy import Symbol
 
-from devito.cgen_utils import ccode
-from devito.ir.iet import (Expression, Iteration, List, UnboundedIndex, ntags,
-                           FindAdjacentIterations, FindNodes, IsPerfectIteration,
-                           NestedTransformer, Transformer, compose_nodes,
-                           is_foldable, retrieve_iteration_tree)
+from devito.dimension import IncrDimension
+from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacentIterations,
+                           FindNodes, IsPerfectIteration, NestedTransformer, Transformer,
+                           compose_nodes, is_foldable, retrieve_iteration_tree)
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple
 
@@ -150,17 +148,15 @@ def optimize_unfolded_tree(unfolded, root):
 
         # "Shrink" the iteration space
         for t1, t2 in zip(tree, root):
-            index = Symbol('%ss%d' % (t1.index, i))
-            mapper[t1.dim] = index
-
-            t1_uindex = (UnboundedIndex(index, t1.limits[0]),)
-            t2_uindex = (UnboundedIndex(index, -t1.limits[0]),)
-
+            t1_udim = IncrDimension(t1.dim, t1.limits[0], 1, "%ss%d" % (t1.index, i))
             limits = (0, t1.limits[1] - t1.limits[0], t1.symbolic_incr)
             modified_tree.append(t1._rebuild(limits=limits,
-                                             uindices=t1.uindices + t1_uindex))
+                                             uindices=t1.uindices + (t1_udim,)))
 
-            modified_root.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
+            t2_udim = IncrDimension(t1.dim, -t1.limits[0], 1, "%ss%d" % (t1.index, i))
+            modified_root.append(t2._rebuild(uindices=t2.uindices + (t2_udim,)))
+
+            mapper[t1.dim] = t1_udim
 
         # Temporary arrays can now be moved onto the stack
         exprs = FindNodes(Expression).visit(modified_tree[-1])
@@ -214,7 +210,7 @@ class IterationFold(Iteration):
             properties = "WithProperties[%s]::" % ",".join(properties)
         index = self.index
         if self.uindices:
-            index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
+            index += '[%s]' % ','.join(i.name for i in self.uindices)
         length = "Length %d" % len(self.folds)
         return "<%sIterationFold %s; %s; %s>" % (properties, index, self.limits, length)
 

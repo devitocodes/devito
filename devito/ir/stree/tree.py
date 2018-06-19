@@ -60,7 +60,7 @@ class NodeIteration(ScheduleTree):
 
     @property
     def sub_iterators(self):
-        return self.ispace.sub_iterators.get(self.dim)
+        return self.ispace.sub_iterators.get(self.dim, [])
 
     @property
     def __repr_render__(self):

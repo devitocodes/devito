@@ -500,14 +500,8 @@ class IterationSpace(Space):
         sub_iterators = {}
         for i in others:
             for k, v in i.sub_iterators.items():
-                cv = [j.copy() for j in v]
-                ret = sub_iterators.setdefault(k, cv)
-                for se in cv:
-                    ofs = dict(ret).get(se.dim)
-                    if ofs is None:
-                        ret.append(se)
-                    else:
-                        ofs.update(se.ofs)
+                ret = sub_iterators.setdefault(k, [])
+                ret.extend([d for d in v if d not in ret])
         return IterationSpace(intervals, sub_iterators, directions)
 
     def project(self, cond):
@@ -551,7 +545,7 @@ class IterationSpace(Space):
 
     @property
     def dimensions(self):
-        sub_dims = [i.dim for v in self.sub_iterators.values() for i in v]
+        sub_dims = [i.parent for v in self.sub_iterators.values() for i in v]
         return filter_ordered(self.intervals.dimensions + sub_dims)
 
     @property

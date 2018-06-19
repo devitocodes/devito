@@ -5,11 +5,11 @@ from collections import OrderedDict
 import cgen as c
 import numpy as np
 
+from devito.dimension import IncrDimension
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
-from devito.ir.iet import (Denormals, Call, Callable, List, UnboundedIndex,
-                           NestedTransformer, Transformer, FindSymbols,
-                           retrieve_iteration_tree, filter_iterations,
-                           derive_parameters, ArrayCast)
+from devito.ir.iet import (Denormals, Call, Callable, List, NestedTransformer,
+                           Transformer, FindSymbols, retrieve_iteration_tree,
+                           filter_iterations, derive_parameters, ArrayCast)
 from devito.symbolics import as_symbol
 from devito.tools import flatten
 from devito.types import Scalar
@@ -70,11 +70,11 @@ class BasicRewriter(AbstractRewriter):
                 # Iteration unbounded indices
                 ufunc = [Scalar(name='%s_ub%d' % (name, j), dtype=np.int32)
                          for j in range(len(i.uindices))]
-                defined_args.update({uf.name: j.start
+                defined_args.update({uf.name: j.symbolic_start
                                      for uf, j in zip(ufunc, i.uindices)})
                 limits = [Scalar(name=start.name, dtype=np.int32),
                           Scalar(name=finish.name, dtype=np.int32), 1]
-                uindices = [UnboundedIndex(j.index, i.dim + as_symbol(k))
+                uindices = [IncrDimension(j.parent, i.dim + as_symbol(k), 1, j.name)
                             for j, k in zip(i.uindices, ufunc)]
                 free.append(i._rebuild(limits=limits, offsets=None, uindices=uindices))
 

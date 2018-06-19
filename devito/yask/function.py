@@ -186,15 +186,13 @@ class TimeFunction(function.TimeFunction, Function):
         # This is a little hack: a TimeFunction originally meant to be accessed
         # via modulo buffered iteration should never impose anything on the time
         # dimension
-        if self.save is not int:
+        if self._time_buffering:
             args.pop(self.time_dim.max_name)
             args.pop(self.time_dim.size_name)
         return args
 
     def _arg_check(self, args, intervals):
-        if self.save is int:
-            super(TimeFunction, self)._arg_check(args, intervals)
-        else:
+        if self._time_buffering:
             # Using a TimeDimension in place of a SteppingDimension, so we
             # should silence any errors due to assuming OOB accesses
             try:
@@ -203,3 +201,5 @@ class TimeFunction(function.TimeFunction, Function):
                 for i, s in zip(self.indices, args[self.name].shape):
                     size = np.inf if i.is_Time else s
                     i._arg_check(args, size, intervals[i])
+        else:
+            super(TimeFunction, self)._arg_check(args, intervals)
