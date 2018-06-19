@@ -23,7 +23,7 @@ from devito.logger import info, error
                                    'If unspecified, a name is assigned joining '
                                    'the executable name with the options specified '
                                    'in --exec-args (if any).')
-@click.option('--exec-args', type=click.UNPROCESSED,
+@click.option('--exec-args', type=click.UNPROCESSED, default='',
               help='Arguments passed to the executable.')
 @click.option('--advisor-home', help='Path to Intel Advisor. Defaults to /opt/intel'
                                      '/advisor, which is the directory in which '
@@ -37,7 +37,7 @@ def run_with_advisor(path, output, name, exec_args, advisor_home):
     if name is None:
         name = path.stem
         if exec_args:
-            name = "%s_%s" % (name, ''.join(exec_args))
+            name = "%s_%s" % (name, ''.join(exec_args.split()))
     if output is None:
         output = Path(gettempdir()).joinpath('devito-profilings')
         output.mkdir(parents=True, exist_ok=True)
@@ -70,44 +70,39 @@ def run_with_advisor(path, output, name, exec_args, advisor_home):
         'advixe-cl',
         '-q',  # Silence advisor
         '-data-limit=500',
-        '-start-paused',  # The generated code will enable/disable Advisor on a loop basis
         '-project-dir', str(output),
         '-search-dir src:r=%s' % gettempdir(),  # Root directory where Devito stores the generated code  # noqa
-        '-loops="-total-time>5"'
     ]
     advisor_survey = [
         '-collect survey',
+        '-start-paused',
         '-run-pass-thru=--no-altstack',  # Avoids `https://software.intel.com/en-us/vtune-amplifier-help-error-message-stack-size-is-too-small`  # noqa
-        '-strategy ldconfig:notrace:notrace'  # Avoids `https://software.intel.com/en-us/forums/intel-vtune-amplifier-xe/topic/779309`  # noqa
+        '-strategy ldconfig:notrace:notrace',  # Avoids `https://software.intel.com/en-us/forums/intel-vtune-amplifier-xe/topic/779309`  # noqa
+        '-start-paused',  # The generated code will enable/disable Advisor on a loop basis
     ]
     advisor_flops = [
         '-collect tripcounts',
         '-flop',
-        '-no-trip-counts'
     ]
     py_command = ['python', str(path)] + exec_args.split()
 
-    # To build a roofline with Advisor, we need to run two analyses,
-    # one after the other: `survey` and `tripcounts`
+    # To build a roofline with Advisor, we need to run two analyses back to
+    # back, `survey` and `tripcounts`
 
     info('Advisor: running `survey` analysis on `%s`' % name)
     command = advisor_command + advisor_survey + ['--'] + py_command
-    if check_call(command) == 0:
-        info('Advisor `survey` data successfully stored in `%s`' % str(output))
-    else:
-        error('Advisor failed to run a `survey` analysis')
+    check(check_call(command) == 0, 'Advisor failed to run a `survey` analysis')
+    info('Advisor `survey` data successfully stored in `%s`' % str(output))
 
     info('Advisor: running `tripcounts` analysis on `%s`' % name)
     command = advisor_command + advisor_flops + ['--'] + py_command
-    if check_call(command) == 0:
-        info('Advisor `flops` data successfully stored in `%s`' % str(output))
-    else:
-        error('Advisor failed to run a `tripcounts` analysis')
+    check(check_call(command) == 0, 'Advisor failed to run a `tripcounts` analysis')
+    info('Advisor `flops` data successfully stored in `%s`' % str(output))
 
 
 def check(cond, msg):
     if not cond:
-        print(msg, file=sys.stderr)
+        error(msg)
         sys.exit(1)
 
 
