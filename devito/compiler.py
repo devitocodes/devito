@@ -1,7 +1,8 @@
 from functools import partial
 from hashlib import sha1
-from os import environ, path
-from tempfile import mkdtemp
+from os import environ, getuid, path
+from pathlib import Path
+from tempfile import gettempdir
 from time import time
 from sys import platform
 from distutils import version
@@ -14,7 +15,7 @@ from codepy.toolchain import GCCToolchain
 from devito.exceptions import CompilationError
 from devito.logger import log
 from devito.parameters import configuration
-from devito.tools import change_directory
+from devito.tools import change_directory, memoized_func
 
 __all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
 
@@ -249,57 +250,56 @@ class CustomCompiler(Compiler):
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
 
-def get_tmp_dir():
-    """Function to get a temp directory.
-
-    :return: Path to a devito-specific tmp directory
+@memoized_func
+def get_jit_dir():
     """
-    global _devito_compiler_tmpdir
-    try:
-        path.exists(_devito_compiler_tmpdir)
-    except:
-        _devito_compiler_tmpdir = mkdtemp(prefix="devito-")
-
-    return _devito_compiler_tmpdir
-
-
-def load(basename, compiler):
-    """Load a compiled library
-
-    :param basename: Name of the .so file.
-    :param compiler: The toolchain used for compilation.
-    :return: The loaded library.
+    A temporary directory for jit-compiled objects.
     """
-    return npct.load_library(basename, '.')
+    tmpdir = Path(gettempdir()).joinpath("devito-cache-uid%s" % getuid())
+    tmpdir.mkdir(parents=True, exist_ok=True)
+    return tmpdir
 
 
-def jit_compile(ccode, compiler):
-    """JIT compile the given ccode.
+def load(soname, verbose=False):
+    """
+    Load a compiled shared object.
 
+    :param soname: Name of the .so file (w/o the suffix).
+    :param verbose: (Optional) emit a message if the loading was successfull.
+
+    :return: The loaded shared object.
+    """
+    tmpdir = get_jit_dir()
+    target = tmpdir.joinpath(soname)
+    shobj = npct.load_library(str(target), '.')
+    if verbose is True:
+        log("Loaded `%s` from `%s`" % (soname, target))
+    return shobj
+
+
+def jit_compile(soname, ccode, compiler):
+    """
+    JIT compile the given ``ccode``.
+
+    :param soname: A unique name for the jit-compiled shared object.
     :param ccode: String of C source code.
     :param compiler: The toolchain used for compilation.
-
-    :return: The name of the compilation unit.
     """
-    hash_key = sha1(str(ccode).encode()).hexdigest()
-    basename = path.join(get_tmp_dir(), hash_key)
-
-    src_file = "%s.%s" % (basename, compiler.src_ext)
+    target = str(get_jit_dir().joinpath(soname))
+    src_file = "%s.%s" % (target, compiler.src_ext)
     if platform == "linux" or platform == "linux2":
-        lib_file = "%s.so" % basename
+        lib_file = "%s.so" % target
     elif platform == "darwin":
-        lib_file = "%s.dylib" % basename
+        lib_file = "%s.dylib" % target
     elif platform == "win32" or platform == "win64":
-        lib_file = "%s.dll" % basename
+        lib_file = "%s.dll" % target
 
     tic = time()
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file,
                                debug=configuration['debug_compiler'])
     toc = time()
-    log("%s: compiled %s [%.2f s]" % (compiler, src_file, toc-tic))
-
-    return basename
+    log("%s: compiled `%s` [%.2f s]" % (compiler, src_file, toc-tic))
 
 
 def make(loc, args):
@@ -307,8 +307,8 @@ def make(loc, args):
     Invoke ``make`` command from within ``loc`` with arguments ``args``.
     """
     hash_key = sha1((loc + str(args)).encode()).hexdigest()
-    logfile = path.join(get_tmp_dir(), "%s.log" % hash_key)
-    errfile = path.join(get_tmp_dir(), "%s.err" % hash_key)
+    logfile = path.join(get_jit_dir(), "%s.log" % hash_key)
+    errfile = path.join(get_jit_dir(), "%s.err" % hash_key)
 
     tic = time()
     with change_directory(loc):
