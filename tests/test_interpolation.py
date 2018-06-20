@@ -92,6 +92,7 @@ def test_precomputed_interpolation():
     expected_values = [sin(point[0]) + sin(point[1]) for point in points]
     assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
 
+
 @skipif_yask
 def test_precomputed_interpolation_time():
     """ Test interpolation with PrecomputedSparseFunction which accepts
@@ -123,6 +124,7 @@ def test_precomputed_interpolation_time():
 
     for it in range(5):
         assert all(np.isclose(sf.data[it, :], it))
+
 
 @skipif_yask
 @pytest.mark.parametrize('shape, coords', [
