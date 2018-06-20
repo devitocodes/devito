@@ -14,7 +14,8 @@ from codepy.toolchain import GCCToolchain
 from devito.exceptions import CompilationError
 from devito.logger import log, warning
 from devito.parameters import configuration
-from devito.tools import as_tuple, change_directory, memoized_func, make_tempdir
+from devito.tools import (as_tuple, change_directory, filter_ordered,
+                          memoized_func, make_tempdir)
 
 __all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
 
