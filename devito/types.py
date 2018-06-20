@@ -299,17 +299,20 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
                                |
              -------------------------------------
              |                                   |
-           Array                          TensorFunction
-                                                 |
-                                   ------------------------------
-                                   |                            |
-                                Function             AbstractSparseFunction
-                                   |                            |
-                              TimeFunction        --------------------------
-                                                  |                        |
-                                           SparseFunction      PrecomputedSparseFunction
-                                                  |
-                                         SparseTimeFunction
+       TensorFunction                         Array
+             |
+  ------------------------------
+  |                            |
+Function             AbstractSparseFunction
+  |                            |
+TimeFunction        -----------------------------------------------
+                    |                        |                    |
+             SparseFunction      PrecomputedSparseFunction        |
+                                                      AbstractSparseTimeFunction
+                                                                  |
+                                                     ---------------------------
+                                                     |                         |
+                                     PrecomputedSparseTimeFunction    SparseTimeFunction
 
     There are five relevant :class:`AbstractFunction` sub-types: ::
 
@@ -323,6 +326,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
         * SparseTimeFunction: A time- and space-varying function representing "sparse"
                           points, i.e. points that are not aligned with the
                           computational grid.
+        * PrecomputedSparseFunction: A SparseFunction that uses a custom interpolation
+                                     scheme, instead of the included linear interpolators.
+        * PrecomputedSparseTimeFunction: A SparseTimeFunction that uses a custom
+                                         interpolation scheme, instead of the included
+                                         linear interpolators.
     """
 
     is_AbstractFunction = True
