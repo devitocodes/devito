@@ -6,8 +6,9 @@ import numpy as np
 
 from sympy import cos, Symbol  # noqa
 
-from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension,  # noqa
-                    Constant, Function, TimeFunction, Eq, configuration, SparseFunction)  # noqa
+from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # noqa
+                    Constant, Function, TimeFunction, Eq, configuration, SparseFunction, # noqa
+                    SparseTimeFunction)  # noqa
 from devito.types import Scalar, Array
 from devito.ir.iet import Iteration
 from devito.tools import as_tuple
@@ -56,11 +57,33 @@ def unit_box(name='a', shape=(11, 11)):
 
 
 @pytest.fixture(scope="session")
+def unit_box_time(name='a', shape=(11, 11)):
+    """Create a field with value 0. to 1. in each dimension"""
+    grid = Grid(shape=shape)
+    a = TimeFunction(name=name, grid=grid, time_order=1)
+    dims = tuple([np.linspace(0., 1., d) for d in shape])
+    a.data[0, :] = np.meshgrid(*dims)[1]
+    a.data[1, :] = np.meshgrid(*dims)[1]
+    return a
+
+
+@pytest.fixture(scope="session")
 def points(grid, ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
     points = SparseFunction(name=name, grid=grid, npoint=npoints)
+    for i, r in enumerate(ranges):
+        points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
+    return points
+
+
+@pytest.fixture(scope="session")
+def time_points(grid, ranges, npoints, name='points', nt=10):
+    """Create a set of sparse points from a set of coordinate
+    ranges for each spatial dimension.
+    """
+    points = SparseTimeFunction(name=name, grid=grid, npoint=npoints, nt=nt)
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
