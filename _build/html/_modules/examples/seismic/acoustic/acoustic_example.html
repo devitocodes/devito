@@ -160,13 +160,25 @@
 
 <span class="c1"># Velocity models</span>
 <div class="viewcode-block" id="smooth10"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.acoustic_example.smooth10">[docs]</a><span class="k">def</span> <span class="nf">smooth10</span><span class="p">(</span><span class="n">vel</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Smooth the input n-dimensional array &#39;vel&#39; along its last dimension (depth)</span>
+<span class="sd">    with a 10 points moving averaging kernel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Return a scaled version of the input if the input is a scalar</span>
     <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">vel</span><span class="p">):</span>
         <span class="k">return</span> <span class="o">.</span><span class="mi">9</span> <span class="o">*</span> <span class="n">vel</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="c1"># Initialize output</span>
     <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">vel</span><span class="p">)</span>
+    <span class="c1"># Size of the smoothed dimension</span>
     <span class="n">nz</span> <span class="o">=</span> <span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-
+    <span class="c1"># Indexing is done via slices for YASK compatibility</span>
+    <span class="c1"># Fist get the full span</span>
+    <span class="n">full_dims</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
     <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="n">nz</span><span class="o">-</span><span class="mi">6</span><span class="p">):</span>
-            <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">vel</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">a</span> <span class="o">-</span> <span class="mi">5</span><span class="p">:</span><span class="n">a</span> <span class="o">+</span> <span class="mi">5</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">10</span>
+        <span class="c1"># Get the a-5 yto ai+5 indices along the last dimension at index a</span>
+        <span class="n">slicessum</span> <span class="o">=</span> <span class="n">full_dims</span> <span class="o">+</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="mi">5</span><span class="p">,</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">5</span><span class="p">)]</span>
+        <span class="c1"># Average input</span>
+        <span class="n">out</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">vel</span><span class="p">[</span><span class="n">slicessum</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">10</span>
 
     <span class="k">return</span> <span class="n">out</span></div>
 

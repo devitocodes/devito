@@ -2438,7 +2438,7 @@ interpolation according to:
 
 <dl class="method">
 <dt id="devito.function.SparseFunction.inject">
-<code class="descname">inject</code><span class="sig-paren">(</span><em>field</em>, <em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction.inject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction.inject" title="Permalink to this definition">¶</a></dt>
+<code class="descname">inject</code><span class="sig-paren">(</span><em>field</em>, <em>expr</em>, <em>offset=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction.inject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction.inject" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for injection of an expression onto a grid</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -2460,7 +2460,7 @@ absorbing boundary conditions.</li>
 
 <dl class="method">
 <dt id="devito.function.SparseFunction.interpolate">
-<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>cummulative=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>cummulative=False</em>, <em>self_subs={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Creates a <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> equation for the interpolation
 of an expression onto this sparse point collection.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -2540,6 +2540,54 @@ symbolic function.</p>
 <dt id="devito.function.SparseTimeFunction.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.function.SparseTimeFunction.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.function.SparseTimeFunction.inject">
+<code class="descname">inject</code><span class="sig-paren">(</span><em>field</em>, <em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseTimeFunction.inject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseTimeFunction.inject" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for injection of an expression onto a grid</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>field</strong> – The grid field into which we inject.</li>
+<li><strong>expr</strong> – The expression to inject.</li>
+<li><strong>offset</strong> – Additional offset from the boundary for
+absorbing boundary conditions.</li>
+<li><strong>u_t</strong> – (Optional) time index to use for indexing into <cite>field</cite>.</li>
+<li><strong>p_t</strong> – (Optional) time index to use for indexing into <cite>expr</cite>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.function.SparseTimeFunction.interpolate">
+<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>cummulative=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseTimeFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseTimeFunction.interpolate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> equation for the interpolation
+of an expression onto this sparse point collection.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>expr</strong> – The expression to interpolate.</li>
+<li><strong>offset</strong> – Additional offset from the boundary for
+absorbing boundary conditions.</li>
+<li><strong>u_t</strong> – (Optional) time index to use for indexing into
+field data in <cite>expr</cite>.</li>
+<li><strong>p_t</strong> – (Optional) time index to use for indexing into
+the sparse point data.</li>
+<li><strong>cummulative</strong> – (Optional) If True, perform an increment rather
+than an assignment. Defaults to False.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.function.SparseTimeFunction.is_SparseTimeFunction">
