@@ -205,22 +205,15 @@ class Operator(Callable):
         :returns: The file name of the JIT-compiled function.
         """
         if self._lib is None:
-            jit_compile(self._soname, self.ccode, self._compiler)
+            jit_compile(self._soname, str(self.ccode), self._compiler)
 
     @property
     def cfunction(self):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
-            try:
-                # Attempt a look-up in the JIT cache becase perhaps the same
-                # Operator has already been compiled in a previous session or
-                # by a concurrent session
-                self._lib = load(self._soname, verbose=True)
-            except OSError:
-                # Nope, go ahead with JIT-compilation and dynamic loading
-                self._compile()
-                self._lib = load(self._soname)
-                self._lib.name = self._soname
+            self._compile()
+            self._lib = load(self._soname)
+            self._lib.name = self._soname
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)

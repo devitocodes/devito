@@ -184,7 +184,7 @@ class Operator(OperatorRunnable):
         if self._lib is None:
             if not isinstance(self.yk_soln, YaskNullKernel):
                 self._compiler.libraries.append(self.yk_soln.soname)
-            jit_compile(self._soname, self.ccode, self._compiler)
+            jit_compile(self._soname, str(self.ccode), self._compiler)
 
 
 def find_offloadable_trees(iet):
