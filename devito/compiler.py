@@ -247,9 +247,19 @@ class CustomCompiler(Compiler):
 @memoized_func
 def get_jit_dir():
     """
-    A temporary directory for jit-compiled objects.
+    A deterministic temporary directory for jit-compiled objects.
     """
     tmpdir = Path(gettempdir()).joinpath("devito-cache-uid%s" % getuid())
+    tmpdir.mkdir(parents=True, exist_ok=True)
+    return tmpdir
+
+
+@memoized_func
+def get_codepy_dir():
+    """
+    A deterministic temporary directory for the codepy cache.
+    """
+    tmpdir = Path(gettempdir()).joinpath("devito-codepy-uid%s" % getuid())
     tmpdir.mkdir(parents=True, exist_ok=True)
     return tmpdir
 
@@ -288,6 +298,7 @@ def jit_compile(soname, code, compiler):
     with warnings.catch_warnings():
         tic = time()
         _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
+                                                  cache_dir=get_codepy_dir(),
                                                   debug=configuration['debug_compiler'])
         toc = time()
 
