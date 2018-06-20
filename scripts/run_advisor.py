@@ -5,9 +5,23 @@ from subprocess import check_call
 from tempfile import gettempdir, mkdtemp
 import shutil
 
+# Required to generate a roofline
+import math
+import pandas as pd
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 import click
 
 from devito.logger import info, error
+
+try:
+    import advisor
+except ImportError:
+    error("Couldn't detect Intel Advisor on this system.")
+    sys.exit(1)
 
 
 @click.command()
@@ -104,6 +118,9 @@ def run_with_advisor(path, output, name, exec_args, advisor_home):
     check(check_call(command) == 0, 'Advisor failed to run a `tripcounts` analysis')
     info('Advisor `flops` data successfully stored in `%s`' % str(output))
 
+    # Finally, generate a roofline
+    roofline(name, output)
+
 
 def check(cond, msg):
     if not cond:
@@ -111,5 +128,68 @@ def check(cond, msg):
         sys.exit(1)
 
 
+def roofline(name, output):
+    """
+    Generate a roofline for the Intel Advisor ``project``.
+
+    This routine is partly extracted from the examples directory of Intel Advisor 2018;
+    it has been tweaked to produce ad-hoc rooflines.
+    """
+    pd.options.display.max_rows = 20
+
+    project = advisor.open_project(output)
+    data = project.load(advisor.SURVEY)
+    rows = [{col: row[col] for col in row} for row in data.bottomup]
+    roofs = data.get_roofs()
+
+    df = pd.DataFrame(rows).replace('', np.nan)
+    print(df[['self_arithmetic_intensity', 'self_gflops']].dropna())
+
+    df.self_arithmetic_intensity = df.self_arithmetic_intensity.astype(float)
+    df.self_gflops = df.self_gflops.astype(float)
+
+    width = df.self_arithmetic_intensity.max() * 1.2
+
+    fig, ax = plt.subplots()
+    key = lambda roof: roof.bandwidth if 'bandwidth' not in roof.name.lower() else 0
+    max_compute_roof = max(roofs, key=key)
+    max_compute_bandwidth = max_compute_roof.bandwidth / math.pow(10, 9)  # as GByte/s
+
+    for roof in roofs:
+        # by default drawing multi-threaded roofs only
+        if 'single-thread' not in roof.name:
+            # memory roofs
+            if 'bandwidth' in roof.name.lower():
+                bandwidth = roof.bandwidth / math.pow(10, 9) # as GByte/s
+                # y = banwidth * x
+                x1, x2 = 0, min(width, max_compute_bandwidth / bandwidth)
+                y1, y2 = 0, x2 * bandwidth
+                label = '{} {:.0f} GB/s'.format(roof.name, bandwidth)
+                ax.plot([x1, x2], [y1, y2], '-', label=label)
+
+            # compute roofs
+            else:
+                bandwidth = roof.bandwidth / math.pow(10, 9)  # as GFlOPS
+                x1, x2 = 0, width
+                y1, y2 = bandwidth, bandwidth
+                label = '{} {:.0f} GFLOPS'.format(roof.name, bandwidth)
+                ax.plot([x1, x2], [y1, y2], '-', label=label)
+
+
+    # drawing points using the same ax
+    ax.set_xscale('log', nonposx='clip')
+    ax.set_yscale('log', nonposy='clip')
+    ax.plot(df.self_arithmetic_intensity, df.self_gflops, 'o')
+
+    plt.legend(loc='lower right', fancybox=True, prop={'size': 6})
+
+    # saving the chart in PDF format
+    plt.savefig('%s.pdf' % name)
+
+    info('Roofline chart has been generated and saved into %s.pdf '
+         'in the current directory' % name)
+
+
 if __name__ == '__main__':
-    run_with_advisor()
+    #run_with_advisor()
+    roofline('acoustic_roofline', '/tmp/devito-profilings/acoustic_example-d24oiaqo')
