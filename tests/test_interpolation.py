@@ -92,6 +92,37 @@ def test_precomputed_interpolation():
     expected_values = [sin(point[0]) + sin(point[1]) for point in points]
     assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
 
+@skipif_yask
+def test_precomputed_interpolation_time():
+    """ Test interpolation with PrecomputedSparseFunction which accepts
+        precomputed values for coefficients, but this time with a TimeFunction
+    """
+    shape = (101, 101)
+    points = [(.05, .9), (.01, .8), (0.07, 0.84)]
+    origin = (0, 0)
+
+    grid = Grid(shape=shape, origin=origin)
+    r = 2  # Constant for linear interpolation
+    #  because we interpolate across 2 neighbouring points in each dimension
+
+    u = TimeFunction(name='u', grid=grid, space_order=0, save=5)
+    for it in range(5):
+        u.data[it, :] = it
+
+    gridpoints, coefficients = precompute_linear_interpolation(points, grid, origin)
+
+    sf = PrecomputedSparseFunction(name='s', grid=grid, r=r, npoint=len(points),
+                                   nt=5,
+                                   gridpoints=gridpoints, coefficients=coefficients)
+
+    assert sf.data.shape == (5, 3)
+
+    eqn = sf.interpolate(u)
+    op = Operator(eqn)
+    op(time_m=0, time_M=4)
+
+    for it in range(5):
+        assert all(np.isclose(sf.data[it, :], it))
 
 @skipif_yask
 @pytest.mark.parametrize('shape, coords', [
