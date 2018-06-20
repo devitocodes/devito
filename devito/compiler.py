@@ -1,8 +1,6 @@
 from functools import partial
 from hashlib import sha1
-from os import environ, getuid, path
-from pathlib import Path
-from tempfile import gettempdir
+from os import environ, path
 from time import time
 from distutils import version
 from subprocess import DEVNULL, CalledProcessError, check_output, check_call
@@ -16,7 +14,7 @@ from codepy.toolchain import GCCToolchain
 from devito.exceptions import CompilationError
 from devito.logger import log, warning
 from devito.parameters import configuration
-from devito.tools import change_directory, memoized_func
+from devito.tools import change_directory, memoized_func, make_tempdir
 
 __all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
 
@@ -249,9 +247,7 @@ def get_jit_dir():
     """
     A deterministic temporary directory for jit-compiled objects.
     """
-    tmpdir = Path(gettempdir()).joinpath("devito-cache-uid%s" % getuid())
-    tmpdir.mkdir(parents=True, exist_ok=True)
-    return tmpdir
+    return make_tempdir('jitcache')
 
 
 @memoized_func
@@ -259,9 +255,7 @@ def get_codepy_dir():
     """
     A deterministic temporary directory for the codepy cache.
     """
-    tmpdir = Path(gettempdir()).joinpath("devito-codepy-uid%s" % getuid())
-    tmpdir.mkdir(parents=True, exist_ok=True)
-    return tmpdir
+    return make_tempdir('codepy')
 
 
 def load(soname):
