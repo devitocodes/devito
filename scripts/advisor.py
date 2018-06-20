@@ -87,14 +87,19 @@ def run_with_advisor(path, output, name, exec_args, advisor_home):
     py_command = ['python', str(path)] + exec_args.split()
 
     # To build a roofline with Advisor, we need to run two analyses back to
-    # back, `survey` and `tripcounts`
+    # back, `survey` and `tripcounts`. These are preceded by a "pure" python
+    # run to warmup the jit cache
 
-    info('Advisor: running `survey` analysis on `%s`' % name)
+    info('Advisor: performing `cache warm-up` run')
+    check(check_call(py_command) == 0, 'Advisor failed to run a `survey` analysis')
+    info('Advisor: `cache warm-up` run performed successfully')
+
+    info('Advisor: performing `survey` analysis on `%s`' % name)
     command = advisor_command + advisor_survey + ['--'] + py_command
     check(check_call(command) == 0, 'Advisor failed to run a `survey` analysis')
     info('Advisor `survey` data successfully stored in `%s`' % str(output))
 
-    info('Advisor: running `tripcounts` analysis on `%s`' % name)
+    info('Advisor: performing `tripcounts` analysis on `%s`' % name)
     command = advisor_command + advisor_flops + ['--'] + py_command
     check(check_call(command) == 0, 'Advisor failed to run a `tripcounts` analysis')
     info('Advisor `flops` data successfully stored in `%s`' % str(output))
