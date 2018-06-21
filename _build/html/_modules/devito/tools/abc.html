@@ -155,7 +155,7 @@
 <span class="kn">from</span> <span class="nn">hashlib</span> <span class="k">import</span> <span class="n">sha1</span>
 
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Tag&#39;</span><span class="p">,</span> <span class="s1">&#39;Signer&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Tag&#39;</span><span class="p">,</span> <span class="s1">&#39;Signer&#39;</span><span class="p">,</span> <span class="s1">&#39;Pickable&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Tag"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.abc.Tag">[docs]</a><span class="k">class</span> <span class="nc">Tag</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
@@ -231,6 +231,58 @@
 
     <span class="k">def</span> <span class="nf">_signature</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">Signer</span><span class="o">.</span><span class="n">_sign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_signature_items</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="Pickable"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.abc.Pickable">[docs]</a><span class="k">class</span> <span class="nc">Pickable</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A base class for types that require pickling. There are several complications</span>
+<span class="sd">    that this class tries to handle: ::</span>
+
+<span class="sd">        * Packages such as SymPy have their own way of handling pickling -- though</span>
+<span class="sd">          still based upon Python&#39;s pickle module. This may get in conflict with</span>
+<span class="sd">          other packages, or simply with Devito itself. For example, most of Devito</span>
+<span class="sd">          symbolic objects are created via ``def __new__(..., **kwargs)``; SymPy1.1</span>
+<span class="sd">          pickling does not cope nicely with ``new`` and ``kwargs``, since it is</span>
+<span class="sd">          based on the low-level copy protocol (__reduce__, __reduce_ex__) and</span>
+<span class="sd">          simply end up ignoring ``__getnewargs_ex__``, the function responsible</span>
+<span class="sd">          for processing __new__&#39;s kwargs.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        All sub-classes using multiple inheritance may have to explicitly set</span>
+<span class="sd">        ``__reduce_ex__ = Pickable.__reduce_ex__`` depending on the MRO.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="sd">&quot;&quot;&quot;The positional arguments that need to be passed to __new__ upon unpickling.&quot;&quot;&quot;</span>
+
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="sd">&quot;&quot;&quot;The keyword arguments that need to be passed to __new__ upon unpickling.&quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_pickle_reconstruct</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the callable that should be used to reconstruct ``self`` upon</span>
+<span class="sd">        unpickling. If None, default to whatever Python&#39;s pickle uses.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__reduce_ex__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">proto</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="n">__reduce_ex__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">proto</span><span class="p">)</span>
+        <span class="n">reconstructor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pickle_reconstruct</span>
+        <span class="k">if</span> <span class="n">reconstructor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ret</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Instead of the following wrapper function, we could use Python&#39;s copyreg</span>
+            <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">_</span><span class="p">,</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">),</span> <span class="n">state</span><span class="p">,</span> <span class="n">iter0</span><span class="p">,</span> <span class="n">iter1</span> <span class="o">=</span> <span class="n">ret</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">wrapper</span><span class="p">,</span> <span class="p">(</span><span class="n">reconstructor</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">),</span> <span class="n">state</span><span class="p">,</span> <span class="n">iter0</span><span class="p">,</span> <span class="n">iter1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getnewargs_ex__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pickle_args</span><span class="p">),</span>
+                <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pickle_kwargs</span><span class="p">})</span></div>
 </pre></div>
 
            </div>

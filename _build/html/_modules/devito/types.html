@@ -164,7 +164,7 @@
 <span class="kn">import</span> <span class="nn">sympy</span>
 
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">single_or</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">single_or</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">]</span>
 
@@ -295,7 +295,7 @@
         <span class="k">return</span> <span class="nb">hash</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
 
 
-<span class="k">class</span> <span class="nc">AbstractSymbol</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">AbstractSymbol</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class for dimension-free symbols, only cached by SymPy.</span>
 
@@ -379,6 +379,14 @@
 
     <span class="fm">__hash__</span> <span class="o">=</span> <span class="n">Cached</span><span class="o">.</span><span class="fm">__hash__</span>
 
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+    <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_pickle_reconstruct</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="n">__base__</span>
+
 
 <div class="viewcode-block" id="Symbol"><a class="viewcode-back" href="../../devito.html#devito.types.Symbol">[docs]</a><span class="k">class</span> <span class="nc">Symbol</span><span class="p">(</span><span class="n">AbstractCachedSymbol</span><span class="p">):</span>
 
@@ -430,7 +438,7 @@
         <span class="k">return</span> <span class="bp">self</span>
 
 
-<span class="k">class</span> <span class="nc">AbstractFunction</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Function</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">AbstractFunction</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Function</span><span class="p">,</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class for tensor symbols, only cached by SymPy. It inherits from and</span>
 <span class="sd">    mimick the behaviour of a :class:`sympy.Function`.</span>
@@ -664,6 +672,14 @@
         <span class="sd">&quot;&quot;&quot;A mask to access the domain+halo region of the allocated data.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">j</span><span class="p">)</span> <span class="k">if</span> <span class="n">j</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span><span class="p">)</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+    <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_pickle_reconstruct</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="n">__base__</span>
 
 
 <span class="k">class</span> <span class="nc">Array</span><span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">):</span>
