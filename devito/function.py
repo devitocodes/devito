@@ -565,6 +565,10 @@ class Function(TensorFunction):
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
 
+    # Pickling support
+    _pickle_kwargs = TensorFunction._pickle_kwargs +\
+        ['dtype', 'grid', 'shape', 'dimensions', 'space_order']
+
 
 class TimeFunction(Function):
     """
@@ -766,6 +770,9 @@ class TimeFunction(Function):
             raise InvalidArgument("Expected `time_size=%d` for runtime "
                                   "value `%s`, found `%d` instead"
                                   % (self._time_size, self.name, key_time_size))
+
+    # Pickling support
+    _pickle_kwargs = Function._pickle_kwargs + ['time_order']
 
 
 class AbstractSparseFunction(TensorFunction):
