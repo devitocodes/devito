@@ -6,6 +6,7 @@ from cached_property import cached_property
 from devito.exceptions import InvalidArgument
 from devito.types import AbstractSymbol, Scalar
 from devito.logger import debug
+from devito.tools import Pickable
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
@@ -204,6 +205,11 @@ class Dimension(AbstractSymbol):
                   self.min_name, args[self.min_name],
                   self.max_name, args[self.max_name], self.name)
 
+    # Pickling support
+    _pickle_args = ['name']
+    _pickle_kwargs = ['spacing']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
 
 class SpaceDimension(Dimension):
 
@@ -328,6 +334,10 @@ class DerivedDimension(Dimension):
         A :class:`DerivedDimension` performs no runtime checks.
         """
         return
+
+    # Pickling support
+    _pickle_args = Dimension._pickle_args + ['parent']
+    _pickle_kwargs = []
 
 
 class SubDimension(DerivedDimension):
