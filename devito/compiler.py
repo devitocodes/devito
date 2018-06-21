@@ -348,4 +348,4 @@ compiler_registry = {
     'knl': IntelKNLCompiler,
 }
 compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
-                          for i in ['4.9', '5', '6', '7']})
+                          for i in ['4.9', '5', '6', '7', '8']})
