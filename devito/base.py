@@ -6,6 +6,7 @@ from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
 from devito.grid import Grid
+from devito.function import PrecomputedSparseTimeFunction
 import devito.types as types
 import devito.function as function
 import devito.operator as operator
@@ -36,6 +37,16 @@ class SparseFunction(with_metaclass(_BackendSelector, function.SparseFunction)):
 
 
 class SparseTimeFunction(with_metaclass(_BackendSelector, function.SparseTimeFunction)):
+    pass
+
+
+class PrecomputedSparseFunction(with_metaclass(_BackendSelector,
+                                               function.PrecomputedSparseFunction)):
+    pass
+
+
+class PrecomputedSparseTimeFunction(with_metaclass(_BackendSelector,
+                                                   PrecomputedSparseTimeFunction)):
     pass
 
 
