@@ -293,26 +293,25 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
 
     The sub-hierarchy is structured as follows
 
-                        AbstractFunction
-                               |
-                     AbstractCachedFunction
-                               |
-             -------------------------------------
-             |                                   |
-       TensorFunction                         Array
-             |
-  ------------------------------
-  |                            |
-Function             AbstractSparseFunction
-  |                            |
-TimeFunction        -----------------------------------------------
-                    |                        |                    |
-             SparseFunction      PrecomputedSparseFunction        |
-                                                      AbstractSparseTimeFunction
-                                                                  |
-                                                     ---------------------------
-                                                     |                         |
-                                     PrecomputedSparseTimeFunction    SparseTimeFunction
+                         AbstractFunction
+                                |
+                      AbstractCachedFunction
+                                |
+                 ---------------------------------
+                 |                               |
+           TensorFunction                      Array
+                 |
+         ----------------------------------------
+         |                                      |
+         |                           AbstractSparseFunction
+         |                                      |
+         |               -----------------------------------------------------
+         |               |                      |                            |
+      Function     SparseFunction   AbstractSparseTimeFunction  PrecomputedSparseFunction
+         |               |                      |                            |
+         |               |   ------------------------------------     --------
+         |               |   |                                  |     |
+    TimeFunction  SparseTimeFunction                 PrecomputedSparseTimeFunction
 
     There are five relevant :class:`AbstractFunction` sub-types: ::
 
