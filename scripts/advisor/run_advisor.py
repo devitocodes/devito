@@ -1,17 +1,9 @@
 import os
 import sys
 from pathlib import Path
-from subprocess import DEVNULL, check_call
+from subprocess import check_call, check_output
 from tempfile import gettempdir, mkdtemp
 from contextlib import contextmanager
-
-# Required to generate a roofline
-import math
-import pandas as pd
-import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 import click
 
@@ -37,13 +29,6 @@ def progress(msg):
     print('\033[1;37;32m%s\033[0m' % 'Done!')
 
 
-try:
-    import advisor
-except ImportError:
-    err("Couldn't detect Intel Advisor on this system.")
-    sys.exit(1)
-
-
 @click.command()
 # Required arguments
 @click.option('--path', '-p', help='Absolute path to the Devito executable.',
@@ -62,7 +47,8 @@ except ImportError:
 @click.option('--advisor-home', help='Path to Intel Advisor. Defaults to /opt/intel'
                                      '/advisor, which is the directory in which '
                                      'Intel Compiler suite is installed.')
-def run_with_advisor(path, output, name, exec_args, advisor_home):
+@click.option('--plot/--no-plot', default=True, help='Generate a roofline.')
+def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
     path = Path(path)
     check(path.is_file(), '%s not found' % path)
     check(path.suffix == '.py', '%s not a regular Python file' % path)
@@ -91,6 +77,11 @@ def run_with_advisor(path, output, name, exec_args, advisor_home):
     # Tell Devito to instrument the generated code for Advisor
     os.environ['DEVITO_PROFILING'] = 'advisor'
 
+    # Devito Logging is disabled unless the user asks explicitly to see it
+    logging = os.environ.get('DEVITO_LOGGING')
+    if logging is None:
+        os.environ['DEVITO_LOGGING'] = 'WARNING'
+
     with progress('Set up multi-threading environment'):
         # Roofline analyses only make sense with threading enabled
         os.environ['DEVITO_OPENMP'] = '1'
@@ -98,10 +89,12 @@ def run_with_advisor(path, output, name, exec_args, advisor_home):
         # We must be able to do thread pinning, otherwise any results would be
         # meaningless. Currently, we only support doing that via numactl
         try:
-            errmsg = "Couldn't detect `numactl`, necessary for thread pinning."
-            check(check_call(['numactl', '--show'], stdout=DEVNULL) == 0, errmsg)
-        except:
-            check(True, errmsg)
+            ret = check_output(['numactl', '--show'])
+            ret = dict(i.split(':') for i in ret.decode("utf-8").split('\n') if i)
+            n_sockets = len(ret['cpubind'].split())
+            n_cores = len(ret['physcpubind'].split())  # noqa
+        except FileNotFoundError:
+            check(False, "Couldn't detect `numactl`, necessary for thread pinning.")
 
         # Prevent NumPy from using threads, which otherwise leads to a deadlock when
         # used in combination with Advisor. This issue has been described at:
@@ -159,66 +152,18 @@ def run_with_advisor(path, output, name, exec_args, advisor_home):
     log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
 
     # Finally, generate a roofline
-    roofline(name, output)
-
-
-def roofline(name, output):
-    """
-    Generate a roofline for the Intel Advisor ``project``.
-
-    This routine is partly extracted from the examples directory of Intel Advisor 2018;
-    it has been tweaked to produce ad-hoc rooflines.
-    """
-    with progress('Generating roofline char for `%s`' % name):
-        pd.options.display.max_rows = 20
-
-        project = advisor.open_project(output)
-        data = project.load(advisor.SURVEY)
-        rows = [{col: row[col] for col in row} for row in data.bottomup]
-        roofs = data.get_roofs()
-
-        df = pd.DataFrame(rows).replace('', np.nan)
-        # print(df[['self_arithmetic_intensity', 'self_gflops']].dropna())
-
-        df.self_arithmetic_intensity = df.self_arithmetic_intensity.astype(float)
-        df.self_gflops = df.self_gflops.astype(float)
-
-        width = df.self_arithmetic_intensity.max() * 1.2
-
-        fig, ax = plt.subplots()
-        key = lambda roof: roof.bandwidth if 'bandwidth' not in roof.name.lower() else 0
-        max_compute_roof = max(roofs, key=key)
-        max_compute_bandwidth = max_compute_roof.bandwidth / math.pow(10, 9)  # as GByte/s
-
-        for roof in roofs:
-            # by default drawing multi-threaded roofs only
-            if 'single-thread' not in roof.name:
-                # memory roofs
-                if 'bandwidth' in roof.name.lower():
-                    bandwidth = roof.bandwidth / math.pow(10, 9) # as GByte/s
-                    # y = banwidth * x
-                    x1, x2 = 0, min(width, max_compute_bandwidth / bandwidth)
-                    y1, y2 = 0, x2 * bandwidth
-                    label = '{} {:.0f} GB/s'.format(roof.name, bandwidth)
-                    ax.plot([x1, x2], [y1, y2], '-', label=label)
-
-                # compute roofs
-                else:
-                    bandwidth = roof.bandwidth / math.pow(10, 9)  # as GFlOPS
-                    x1, x2 = 0, width
-                    y1, y2 = bandwidth, bandwidth
-                    label = '{} {:.0f} GFLOPS'.format(roof.name, bandwidth)
-                    ax.plot([x1, x2], [y1, y2], '-', label=label)
-
-        # drawing points using the same ax
-        ax.set_xscale('log', nonposx='clip')
-        ax.set_yscale('log', nonposy='clip')
-        ax.plot(df.self_arithmetic_intensity, df.self_gflops, 'o')
-
-        plt.legend(loc='lower right', fancybox=True, prop={'size': 6})
-
-        # saving the chart in PDF format
-        plt.savefig('%s.pdf' % name)
+    # TODO: Intel Advisor 2018 doesn't cope well with Python 3.5, so we rather use
+    # the embedded advixe-python
+    if plot:
+        with progress('Generating roofline char for `%s`' % name):
+            cmd = [
+                'python2.7',
+                'roofline.py',
+                '--name %s' % name,
+                '--output %s' % output,
+                '--scale %f' % n_sockets
+            ]
+            check(check_call(cmd) == 0, 'Failed!')
 
 
 if __name__ == '__main__':
