@@ -21,7 +21,8 @@ from devito.types import AbstractCachedFunction, AbstractCachedSymbol
 from devito.tools import Tag, ReducerMap, prod, powerset
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'SparseTimeFunction', 'PrecomputedSparseFunction', 'Buffer']
+           'SparseTimeFunction', 'PrecomputedSparseFunction',
+           'PrecomputedSparseTimeFunction', 'Buffer']
 
 
 class Constant(AbstractCachedSymbol):
@@ -845,6 +846,53 @@ class AbstractSparseFunction(TensorFunction):
         return tuple([self.name] + [x for x in self._child_functions])
 
 
+class AbstractSparseTimeFunction(AbstractSparseFunction):
+    """
+    An abstract class to define behaviours common to any kind of sparse
+    time functions, whether using precomputed coefficients or computing them
+    on the fly. This is an internal class only and should never be
+    instantiated.
+    """
+
+    _time_position = 0
+    """Position of time index among the function indices."""
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
+
+            nt = kwargs.get('nt')
+            if not isinstance(nt, int):
+                raise TypeError('Sparse TimeFunction needs `nt` int argument')
+            if nt <= 0:
+                raise ValueError('`nt` must be > 0')
+            self.nt = nt
+
+            self.time_dim = self.indices[self._time_position]
+            self.time_order = kwargs.get('time_order', 1)
+            if not isinstance(self.time_order, int):
+                raise ValueError("`time_order` must be int")
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        """
+        Return the default dimension indices for a given data shape.
+        """
+        dimensions = kwargs.get('dimensions')
+        if dimensions is not None:
+            return dimensions
+        else:
+            return (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+    @property
+    def _time_size(self):
+        return self.shape_allocated[self._time_position]
+
+
 class SparseFunction(AbstractSparseFunction):
     """
     A special :class:`TensorFunction` representing a set of sparse point
@@ -1037,7 +1085,7 @@ class SparseFunction(AbstractSparseFunction):
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
 
-class SparseTimeFunction(SparseFunction):
+class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
     A time-dependent :class:`SparseFunction`.
 
@@ -1068,40 +1116,6 @@ class SparseTimeFunction(SparseFunction):
     """
 
     is_SparseTimeFunction = True
-
-    _time_position = 0
-    """Position of time index among the function indices."""
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(SparseTimeFunction, self).__init__(*args, **kwargs)
-
-            nt = kwargs.get('nt')
-            if not isinstance(nt, int):
-                raise TypeError('SparseTimeFunction needs `nt` int argument')
-            if nt <= 0:
-                raise ValueError('`nt` must be > 0')
-            self.nt = nt
-
-            self.time_dim = self.indices[self._time_position]
-            self.time_order = kwargs.get('time_order', 1)
-            if not isinstance(self.time_order, int):
-                raise ValueError("`time_order` must be int")
-
-    @classmethod
-    def __indices_setup__(cls, **kwargs):
-        """
-        Return the default dimension indices for a given data shape.
-        """
-        dimensions = kwargs.get('dimensions')
-        if dimensions is not None:
-            return dimensions
-        else:
-            return (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
-
-    @classmethod
-    def __shape_setup__(cls, **kwargs):
-        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
@@ -1149,10 +1163,6 @@ class SparseTimeFunction(SparseFunction):
 
         return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
 
-    @property
-    def _time_size(self):
-        return self.shape_allocated[self._time_position]
-
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
     """
@@ -1161,7 +1171,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     sparse point is precomputed at the time this object is being created.
 
     :param name: Name of the function.
-    :param nt: Size of the time dimension for point data.
     :param npoint: Number of points to sample.
     :param grid: :class:`Grid` object defining the computational domain.
     :param r: The number of gridpoints in each dimension to interpolate a single sparse
@@ -1300,6 +1309,49 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
+
+
+class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
+                                    PrecomputedSparseFunction):
+    """
+    A specialised type of SparseFunction where the interpolation is externally defined.
+    Currently, this means that the grid points and associated coefficients for each
+    sparse point is precomputed at the time this object is being created.
+
+    :param name: Name of the function.
+    :param npoint: Number of points to sample.
+    :param grid: :class:`Grid` object defining the computational domain.
+    :param r: The number of gridpoints in each dimension to interpolate a single sparse
+              point to. e.g. 2 for linear interpolation.
+    :param gridpoints: The *reference* grid point corresponding to each sparse point.
+                       Of all the gridpoints that one sparse point would be interpolated
+                       to, this is the grid point closest to the origin, i.e. the one
+                       with the lowest value of each coordinate dimension. Must be a
+                       two-dimensional array of shape [npoint][grid.ndim].
+    :param coefficients: An array containing the coefficient for each of the r^2 (2D) or
+                         r^3 (3D) gridpoints that each sparsefunction will be interpolated
+                         to. The coefficient is split across the n dimensions such that
+                         the contribution of the point (i, j, k) will be multiplied by
+                         coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
+                         for r=6, we will store 18 coefficients per sparse point (instead
+                         of potentially 216). Shape must be [npoint][grid.ndim][r].
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param space_order: (Optional) Discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) Discretisation order for time derivatives.
+                       Default to 1.
+    :param dtype: (Optional) Data type of the buffered data.
+    :param initializer: (Optional) A callable to initialize the data
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
+    """
+    is_PrecomputedSparseTimeFunction = True
 
 
 # Additional Function-related APIs
