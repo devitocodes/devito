@@ -17,7 +17,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa
 
 # Use fancy plot colors
-plt.style.use('ggplot')
+plt.style.use('seaborn-darkgrid')
 
 
 @click.command()
@@ -28,7 +28,9 @@ plt.style.use('ggplot')
                                           'scaled down due to using fewer cores than '
                                           'available (e.g., when running on a single '
                                           'socket)')
-def roofline(name, project, scale):
+@click.option('--precision', type=click.Choice(['SP', 'DP', 'all']),
+              help='Arithmetic precision', default='SP')
+def roofline(name, project, scale, precision):
     pd.options.display.max_rows = 20
 
     project = advisor.open_project(str(project))
@@ -41,18 +43,22 @@ def roofline(name, project, scale):
     df.self_ai = df.self_ai.astype(float)
     df.self_gflops = df.self_gflops.astype(float)
 
-    # Parameters to center the chart
-    ai_min = 2**-5
-    ai_max = 2**5
-    gflops_min = 2**0
-
-    width = ai_max
-
     fig, ax = plt.subplots()
     key = lambda roof: roof.bandwidth if 'bandwidth' not in roof.name.lower() else 0
     max_compute_roof = max(roofs, key=key)
     max_compute_bandwidth = max_compute_roof.bandwidth / math.pow(10, 9)  # as GByte/s
     max_compute_bandwidth /= scale  # scale down as requested by the user
+
+    key = lambda roof: roof.bandwidth if 'bandwidth' in roof.name.lower() else 0
+    max_memory_roof = max(roofs, key=key)
+    max_memory_bandwidth = max_memory_roof.bandwidth / math.pow(10, 9)  # as GByte/s
+    max_memory_bandwidth /= scale  # scale down as requested by the user
+
+    # Parameters to center the chart
+    ai_min = 2**-5
+    ai_max = 2**5
+    gflops_min = 2**0
+    width = ai_max
 
     for roof in roofs:
         # by default drawing multi-threaded roofs only
@@ -68,10 +74,10 @@ def roofline(name, project, scale):
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
 
             # compute roofs
-            else:
+            elif precision == 'all' or precision in roof.name:
                 bandwidth = roof.bandwidth / math.pow(10, 9)  # as GFlOPS
                 bandwidth /= scale  # scale down as requested by the user
-                x1, x2 = 0, width
+                x1, x2 = max(bandwidth / max_memory_bandwidth, 0), width
                 y1, y2 = bandwidth, bandwidth
                 label = '{} {:.0f} GFLOPS'.format(roof.name, bandwidth)
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
@@ -87,10 +93,10 @@ def roofline(name, project, scale):
     ax.set_ylim(ymin=gflops_min)
     ax.set_xlim(xmin=ai_min, xmax=ai_max)
 
-    ax.set_xlabel('Arithmetic intensity (FLOPs/Byte)')
-    ax.set_ylabel('Performance (GFLOPs/s)')
+    ax.set_xlabel('Arithmetic intensity (FLOP/Byte)')
+    ax.set_ylabel('Performance (GFLOPS)')
 
-    plt.legend(loc='lower right', fancybox=True, prop={'size': 6})
+    plt.legend(loc='lower right', fancybox=True, prop={'size': 7})
 
     # saving the chart in PDF format
     plt.savefig('%s.pdf' % name)
