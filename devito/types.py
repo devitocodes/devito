@@ -69,6 +69,7 @@ class Basic(object):
     is_SparseTimeFunction = False
     is_SparseFunction = False
     is_PrecomputedSparseFunction = False
+    is_PrecomputedSparseTimeFunction = False
 
     # Basic symbolic object properties
     is_Scalar = False
@@ -292,23 +293,25 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
 
     The sub-hierarchy is structured as follows
 
-                        AbstractFunction
-                               |
-                     AbstractCachedFunction
-                               |
-             -------------------------------------
-             |                                   |
-           Array                          TensorFunction
-                                                 |
-                                   ------------------------------
-                                   |                            |
-                                Function             AbstractSparseFunction
-                                   |                            |
-                              TimeFunction        --------------------------
-                                                  |                        |
-                                           SparseFunction      PrecomputedSparseFunction
-                                                  |
-                                         SparseTimeFunction
+                         AbstractFunction
+                                |
+                      AbstractCachedFunction
+                                |
+                 ---------------------------------
+                 |                               |
+           TensorFunction                      Array
+                 |
+         ----------------------------------------
+         |                                      |
+         |                           AbstractSparseFunction
+         |                                      |
+         |               -----------------------------------------------------
+         |               |                      |                            |
+      Function     SparseFunction   AbstractSparseTimeFunction  PrecomputedSparseFunction
+         |               |                      |                            |
+         |               |   ------------------------------------     --------
+         |               |   |                                  |     |
+    TimeFunction  SparseTimeFunction                 PrecomputedSparseTimeFunction
 
     There are five relevant :class:`AbstractFunction` sub-types: ::
 
@@ -322,6 +325,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
         * SparseTimeFunction: A time- and space-varying function representing "sparse"
                           points, i.e. points that are not aligned with the
                           computational grid.
+        * PrecomputedSparseFunction: A SparseFunction that uses a custom interpolation
+                                     scheme, instead of the included linear interpolators.
+        * PrecomputedSparseTimeFunction: A SparseTimeFunction that uses a custom
+                                         interpolation scheme, instead of the included
+                                         linear interpolators.
     """
 
     is_AbstractFunction = True

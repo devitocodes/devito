@@ -39,6 +39,14 @@ class SparseTimeFunction(with_metaclass(_BackendSelector, function.SparseTimeFun
     pass
 
 
+class PrecomputedSparseFunction(with_metaclass(_BackendSelector, function.PrecomputedSparseFunction)):  # noqa
+    pass
+
+
+class PrecomputedSparseTimeFunction(with_metaclass(_BackendSelector, function.PrecomputedSparseTimeFunction)):  # noqa
+    pass
+
+
 class Grid(with_metaclass(_BackendSelector, Grid)):
     pass
 
