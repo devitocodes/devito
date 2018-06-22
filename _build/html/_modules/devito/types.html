@@ -222,6 +222,7 @@
     <span class="n">is_SparseTimeFunction</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_SparseFunction</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_PrecomputedSparseFunction</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_PrecomputedSparseTimeFunction</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="c1"># Basic symbolic object properties</span>
     <span class="n">is_Scalar</span> <span class="o">=</span> <span class="kc">False</span>
@@ -445,23 +446,25 @@
 
 <span class="sd">    The sub-hierarchy is structured as follows</span>
 
-<span class="sd">                        AbstractFunction</span>
-<span class="sd">                               |</span>
-<span class="sd">                     AbstractCachedFunction</span>
-<span class="sd">                               |</span>
-<span class="sd">             -------------------------------------</span>
-<span class="sd">             |                                   |</span>
-<span class="sd">           Array                          TensorFunction</span>
-<span class="sd">                                                 |</span>
-<span class="sd">                                   ------------------------------</span>
-<span class="sd">                                   |                            |</span>
-<span class="sd">                                Function             AbstractSparseFunction</span>
-<span class="sd">                                   |                            |</span>
-<span class="sd">                              TimeFunction        --------------------------</span>
-<span class="sd">                                                  |                        |</span>
-<span class="sd">                                           SparseFunction      PrecomputedSparseFunction</span>
-<span class="sd">                                                  |</span>
-<span class="sd">                                         SparseTimeFunction</span>
+<span class="sd">                         AbstractFunction</span>
+<span class="sd">                                |</span>
+<span class="sd">                      AbstractCachedFunction</span>
+<span class="sd">                                |</span>
+<span class="sd">                 ---------------------------------</span>
+<span class="sd">                 |                               |</span>
+<span class="sd">           TensorFunction                      Array</span>
+<span class="sd">                 |</span>
+<span class="sd">         ----------------------------------------</span>
+<span class="sd">         |                                      |</span>
+<span class="sd">         |                           AbstractSparseFunction</span>
+<span class="sd">         |                                      |</span>
+<span class="sd">         |               -----------------------------------------------------</span>
+<span class="sd">         |               |                      |                            |</span>
+<span class="sd">      Function     SparseFunction   AbstractSparseTimeFunction  PrecomputedSparseFunction</span>
+<span class="sd">         |               |                      |                            |</span>
+<span class="sd">         |               |   ------------------------------------     --------</span>
+<span class="sd">         |               |   |                                  |     |</span>
+<span class="sd">    TimeFunction  SparseTimeFunction                 PrecomputedSparseTimeFunction</span>
 
 <span class="sd">    There are five relevant :class:`AbstractFunction` sub-types: ::</span>
 
@@ -475,6 +478,11 @@
 <span class="sd">        * SparseTimeFunction: A time- and space-varying function representing &quot;sparse&quot;</span>
 <span class="sd">                          points, i.e. points that are not aligned with the</span>
 <span class="sd">                          computational grid.</span>
+<span class="sd">        * PrecomputedSparseFunction: A SparseFunction that uses a custom interpolation</span>
+<span class="sd">                                     scheme, instead of the included linear interpolators.</span>
+<span class="sd">        * PrecomputedSparseTimeFunction: A SparseTimeFunction that uses a custom</span>
+<span class="sd">                                         interpolation scheme, instead of the included</span>
+<span class="sd">                                         linear interpolators.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_AbstractFunction</span> <span class="o">=</span> <span class="kc">True</span>

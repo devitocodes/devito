@@ -967,6 +967,118 @@ The default value is (‘static’, ‘inline’).</li>
 </dd></dl>
 
 <dl class="class">
+<dt id="devito.base.PrecomputedSparseFunction">
+<em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">PrecomputedSparseFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#PrecomputedSparseFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.PrecomputedSparseFunction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.function.PrecomputedSparseFunction" title="devito.function.PrecomputedSparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.PrecomputedSparseFunction</span></code></a></p>
+<p>A specialised type of SparseFunction where the interpolation is externally defined.
+Currently, this means that the grid points and associated coefficients for each
+sparse point is precomputed at the time this object is being created.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the function.</li>
+<li><strong>npoint</strong> – Number of points to sample.</li>
+<li><strong>grid</strong> – <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a> object defining the computational domain.</li>
+<li><strong>r</strong> – The number of gridpoints in each dimension to interpolate a single sparse
+point to. e.g. 2 for linear interpolation.</li>
+<li><strong>gridpoints</strong> – The <em>reference</em> grid point corresponding to each sparse point.
+Of all the gridpoints that one sparse point would be interpolated
+to, this is the grid point closest to the origin, i.e. the one
+with the lowest value of each coordinate dimension. Must be a
+two-dimensional array of shape [npoint][grid.ndim].</li>
+<li><strong>coefficients</strong> – An array containing the coefficient for each of the r^2 (2D) or
+r^3 (3D) gridpoints that each sparsefunction will be interpolated
+to. The coefficient is split across the n dimensions such that
+the contribution of the point (i, j, k) will be multiplied by
+coefficients[…, i]*coefficients[…, j]*coefficients[…,k]. So
+for r=6, we will store 18 coefficients per sparse point (instead
+of potentially 216). Shape must be [npoint][grid.ndim][r].</li>
+<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout and function indices of this symbol.</li>
+<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
+Default to 1.</li>
+<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <cite>*args</cite> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
+<dl class="attribute">
+<dt id="devito.base.PrecomputedSparseFunction.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.base.PrecomputedSparseFunction.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.base.PrecomputedSparseTimeFunction">
+<em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">PrecomputedSparseTimeFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#PrecomputedSparseTimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.PrecomputedSparseTimeFunction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.function.PrecomputedSparseTimeFunction" title="devito.function.PrecomputedSparseTimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.PrecomputedSparseTimeFunction</span></code></a></p>
+<p>A specialised type of SparseFunction where the interpolation is externally defined.
+Currently, this means that the grid points and associated coefficients for each
+sparse point is precomputed at the time this object is being created.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the function.</li>
+<li><strong>npoint</strong> – Number of points to sample.</li>
+<li><strong>grid</strong> – <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a> object defining the computational domain.</li>
+<li><strong>r</strong> – The number of gridpoints in each dimension to interpolate a single sparse
+point to. e.g. 2 for linear interpolation.</li>
+<li><strong>gridpoints</strong> – The <em>reference</em> grid point corresponding to each sparse point.
+Of all the gridpoints that one sparse point would be interpolated
+to, this is the grid point closest to the origin, i.e. the one
+with the lowest value of each coordinate dimension. Must be a
+two-dimensional array of shape [npoint][grid.ndim].</li>
+<li><strong>coefficients</strong> – An array containing the coefficient for each of the r^2 (2D) or
+r^3 (3D) gridpoints that each sparsefunction will be interpolated
+to. The coefficient is split across the n dimensions such that
+the contribution of the point (i, j, k) will be multiplied by
+coefficients[…, i]*coefficients[…, j]*coefficients[…,k]. So
+for r=6, we will store 18 coefficients per sparse point (instead
+of potentially 216). Shape must be [npoint][grid.ndim][r].</li>
+<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout and function indices of this symbol.</li>
+<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
+Default to 1.</li>
+<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <cite>*args</cite> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
+<dl class="attribute">
+<dt id="devito.base.PrecomputedSparseTimeFunction.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.base.PrecomputedSparseTimeFunction.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
 <dt id="devito.base.Scalar">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Scalar</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Scalar"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Scalar" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.Scalar</span></code></p>
@@ -2500,7 +2612,7 @@ than an assignment. Defaults to False.</li>
 <dl class="class">
 <dt id="devito.function.SparseTimeFunction">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">SparseTimeFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseTimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseTimeFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.SparseFunction</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.AbstractSparseTimeFunction</span></code>, <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.SparseFunction</span></code></a></p>
 <p>A time-dependent <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -2609,7 +2721,6 @@ sparse point is precomputed at the time this object is being created.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the function.</li>
-<li><strong>nt</strong> – Size of the time dimension for point data.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
 <li><strong>r</strong> – The number of gridpoints in each dimension to interpolate a single sparse
@@ -2702,6 +2813,67 @@ than an assignment. Defaults to False.</li>
 <dl class="attribute">
 <dt id="devito.function.PrecomputedSparseFunction.is_PrecomputedSparseFunction">
 <code class="descname">is_PrecomputedSparseFunction</code><em class="property"> = True</em><a class="headerlink" href="#devito.function.PrecomputedSparseFunction.is_PrecomputedSparseFunction" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.function.PrecomputedSparseTimeFunction">
+<em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">PrecomputedSparseTimeFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#PrecomputedSparseTimeFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.PrecomputedSparseTimeFunction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.AbstractSparseTimeFunction</span></code>, <a class="reference internal" href="#devito.function.PrecomputedSparseFunction" title="devito.function.PrecomputedSparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.PrecomputedSparseFunction</span></code></a></p>
+<p>A specialised type of SparseFunction where the interpolation is externally defined.
+Currently, this means that the grid points and associated coefficients for each
+sparse point is precomputed at the time this object is being created.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the function.</li>
+<li><strong>npoint</strong> – Number of points to sample.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>r</strong> – The number of gridpoints in each dimension to interpolate a single sparse
+point to. e.g. 2 for linear interpolation.</li>
+<li><strong>gridpoints</strong> – The <em>reference</em> grid point corresponding to each sparse point.
+Of all the gridpoints that one sparse point would be interpolated
+to, this is the grid point closest to the origin, i.e. the one
+with the lowest value of each coordinate dimension. Must be a
+two-dimensional array of shape [npoint][grid.ndim].</li>
+<li><strong>coefficients</strong> – An array containing the coefficient for each of the r^2 (2D) or
+r^3 (3D) gridpoints that each sparsefunction will be interpolated
+to. The coefficient is split across the n dimensions such that
+the contribution of the point (i, j, k) will be multiplied by
+coefficients[…, i]*coefficients[…, j]*coefficients[…,k]. So
+for r=6, we will store 18 coefficients per sparse point (instead
+of potentially 216). Shape must be [npoint][grid.ndim][r].</li>
+<li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout and function indices of this symbol.</li>
+<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
+Default to 1.</li>
+<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The parameters must always be given as keyword arguments, since
+SymPy uses <cite>*args</cite> to (re-)create the dimension arguments of the
+symbolic function.</p>
+</div>
+<dl class="attribute">
+<dt id="devito.function.PrecomputedSparseTimeFunction.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.function.PrecomputedSparseTimeFunction.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.PrecomputedSparseTimeFunction.is_PrecomputedSparseTimeFunction">
+<code class="descname">is_PrecomputedSparseTimeFunction</code><em class="property"> = True</em><a class="headerlink" href="#devito.function.PrecomputedSparseTimeFunction.is_PrecomputedSparseTimeFunction" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
