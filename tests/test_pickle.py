@@ -7,7 +7,7 @@ from devito.base import Constant
 import cloudpickle as pickle
 
 
-def test_pickle():
+def test_full_model():
 
     shape = (50, 50, 50)
     spacing = [10. for _ in shape]
@@ -67,8 +67,9 @@ def test_pickle():
 
     pkl_ricker = pickle.dumps(ricker)
     new_ricker = pickle.loads(pkl_ricker)
-    assert np.isclose(np.linalg.norm(ricker.data.flatten()),
-                      np.linalg.norm(new_ricker.data.flatten()))
+    assert np.isclose(np.linalg.norm(ricker.data), np.linalg.norm(new_ricker.data))
+    # FIXME: fails randomly when using data.flatten()
+
 
 
 if __name__ == "__main__":
