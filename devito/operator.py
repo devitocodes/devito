@@ -91,7 +91,7 @@ class Operator(Callable):
         stree = schedule(clusters)
         stree = section(stree)
 
-        # Lower Sections to an Iteration/Expression tree (IET)
+        # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
 
         # Insert code for C-level performance profiling
