@@ -1,8 +1,9 @@
 import numpy as np
 from examples.seismic import demo_model
 from examples.seismic.source import TimeAxis, RickerSource
-from devito.dimension import TimeDimension, SteppingDimension
-from devito.base import Constant
+
+from devito import (Constant, Eq, Function, Grid, TimeDimension, SteppingDimension,
+                    Operator)
 
 import cloudpickle as pickle
 
@@ -71,6 +72,9 @@ def test_full_model():
     # FIXME: fails randomly when using data.flatten()
 
 
+def test_simple_operator():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
 
-if __name__ == "__main__":
-    test_pickle()
+    op = Operator(Eq(f, f + 1))
+    from IPython import embed; embed()
