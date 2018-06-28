@@ -8,6 +8,7 @@ from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGrou
                                force_directions, detect_flow_directions, build_intervals,
                                build_iterators)
 from devito.symbolics import FrozenExpr
+from devito.tools import Pickable
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
@@ -150,7 +151,7 @@ class LoweredEq(Eq, IREq):
         return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
 
 
-class ClusterizedEq(Eq, IREq, FrozenExpr):
+class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
 
     """
     ClusterizedEq(devito.IREq, **kwargs)
@@ -193,6 +194,11 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
 
     def func(self, *args, **kwargs):
         return super(ClusterizedEq, self).func(*args, **self.state)
+
+    # Pickling support
+    _pickle_args = ['lhs', 'rhs']
+    _pickle_kwargs = IREq._state
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class DummyEq(ClusterizedEq):
