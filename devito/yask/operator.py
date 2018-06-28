@@ -54,9 +54,8 @@ class Operator(OperatorRunnable):
         # No matter whether offloading will occur or not, all YASK grids accept
         # negative indices when using the get/set_element_* methods (up to the
         # padding extent), so the OOB-relative data space should be adjusted
-        return [LoweredEq(e, e.ispace,
-                          e.dspace.zero([d for d in e.dimensions if d.is_Space]),
-                          e.reads, e.writes)
+        return [LoweredEq(e,
+                          dspace=e.dspace.zero([d for d in e.dimensions if d.is_Space]))
                 for e in expressions]
 
     def _specialize_iet(self, iet, **kwargs):
