@@ -1,20 +1,20 @@
 from functools import partial
 from hashlib import sha1
 from os import environ, path
-from tempfile import mkdtemp
 from time import time
-from sys import platform
 from distutils import version
 from subprocess import DEVNULL, CalledProcessError, check_output, check_call
+import platform
+import warnings
 
 import numpy.ctypeslib as npct
-from codepy.jit import extension_file_from_string
+from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
 from devito.exceptions import CompilationError
-from devito.logger import log
+from devito.logger import log, warning
 from devito.parameters import configuration
-from devito.tools import change_directory
+from devito.tools import change_directory, memoized_func, make_tempdir
 
 __all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
 
@@ -88,10 +88,10 @@ class Compiler(GCCToolchain):
         * :data:`self.library_dirs`
         * :data:`self.defines`
         * :data:`self.src_ext`
-        * :data:`self.lib_ext`
+        * :data:`self.so_ext`
         * :data:`self.undefines`
 
-    Two additional parameters may be passed.
+    Two additional keyword arguments may be passed.
     :param suffix: A string indicating a specific compiler version available on
                    the system. For example, assuming ``compiler=gcc`` and
                    ``suffix='4.9'``, then the ``gcc-4.9`` program will be used
@@ -123,7 +123,15 @@ class Compiler(GCCToolchain):
         self.undefines = []
 
         self.src_ext = 'c' if kwargs.get('cpp', False) is False else 'cpp'
-        self.lib_ext = 'so'
+
+        if platform.system() == "Linux":
+            self.so_ext = '.so'
+        elif platform.system() == "Darwin":
+            self.so_ext = '.dylib'
+        elif platform.system() == "Windows":
+            self.so_ext = '.dll'
+        else:
+            raise NotImplementedError("Unsupported platform %s" % platform)
 
         if self.suffix is not None:
             try:
@@ -164,10 +172,7 @@ class GNUCompiler(Compiler):
 
 class GNUCompilerNoAVX(GNUCompiler):
     """Set of compiler flags for GCC but with AVX suppressed. This is
-    a work around for a known gcc bug on MAC OS."
-
-    :param openmp: Boolean indicating if openmp is enabled. False by default
-    """
+    a work around for a known gcc bug on MAC OS."""
 
     def __init__(self, *args, **kwargs):
         super(GNUCompilerNoAVX, self).__init__(*args, **kwargs)
@@ -175,26 +180,14 @@ class GNUCompilerNoAVX(GNUCompiler):
 
 
 class ClangCompiler(Compiler):
-    """Set of standard compiler flags for the clang toolchain
-
-    :param openmp: Boolean indicating if openmp is enabled. False by default
-
-    Note: Genrates warning if openmp is disabled.
-    """
+    """Set of standard compiler flags for the clang toolchain."""
 
     CC = 'clang'
     CPP = 'clang++'
 
-    def __init__(self, *args, **kwargs):
-        super(ClangCompiler, self).__init__(*args, **kwargs)
-        self.lib_ext = 'dylib'
-
 
 class IntelCompiler(Compiler):
-    """Set of standard compiler flags for the Intel toolchain.
-
-    :param openmp: Boolean indicating if openmp is enabled. False by default
-    """
+    """Set of standard compiler flags for the Intel toolchain."""
 
     CC = 'icc'
     CPP = 'icpc'
@@ -218,13 +211,13 @@ class IntelCompiler(Compiler):
 
 
 class IntelKNLCompiler(IntelCompiler):
-    """Set of standard compiler flags for the clang toolchain"""
+    """Set of standard compiler flags for the Intel toolchain on a KNL system."""
 
     def __init__(self, *args, **kwargs):
         super(IntelKNLCompiler, self).__init__(*args, **kwargs)
         self.cflags += ["-xMIC-AVX512"]
         if not configuration['openmp']:
-            log("WARNING: Running on Intel KNL without OpenMP is highly discouraged")
+            warning("Running on Intel KNL without OpenMP is highly discouraged")
 
 
 class CustomCompiler(Compiler):
@@ -249,57 +242,64 @@ class CustomCompiler(Compiler):
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
 
-def get_tmp_dir():
-    """Function to get a temp directory.
-
-    :return: Path to a devito-specific tmp directory
+@memoized_func
+def get_jit_dir():
     """
-    global _devito_compiler_tmpdir
-    try:
-        path.exists(_devito_compiler_tmpdir)
-    except:
-        _devito_compiler_tmpdir = mkdtemp(prefix="devito-")
-
-    return _devito_compiler_tmpdir
+    A deterministic temporary directory for jit-compiled objects.
+    """
+    return make_tempdir('jitcache')
 
 
-def load(basename, compiler):
-    """Load a compiled library
+@memoized_func
+def get_codepy_dir():
+    """
+    A deterministic temporary directory for the codepy cache.
+    """
+    return make_tempdir('codepy')
 
-    :param basename: Name of the .so file.
+
+def load(soname):
+    """
+    Load a compiled shared object.
+
+    :param soname: Name of the .so file (w/o the suffix).
+
+    :return: The loaded shared object.
+    """
+    return npct.load_library(str(get_jit_dir().joinpath(soname)), '.')
+
+
+def jit_compile(soname, code, compiler):
+    """
+    JIT compile the given C/C++ ``code``.
+
+    This function relies upon codepy's ``compile_from_string``, which performs
+    caching of compilation units and avoids potential race conditions due to
+    multiple processing trying to compile the same object.
+
+    :param soname: A unique name for the jit-compiled shared object.
+    :param code: String of C source code.
     :param compiler: The toolchain used for compilation.
-    :return: The loaded library.
     """
-    return npct.load_library(basename, '.')
+    target = str(get_jit_dir().joinpath(soname))
+    src_file = "%s.%s" % (target, compiler.src_ext)
 
+    # `catch_warnings` suppresses codepy complaining that it's taking
+    # too long to acquire the cache lock. This warning can only appear
+    # in a multiprocess session, typically (but not necessarily) when
+    # many processes are frequently attempting jit-compilation (e.g.,
+    # when running the test suite in parallel)
+    with warnings.catch_warnings():
+        tic = time()
+        _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
+                                                  cache_dir=get_codepy_dir(),
+                                                  debug=configuration['debug_compiler'])
+        toc = time()
 
-def jit_compile(ccode, compiler):
-    """JIT compile the given ccode.
-
-    :param ccode: String of C source code.
-    :param compiler: The toolchain used for compilation.
-
-    :return: The name of the compilation unit.
-    """
-    hash_key = sha1(str(ccode).encode()).hexdigest()
-    basename = path.join(get_tmp_dir(), hash_key)
-
-    src_file = "%s.%s" % (basename, compiler.src_ext)
-    if platform == "linux" or platform == "linux2":
-        lib_file = "%s.so" % basename
-    elif platform == "darwin":
-        lib_file = "%s.dylib" % basename
-    elif platform == "win32" or platform == "win64":
-        lib_file = "%s.dll" % basename
-
-    tic = time()
-    extension_file_from_string(toolchain=compiler, ext_file=lib_file,
-                               source_string=ccode, source_name=src_file,
-                               debug=configuration['debug_compiler'])
-    toc = time()
-    log("%s: compiled %s [%.2f s]" % (compiler, src_file, toc-tic))
-
-    return basename
+    if recompiled:
+        log("%s: compiled `%s` [%.2f s]" % (compiler, src_file, toc-tic))
+    else:
+        log("%s: cache hit `%s` [%.2f s]" % (compiler, src_file, toc-tic))
 
 
 def make(loc, args):
@@ -307,8 +307,8 @@ def make(loc, args):
     Invoke ``make`` command from within ``loc`` with arguments ``args``.
     """
     hash_key = sha1((loc + str(args)).encode()).hexdigest()
-    logfile = path.join(get_tmp_dir(), "%s.log" % hash_key)
-    errfile = path.join(get_tmp_dir(), "%s.err" % hash_key)
+    logfile = path.join(get_jit_dir(), "%s.log" % hash_key)
+    errfile = path.join(get_jit_dir(), "%s.err" % hash_key)
 
     tic = time()
     with change_directory(loc):

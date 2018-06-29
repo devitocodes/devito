@@ -5,11 +5,11 @@ JIT-compile, and run kernels.
 
 import os
 
-from devito.compiler import get_tmp_dir
 from devito.dle import BasicRewriter, init_dle
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
+from devito.tools import make_tempdir
 
 from devito.yask.dle import YaskRewriter
 from devito.yask.utils import namespace
@@ -35,7 +35,7 @@ except ImportError:
 path = os.path.dirname(os.path.dirname(yc.__file__))
 namespace['path'] = path
 namespace['kernel-path'] = os.path.join(path, 'src', 'kernel')
-namespace['yask-output-dir'] = get_tmp_dir()
+namespace['yask-output-dir'] = make_tempdir('yask')
 # The YASK compiler expects the generated code under:
 # $YASK_OUTPUT_DIR/build/kernel/$stencil.$arch/gen/yask_stencil_code.hpp
 namespace['yask-lib'] = os.path.join(namespace['yask-output-dir'], 'lib')

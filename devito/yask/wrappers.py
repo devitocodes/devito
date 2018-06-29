@@ -1,12 +1,14 @@
 import os
 import sys
 import importlib
+import warnings
 from glob import glob
 from subprocess import call
 from collections import OrderedDict
 
+from codepy.jit import CacheLockManager, CleanupManager
+
 from devito.compiler import make
-from devito.exceptions import CompilationError
 from devito.logger import debug, yask as log, yask_warning as warning
 from devito.tools import Signer, powerset, filter_sorted
 
@@ -41,17 +43,31 @@ class YaskKernel(object):
         # Shared object name
         self.soname = "%s.devito.%s" % (name, configuration['platform'])
 
-        # The directory in which the YASK-generated code (.hpp) will be placed
-        yk_codegen = namespace['yask-codegen'](name, 'devito', configuration['platform'])
-        if not os.path.exists(yk_codegen):
-            os.makedirs(yk_codegen)
+        # The lock manager prevents race conditions
+        # `lock_m` is used only to keep the lock manager alive
+        with warnings.catch_warnings():
+            cleanup_m = CleanupManager()
+            lock_m = CacheLockManager(cleanup_m, namespace['yask-output-dir'])  # noqa
 
-        # Write out the stencil file
-        yk_codegen_file = os.path.join(yk_codegen, namespace['yask-codegen-file'])
-        yc_soln.format(configuration['isa'], ofac.new_file_output(yk_codegen_file))
-
-        # JIT-compile it
         try:
+            # Has the kernel already been compiled in a previous session?
+            importlib.invalidate_caches()
+            yk = importlib.import_module(name)
+            log("cache hit, `%s` imported w/o jitting" % name)
+        except ModuleNotFoundError:
+            # Nope !
+
+            # The directory in which the YASK-generated code (.hpp) will be placed
+            yk_codegen = namespace['yask-codegen'](name, 'devito',
+                                                   configuration['platform'])
+            if not os.path.exists(yk_codegen):
+                os.makedirs(yk_codegen)
+
+            # Write out the stencil file
+            yk_codegen_file = os.path.join(yk_codegen, namespace['yask-codegen-file'])
+            yc_soln.format(configuration['isa'], ofac.new_file_output(yk_codegen_file))
+
+            # JIT-compile it
             compiler = configuration.yask['compiler']
             if configuration['develop-mode']:
                 if yc_soln.get_num_equations() == 0:
@@ -83,16 +99,14 @@ class YaskKernel(object):
             # Other potentially useful args:
             # - "EXTRA_MACROS=TRACE", -- debugging option
             make(namespace['path'], args)
-        except CompilationError:
-            exit("Kernel solution compilation")
 
-        # Import the corresponding Python (SWIG-generated) module
-        try:
+            # Now we must be able to import the SWIG-generated Python module
             sys.path.append(os.path.join(namespace['yask-output-dir'], 'yask'))
             importlib.invalidate_caches()
             yk = importlib.import_module(name)
-        except ImportError:
-            exit("Python YASK kernel bindings")
+
+        # Release the lock manager
+        cleanup_m.clean_up()
 
         # Create the YASK solution object
         kfac = yk.yk_factory()
