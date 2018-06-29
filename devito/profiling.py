@@ -16,8 +16,9 @@ from devito.logger import warning
 from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
+from devito.types import Object
 
-__all__ = ['create_profile']
+__all__ = ['Timer', 'create_profile']
 
 
 class Profiler(object):
@@ -182,6 +183,24 @@ class AdvisorProfiler(Profiler):
         iet = Transformer(mapper).visit(iet)
 
         return iet
+
+
+class Timer(Object):
+
+    def __init__(self, profiler):
+        self.profiler = profiler
+
+    @property
+    def name(self):
+        return self.profiler.name
+
+    @property
+    def dtype(self):
+        return self.profiler.dtype
+
+    @property
+    def value(self):
+        return self.profiler.new
 
 
 class PerformanceSummary(OrderedDict):

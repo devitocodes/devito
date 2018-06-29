@@ -19,7 +19,7 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
                            ArrayCast, PointerCast, derive_parameters)
 from devito.ir.stree import schedule, section
 from devito.parameters import configuration
-from devito.profiling import create_profile
+from devito.profiling import Timer, create_profile
 from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_sorted,
                           numpy_to_ctypes, split)
@@ -273,8 +273,7 @@ class Operator(Callable):
         """Introduce array and pointer casts at the top of the Iteration/Expression
         tree ``iet``."""
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
-        profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
-        casts.append(PointerCast(profiler))
+        casts.append(PointerCast(Timer(self.profiler)))
         return List(body=casts + [iet])
 
 
