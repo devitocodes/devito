@@ -1,11 +1,12 @@
 import numpy as np
 import pytest
-from conftest import skipif_yask, unit_box, points
+from conftest import skipif_yask, unit_box, points, unit_box_time, time_points
 from math import sin, floor
 
 from devito.cgen_utils import FLOAT
-from devito import Grid, Operator, Function, SparseFunction, Dimension
-from devito.function import PrecomputedSparseFunction
+from devito import (Grid, Operator, Function, SparseFunction, Dimension,
+                    TimeFunction, PrecomputedSparseFunction,
+                    PrecomputedSparseTimeFunction)
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
 
@@ -14,6 +15,16 @@ from examples.seismic.acoustic import AcousticWaveSolver
 def a(shape=(11, 11)):
     grid = Grid(shape=shape)
     a = Function(name='a', grid=grid)
+    xarr = np.linspace(0., 1., shape[0])
+    yarr = np.linspace(0., 1., shape[1])
+    a.data[:] = np.meshgrid(xarr, yarr)[1]
+    return a
+
+
+@pytest.fixture
+def at(shape=(11, 11)):
+    grid = Grid(shape=shape)
+    a = TimeFunction(name='a', grid=grid)
     xarr = np.linspace(0., 1., shape[0])
     yarr = np.linspace(0., 1., shape[1])
     a.data[:] = np.meshgrid(xarr, yarr)[1]
@@ -84,6 +95,39 @@ def test_precomputed_interpolation():
 
 
 @skipif_yask
+def test_precomputed_interpolation_time():
+    """ Test interpolation with PrecomputedSparseFunction which accepts
+        precomputed values for coefficients, but this time with a TimeFunction
+    """
+    shape = (101, 101)
+    points = [(.05, .9), (.01, .8), (0.07, 0.84)]
+    origin = (0, 0)
+
+    grid = Grid(shape=shape, origin=origin)
+    r = 2  # Constant for linear interpolation
+    #  because we interpolate across 2 neighbouring points in each dimension
+
+    u = TimeFunction(name='u', grid=grid, space_order=0, save=5)
+    for it in range(5):
+        u.data[it, :] = it
+
+    gridpoints, coefficients = precompute_linear_interpolation(points, grid, origin)
+
+    sf = PrecomputedSparseTimeFunction(name='s', grid=grid, r=r, npoint=len(points),
+                                       nt=5, gridpoints=gridpoints,
+                                       coefficients=coefficients)
+
+    assert sf.data.shape == (5, 3)
+
+    eqn = sf.interpolate(u)
+    op = Operator(eqn)
+    op(time_m=0, time_M=4)
+
+    for it in range(5):
+        assert all(np.isclose(sf.data[it, :], it))
+
+
+@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -120,6 +164,40 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     Operator(expr)(a=a)
 
     assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
+
+
+@skipif_yask
+@pytest.mark.parametrize('shape, coords', [
+    ((11, 11), [(.05, .9), (.01, .8)]),
+    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
+])
+def test_interpolate_time_shift(shape, coords, npoints=20):
+    """Test generic point interpolation testing the x-coordinate of an
+    abitrary set of points going across the grid.
+    This test verifies the optional time shifting for SparseTimeFunctions
+    """
+    a = unit_box_time(shape=shape)
+    p = time_points(a.grid, coords, npoints=npoints, nt=10)
+    xcoords = p.coordinates.data[:, 0]
+
+    p.data[:] = 1.
+    expr = p.interpolate(a, u_t=a.indices[0]+1)
+    Operator(expr)(a=a)
+
+    assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
+
+    p.data[:] = 1.
+    expr = p.interpolate(a, p_t=p.indices[0]+1)
+    Operator(expr)(a=a)
+
+    assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
+
+    p.data[:] = 1.
+    expr = p.interpolate(a, u_t=a.indices[0]+1,
+                         p_t=p.indices[0]+1)
+    Operator(expr)(a=a)
+
+    assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
 
 
 @skipif_yask
@@ -182,6 +260,47 @@ def test_inject(shape, coords, result, npoints=19):
 
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
+    assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+
+@skipif_yask
+@pytest.mark.parametrize('shape, coords, result', [
+    ((11, 11), [(.05, .95), (.45, .45)], 1.),
+    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
+])
+def test_inject_time_shift(shape, coords, result, npoints=19):
+    """Test generic point injection testing the x-coordinate of an
+    abitrary set of points going across the grid.
+    This test verifies the optional time shifting for SparseTimeFunctions
+    """
+    a = unit_box_time(shape=shape)
+    a.data[:] = 0.
+    p = time_points(a.grid, ranges=coords, npoints=npoints)
+
+    expr = p.inject(a, FLOAT(1.), u_t=a.indices[0]+1)
+
+    Operator(expr)(a=a, time=1)
+
+    indices = [slice(1, 1, 1)] + [slice(4, 6, 1) for _ in coords]
+    indices[1] = slice(1, -1, 1)
+    assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+    a.data[:] = 0.
+    expr = p.inject(a, FLOAT(1.), p_t=p.indices[0]+1)
+
+    Operator(expr)(a=a, time=1)
+
+    indices = [slice(0, 0, 1)] + [slice(4, 6, 1) for _ in coords]
+    indices[1] = slice(1, -1, 1)
+    assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+    a.data[:] = 0.
+    expr = p.inject(a, FLOAT(1.), u_t=a.indices[0]+1, p_t=p.indices[0]+1)
+
+    Operator(expr)(a=a, time=1)
+
+    indices = [slice(1, 1, 1)] + [slice(4, 6, 1) for _ in coords]
+    indices[1] = slice(1, -1, 1)
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
@@ -278,7 +397,3 @@ def test_position(shape):
                                  o_x=100., o_y=100., o_z=100.)
 
     assert(np.allclose(rec.data, rec1.data, atol=1e-5))
-
-
-if __name__ == "__main__":
-    test_interpolate_custom((11, 11), [(.05, .9), (.01, .8)])

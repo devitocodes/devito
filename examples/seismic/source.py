@@ -167,8 +167,13 @@ class WaveletSource(PointSource):
 
     def __new__(cls, *args, **kwargs):
         npoint = kwargs.get('npoint', 1)
-        kwargs['npoint'] = npoint
-        obj = PointSource.__new__(cls, *args, **kwargs)
+        options = kwargs.copy()
+        options['npoint'] = npoint
+
+        name = options.pop('name')
+        grid = options.pop('grid')
+        time_range = options.pop('time_range')
+        obj = PointSource.__new__(cls, name, grid, time_range, **options)
 
         obj.f0 = kwargs.get('f0')
         for p in range(npoint):
@@ -203,6 +208,9 @@ class WaveletSource(PointSource):
         plt.ylabel('Amplitude')
         plt.tick_params()
         plt.show()
+
+    # Pickling support
+    _pickle_kwargs = PointSource._pickle_kwargs + ['grid', 'time_range', 'f0', 'npoint']
 
 
 class RickerSource(WaveletSource):

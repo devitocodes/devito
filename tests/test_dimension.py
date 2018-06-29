@@ -369,7 +369,7 @@ class TestSubDimension(object):
         assert all(i.is_Affine and i.is_Sequential for i in iterations if i.dim == xl)
         assert all(i.is_Affine and i.is_Parallel for i in iterations if i.dim == yi)
 
-        op.apply(time_m=0, time_M=0)
+        op.apply(time_m=1, time_M=1)
 
         assert all(np.all(u.data[0, :thickness, thickness+i] == [1, 2, 3, 4])
                    for i in range(12))

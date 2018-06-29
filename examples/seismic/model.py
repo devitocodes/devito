@@ -378,8 +378,8 @@ class Model(object):
                 self.epsilon = Function(name="epsilon", grid=self.grid)
                 initialize_function(self.epsilon, 1 + 2 * epsilon, self.nbpml)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
-                if np.max(self.epsilon.data_with_halo) > 0:
-                    self.scale = np.sqrt(np.max(self.epsilon.data_with_halo))
+                if np.max(self.epsilon.data_with_halo[:]) > 0:
+                    self.scale = np.sqrt(np.max(self.epsilon.data_with_halo[:]))
             else:
                 self.epsilon = 1 + 2 * epsilon
                 self.scale = epsilon
