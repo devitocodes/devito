@@ -2,6 +2,9 @@ from __future__ import absolute_import
 
 import pytest
 
+from subprocess import check_call
+from mpi4py import MPI
+
 import numpy as np
 
 from sympy import cos, Symbol  # noqa
@@ -274,3 +277,41 @@ def configuration_override(key, value):
         return wrapper
 
     return dec
+
+
+# Support to run MPI tests
+
+def parallel(item):
+    """Run a test in parallel.
+
+    :parameter item: The test item to run.
+    """
+    marker = item.get_marker("parallel")
+    nprocs = marker.kwargs.get("nprocs", 2)
+    if nprocs < 2:
+        raise RuntimeError("Need at least two processes to run parallel test")
+
+    # Only spew tracebacks on rank 0.
+    # Run xfailing tests to ensure that errors are reported to calling process
+    call = ["mpiexec", "-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
+            "-q", "%s::%s" % (item.fspath, item.name)]
+    call.extend([":", "-n", "%d" % (nprocs - 1), "python", "-m", "pytest",
+                 "--runxfail", "--tb=no", "-q", "%s::%s" % (item.fspath, item.name)])
+    check_call(call)
+
+
+def pytest_configure(config):
+    """Register an additional marker."""
+    config.addinivalue_line(
+        "markers",
+        "parallel(nprocs): mark test to run in parallel on nprocs processors")
+
+
+def pytest_runtest_call(item):
+    if item.get_marker("parallel"):
+        if MPI.COMM_WORLD.size == 1:
+            # Spawn parallel processes to run test
+            parallel(item)
+        else:
+            # About to run the actual tests in parallel mode
+            pass
