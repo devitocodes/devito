@@ -250,6 +250,9 @@ class Symbol(AbstractCachedSymbol):
     def base(self):
         return self
 
+    # Pickling support
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype']
+
 
 class Scalar(Symbol):
     """Symbolic object representing a scalar.
