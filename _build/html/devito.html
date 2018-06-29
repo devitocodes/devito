@@ -299,6 +299,7 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.algorithms">devito.tools.algorithms module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.data_structures">devito.tools.data_structures module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.memoization">devito.tools.memoization module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.os_helper">devito.tools.os_helper module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.utils">devito.tools.utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.validators">devito.tools.validators module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.visitors">devito.tools.visitors module</a></li>
@@ -1410,19 +1411,20 @@ derived time dimensions symbol. For example:</p>
 <span id="devito-compiler-module"></span><h2>devito.compiler module<a class="headerlink" href="#module-devito.compiler" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="devito.compiler.jit_compile">
-<code class="descclassname">devito.compiler.</code><code class="descname">jit_compile</code><span class="sig-paren">(</span><em>ccode</em>, <em>compiler</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#jit_compile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.jit_compile" title="Permalink to this definition">¶</a></dt>
-<dd><p>JIT compile the given ccode.</p>
+<code class="descclassname">devito.compiler.</code><code class="descname">jit_compile</code><span class="sig-paren">(</span><em>soname</em>, <em>code</em>, <em>compiler</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#jit_compile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.jit_compile" title="Permalink to this definition">¶</a></dt>
+<dd><p>JIT compile the given C/C++ <code class="docutils literal notranslate"><span class="pre">code</span></code>.</p>
+<p>This function relies upon codepy’s <code class="docutils literal notranslate"><span class="pre">compile_from_string</span></code>, which performs
+caching of compilation units and avoids potential race conditions due to
+multiple processing trying to compile the same object.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>ccode</strong> – String of C source code.</li>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>soname</strong> – A unique name for the jit-compiled shared object.</li>
+<li><strong>code</strong> – String of C source code.</li>
 <li><strong>compiler</strong> – The toolchain used for compilation.</li>
 </ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The name of the compilation unit.</p>
 </td>
 </tr>
 </tbody>
@@ -1431,20 +1433,15 @@ derived time dimensions symbol. For example:</p>
 
 <dl class="function">
 <dt id="devito.compiler.load">
-<code class="descclassname">devito.compiler.</code><code class="descname">load</code><span class="sig-paren">(</span><em>basename</em>, <em>compiler</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.load" title="Permalink to this definition">¶</a></dt>
-<dd><p>Load a compiled library</p>
+<code class="descclassname">devito.compiler.</code><code class="descname">load</code><span class="sig-paren">(</span><em>soname</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.load" title="Permalink to this definition">¶</a></dt>
+<dd><p>Load a compiled shared object.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>basename</strong> – Name of the .so file.</li>
-<li><strong>compiler</strong> – The toolchain used for compilation.</li>
-</ul>
-</td>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>soname</strong> – Name of the .so file (w/o the suffix).</td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The loaded library.</p>
-</td>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The loaded shared object.</td>
 </tr>
 </tbody>
 </table>
@@ -3110,22 +3107,6 @@ DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 <dt id="devito.operator.Operator.cfunction">
 <code class="descname">cfunction</code><a class="headerlink" href="#devito.operator.Operator.cfunction" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the JIT-compiled C function as a ctypes.FuncPtr object.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.operator.Operator.compile">
-<code class="descname">compile</code><a class="headerlink" href="#devito.operator.Operator.compile" title="Permalink to this definition">¶</a></dt>
-<dd><p>JIT-compile the C code generated by the Operator.</p>
-<p>It is ensured that JIT compilation will only be performed once per
-<a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a>, reagardless of how many times this method is invoked.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The file name of the JIT-compiled function.</td>
-</tr>
-</tbody>
-</table>
 </dd></dl>
 
 <dl class="attribute">

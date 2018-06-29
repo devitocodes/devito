@@ -36,6 +36,14 @@ devito.tools.memoization module
     :undoc-members:
     :show-inheritance:
 
+devito.tools.os\_helper module
+------------------------------
+
+.. automodule:: devito.tools.os_helper
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.tools.utils module
 -------------------------
 

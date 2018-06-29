@@ -85,6 +85,7 @@
 ./_build/html/_modules/devito/tools/algorithms.html
 ./_build/html/_modules/devito/tools/data_structures.html
 ./_build/html/_modules/devito/tools/memoization.html
+./_build/html/_modules/devito/tools/os_helper.html
 ./_build/html/_modules/devito/tools/utils.html
 ./_build/html/_modules/devito/tools/validators.html
 ./_build/html/_modules/devito/tools/visitors.html
