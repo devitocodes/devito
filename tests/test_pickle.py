@@ -69,7 +69,7 @@ def test_full_model():
     pkl_ricker = pickle.dumps(ricker)
     new_ricker = pickle.loads(pkl_ricker)
     assert np.isclose(np.linalg.norm(ricker.data), np.linalg.norm(new_ricker.data))
-    # FIXME: fails randomly when using data.flatten()
+    # FIXME: fails randomly when using data.flatten() AND numpy is using MKL
 
 
 def test_simple_operator():
@@ -77,4 +77,10 @@ def test_simple_operator():
     f = Function(name='f', grid=grid)
 
     op = Operator(Eq(f, f + 1))
-    from IPython import embed; embed()
+    op.apply()  # Trigger JIT
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    new_op.apply(f=f)
+    assert np.all(f.data == 2)
