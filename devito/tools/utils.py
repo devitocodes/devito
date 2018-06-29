@@ -1,4 +1,3 @@
-import os
 import ctypes
 from collections import Iterable, OrderedDict
 from functools import reduce
@@ -11,7 +10,7 @@ import sympy
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'filter_sorted', 'numpy_to_ctypes', 'ctypes_to_C', 'ctypes_pointer',
-           'pprint', 'change_directory', 'sweep', 'as_mapper']
+           'pprint', 'sweep', 'as_mapper']
 
 
 def prod(iterable):
@@ -183,25 +182,6 @@ def pprint(node, verbose=True):
     """
     from devito.ir.iet import printAST
     print(printAST(node, verbose))
-
-
-class change_directory(object):
-    """
-    Context manager for changing the current working directory.
-
-    Adapted from: ::
-
-        https://stackoverflow.com/questions/431684/how-do-i-cd-in-python/
-    """
-    def __init__(self, newPath):
-        self.newPath = os.path.expanduser(newPath)
-
-    def __enter__(self):
-        self.savedPath = os.getcwd()
-        os.chdir(self.newPath)
-
-    def __exit__(self, etype, value, traceback):
-        os.chdir(self.savedPath)
 
 
 def sweep(parameters, keys=None):
