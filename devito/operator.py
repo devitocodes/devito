@@ -141,14 +141,12 @@ class Operator(Callable):
             dim = arg.argument
             osize = (1 + arg.original_dim.symbolic_end
                      - arg.original_dim.symbolic_start).subs(args)
-
-            if dim.symbolic_size in self.parameters:
-                if arg.value is None:
-                    args[dim.symbolic_size.name] = osize
-                elif isinstance(arg.value, int):
-                    args[dim.symbolic_size.name] = arg.value
-                else:
-                    args[dim.symbolic_size.name] = arg.value(osize)
+            if arg.value is None:
+                args[dim.symbolic_size.name] = osize
+            elif isinstance(arg.value, int):
+                args[dim.symbolic_size.name] = arg.value
+            else:
+                args[dim.symbolic_size.name] = arg.value(osize)
 
         # Add in the profiler argument
         args[self.profiler.name] = self.profiler.new()
