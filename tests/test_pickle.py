@@ -121,7 +121,7 @@ def test_operator_function():
     f = Function(name='f', grid=grid)
 
     op = Operator(Eq(f, f + 1))
-    op.apply()  # Trigger JIT
+    op.apply()
 
     pkl_op = pickle.dumps(op)
     new_op = pickle.loads(pkl_op)
@@ -135,10 +135,10 @@ def test_operator_timefunction():
     f = TimeFunction(name='f', grid=grid)
 
     op = Operator(Eq(f.forward, f + 1))
-    op.apply(time=1)  # Trigger JIT
+    op.apply(time=0)
 
     pkl_op = pickle.dumps(op)
     new_op = pickle.loads(pkl_op)
 
-    new_op.apply(f=f)
-    assert np.all(f.data == 2)
+    new_op.apply(time_m=1, time_M=1, f=f)
+    assert np.all(f.data[0] == 2)
