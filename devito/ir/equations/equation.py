@@ -140,9 +140,17 @@ class LoweredEq(Eq, IREq):
         expr._is_Increment = getattr(input_expr, 'is_Increment', False)
         expr._dspace = dspace
         expr._ispace = ispace
-        expr.reads, expr.writes = detect_io(expr)
+        expr._reads, expr._writes = detect_io(expr)
 
         return expr
+
+    @property
+    def reads(self):
+        return self._reads
+
+    @property
+    def writes(self):
+        return self._writes
 
     def xreplace(self, rules):
         return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), **self.state)
