@@ -278,16 +278,16 @@ class Operator(Callable):
 
     def __getstate__(self):
         if self._lib:
-            ret = dict(self.__dict__)
+            state = dict(self.__dict__)
             # The compiled shared-object will be pickled; upon unpickling, it
             # will be restored into a potentially different temporary directory,
             # so the entire process during which the shared-object is loaded and
             # given to ctypes must be performed again
-            ret['_lib'] = None
-            ret['_cfunction'] = None
+            state['_lib'] = None
+            state['_cfunction'] = None
             with open(self._lib._name, 'rb') as f:
-                ret['binary'] = pickle.dumps(f.read())
-            return ret
+                state['binary'] = pickle.dumps(f.read())
+            return state
         else:
             return self.__dict__
 
