@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 from collections import OrderedDict
-import pickle
 
 from cached_property import cached_property
 import ctypes
@@ -286,7 +285,7 @@ class Operator(Callable):
             state['_lib'] = None
             state['_cfunction'] = None
             with open(self._lib._name, 'rb') as f:
-                state['binary'] = pickle.dumps(f.read())
+                state['binary'] = f.read()
             return state
         else:
             return self.__dict__
