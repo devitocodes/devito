@@ -1,9 +1,12 @@
 import numpy as np
+from sympy import Symbol
+
 from examples.seismic import demo_model
 from examples.seismic.source import TimeAxis, RickerSource
 
 from devito import (Constant, Eq, Function, Grid, TimeDimension, SteppingDimension,
                     Operator)
+from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
 
@@ -83,6 +86,25 @@ def test_function():
     # The Data objects are different as they are not pickled !
     assert np.all(f.data[0] == 1.)
     assert np.all(new_f.data[0] == 0.)
+
+
+def test_symbolics():
+    a = Symbol('a')
+
+    id = IntDiv(a, 3)
+    pkl_id = pickle.dumps(id)
+    new_id = pickle.loads(pkl_id)
+    assert id == new_id
+
+    ffp = FunctionFromPointer('foo', a, ['b', 'c'])
+    pkl_ffp = pickle.dumps(ffp)
+    new_ffp = pickle.loads(pkl_ffp)
+    assert ffp == new_ffp
+
+    li = ListInitializer(['a', 'b'])
+    pkl_li = pickle.dumps(li)
+    new_li = pickle.loads(pkl_li)
+    assert li == new_li
 
 
 def test_operator_parameters():
