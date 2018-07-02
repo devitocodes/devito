@@ -39,6 +39,7 @@ namespace['yask-output-dir'] = make_tempdir('yask')
 # The YASK compiler expects the generated code under:
 # $YASK_OUTPUT_DIR/build/kernel/$stencil.$arch/gen/yask_stencil_code.hpp
 namespace['yask-lib'] = os.path.join(namespace['yask-output-dir'], 'lib')
+namespace['yask-pylib'] = os.path.join(namespace['yask-output-dir'], 'yask')
 namespace['yask-codegen'] = lambda i, j, k: os.path.join(namespace['yask-output-dir'],
                                                          'build', 'kernel',
                                                          '%s.%s.%s' % (i, j, k), 'gen')
