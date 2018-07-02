@@ -85,7 +85,16 @@ def test_function():
     assert np.all(new_f.data[0] == 0.)
 
 
-def test_simple_operator():
+def test_operator_parameters():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    op = Operator(Eq(f, f + 1))
+    for i in op.parameters:
+        pkl_i = pickle.dumps(i)
+        pickle.loads(pkl_i)
+
+
+def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
 
