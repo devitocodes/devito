@@ -72,6 +72,19 @@ def test_full_model():
     # FIXME: fails randomly when using data.flatten() AND numpy is using MKL
 
 
+def test_function():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    f.data[0] = 1.
+
+    pkl_f = pickle.dumps(f)
+    new_f = pickle.loads(pkl_f)
+
+    # The Data objects are different as they are not pickled !
+    assert np.all(f.data[0] == 1.)
+    assert np.all(new_f.data[0] == 0.)
+
+
 def test_simple_operator():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
