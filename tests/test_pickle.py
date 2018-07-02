@@ -110,7 +110,9 @@ def test_symbolics():
 def test_operator_parameters():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
-    op = Operator(Eq(f, f + 1))
+    g = TimeFunction(name='g', grid=grid)
+    h = TimeFunction(name='h', grid=grid, save=10)
+    op = Operator(Eq(h.forward, h + g + f + 1))
     for i in op.parameters:
         pkl_i = pickle.dumps(i)
         pickle.loads(pkl_i)
