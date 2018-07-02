@@ -21,15 +21,18 @@ plt.style.use('seaborn-darkgrid')
 
 
 @click.command()
-@click.option('--name', '-n', required=True, help='The name of the generated roofline')
+# Required arguments
+@click.option('--name', '-n', required=True, help='The name of the generated roofline.')
 @click.option('--project', '-o', required=True,
-              help='The directory of the Intel Advisor project with a roofline analysis.')
+              help='The directory of the Intel Advisor project containing '
+                   'a roofline analysis.')
+# Optional arguments
 @click.option('--scale', type=float, help='Specify by how much should the roofs be '
                                           'scaled down due to using fewer cores than '
                                           'available (e.g., when running on a single '
-                                          'socket)')
+                                          'socket).')
 @click.option('--precision', type=click.Choice(['SP', 'DP', 'all']),
-              help='Arithmetic precision', default='SP')
+              help='Arithmetic precision.', default='SP')
 def roofline(name, project, scale, precision):
     pd.options.display.max_rows = 20
 

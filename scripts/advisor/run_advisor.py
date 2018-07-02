@@ -8,45 +8,24 @@ from contextlib import contextmanager
 import click
 
 
-def check(cond, msg):
-    if not cond:
-        err(msg)
-        sys.exit(1)
-
-
-def err(msg):
-    print('\033[1;37;31m%s\033[0m' % msg)  # print in RED
-
-
-def log(msg):
-    print('\033[1;37;32m%s\033[0m' % msg)  # print in GREEN
-
-
-@contextmanager
-def progress(msg):
-    print('\033[1;37;32m%s ... \033[0m' % msg, end='', flush=True)  # print in GREEN
-    yield
-    print('\033[1;37;32m%s\033[0m' % 'Done!')
-
-
 @click.command()
 # Required arguments
 @click.option('--path', '-p', help='Absolute path to the Devito executable.',
               required=True)
+# Optional arguments
+@click.option('--exec-args', type=click.UNPROCESSED, default='',
+              help='Arguments passed to the executable.')
 @click.option('--output', '-o', help='A directory for storing profiling reports. '
                                      'The directory is created if it does not exist. '
                                      'If unspecified, reports are stored within '
-                                     'the OS temporary directory')
-# Optional arguments
+                                     'a temporary directory.')
 @click.option('--name', '-n', help='A unique name identifying the run. '
-                                   'If unspecified, a name is assigned joining '
+                                   'If unspecified, a name is generated joining '
                                    'the executable name with the options specified '
                                    'in --exec-args (if any).')
-@click.option('--exec-args', type=click.UNPROCESSED, default='',
-              help='Arguments passed to the executable.')
 @click.option('--advisor-home', help='Path to Intel Advisor. Defaults to /opt/intel'
-                                     '/advisor, which is the directory in which '
-                                     'Intel Compiler suite is installed.')
+                                     '/advisor, the directory in which the Intel '
+                                     'Compiler suite is installed by default.')
 @click.option('--plot/--no-plot', default=True, help='Generate a roofline.')
 def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
     path = Path(path)
@@ -71,7 +50,18 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
     else:
         os.environ['ADVISOR_HOME'] = '/opt/intel/advisor'
 
-    # Intel Advisor is available, and so must is the Intel compiler
+    # Intel Advisor 2018 must be available
+    try:
+        ret = check_output(['advixe-cl', '--version']).decode("utf-8")
+    except FileNotFoundError:
+        check(False, "Couldn't detect `advixe-cl` to run Intel Advisor.")
+    # The 2018.3 release is the only one for which support is guaranteed
+    if not any(ret.startswith(i) for i in supported_releases):
+        log('Intel Advisor is available, but version `%s` does not appear '
+            'among the supported ones `%s`, hence the behaviour is now undefined.'
+            % (ret, supported_releases))
+
+    # If Advisor is available, so is the Intel compiler
     os.environ['DEVITO_ARCH'] = 'intel'
 
     # Tell Devito to instrument the generated code for Advisor
@@ -89,8 +79,8 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
         # We must be able to do thread pinning, otherwise any results would be
         # meaningless. Currently, we only support doing that via numactl
         try:
-            ret = check_output(['numactl', '--show'])
-            ret = dict(i.split(':') for i in ret.decode("utf-8").split('\n') if i)
+            ret = check_output(['numactl', '--show']).decode("utf-8")
+            ret = dict(i.split(':') for i in ret.split('\n') if i)
             n_sockets = len(ret['cpubind'].split())
             n_cores = len(ret['physcpubind'].split())  # noqa
         except FileNotFoundError:
@@ -160,10 +150,36 @@ def run_with_advisor(path, output, name, exec_args, advisor_home, plot):
                 'python2.7',
                 'roofline.py',
                 '--name %s' % name,
-                '--output %s' % output,
+                '--project %s' % output,
                 '--scale %f' % n_sockets
             ]
             check(check_call(cmd) == 0, 'Failed!')
+
+
+supported_releases = [
+    'Intel(R) Advisor 2018 Update 3'
+]
+
+
+def check(cond, msg):
+    if not cond:
+        err(msg)
+        sys.exit(1)
+
+
+def err(msg):
+    print('\033[1;37;31m%s\033[0m' % msg)  # print in RED
+
+
+def log(msg):
+    print('\033[1;37;32m%s\033[0m' % msg)  # print in GREEN
+
+
+@contextmanager
+def progress(msg):
+    print('\033[1;37;32m%s ... \033[0m' % msg, end='', flush=True)  # print in GREEN
+    yield
+    print('\033[1;37;32m%s\033[0m' % 'Done!')
 
 
 if __name__ == '__main__':
