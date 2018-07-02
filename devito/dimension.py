@@ -436,6 +436,11 @@ class SubDimension(DerivedDimension):
         """
         return {}
 
+    # Pickling support
+    _pickle_args = DerivedDimension._pickle_args +\
+        ['symbolic_start', 'symbolic_end', 'symbolic_size']
+    _pickle_kwargs = []
+
 
 class ConditionalDimension(DerivedDimension):
 
@@ -491,6 +496,9 @@ class ConditionalDimension(DerivedDimension):
     @property
     def _properties(self):
         return (self._factor, self._condition)
+
+    # Pickling support
+    _pickle_kwargs = DerivedDimension._pickle_kwargs + ['factor', 'condition']
 
 
 class SteppingDimension(DerivedDimension):
@@ -631,6 +639,10 @@ class ModuloDimension(DerivedDimension):
         """
         return {}
 
+    # Pickling support
+    _pickle_args = ['parent', 'offset', 'modulo']
+    _pickle_kwargs = ['name']
+
 
 class IncrDimension(DerivedDimension):
 
@@ -688,6 +700,10 @@ class IncrDimension(DerivedDimension):
         no argument values to be derived.
         """
         return {}
+
+    # Pickling support
+    _pickle_args = ['parent', 'symbolic_start', 'step']
+    _pickle_kwargs = ['name']
 
 
 def dimensions(names):
