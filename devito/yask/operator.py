@@ -14,7 +14,6 @@ from devito.ir.iet import (Element, List, PointerCast, MetaCall, Transformer,
 from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
 from devito.tools import ReducerMap, Signer, flatten
-from devito.types import Object
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
@@ -22,7 +21,7 @@ from devito.yask.utils import (make_grid_accesses, make_sharedptr_funcall, rawpo
                                namespace)
 from devito.yask.wrappers import YaskNullKernel, contexts
 from devito.yask.transformer import yaskizer
-from devito.yask.types import YaskGridObject
+from devito.yask.types import YaskGridObject, YaskSolnObject
 
 __all__ = ['Operator']
 
@@ -130,7 +129,7 @@ class Operator(OperatorRunnable):
         iet = super(Operator, self)._build_casts(iet)
 
         # Add YASK solution pointer for use in C-land
-        soln_obj = Object(namespace['code-soln-name'], namespace['type-solution'])
+        soln_obj = YaskSolnObject()
 
         # Add YASK user and local grids pointers for use in C-land
         grid_objs = [YaskGridObject(i.name) for i in self.input if i.from_YASK]
