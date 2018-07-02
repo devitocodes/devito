@@ -4,8 +4,8 @@ from sympy import Symbol
 from examples.seismic import demo_model
 from examples.seismic.source import TimeAxis, RickerSource
 
-from devito import (Constant, Eq, Function, Grid, TimeDimension, SteppingDimension,
-                    Operator)
+from devito import (Constant, Eq, Function, TimeFunction, Grid, TimeDimension,
+                    SteppingDimension, Operator)
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
@@ -122,6 +122,20 @@ def test_operator_function():
 
     op = Operator(Eq(f, f + 1))
     op.apply()  # Trigger JIT
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    new_op.apply(f=f)
+    assert np.all(f.data == 2)
+
+
+def test_operator_timefunction():
+    grid = Grid(shape=(3, 3, 3))
+    f = TimeFunction(name='f', grid=grid)
+
+    op = Operator(Eq(f.forward, f + 1))
+    op.apply(time=1)  # Trigger JIT
 
     pkl_op = pickle.dumps(op)
     new_op = pickle.loads(pkl_op)
