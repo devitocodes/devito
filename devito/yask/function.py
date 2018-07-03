@@ -84,7 +84,7 @@ class Function(function.Function, Signer):
                     else:
                         # time and misc dimensions
                         padding.append((0, 0))
-                self._padding = padding
+                self._padding = tuple(padding)
 
                 self._data = Data(grid, self.shape_allocated, self.indices, self.dtype)
                 self._data.reset()

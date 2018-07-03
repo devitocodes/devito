@@ -140,6 +140,16 @@ class TensorFunction(AbstractCachedFunction):
             self._data = None
             self._allocator = kwargs.get('allocator', default_allocator())
 
+            # Setup halo and padding regions
+            self._halo = self.__halo_setup__(**kwargs)
+            self._padding = self.__padding_setup__(**kwargs)
+
+    def __halo_setup__(self, **kwargs):
+        return tuple((0, 0) for i in range(self.ndim))
+
+    def __padding_setup__(self, **kwargs):
+        return tuple((0, 0) for i in range(self.ndim))
+
     def __getitem__(self, index):
         """Shortcut for ``self.indexed[index]``."""
         return self.indexed[index]
@@ -260,6 +270,14 @@ class TensorFunction(AbstractCachedFunction):
         return self._data
 
     @property
+    def halo(self):
+        return self._halo
+
+    @property
+    def padding(self):
+        return self._padding
+
+    @property
     def space_dimensions(self):
         """Tuple of :class:`Dimension`s that define physical space."""
         return tuple(d for d in self.indices if d.is_Space)
@@ -344,6 +362,10 @@ class TensorFunction(AbstractCachedFunction):
         for i, s in zip(self.indices, key.shape):
             i._arg_check(args, s, intervals[i])
 
+    # Pickling support
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
+        ['staggered', 'halo', 'padding']
+
 
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express
@@ -423,28 +445,14 @@ class Function(TensorFunction):
             else:
                 self.dtype = kwargs.get('dtype', self.grid.dtype)
 
-            # Halo region
+            # Space order
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 self.space_order = space_order
-                halo = (space_order, space_order)
             elif isinstance(space_order, tuple) and len(space_order) == 3:
-                self.space_order, left_points, right_points = space_order
-                halo = (left_points, right_points)
+                self.space_order, _, _ = space_order
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
-            self._halo = tuple(halo if i in self._halo_indices else (0, 0)
-                               for i in self.indices)
-
-            # Padding region
-            padding = kwargs.get('padding', 0)
-            if isinstance(padding, int):
-                padding = tuple((padding,)*2 for i in range(self.ndim))
-            elif isinstance(padding, tuple) and len(padding) == self.ndim:
-                padding = tuple((i,)*2 if isinstance(i, int) else i for i in padding)
-            else:
-                raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
-            self._padding = padding
 
             # Dynamically add derivative short-cuts
             self._initialize_derivatives()
@@ -540,10 +548,29 @@ class Function(TensorFunction):
             shape = grid.shape_domain
         return shape
 
-    @property
-    def _halo_indices(self):
-        """Return the function indices for which a halo region is defined."""
-        return tuple(i for i in self.indices if i.is_Space)
+    def __halo_setup__(self, **kwargs):
+        halo = kwargs.get('halo')
+        if halo is not None:
+            return halo
+        else:
+            space_order = kwargs.get('space_order', 1)
+            if isinstance(space_order, int):
+                halo = (space_order, space_order)
+            elif isinstance(space_order, tuple) and len(space_order) == 3:
+                _, left_points, right_points = space_order
+                halo = (left_points, right_points)
+            else:
+                raise TypeError("`space_order` must be int or 3-tuple of ints")
+            return tuple(halo if i.is_Space else (0, 0) for i in self.indices)
+
+    def __padding_setup__(self, **kwargs):
+        padding = kwargs.get('padding', 0)
+        if isinstance(padding, int):
+            return tuple((padding,)*2 for i in range(self.ndim))
+        elif isinstance(padding, tuple) and len(padding) == self.ndim:
+            return tuple((i,)*2 if isinstance(i, int) else i for i in padding)
+        else:
+            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
 
     @property
     def laplace(self):
@@ -568,7 +595,7 @@ class Function(TensorFunction):
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['dtype', 'grid', 'shape', 'dimensions', 'space_order']
+        ['dtype', 'grid', 'space_order', 'shape', 'dimensions']
 
 
 class TimeFunction(Function):
@@ -805,12 +832,6 @@ class AbstractSparseFunction(TensorFunction):
 
             self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.space_order = kwargs.get('space_order', 0)
-
-            # Halo region
-            self._halo = tuple((0, 0) for i in range(self.ndim))
-
-            # Padding region
-            self._padding = tuple((0, 0) for i in range(self.ndim))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
