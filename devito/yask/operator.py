@@ -7,7 +7,6 @@ import cgen as c
 import numpy as np
 
 from devito.cgen_utils import ccode
-from devito.compiler import jit_compile
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Iteration, Element, Expression, List, PointerCast, Section,
