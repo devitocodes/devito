@@ -1,8 +1,8 @@
-from sympy import cos, sin
+from sympy import cos, sin, finite_diff_weights
 
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
-from devito.finite_difference import centered, first_derivative, right, transpose
+from devito.finite_difference import centered, first_derivative, right, transpose, left
 
 
 def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
@@ -419,6 +419,141 @@ def ForwardOperator(model, source, receiver, space_order=4,
     # Substitute spacing terms to reduce flops
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
 
+
+def ForwardOperatorStagg(model, source, receiver, space_order=4,
+                         save=False, **kwargs):
+    """
+    Constructor method for the forward modelling operator in an acoustic media
+    :param model: :class:`Model` object containing the physical parameters
+    :param source: :class:`PointData` object containing the source geometry
+    :param receiver: :class:`PointData` object containing the acquisition geometry
+    :param space_order: Space discretization order
+    :param save: Saving flag, True saves all time steps, False only the three
+    """
+    dt = model.grid.time_dim.spacing
+
+    m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
+                                           model.delta, model.theta, model.phi)
+    rho = 1
+    ndim = model.grid.dim
+    s = model.grid.time_dim.spacing
+    damp_loc = (1 - damp)
+    if ndim == 3:
+        stagg_x = (0, 1, 0, 0)
+        stagg_z = (0, 0, 0, 1)
+        stagg_y = (0, 0, 1, 0)
+        x, y, z = model.grid.dimensions
+    else:
+        stagg_x = (0, 1, 0)
+        stagg_z = (0, 0, 1)
+        x, z = model.grid.dimensions
+    # Create symbols for forward wavefield, source and receivers
+    vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
+                      save=source.nt if save else None,
+                      time_order=1, space_order=space_order)
+    vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
+                      save=source.nt if save else None,
+                      time_order=1, space_order=space_order)
+
+    if model.grid.dim == 3:
+        vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
+                          save=source.nt if save else None,
+                          time_order=1, space_order=space_order)
+
+    pv = TimeFunction(name='pv', grid=model.grid,
+                      save=source.nt if save else None,
+                      time_order=1, space_order=space_order)
+
+    ph = TimeFunction(name='ph', grid=model.grid,
+                      save=source.nt if save else None,
+                      time_order=1, space_order=space_order)
+    # Stencils
+    u_vx = Eq(vx.forward, damp_loc * vx - damp_loc *s/rho*staggered_diff(ph, dim=x, order=space_order, stagger=left, theta=theta, phi=phi))
+    u_vz = Eq(vz.forward, damp_loc * vz - damp_loc *s/rho*staggered_diff(pv, dim=z, order=space_order, stagger=left, theta=theta, phi=phi))
+
+    dvx = staggered_diff(vx.forward, dim=x, order=space_order, stagger=right, theta=theta, phi=phi)
+    dvz = staggered_diff(vz.forward, dim=z, order=space_order, stagger=right, theta=theta, phi=phi)
+
+    u_vy = []
+    dvy = 0
+    if ndim == 3:
+        u_vy = [Eq(vy.forward, damp_loc * vy - damp_loc *s/rho*staggered_diff(ph, dim=y, order=space_order, stagger=left, theta=theta, phi=phi))]
+        dvy = staggered_diff(vy.forward, dim=y, order=space_order, stagger=right, theta=theta, phi=phi)
+
+
+    pv_eq = Eq(pv.forward, damp_loc * pv - damp_loc *s * rho / m * (delta*(dvx + dvy) + dvz))
+
+    ph_eq = Eq(ph.forward, damp_loc * ph - damp_loc *s * rho / m * (epsilon*(dvx + dvy) + delta * dvz))
+
+    # Source symbol with input wavelet
+    src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
+                      npoint=source.npoint)
+    rec = Receiver(name='rec', grid=model.grid, time_range=receiver.time_range,
+                   npoint=receiver.npoint)
+    src_term = src.inject(field=pv.forward, offset=model.nbpml, expr=src * rho * dt / m)
+    src_term += src.inject(field=ph.forward, offset=model.nbpml, expr=src * rho * dt / m)
+    # Data is sampled at receiver locations
+    rec_term = rec.interpolate(expr=pv + ph, offset=model.nbpml)
+
+    # Substitute spacing terms to reduce flops
+    op = Operator([u_vx, u_vz] + u_vy + rec_term + [pv_eq, ph_eq] + src_term, subs=model.spacing_map,
+                  dse='advanced', dle='advanced')
+
+    return op
+
+def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
+    """
+    Utility function to generate staggered derivatives
+    :param f: function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
+    :param dims: symbol defining the dimension wrt. which
+       to differentiate, eg. `x`, `y`, `z` or `t`.
+    :param order: Order of the coefficient discretization and thus
+                  the width of the resulting stencil expression.
+    :param stagger: Shift for the FD, `left`, `right` or `centered`
+    :param theta: Dip angle for rotated FD
+    :param phi: Azimuth angle for rotated FD
+    """
+    order = order // 2
+    ndim = f.grid.dim
+    off = dict([(d, 0) for d, s in zip(f.grid.dimensions, f.staggered)])
+    if stagger == left:
+        off[dim] = -.5
+    elif stagger == right:
+        off[dim] = .5
+    else:
+        off[dim] = 0
+
+    if theta == 0 and phi == 0:
+        diff = dim.spacing
+        idx = [(dim + int(i+.5+off[dim])*diff) for i in range(-int(order / 2), int(order / 2))]
+        return f.diff(dim).as_finite_difference(idx, x0=dim + off[dim]*dim.spacing)
+    else:
+        ndim = f.grid.dim
+        x = f.grid.dimensions[0]
+        z = f.grid.dimensions[-1]
+        idxx = list(set([(x + int(i+.5+off[x])*x.spacing) for i in range(-int(order / 2), int(order / 2))]))
+        dx = f.diff(x).as_finite_difference(idxx, x0=x + off[x]*x.spacing)
+
+        idxz = list(set([(z + int(i+.5+off[z])*z.spacing) for i in range(-int(order / 2), int(order / 2))]))
+        dz = f.diff(z).as_finite_difference(idxz, x0=z + off[z]*z.spacing)
+
+        dy = 0
+        is_y = False
+
+        if ndim == 3:
+            y = f.grid.dimensions[1]
+            idxy = list(set([(y + int(i+.5+off[y])*y.spacing) for i in range(-int(order / 2), int(order / 2))]))
+            dy = f.diff(y).as_finite_difference(idxy, x0=y + off[y]*y.spacing)
+            is_y = (dim == y)
+
+        if dim == x:
+            return cos(theta) * cos(phi) * dx + sin(phi) * cos(theta) * dy - sin(theta) * dz
+        elif dim == z:
+            return sin(theta) * cos(phi) * dx + sin(phi) * sin(theta) * dy + cos(theta) * dz
+        elif is_y:
+            return -sin(phi) * dx + cos(phi) *  dy
+        else:
+            return 0
 
 kernels = {('shifted', 3): kernel_shifted_3d, ('shifted', 2): kernel_shifted_2d,
            ('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d}
