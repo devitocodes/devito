@@ -4,6 +4,7 @@ JIT-compile, and run kernels.
 """
 
 import os
+import sys
 
 from devito.dle import BasicRewriter, init_dle
 from devito.exceptions import InvalidOperator
@@ -44,6 +45,12 @@ namespace['yask-codegen'] = lambda i, j, k: os.path.join(namespace['yask-output-
                                                          'build', 'kernel',
                                                          '%s.%s.%s' % (i, j, k), 'gen')
 namespace['yask-codegen-file'] = 'yask_stencil_code.hpp'
+
+# All dynamically generated Python modules are stored here
+os.makedirs(namespace['yask-pylib'], exist_ok=True)
+with open(os.path.join(namespace['yask-pylib'], '__init__.py'), 'w') as f:
+    f.write('')
+sys.path.append(os.path.join(namespace['yask-pylib']))
 
 
 # Need a custom compiler to compile YASK kernels

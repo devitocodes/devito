@@ -1,7 +1,6 @@
 import os
-import sys
-import importlib
 import warnings
+from importlib import import_module, invalidate_caches
 from glob import glob
 from subprocess import call
 from collections import OrderedDict
@@ -43,19 +42,18 @@ class YaskKernel(object):
         # Shared object name
         self.soname = "%s.devito.%s" % (name, configuration['platform'])
 
-        # The lock manager prevents race conditions
-        # `lock_m` is used only to keep the lock manager alive
-        with warnings.catch_warnings():
-            cleanup_m = CleanupManager()
-            lock_m = CacheLockManager(cleanup_m, namespace['yask-output-dir'])  # noqa
-
-        try:
-            # Has the kernel already been compiled in a previous session?
-            importlib.invalidate_caches()
-            yk = importlib.import_module(name)
+        if os.path.exists(os.path.join(namespace['yask-pylib'], '%s.py' % name)):
+            # Nothing to do -- the YASK solution was compiled in a previous session
+            yk = import_module(name)
             log("cache hit, `%s` imported w/o jitting" % name)
-        except ModuleNotFoundError:
-            # Nope !
+        else:
+            # We create and JIT compile a fresh YASK solution
+
+            # The lock manager prevents race conditions
+            # `lock_m` is used only to keep the lock manager alive
+            with warnings.catch_warnings():
+                cleanup_m = CleanupManager()
+                lock_m = CacheLockManager(cleanup_m, namespace['yask-output-dir'])  # noqa
 
             # The directory in which the YASK-generated code (.hpp) will be placed
             yk_codegen = namespace['yask-codegen'](name, 'devito',
@@ -101,12 +99,11 @@ class YaskKernel(object):
             make(namespace['path'], args)
 
             # Now we must be able to import the SWIG-generated Python module
-            sys.path.append(os.path.join(namespace['yask-output-dir'], 'yask'))
-            importlib.invalidate_caches()
-            yk = importlib.import_module(name)
+            invalidate_caches()
+            yk = import_module(name)
 
-        # Release the lock manager
-        cleanup_m.clean_up()
+            # Release the lock manager
+            cleanup_m.clean_up()
 
         # Create the YASK solution object
         kfac = yk.yk_factory()
