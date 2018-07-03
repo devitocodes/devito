@@ -312,6 +312,7 @@ def damp_boundary(damp, nbpml, spacing, mask=False):
             all_ind[i] = slice(damp.data.shape[i]-j, damp.data.shape[i]-j+1)
             damp.data[all_ind] += val/spacing[i]
 
+
 def initialize_function(function, data, nbpml):
     """Initialize a :class:`Function` with the given ``data``. ``data``
     does *not* include the PML layers for the absorbing boundary conditions;

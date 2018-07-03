@@ -1,7 +1,5 @@
-from sympy import solve, Symbol
 
-from devito import Eq, Operator, Function, TimeFunction, centered, left, right
-from devito.logger import error
+from devito import Eq, Operator, TimeFunction, centered, left, right
 from examples.seismic import PointSource, Receiver
 
 
@@ -18,6 +16,7 @@ def staggered_diff(f, dim, order, stagger=centered):
         off = 0.
     idx = [(dim + int(i+.5+off)*diff) for i in range(-int(order / 2), int(order / 2))]
     return f.diff(dim).as_finite_difference(idx, x0=dim + off*dim.spacing)
+
 
 def ForwardOperator(model, source, receiver, space_order=4,
                     save=False, kernel='OT2', **kwargs):
@@ -48,35 +47,40 @@ def ForwardOperator(model, source, receiver, space_order=4,
                       save=source.nt if save else None,
                       time_order=2, space_order=space_order)
     txx = TimeFunction(name='txx', grid=model.grid,
-                      save=source.nt if save else None,
-                      time_order=2, space_order=space_order)
+                       save=source.nt if save else None,
+                       time_order=2, space_order=space_order)
     tzz = TimeFunction(name='tzz', grid=model.grid,
-                      save=source.nt if save else None,
-                      time_order=2, space_order=space_order)
+                       save=source.nt if save else None,
+                       time_order=2, space_order=space_order)
     txz = TimeFunction(name='txz', grid=model.grid, staggered=(0, 1, 1),
-                      save=source.nt if save else None,
-                      time_order=2, space_order=space_order)
+                       save=source.nt if save else None,
+                       time_order=2, space_order=space_order)
     # Source symbol with input wavelet
     src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
                       npoint=source.npoint)
     rec1 = Receiver(name='rec1', grid=model.grid, time_range=receiver.time_range,
-                   npoint=receiver.npoint)
+                    npoint=receiver.npoint)
     rec2 = Receiver(name='rec2', grid=model.grid, time_range=receiver.time_range,
-                   npoint=receiver.npoint)
+                    npoint=receiver.npoint)
     # Stencils
-    u_vx = Eq(vx.forward, damp * vx - damp * s*ro*(staggered_diff(txx, dim=x, order=space_order, stagger=left)
-                                    + staggered_diff(txz, dim=z, order=space_order, stagger=right)))
+    fd_vx = (staggered_diff(txx, dim=x, order=space_order, stagger=left) +
+             staggered_diff(txz, dim=z, order=space_order, stagger=right))
+    u_vx = Eq(vx.forward, damp * vx - damp * s * ro * fd_vx)
 
-    u_vz = Eq(vz.forward, damp * vz - damp * ro*s*(staggered_diff(txz, dim=x, order=space_order, stagger=right)
-                                    + staggered_diff(tzz, dim=z, order=space_order, stagger=left)))
+    fd_vz = (staggered_diff(txz, dim=x, order=space_order, stagger=right) +
+             staggered_diff(tzz, dim=z, order=space_order, stagger=left))
+    u_vz = Eq(vz.forward, damp * vz - damp * ro * s * fd_vz)
 
-    u_txx = Eq(txx.forward, damp * txx - damp * (l+2*mu)*s * staggered_diff(vx.forward, dim=x, order=space_order, stagger=right)
-                                -  damp * l*s       * staggered_diff(vz.forward, dim=z, order=space_order, stagger=right))
-    u_tzz = Eq(tzz.forward, damp * tzz - damp * (l+2*mu)*s * staggered_diff(vz.forward, dim=z, order=space_order, stagger=right)
-                                -  damp * l*s       * staggered_diff(vx.forward, dim=x, order=space_order, stagger=right))
+    vxdx = staggered_diff(vx.forward, dim=x, order=space_order, stagger=right)
+    vzdz = staggered_diff(vz.forward, dim=z, order=space_order, stagger=right)
+    u_txx = Eq(txx.forward, damp * txx - damp * (l + 2 * mu) * s * vxdx
+                                       - damp * l * s * vzdz)
+    u_tzz = Eq(tzz.forward, damp * tzz - damp * (l+2*mu)*s * vzdz
+                                       - damp * l * s * vxdx)
 
-    u_txz = Eq(txz.forward, damp * txz - damp * mu*s * (staggered_diff(vx.forward, dim=z, order=space_order, stagger=left)
-                                         + staggered_diff(vz.forward, dim=x, order=space_order, stagger=left)))
+    vxdz = staggered_diff(vx.forward, dim=z, order=space_order, stagger=left)
+    vzdx = staggered_diff(vz.forward, dim=x, order=space_order, stagger=left)
+    u_txz = Eq(txz.forward, damp * txz - damp * mu*s * (vxdz + vzdx))
 
     # The source injection term
     src_xx = src.inject(field=txx.forward, expr=src, offset=model.nbpml)
@@ -86,5 +90,6 @@ def ForwardOperator(model, source, receiver, space_order=4,
     rec_term1 = rec1.interpolate(expr=txx, offset=model.nbpml)
     rec_term2 = rec2.interpolate(expr=tzz, offset=model.nbpml)
     # Substitute spacing terms to reduce flops
-    return Operator([u_vx, u_vz, u_txx, u_tzz, u_txz] + src_xx + src_zz + rec_term1 + rec_term2, subs=model.spacing_map,
+    return Operator([u_vx, u_vz, u_txx, u_tzz, u_txz] + src_xx + src_zz
+                    + rec_term1 + rec_term2, subs=model.spacing_map,
                     name='Forward', **kwargs)
