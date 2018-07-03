@@ -58,6 +58,10 @@ class IREq(object):
         return self.lhs.dtype
 
     @property
+    def grid(self):
+        return self.lhs.function.grid if self.is_Tensor else None
+
+    @property
     def state(self):
         return {i: getattr(self, i) for i in self._state}
 
