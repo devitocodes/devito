@@ -69,7 +69,7 @@ class Function(function.Function, Signer):
                 log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
 
                 # Fetch the appropriate context
-                context = contexts.fetch(self.grid, self.dtype, self.dimensions)
+                context = contexts.fetch(self.dimensions, self.dtype)
 
                 # Create a YASK grid; this allocates memory
                 grid = context.make_grid(self)
