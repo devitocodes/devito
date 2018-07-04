@@ -1,46 +1,55 @@
-from collections import OrderedDict
 import numpy as np
 from mpi4py import MPI
 
-__all__ = ['Distributor', 'default_distributor']
+__all__ = ['Distributor']
 
 
 class Distributor(object):
 
     """
-    A class to specify domain decomposition strategies for a set of MPI processes.
+    A class to perform domain decomposition for a set of MPI processes.
 
+    :param shape: The shape of the domain to be decomposed.
     :param comm: An MPI communicator.
     """
 
-    def __init__(self, comm=MPI.COMM_WORLD):
-        self._comm = comm
+    def __init__(self, shape, input_comm=None):
+        self._shape = shape
+        self._input_comm = input_comm or MPI.COMM_WORLD
+        self._topology = MPI.Compute_dims(self._input_comm.size, len(shape))
+
+        if self._input_comm is MPI.COMM_WORLD:
+            # By default, Devito arranges processes into a virtual cartesian topology
+            self._comm = self._input_comm.Create_cart(self._topology)
+        else:
+            self._comm = input_comm
+
+        # Perform domain decomposition
+        self._glb_numbs = [np.array_split(range(i), j)
+                           for i, j in zip(shape, self._topology)]
 
     @property
     def rank(self):
-        return self._comm.Get_rank()
+        return self._comm.rank
 
     @property
     def nprocs(self):
-        return self._comm.Get_size()
+        return self._comm.size
 
-    def partition(self, dims, shape):
-        # TODO: at the moment, partition all space dimensions into equal parts
-        numbs = OrderedDict([(d, np.array_split(range(i), self.nprocs))
-                              for d, i in zip(dims, shape)])
-        shapes = [tuple(len(i) for i in zip(*list(numbs.values())))]
-        # TODO: problem is how I'm calculating shapes here
-        return numbs, shapes
+    @property
+    def topology(self):
+        return self._topology
 
-    def loc_partition(self, dims, shape):
-        numbs, shapes = self.partition(dims, shape)
-        loc_numb = tuple(zip(*list(numbs.values())))[self.rank]
-        print(shapes, self.rank, shapes[0])
-        loc_shape = shapes[self.rank]
-        return loc_numb, loc_shape
+    @property
+    def glb_numb(self):
+        """Return the global numbering of this process' domain."""
+        assert len(self._comm.coords) == len(self._glb_numbs)
+        return tuple(i[j] for i, j in zip(self._glb_numbs, self._comm.coords))
+
+    @property
+    def shape(self):
+        """Return the shape of this process' domain."""
+        return tuple(len(i) for i in self.glb_numb)
 
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
-
-
-default_distributor = Distributor()

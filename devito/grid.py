@@ -1,6 +1,6 @@
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.distributed import default_distributor
+from devito.distributed import Distributor
 from devito.function import Constant
 
 from sympy import prod
@@ -31,8 +31,8 @@ class Grid(object):
     :param dtype: (Optional) default data type to be inherited by all
                   :class:`Function`s created from this :class:`Grid`.
                   Defaults to ``numpy.float32``.
-    :param distributor: (Optional) a :class:`Distributor` describing
-                        how to perform domain decomposition.
+    :param comm: (Optional) an MPI communicator defining the set of
+                 processes among which the grid is distributed.
 
     The :class:`Grid` encapsulates the topology and geometry
     information of the computational domain that :class:`Function`
@@ -65,8 +65,7 @@ class Grid(object):
     _default_dimensions = ('x', 'y', 'z')
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
-                 time_dimension=None, dtype=np.float32,
-                 distributor=default_distributor):
+                 time_dimension=None, dtype=np.float32, comm=None):
         self._shape = shape
         self.extent = as_tuple(extent or tuple(1. for _ in shape))
         self.dtype = dtype
@@ -98,9 +97,7 @@ class Grid(object):
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
-        self._distributor = distributor
-        self._loc_numb, self._loc_shape = \
-            distributor.loc_partition(self.dimensions, shape)
+        self._distributor = Distributor(shape, comm)
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
@@ -145,8 +142,7 @@ class Grid(object):
     @property
     def shape_domain(self):
         """Shape of the local (per-process) physical domain."""
-        print(self._distributor.rank, ':', self._loc_shape, flush=True)
-        return self._shape
+        return self._distributor.shape
 
     @property
     def _const(self):
