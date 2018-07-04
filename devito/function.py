@@ -141,6 +141,7 @@ class TensorFunction(AbstractCachedFunction):
             self._allocator = kwargs.get('allocator', default_allocator())
 
             # Setup halo and padding regions
+            self._is_halo_dirty = False
             self._halo = self.__halo_setup__(**kwargs)
             self._padding = self.__padding_setup__(**kwargs)
 
@@ -229,9 +230,15 @@ class TensorFunction(AbstractCachedFunction):
     @property
     def data(self):
         """
-        The function data values, as a :class:`numpy.ndarray`.
+        The domain data values, as a :class:`numpy.ndarray`.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro` instead.
         """
         return self.data_domain
 
@@ -245,8 +252,15 @@ class TensorFunction(AbstractCachedFunction):
 
         .. note::
 
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_domain` instead.
+
+        .. note::
+
             Alias to ``self.data``.
         """
+        self._is_halo_dirty = True
         return self._data[self._mask_domain]
 
     @property
@@ -256,7 +270,14 @@ class TensorFunction(AbstractCachedFunction):
         The domain+halo data values.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_with_halo` instead.
         """
+        self._is_halo_dirty = True
         return self._data[self._mask_with_halo]
 
     @property
@@ -266,7 +287,39 @@ class TensorFunction(AbstractCachedFunction):
         The allocated data values, that is domain+halo+padding.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_allocated` instead.
         """
+        self._is_halo_dirty = True
+        return self._data
+
+    @property
+    @_allocate_memory
+    def data_ro_domain(self):
+        """
+        A read-only view of the domain data values.
+
+        Elements are stored in row-major format.
+        """
+        # TODO: set numpy setflags
+        return self._data[self._mask_domain]
+
+    @property
+    @_allocate_memory
+    def data_ro_with_halo(self):
+        """A read-only view of the domain+halo data values."""
+        # TODO: set numpy setflags
+        return self._data[self._mask_with_halo]
+
+    @property
+    @_allocate_memory
+    def data_ro_allocated(self):
+        """A read-only view of the domain+halo+padding data values."""
+        # TODO: set numpy setflags
         return self._data
 
     @property
