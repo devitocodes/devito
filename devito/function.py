@@ -126,6 +126,8 @@ class TensorFunction(AbstractCachedFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            super(TensorFunction, self).__init__(*args, **kwargs)
+
             # Staggered mask
             self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
@@ -139,17 +141,6 @@ class TensorFunction(AbstractCachedFunction):
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data = None
             self._allocator = kwargs.get('allocator', default_allocator())
-
-            # Setup halo and padding regions
-            self._is_halo_dirty = False
-            self._halo = self.__halo_setup__(**kwargs)
-            self._padding = self.__padding_setup__(**kwargs)
-
-    def __halo_setup__(self, **kwargs):
-        return tuple((0, 0) for i in range(self.ndim))
-
-    def __padding_setup__(self, **kwargs):
-        return tuple((0, 0) for i in range(self.ndim))
 
     def __getitem__(self, index):
         """Shortcut for ``self.indexed[index]``."""
@@ -323,14 +314,6 @@ class TensorFunction(AbstractCachedFunction):
         return self._data
 
     @property
-    def halo(self):
-        return self._halo
-
-    @property
-    def padding(self):
-        return self._padding
-
-    @property
     def space_dimensions(self):
         """Tuple of :class:`Dimension`s that define physical space."""
         return tuple(d for d in self.indices if d.is_Space)
@@ -416,8 +399,7 @@ class TensorFunction(AbstractCachedFunction):
             i._arg_check(args, s, intervals[i])
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
-        ['staggered', 'halo', 'padding']
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
 
 
 class Function(TensorFunction):
