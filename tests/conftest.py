@@ -280,6 +280,8 @@ def configuration_override(key, value):
 
 
 # Support to run MPI tests
+# This is partly extracted from:
+# `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
 
 def parallel(item):
     """Run a test in parallel.
@@ -287,17 +289,18 @@ def parallel(item):
     :parameter item: The test item to run.
     """
     marker = item.get_marker("parallel")
-    nprocs = marker.kwargs.get("nprocs", 2)
-    if nprocs < 2:
-        raise RuntimeError("Need at least two processes to run parallel test")
+    nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
+    for i in nprocs:
+        if i < 2:
+            raise RuntimeError("Need at least two processes to run parallel test")
 
-    # Only spew tracebacks on rank 0.
-    # Run xfailing tests to ensure that errors are reported to calling process
-    call = ["mpiexec", "-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
-            "-q", "%s::%s" % (item.fspath, item.name)]
-    call.extend([":", "-n", "%d" % (nprocs - 1), "python", "-m", "pytest",
-                 "--runxfail", "--tb=no", "-q", "%s::%s" % (item.fspath, item.name)])
-    check_call(call)
+        # Only spew tracebacks on rank 0.
+        # Run xfailing tests to ensure that errors are reported to calling process
+        call = ["mpiexec", "-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
+                "-q", "%s::%s" % (item.fspath, item.name)]
+        call.extend([":", "-n", "%d" % (i - 1), "python", "-m", "pytest",
+                     "--runxfail", "--tb=no", "-q", "%s::%s" % (item.fspath, item.name)])
+        check_call(call)
 
 
 def pytest_configure(config):
@@ -307,11 +310,14 @@ def pytest_configure(config):
         "parallel(nprocs): mark test to run in parallel on nprocs processors")
 
 
+def pytest_runtest_setup(item):
+    if item.get_marker("parallel") and MPI.COMM_WORLD.size == 1:
+        # Blow away function arg in "master" process, to ensure
+        # this test isn't run on only one process.
+        item.obj = lambda *args, **kwargs: True
+
+
 def pytest_runtest_call(item):
-    if item.get_marker("parallel"):
-        if MPI.COMM_WORLD.size == 1:
-            # Spawn parallel processes to run test
-            parallel(item)
-        else:
-            # About to run the actual tests in parallel mode
-            pass
+    if item.get_marker("parallel") and MPI.COMM_WORLD.size == 1:
+        # Spawn parallel processes to run test
+        parallel(item)
