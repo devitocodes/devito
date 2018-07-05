@@ -335,6 +335,17 @@ class TensorFunction(AbstractCachedFunction):
         return tuple(sympy.Add(i, -j, evaluate=False)
                      for i, j in zip(symbolic_shape, self.staggered))
 
+    def _halo_begin_exchange(self):
+        """Begin a halo exchange."""
+        if not self._is_halo_dirty:
+            return
+        neighbours = self.grid.neighbours
+
+    def _halo_end_exchange(self):
+        """End a halo exchange."""
+        if not self._is_halo_dirty:
+            return
+
     @property
     def _arg_names(self):
         """Return a tuple of argument names introduced by this function."""

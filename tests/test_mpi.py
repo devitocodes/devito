@@ -25,3 +25,30 @@ def test_basic_partitioning():
         4: [(8, 8), (8, 7), (7, 8), (7, 7)]
     }
     assert f.shape == expected[distributor.nprocs][distributor.rank]
+
+
+#@pytest.mark.parallel(nprocs=[9])
+def test_neighborhood_2d():
+    grid = Grid(shape=(3, 3))  # Gonna use a default distributor underneath
+
+    distributor = grid._distributor
+    expected = {  # coords -> [neighbour0 coords, neighbour1 coords, ...]
+        (1, 1): {(0, 0), (0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1), (2, 2)}
+    }
+    print (distributor.neighbours)
+    from IPython import embed; embed()
+
+
+@pytest.mark.parallel(nprocs=[2, 4])
+def test_halo_exchange_1d():
+    pass
+
+
+@pytest.mark.parallel(nprocs=[2, 4])
+def test_halo_exchange_2d():
+    grid = Grid(shape=(12, 12))  # Gonna use a default distributor underneath
+    f = Function(name='f', grid=grid)
+
+
+if __name__ == "__main__":
+    test_neighborhood_2d()
