@@ -333,7 +333,10 @@ def damp_boundary(damp, nbpml, spacing, mask=False):
 
     :param damp: The :class:`Function` for the damping field.
     :param nbpml: Number of points in the damping layer.
-    :param spacing: Grid spacing coefficent.
+    :param spacing: Grid spacing coefficient.
+    :param mask: whether the dampening is a mask or layer.
+        mask => 1 inside the domain and decreases in the layer
+        not mask => 0 inside the domain and increase in the layer
     """
     if mask:
         damp.data[:] = 1.0
@@ -369,8 +372,12 @@ def initialize_function(function, data, nbpml):
     function.data_with_halo[:] = np.pad(data, pad_list, 'edge')
 
 
-class Physical_Model(object):
-    def __init__(self, origin, spacing, shape, space_order, nbpml=40, dtype=np.float32):
+class Pysical_Model(object):
+    """
+    General model class with comon properties
+    """
+    def __init__(self, origin, spacing, shape, space_order, nbpml=40,
+                 dtype=np.float32):
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
@@ -428,19 +435,8 @@ class Physical_Model(object):
         """
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
-    @property
-    def critical_dt(self):
-        """Critical computational time step value from the CFL condition."""
-        # For a fixed time order this number goes down as the space order increases.
-        #
-        # The CFL condtion is then given by
-        # dt <= coeff * h / (max(velocity))
-        coeff = 0.38 if len(self.shape) == 3 else 0.42
-        dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*np.max(self.vp)))
-        return .001 * int(1000 * dt)
 
-
-class Model(Physical_Model):
+class Model(Pysical_Model):
     """The physical model used in seismic inversion processes.
 
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
@@ -461,11 +457,11 @@ class Model(Physical_Model):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=40,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
+
         super(Model, self).__init__(origin, spacing, shape, space_order,
-                                    nbpml=40, dtype=np.float32)
+                                    nbpml=nbpml, dtype=dtype)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
@@ -567,7 +563,7 @@ class Model(Physical_Model):
             self.m.data = 1 / vp**2
 
 
-class ModelElastic(Physical_Model):
+class ModelElastic(Pysical_Model):
     """The physical model used in seismic inversion processes.
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
@@ -588,9 +584,8 @@ class ModelElastic(Physical_Model):
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
                  dtype=np.float32):
         super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbpml=40, dtype=np.float32)
+                                           nbpml=nbpml, dtype=dtype)
 
-        self._physical_parameters = ('vp', 'vs', 'rho')
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
         damp_boundary(self.damp, self.nbpml, spacing=self.spacing, mask=True)
@@ -601,6 +596,7 @@ class ModelElastic(Physical_Model):
             initialize_function(self.vp, vp, self.nbpml)
         else:
             self.vp = Constant(name="vp", value=vp)
+        self._physical_parameters = ('vp',)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vs, np.ndarray):
@@ -608,6 +604,7 @@ class ModelElastic(Physical_Model):
             initialize_function(self.vs, vs, self.nbpml)
         else:
             self.vs = Constant(name="vs", value=vs)
+        self._physical_parameters += ('vs',)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(rho, np.ndarray):
@@ -615,46 +612,7 @@ class ModelElastic(Physical_Model):
             initialize_function(self.rho, rho, self.nbpml)
         else:
             self.rho = Constant(name="rho", value=rho)
-
-    @property
-    def dim(self):
-        """
-        Spatial dimension of the problem and model domain.
-        """
-        return self.grid.dim
-
-    @property
-    def spacing(self):
-        """
-        Grid spacing for all fields in the physical model.
-        """
-        return self.grid.spacing
-
-    @property
-    def spacing_map(self):
-        """
-        Map between spacing symbols and their values for each :class:`SpaceDimension`
-        """
-        return self.grid.spacing_map
-
-    @property
-    def dtype(self):
-        """
-        Data type for all assocaited data objects.
-        """
-        return self.grid.dtype
-
-    @property
-    def shape_domain(self):
-        """Computational shape of the model domain, with PML layers"""
-        return tuple(d + 2*self.nbpml for d in self.shape)
-
-    @property
-    def domain_size(self):
-        """
-        Physical size of the domain as determined by shape and spacing
-        """
-        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
+        self._physical_parameters += ('rho',)
 
     @property
     def critical_dt(self):
