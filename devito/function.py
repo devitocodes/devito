@@ -271,8 +271,7 @@ class TensorFunction(AbstractCachedFunction):
             values, use :meth:`data_ro_with_halo` instead.
         """
         self._is_halo_dirty = True
-        self._halo_begin_exchange()
-        self._halo_end_exchange()
+        self._halo_exchange()
         return self._data[self._mask_with_halo]
 
     @property
@@ -290,8 +289,7 @@ class TensorFunction(AbstractCachedFunction):
             values, use :meth:`data_ro_allocated` instead.
         """
         self._is_halo_dirty = True
-        self._halo_begin_exchange()
-        self._halo_end_exchange()
+        self._halo_exchange()
         return self._data
 
     @property
@@ -342,34 +340,42 @@ class TensorFunction(AbstractCachedFunction):
         return tuple(sympy.Add(i, -j, evaluate=False)
                      for i, j in zip(symbolic_shape, self.staggered))
 
-    def _halo_begin_exchange(self):
-        """Begin a halo exchange."""
+    def _halo_exchange(self):
+        """Perform the halo exchange with the neighboring processes."""
         if not self._is_halo_dirty:
             return
+        if self._in_flight:
+            raise RuntimeError("`%s` cannot initiate a halo exchange as previous "
+                               "exchanges are still in flight" % self.name)
+        for i in self.space_dimensions:
+            self.__halo_begin_exchange(i)
+            self.__halo_end_exchange(i)
+        self._is_halo_dirty = False
+        assert not self._in_flight
+
+    def __halo_begin_exchange(self, dim):
+        """Begin a halo exchange along a given :class:`Dimension`."""
         distributor = self.grid.distributor
         neighbours = distributor.neighbours
         comm = distributor.comm
-        for d, v in neighbours.items():
-            for i in [LEFT, RIGHT]:
-                if v[i] is not None:
-                    sendbuf = np.ascontiguousarray(self._get_owned(d, i))
-                    recvbuf = np.ndarray(shape=sendbuf.shape, dtype=sendbuf.dtype)
-                    self._in_flight.append((d, i, recvbuf, comm.Irecv(recvbuf, v[i])))
-                    self._in_flight.append((d, i, None, comm.Isend(sendbuf, v[i])))
+        for i in [LEFT, RIGHT]:
+            neighbour = neighbours[dim][i]
+            if neighbour is not None:
+                sendbuf = np.ascontiguousarray(self._get_owned(dim, i))
+                recvbuf = np.ndarray(shape=sendbuf.shape, dtype=sendbuf.dtype)
+                self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
+                self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
 
-    def _halo_end_exchange(self):
-        """End a halo exchange."""
-        if not self._is_halo_dirty:
-            return
-        assert self._in_flight
-        for d, i, payload, req in self._in_flight:
-            req.Wait()
-            if payload is not None:
-                # The MPI.Request `req` originated from a `comm.Irecv`
-                # Now need to scatter the data to the right place
-                self._get_halo(d, i)[:] = payload
-        self._in_flight[:] = []
-        self._is_halo_dirty = False
+    def __halo_end_exchange(self, dim):
+        """End a halo exchange along a given :class:`Dimension`."""
+        for d, i, payload, req in list(self._in_flight):
+            if d == dim:
+                req.Wait()
+                if payload is not None:
+                    # The MPI.Request `req` originated from a `comm.Irecv`
+                    # Now need to scatter the data to the right place
+                    self._get_halo(d, i)[:] = payload
+            self._in_flight.remove((d, i, payload, req))
 
     @property
     def _arg_names(self):
