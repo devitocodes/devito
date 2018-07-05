@@ -1,7 +1,7 @@
 import numpy as np
 from mpi4py import MPI
 
-from devito.tools import Tag, flatten
+from devito.tools import Tag
 
 __all__ = ['Distributor', 'LEFT', 'RIGHT', 'CENTER']
 
@@ -19,7 +19,7 @@ class Distributor(object):
     def __init__(self, shape, dimensions, input_comm=None):
         self._glb_shape = shape
         self._dimensions = dimensions
-        self._input_comm = input_comm or MPI.COMM_WORLD
+        self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
         # `Compute_dims` sets the dimension sizes to be as close to each other
         # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
@@ -31,7 +31,7 @@ class Distributor(object):
         # now restore consistency
         self._topology = tuple(reversed(topology))
 
-        if self._input_comm is MPI.COMM_WORLD:
+        if self._input_comm is not input_comm:
             # By default, Devito arranges processes into a cartesian topology.
             # MPI works with numbered dimensions and follows the C row-major
             # numbering of the ranks, i.e. in a 2x3 Cartesian topology (0,0)
@@ -45,6 +45,9 @@ class Distributor(object):
         self._glb_numbs = [np.array_split(range(i), j)
                            for i, j in zip(shape, self._topology)]
 
+    def __del__(self):
+        self._input_comm.Free()
+
     @property
     def myrank(self):
         return self._comm.rank
@@ -52,6 +55,10 @@ class Distributor(object):
     @property
     def mycoords(self):
         return tuple(self._comm.coords)
+
+    @property
+    def comm(self):
+        return self._comm
 
     @property
     def nprocs(self):
@@ -103,6 +110,6 @@ class RankRelativePosition(Tag):
     pass
 
 
-LEFT = RankRelativePosition('Left')
-RIGHT = RankRelativePosition('Right')
-CENTER = RankRelativePosition('Center')
+LEFT = RankRelativePosition('left')
+RIGHT = RankRelativePosition('right')
+CENTER = RankRelativePosition('center')
