@@ -3,43 +3,32 @@ from argparse import ArgumentParser
 
 from devito.logger import info
 from examples.seismic.elastic import ElasticWaveSolver
-from examples.seismic import ModelElastic, RickerSource, Receiver, TimeAxis
+from examples.seismic import RickerSource, Receiver, TimeAxis, demo_model
 
 
 def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
-                  **kwargs):
+                  constant=False, **kwargs):
 
-    # shape = (201, 201)
-    shape = (1601, 401)
-    spacing = (7.5, 7.5)
-    origin = (0., 0.)
-    #
-    vp = np.fromfile("/data/mlouboutin3/devito_data/Simple2D/vp_marmousi_bi",
-                     dtype=np.float32, sep="")
-    vp = np.reshape(vp, shape)
-    # Cut the model to make it slightly cheaper
-    vp = vp[301:-300, :]
-    shape = vp.shape
-    # vp = 1.500 # * np.ones(shape)
-    vs = .5*vp
-    rho = vp - np.min(vp) + 1.0
     nrec = shape[0]
-    model = ModelElastic(origin, spacing, shape, space_order, vp, vs, rho)
+    preset = 'constant-elastic' if constant else 'layers-elastic'
+    model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
+                       dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
+
     # Derive timestepping from model spacing
     dt = model.critical_dt
     t0 = 0.0
     time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.015, time_range=time_range)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
-
-    # Define receiver geometry (spread across x, lust below surface)
+    if len(shape) > 1:
+        src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    # Define receiver geometry (spread across x, just below surface)
     rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
-
+    if len(shape) > 1:
+        rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
     # Create solver object to provide relevant operators
     solver = ElasticWaveSolver(model, source=src, receiver=rec,
                                space_order=space_order, **kwargs)
@@ -47,11 +36,11 @@ def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, 
 
 
 def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
-        space_order=4, nbpml=40,
+        space_order=4, nbpml=40, constant=False,
         autotune=False, **kwargs):
 
     solver = elastic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
-                           space_order=space_order, **kwargs)
+                           space_order=space_order, constant=constant, **kwargs)
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward()
@@ -77,6 +66,8 @@ if __name__ == "__main__":
     parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DSE) mode")
+    parser.add_argument("--constant", default=False, action='store_true',
+                        help="Constant velocity model, default is a two layer model")
     args = parser.parse_args()
 
     # 3D preset parameters
@@ -85,5 +76,5 @@ if __name__ == "__main__":
     tn = 3500.0
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
-        space_order=args.space_order,
+        space_order=args.space_order, constant=args.constant,
         autotune=args.autotune, dse=args.dse, dle=args.dle)

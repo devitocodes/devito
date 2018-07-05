@@ -1,21 +1,6 @@
 
-from devito import Eq, Operator, TimeFunction, centered, left, right
+from devito import Eq, Operator, TimeFunction, left, right, staggered_diff
 from examples.seismic import PointSource, Receiver
-
-
-def staggered_diff(f, dim, order, stagger=centered):
-    """
-    Utility function to generate staggered derivatives
-    """
-    diff = dim.spacing
-    if stagger == left:
-        off = -.5
-    elif stagger == right:
-        off = .5
-    else:
-        off = 0.
-    idx = [(dim + int(i+.5+off)*diff) for i in range(-int(order / 2), int(order / 2))]
-    return f.diff(dim).as_finite_difference(idx, x0=dim + off*dim.spacing)
 
 
 def ForwardOperator(model, source, receiver, space_order=4,

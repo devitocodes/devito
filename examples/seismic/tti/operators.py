@@ -2,7 +2,24 @@ from sympy import cos, sin
 
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
-from devito.finite_difference import centered, first_derivative, right, transpose, left
+from devito.finite_difference import (centered, first_derivative, right, transpose, left,
+                                      staggered_diff)
+
+
+def second_order_stencil(model, u, v, H0, Hz):
+    # Stencils
+    m, damp, delta, epsilon = model.m, model.damp, model.delta, model.epsilon
+    s = model.grid.stepping_dim.spacing
+    stencilp = 1.0 / (2.0 * m + s * damp) * \
+        (4.0 * m * u + (s * damp - 2.0 * m) *
+         u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
+    stencilr = 1.0 / (2.0 * m + s * damp) * \
+        (4.0 * m * v + (s * damp - 2.0 * m) *
+         v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
+    first_stencil = Eq(u.forward, stencilp)
+    second_stencil = Eq(v.forward, stencilr)
+    stencils = [first_stencil, second_stencil]
+    return stencils
 
 
 def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
@@ -256,7 +273,7 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
     return field.laplace - Gzz_centered_2d(field, costheta, sintheta, space_order)
 
 
-def kernel_shifted_2d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
+def kernel_shifted_2d(model, u, v, costheta, sintheta, cosphi, sinphi, space_order):
     """
     TTI finite difference kernel. The equation we solve is:
 
@@ -278,10 +295,10 @@ def kernel_shifted_2d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
     """
     Gxx = Gxx_shifted_2d(u, costheta, sintheta, space_order)
     Gzz = Gzz_shifted_2d(v, costheta, sintheta, space_order)
-    return Gxx, Gzz
+    return second_order_stencil(model, u, v, Gxx, Gzz)
 
 
-def kernel_shifted_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
+def kernel_shifted_3d(model, u, v, costheta, sintheta, cosphi, sinphi, space_order):
     """
     TTI finite difference kernel. The equation we solve is:
 
@@ -304,10 +321,10 @@ def kernel_shifted_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
     Gxx = Gxx_shifted(u, costheta, sintheta, cosphi, sinphi, space_order)
     Gyy = Gyy_shifted(u, cosphi, sinphi, space_order)
     Gzz = Gzz_shifted(v, costheta, sintheta, cosphi, sinphi, space_order)
-    return Gxx + Gyy, Gzz
+    return second_order_stencil(model, u, v, Gxx + Gyy, Gzz)
 
 
-def kernel_centered_2d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
+def kernel_centered_2d(model, u, v, costheta, sintheta, cosphi, sinphi, space_order):
     """
     TTI finite difference kernel. The equation we solve is:
 
@@ -329,10 +346,10 @@ def kernel_centered_2d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
     """
     Gxx = Gxx_centered_2d(u, costheta, sintheta, space_order)
     Gzz = Gzz_centered_2d(v, costheta, sintheta, space_order)
-    return Gxx, Gzz
+    return second_order_stencil(model, u, v, Gxx, Gzz)
 
 
-def kernel_centered_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
+def kernel_centered_3d(model, u, v, costheta, sintheta, cosphi, sinphi, space_order):
     """
     TTI finite difference kernel. The equation we solve is:
 
@@ -354,7 +371,7 @@ def kernel_centered_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
     """
     Gxx = Gxxyy_centered(u, costheta, sintheta, cosphi, sinphi, space_order)
     Gzz = Gzz_centered(v, costheta, sintheta, cosphi, sinphi, space_order)
-    return Gxx, Gzz
+    return second_order_stencil(model, u, v, Gxx, Gzz)
 
 
 def ForwardOperator(model, source, receiver, space_order=4,
@@ -368,11 +385,11 @@ def ForwardOperator(model, source, receiver, space_order=4,
        :param: time_order: Time discretization order
        :param: spc_order: Space discretization order
        """
+    if kernel == 'staggered':
+        return ForwardOperatorStagg(model, source, receiver, space_order=space_order,
+                                    save=save, **kwargs)
     dt = model.grid.time_dim.spacing
-
-    m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
-                                           model.delta, model.theta, model.phi)
-
+    m = model.m
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
                      save=source.nt if save else None,
@@ -386,28 +403,16 @@ def ForwardOperator(model, source, receiver, space_order=4,
                    npoint=receiver.npoint)
 
     # Tilt and azymuth setup
-    ang0 = cos(theta)
-    ang1 = sin(theta)
+    ang0 = cos(model.theta)
+    ang1 = sin(model.theta)
     ang2 = 0
     ang3 = 0
     if len(model.shape) == 3:
-        ang2 = cos(phi)
-        ang3 = sin(phi)
+        ang2 = cos(model.phi)
+        ang3 = sin(model.phi)
 
     FD_kernel = kernels[(kernel, len(model.shape))]
-    H0, Hz = FD_kernel(u, v, ang0, ang1, ang2, ang3, space_order)
-
-    # Stencils
-    s = model.grid.stepping_dim.spacing
-    stencilp = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
-    stencilr = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * v + (s * damp - 2.0 * m) *
-         v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
-    first_stencil = Eq(u.forward, stencilp)
-    second_stencil = Eq(v.forward, stencilr)
-    stencils = [first_stencil, second_stencil]
+    stencils = FD_kernel(model, u, v, ang0, ang1, ang2, ang3, space_order)
 
     # Source and receivers
     stencils += src.inject(field=u.forward, expr=src * dt**2 / (m * u.grid.volume_cell),
@@ -449,22 +454,19 @@ def ForwardOperatorStagg(model, source, receiver, space_order=4,
         x, z = model.grid.dimensions
     # Create symbols for forward wavefield, source and receivers
     vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                      save=source.nt if save else None,
                       time_order=1, space_order=space_order)
     vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                      save=source.nt if save else None,
                       time_order=1, space_order=space_order)
 
     if model.grid.dim == 3:
         vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
-                          save=source.nt if save else None,
                           time_order=1, space_order=space_order)
 
-    pv = TimeFunction(name='pv', grid=model.grid,
+    pv = TimeFunction(name='u', grid=model.grid,
                       save=source.nt if save else None,
                       time_order=1, space_order=space_order)
 
-    ph = TimeFunction(name='ph', grid=model.grid,
+    ph = TimeFunction(name='v', grid=model.grid,
                       save=source.nt if save else None,
                       time_order=1, space_order=space_order)
     # Stencils
@@ -510,71 +512,9 @@ def ForwardOperatorStagg(model, source, receiver, space_order=4,
 
     # Substitute spacing terms to reduce flops
     op = Operator([u_vx, u_vz] + u_vy + rec_term + [pv_eq, ph_eq] + src_term,
-                  subs=model.spacing_map,
-                  dse='advanced', dle='advanced')
+                  subs=model.spacing_map, **kwargs)
 
     return op
-
-
-def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
-    """
-    Utility function to generate staggered derivatives
-    :param f: function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
-    :param dims: symbol defining the dimension wrt. which
-       to differentiate, eg. `x`, `y`, `z` or `t`.
-    :param order: Order of the coefficient discretization and thus
-                  the width of the resulting stencil expression.
-    :param stagger: Shift for the FD, `left`, `right` or `centered`
-    :param theta: Dip angle for rotated FD
-    :param phi: Azimuth angle for rotated FD
-    """
-    order = order // 2
-    ndim = f.grid.dim
-    off = dict([(d, 0) for d, s in zip(f.grid.dimensions, f.staggered)])
-    if stagger == left:
-        off[dim] = -.5
-    elif stagger == right:
-        off[dim] = .5
-    else:
-        off[dim] = 0
-
-    if theta == 0 and phi == 0:
-        diff = dim.spacing
-        idx = [(dim + int(i+.5+off[dim])*diff)
-               for i in range(-int(order / 2), int(order / 2))]
-        return f.diff(dim).as_finite_difference(idx, x0=dim + off[dim]*dim.spacing)
-    else:
-        ndim = f.grid.dim
-        x = f.grid.dimensions[0]
-        z = f.grid.dimensions[-1]
-        idxx = list(set([(x + int(i+.5+off[x])*x.spacing)
-                         for i in range(-int(order / 2), int(order / 2))]))
-        dx = f.diff(x).as_finite_difference(idxx, x0=x + off[x]*x.spacing)
-
-        idxz = list(set([(z + int(i+.5+off[z])*z.spacing)
-                         for i in range(-int(order / 2), int(order / 2))]))
-        dz = f.diff(z).as_finite_difference(idxz, x0=z + off[z]*z.spacing)
-
-        dy = 0
-        is_y = False
-
-        if ndim == 3:
-            y = f.grid.dimensions[1]
-            idxy = list(set([(y + int(i+.5+off[y])*y.spacing)
-                             for i in range(-int(order / 2), int(order / 2))]))
-            dy = f.diff(y).as_finite_difference(idxy, x0=y + off[y]*y.spacing)
-            is_y = (dim == y)
-
-        if dim == x:
-            return cos(theta) * cos(phi) * dx + sin(phi) * cos(theta) * dy -\
-                sin(theta) * dz
-        elif dim == z:
-            return sin(theta) * cos(phi) * dx + sin(phi) * sin(theta) * dy +\
-                cos(theta) * dz
-        elif is_y:
-            return -sin(phi) * dx + cos(phi) * dy
-        else:
-            return 0
 
 
 kernels = {('shifted', 3): kernel_shifted_3d, ('shifted', 2): kernel_shifted_2d,

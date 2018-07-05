@@ -41,7 +41,6 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
 
     rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
-    rec1, u1, v1, summary1 = solver.forward_staggered(autotune=autotune, kernel=kernel)
 
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
@@ -60,7 +59,7 @@ if __name__ == "__main__":
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
     parser.add_argument("-k", dest="kernel", default='centered',
-                        choices=['centered', 'shifted'],
+                        choices=['centered', 'shifted', 'staggered'],
                         help="Choice of finite-difference kernel")
     parser.add_argument("-dse", "-dse", default="advanced",
                         choices=["noop", "basic", "advanced",

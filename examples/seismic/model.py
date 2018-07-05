@@ -39,6 +39,22 @@ def demo_model(preset, **kwargs):
     """
     space_order = kwargs.pop('space_order', 2)
 
+    if preset.lower() in ['constant-elastic']:
+        # A constant single-layer model in a 2D or 3D domain
+        # with velocity 1.5km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        dtype = kwargs.pop('dtype', np.float32)
+        vp = kwargs.pop('vp', 1.5)
+        vs = 0.5 * vp
+        rho = 1.0
+
+        return ModelElastic(space_order=space_order, vp=vp, vs=vs, rho=rho, origin=origin,
+                            shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml,
+                            **kwargs)
+
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
         # with velocity 1.5km/s.
@@ -95,6 +111,33 @@ def demo_model(preset, **kwargs):
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
+
+    elif preset.lower() in ['layers-elastic', 'twolayer-elastic',
+                            '2layer-elastic']:
+        # A two-layer model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 2.5 km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        dtype = kwargs.pop('dtype', np.float32)
+        nbpml = kwargs.pop('nbpml', 10)
+        ratio = kwargs.pop('ratio', 2)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+
+        # Define a velocity profile in km/s
+        v = np.empty(shape, dtype=dtype)
+        v[:] = vp_top  # Top velocity (background)
+        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+
+        vs = .5 * v[:]
+        rho = v[:]/vp_top
+
+        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
+                            origin=origin, shape=shape,
+                            dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['layers-tti', 'twolayer-tti', '2layer-tti']:
         # A two-layer model in a 2D or 3D domain with two different
@@ -326,7 +369,78 @@ def initialize_function(function, data, nbpml):
     function.data_with_halo[:] = np.pad(data, pad_list, 'edge')
 
 
-class Model(object):
+class Physical_Model(object):
+    def __init__(self, origin, spacing, shape, space_order, nbpml=40, dtype=np.float32):
+        self.shape = shape
+        self.nbpml = int(nbpml)
+        self.origin = tuple([dtype(o) for o in origin])
+
+        shape_pml = np.array(shape) + 2 * self.nbpml
+        # Physical extent is calculated per cell, so shape - 1
+        extent = tuple(np.array(spacing) * (shape_pml - 1))
+        self.grid = Grid(extent=extent, shape=shape_pml,
+                         origin=origin, dtype=dtype)
+
+    def physical_params(self, **kwargs):
+        """
+        Return all set physical parameters and update to input values if provided
+        """
+        known = [getattr(self, i) for i in self._physical_parameters]
+        return {i.name: kwargs.get(i.name, i) or i for i in known}
+
+    @property
+    def dim(self):
+        """
+        Spatial dimension of the problem and model domain.
+        """
+        return self.grid.dim
+
+    @property
+    def spacing(self):
+        """
+        Grid spacing for all fields in the physical model.
+        """
+        return self.grid.spacing
+
+    @property
+    def spacing_map(self):
+        """
+        Map between spacing symbols and their values for each :class:`SpaceDimension`
+        """
+        return self.grid.spacing_map
+
+    @property
+    def dtype(self):
+        """
+        Data type for all assocaited data objects.
+        """
+        return self.grid.dtype
+
+    @property
+    def shape_domain(self):
+        """Computational shape of the model domain, with PML layers"""
+        return tuple(d + 2*self.nbpml for d in self.shape)
+
+    @property
+    def domain_size(self):
+        """
+        Physical size of the domain as determined by shape and spacing
+        """
+        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
+
+    @property
+    def critical_dt(self):
+        """Critical computational time step value from the CFL condition."""
+        # For a fixed time order this number goes down as the space order increases.
+        #
+        # The CFL condtion is then given by
+        # dt <= coeff * h / (max(velocity))
+        coeff = 0.38 if len(self.shape) == 3 else 0.42
+        dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*np.max(self.vp)))
+        return .001 * int(1000 * dt)
+
+
+class Model(Physical_Model):
     """The physical model used in seismic inversion processes.
 
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
@@ -350,15 +464,8 @@ class Model(object):
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=40,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
-        self.shape = shape
-        self.nbpml = int(nbpml)
-        self.origin = tuple([dtype(o) for o in origin])
-
-        shape_pml = np.array(shape) + 2 * self.nbpml
-        # Physical extent is calculated per cell, so shape - 1
-        extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml,
-                         origin=origin, dtype=dtype)
+        super(Model, self).__init__(origin, spacing, shape, space_order,
+                                    nbpml=40, dtype=np.float32)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
@@ -424,53 +531,6 @@ class Model(object):
         else:
             self.phi = 0
 
-    def physical_params(self, **kwargs):
-        """
-        Return all set physical parameters and update to input values if provided
-        """
-        known = [getattr(self, i) for i in self._physical_parameters]
-        return {i.name: kwargs.get(i.name, i) or i for i in known}
-
-    @property
-    def dim(self):
-        """
-        Spatial dimension of the problem and model domain.
-        """
-        return self.grid.dim
-
-    @property
-    def spacing(self):
-        """
-        Grid spacing for all fields in the physical model.
-        """
-        return self.grid.spacing
-
-    @property
-    def spacing_map(self):
-        """
-        Map between spacing symbols and their values for each :class:`SpaceDimension`
-        """
-        return self.grid.spacing_map
-
-    @property
-    def dtype(self):
-        """
-        Data type for all assocaited data objects.
-        """
-        return self.grid.dtype
-
-    @property
-    def shape_domain(self):
-        """Computational shape of the model domain, with PML layers"""
-        return tuple(d + 2*self.nbpml for d in self.shape)
-
-    @property
-    def domain_size(self):
-        """
-        Physical size of the domain as determined by shape and spacing
-        """
-        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
-
     @property
     def critical_dt(self):
         """Critical computational time step value from the CFL condition."""
@@ -485,9 +545,7 @@ class Model(object):
     @property
     def vp(self):
         """:class:`numpy.ndarray` holding the model velocity in km/s.
-
         .. note::
-
         Updating the velocity field also updates the square slowness
         ``self.m``. However, only ``self.m`` should be used in seismic
         operators, since it is of type :class:`Function`.
@@ -509,7 +567,7 @@ class Model(object):
             self.m.data = 1 / vp**2
 
 
-class ModelElastic(object):
+class ModelElastic(Physical_Model):
     """The physical model used in seismic inversion processes.
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
@@ -529,16 +587,10 @@ class ModelElastic(object):
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
                  dtype=np.float32):
-        self.shape = shape
-        self.nbpml = int(nbpml)
-        self.origin = tuple([dtype(o) for o in origin])
+        super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
+                                           nbpml=40, dtype=np.float32)
 
-        shape_pml = np.array(shape) + 2 * self.nbpml
-        # Physical extent is calculated per cell, so shape - 1
-        extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml,
-                         origin=origin, dtype=dtype)
-
+        self._physical_parameters = ('vp', 'vs', 'rho')
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
         damp_boundary(self.damp, self.nbpml, spacing=self.spacing, mask=True)
@@ -558,7 +610,7 @@ class ModelElastic(object):
             self.vs = Constant(name="vs", value=vs)
 
         # Create square slowness of the wave as symbol `m`
-        if isinstance(vp, np.ndarray):
+        if isinstance(rho, np.ndarray):
             self.rho = Function(name="rho", grid=self.grid, space_order=space_order)
             initialize_function(self.rho, rho, self.nbpml)
         else:

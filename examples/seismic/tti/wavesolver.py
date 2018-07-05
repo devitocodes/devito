@@ -1,6 +1,6 @@
 # coding: utf-8
 from devito import TimeFunction, memoized_meth
-from examples.seismic.tti.operators import ForwardOperator, ForwardOperatorStagg
+from examples.seismic.tti.operators import ForwardOperator
 from examples.seismic import Receiver
 
 
@@ -37,13 +37,6 @@ class AnisotropicWaveSolver(object):
                                space_order=self.space_order,
                                kernel=kernel, **self._kwargs)
 
-    @memoized_meth
-    def op_fwd_stagg(self, save=False):
-        """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperatorStagg(self.model, save=save, source=self.source,
-                                    receiver=self.receiver,
-                                    space_order=self.space_order, **self._kwargs)
-
     def forward(self, src=None, rec=None, u=None, v=None, m=None,
                 epsilon=None, delta=None, theta=None, phi=None,
                 save=False, kernel='centered', **kwargs):
@@ -65,6 +58,8 @@ class AnisotropicWaveSolver(object):
         # overall space_order discretization
         self.space_order = self.space_order // 2 if kernel == 'shifted' \
             else self.space_order
+
+        time_order = 1 if kernel == 'staggered' else 2
         # Source term is read-only, so re-use the default
         if src is None:
             src = self.source
@@ -78,64 +73,17 @@ class AnisotropicWaveSolver(object):
         if u is None:
             u = TimeFunction(name='u', grid=self.model.grid,
                              save=self.source.nt if save else None,
-                             time_order=2, space_order=self.space_order)
+                             time_order=time_order, space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeFunction(name='v', grid=self.model.grid,
                              save=self.source.nt if save else None,
-                             time_order=2, space_order=self.space_order)
+                             time_order=time_order, space_order=self.space_order)
         # Pick m from model unless explicitly provided
         kwargs.update(self.model.physical_params(m=m, epsilon=epsilon, delta=delta,
                                                  theta=theta, phi=phi))
         # Execute operator and return wavefield and receiver data
         op = self.op_fwd(kernel, save)
-        print(kwargs)
         summary = op.apply(src=src, rec=rec, u=u, v=v,
                            dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, v, summary
-
-    def forward_staggered(self, src=None, rec=None, ph=None, pv=None, m=None,
-                          epsilon=None, delta=None, theta=None, phi=None,
-                          save=False, kernel='centered', **kwargs):
-        """
-        Forward modelling function that creates the necessary
-        data objects for running a forward modelling operator.
-
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data
-        :param u: (Optional) Symbol to store the computed wavefield
-        :param m: (Optional) Symbol for the time-constant square slowness
-        :param save: Option to store the entire (unrolled) wavefield
-        :param kernel: type of discretization, centered or shifted
-
-        :returns: Receiver, wavefield and performance summary
-        """
-        # Source term is read-only, so re-use the default
-        if src is None:
-            src = self.source
-        # Create a new receiver object to store the result
-        if rec is None:
-            rec = Receiver(name='rec', grid=self.model.grid,
-                           time_range=self.receiver.time_range,
-                           coordinates=self.receiver.coordinates.data)
-
-        # Create the forward wavefield if not provided
-        if ph is None:
-            ph = TimeFunction(name='ph', grid=self.model.grid,
-                              save=self.source.nt if save else None,
-                              time_order=1, space_order=self.space_order)
-        # Create the forward wavefield if not provided
-        if pv is None:
-            pv = TimeFunction(name='pv', grid=self.model.grid,
-                              save=self.source.nt if save else None,
-                              time_order=1, space_order=self.space_order)
-        # Pick m from model unless explicitly provided
-        kwargs.update(self.model.physical_params(m=m, epsilon=epsilon, delta=delta,
-                                                 theta=theta, phi=phi))
-
-        print(kwargs)
-        # Execute operator and return wavefield and receiver data
-        op = self.op_fwd_stagg(save)
-        summary = op.apply(src=src, rec=rec, ph=ph, pv=pv,
-                           dt=kwargs.pop('dt', self.dt), **kwargs)
-        return rec, ph, pv, summary

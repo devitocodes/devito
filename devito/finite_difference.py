@@ -3,13 +3,13 @@ from __future__ import absolute_import
 from functools import reduce
 from operator import mul
 
-from sympy import finite_diff_weights
+from sympy import finite_diff_weights, cos, sin
 
 from devito.logger import error
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative',
-           'left', 'right', 'centered']
+           'left', 'right', 'centered', 'staggered_diff']
 
 
 class Transpose(object):
@@ -221,3 +221,63 @@ def second_cross_derivative(function, dims, order):
     """
     first = second_derivative(function, dim=dims[0], width=order)
     return second_derivative(first, dim=dims[1], order=order)
+
+
+def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
+    """
+    Utility function to generate staggered derivatives
+    :param f: function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
+    :param dims: symbol defining the dimension wrt. which
+       to differentiate, eg. `x`, `y`, `z` or `t`.
+    :param order: Order of the coefficient discretization and thus
+                  the width of the resulting stencil expression.
+    :param stagger: Shift for the FD, `left`, `right` or `centered`
+    :param theta: Dip angle for rotated FD
+    :param phi: Azimuth angle for rotated FD
+    """
+    ndim = f.grid.dim
+    off = dict([(d, 0) for d, s in zip(f.grid.dimensions, f.staggered)])
+    if stagger == left:
+        off[dim] = -.5
+    elif stagger == right:
+        off[dim] = .5
+    else:
+        off[dim] = 0
+
+    if theta == 0 and phi == 0:
+        diff = dim.spacing
+        idx = [(dim + int(i+.5+off[dim])*diff)
+               for i in range(-int(order / 2), int(order / 2))]
+        return f.diff(dim).as_finite_difference(idx, x0=dim + off[dim]*dim.spacing)
+    else:
+        ndim = f.grid.dim
+        x = f.grid.dimensions[0]
+        z = f.grid.dimensions[-1]
+        idxx = list(set([(x + int(i+.5+off[x])*x.spacing)
+                         for i in range(-int(order / 2), int(order / 2))]))
+        dx = f.diff(x).as_finite_difference(idxx, x0=x + off[x]*x.spacing)
+
+        idxz = list(set([(z + int(i+.5+off[z])*z.spacing)
+                         for i in range(-int(order / 2), int(order / 2))]))
+        dz = f.diff(z).as_finite_difference(idxz, x0=z + off[z]*z.spacing)
+
+        dy = 0
+        is_y = False
+
+        if ndim == 3:
+            y = f.grid.dimensions[1]
+            idxy = list(set([(y + int(i+.5+off[y])*y.spacing)
+                             for i in range(-int(order / 2), int(order / 2))]))
+            dy = f.diff(y).as_finite_difference(idxy, x0=y + off[y]*y.spacing)
+            is_y = (dim == y)
+
+        if dim == x:
+            return cos(theta) * cos(phi) * dx + sin(phi) * cos(theta) * dy -\
+                sin(theta) * dz
+        elif dim == z:
+            return sin(theta) * cos(phi) * dx + sin(phi) * sin(theta) * dy +\
+                cos(theta) * dz
+        elif is_y:
+            return -sin(phi) * dx + cos(phi) * dy
+        else:
+            return 0
