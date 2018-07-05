@@ -1,7 +1,9 @@
 import numpy as np
 from mpi4py import MPI
 
-__all__ = ['Distributor']
+from devito.tools import Tag, flatten
+
+__all__ = ['Distributor', 'LEFT', 'RIGHT', 'CENTER']
 
 
 class Distributor(object):
@@ -14,7 +16,7 @@ class Distributor(object):
     """
 
     def __init__(self, shape, input_comm=None):
-        self._shape = shape
+        self._glb_shape = shape
         self._input_comm = input_comm or MPI.COMM_WORLD
         self._topology = MPI.Compute_dims(self._input_comm.size, len(shape))
 
@@ -37,6 +39,10 @@ class Distributor(object):
         return self._comm.size
 
     @property
+    def ndim(self):
+        return len(self._glb_shape)
+
+    @property
     def topology(self):
         return self._topology
 
@@ -51,5 +57,29 @@ class Distributor(object):
         """Return the shape of this process' domain."""
         return tuple(len(i) for i in self.glb_numb)
 
+    @property
+    def neighbours(self):
+        """
+        Return the mapper ``proc -> direction``; ``proc`` is the rank of a
+        neighboring process, while ``direction`` tells whether ``proc`` is
+        logically at right (value=1) or left (value=-1) of ``self``.
+        """
+        ret = []
+        for src, dest in [self._comm.Shift(i, 1) for i in range(self.ndim)]:
+            if src != -1:
+                ret.append((src, LEFT))
+            if dest != -1:
+                ret.append((dest, RIGHT))
+        return dict(ret)
+
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
+
+
+class RankRelativePosition(Tag):
+    pass
+
+
+LEFT = RankRelativePosition('Left')
+RIGHT = RankRelativePosition('Right')
+CENTER = RankRelativePosition('Center')
