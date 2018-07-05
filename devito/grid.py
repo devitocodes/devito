@@ -97,7 +97,7 @@ class Grid(object):
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
-        self._distributor = Distributor(shape, comm)
+        self._distributor = Distributor(self.shape, self.dimensions, comm)
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
@@ -143,6 +143,11 @@ class Grid(object):
     def shape_domain(self):
         """Shape of the local (per-process) physical domain."""
         return self._distributor.shape
+
+    @property
+    def distributor(self):
+        """The :class:`Distributor` used for domain decomposition."""
+        return self._distributor
 
     @property
     def _const(self):
