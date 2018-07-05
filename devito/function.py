@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from functools import partial
 from itertools import product
+
 import sympy
 import numpy as np
 from psutil import virtual_memory
@@ -8,6 +9,7 @@ from psutil import virtual_memory
 from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
+from devito.distributed import LEFT, RIGHT
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.finite_difference import (centered, cross_derivative,
@@ -269,6 +271,8 @@ class TensorFunction(AbstractCachedFunction):
             values, use :meth:`data_ro_with_halo` instead.
         """
         self._is_halo_dirty = True
+        self._halo_begin_exchange()
+        self._halo_end_exchange()
         return self._data[self._mask_with_halo]
 
     @property
@@ -286,6 +290,8 @@ class TensorFunction(AbstractCachedFunction):
             values, use :meth:`data_ro_allocated` instead.
         """
         self._is_halo_dirty = True
+        self._halo_begin_exchange()
+        self._halo_end_exchange()
         return self._data
 
     @property
@@ -293,25 +299,26 @@ class TensorFunction(AbstractCachedFunction):
     def data_ro_domain(self):
         """
         A read-only view of the domain data values.
-
-        Elements are stored in row-major format.
         """
-        # TODO: set numpy setflags
-        return self._data[self._mask_domain]
+        view = self._data[self._mask_domain]
+        view.setflags(write=False)
+        return view
 
     @property
     @_allocate_memory
     def data_ro_with_halo(self):
         """A read-only view of the domain+halo data values."""
-        # TODO: set numpy setflags
-        return self._data[self._mask_with_halo]
+        view = self._data[self._mask_with_halo]
+        view.setflags(write=False)
+        return view
 
     @property
     @_allocate_memory
     def data_ro_allocated(self):
         """A read-only view of the domain+halo+padding data values."""
-        # TODO: set numpy setflags
-        return self._data
+        view = self._data.view()
+        view.setflags(write=False)
+        return view
 
     @property
     def space_dimensions(self):
@@ -339,12 +346,30 @@ class TensorFunction(AbstractCachedFunction):
         """Begin a halo exchange."""
         if not self._is_halo_dirty:
             return
-        neighbours = self.grid.neighbours
+        distributor = self.grid.distributor
+        neighbours = distributor.neighbours
+        comm = distributor.comm
+        for d, v in neighbours.items():
+            for i in [LEFT, RIGHT]:
+                if v[i] is not None:
+                    sendbuf = np.ascontiguousarray(self._get_owned(d, i))
+                    recvbuf = np.ndarray(shape=sendbuf.shape, dtype=sendbuf.dtype)
+                    self._in_flight.append((d, i, recvbuf, comm.Irecv(recvbuf, v[i])))
+                    self._in_flight.append((d, i, None, comm.Isend(sendbuf, v[i])))
 
     def _halo_end_exchange(self):
         """End a halo exchange."""
         if not self._is_halo_dirty:
             return
+        assert self._in_flight
+        for d, i, payload, req in self._in_flight:
+            req.Wait()
+            if payload is not None:
+                # The MPI.Request `req` originated from a `comm.Irecv`
+                # Now need to scatter the data to the right place
+                self._get_halo(d, i)[:] = payload
+        self._in_flight[:] = []
+        self._is_halo_dirty = False
 
     @property
     def _arg_names(self):

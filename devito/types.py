@@ -10,6 +10,7 @@ from functools import reduce
 import numpy as np
 import sympy
 
+from devito.distributed import LEFT, RIGHT
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, Pickable, single_or
 
@@ -377,6 +378,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         if not self._cached():
             # Setup halo and padding regions
             self._is_halo_dirty = False
+            self._in_flight = []
             self._halo = self.__halo_setup__(**kwargs)
             self._padding = self.__padding_setup__(**kwargs)
 
@@ -542,6 +544,47 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """A mask to access the domain+halo region of the allocated data."""
         return tuple(slice(i, -j) if j != 0 else slice(i, None)
                      for i, j in self._offset_halo)
+
+    def _get_halo(self, dimension, direction):
+        """A view of the halo region along given :class:`Dimension`
+        and ``direction`` (an object of type :class:`RankRelativePosition`)."""
+        index_array = []
+        for i in self.dimensions:
+            if i == dimension:
+                if direction is LEFT:
+                    start = self._offset_halo[dimension].left
+                    extent = self._extent_halo[dimension].left
+                    end = start + extent
+                else:
+                    assert direction is RIGHT
+                    start = -self._offset_domain[dimension].right
+                    extent = self._extent_halo[dimension].right
+                    end = (start + extent) or None  # The end point won't be 0
+                index_array.append(slice(start, end))
+            else:
+                index_array.append(slice(None))
+        return self._data[index_array]
+
+    def _get_owned(self, dimension, direction):
+        """A view of the owned region along given :class:`Dimension`
+        and ``direction`` (an object of type :class:`RankRelativePosition`)."""
+        index_array = []
+        for i in self.dimensions:
+            if i == dimension:
+                if direction is LEFT:
+                    start = self._offset_domain[dimension].left
+                    extent = self._extent_halo[dimension].left
+                    end = start + extent
+                else:
+                    assert direction is RIGHT
+                    start = -self._offset_domain[dimension].right -\
+                        self._extent_halo[dimension].right
+                    extent = self._extent_halo[dimension].right
+                    end = (start + extent) or None  # The end point won't be 0
+                index_array.append(slice(start, end))
+            else:
+                index_array.append(slice(None))
+        return self._data[index_array]
 
     def indexify(self, indices=None):
         """Create a :class:`sympy.Indexed` object from the current object."""
