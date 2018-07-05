@@ -1,21 +1,13 @@
-from mpi4py import MPI
 import numpy as np
 
 import pytest
+from conftest import skipif_yask
 
 from devito import Grid, Function
 from devito.distributed import LEFT, RIGHT
 
 
-@pytest.mark.parallel(nprocs=2)
-def test_hello_mpi():
-    size = MPI.COMM_WORLD.Get_size()
-    rank = MPI.COMM_WORLD.Get_rank()
-    name = MPI.Get_processor_name()
-
-    print("Hello, World! I am rank %d of %d on %s" % (rank, size, name), flush=True)
-
-
+@skipif_yask
 @pytest.mark.parallel(nprocs=[2, 4])
 def test_basic_partitioning():
     grid = Grid(shape=(15, 15))
@@ -29,6 +21,7 @@ def test_basic_partitioning():
     assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
 
+@skipif_yask
 @pytest.mark.parallel(nprocs=9)
 def test_neighborhood_2d():
     grid = Grid(shape=(3, 3))
@@ -59,6 +52,7 @@ def test_neighborhood_2d():
     assert expected[distributor.myrank] == distributor.neighbours
 
 
+@skipif_yask
 @pytest.mark.parallel(nprocs=2)
 def test_halo_exchange_bilateral():
     """
