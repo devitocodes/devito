@@ -88,10 +88,91 @@ def test_halo_exchange_bilateral():
     f.data_with_halo   # noqa
 
     if distributor.myrank == 0:
-        assert np.all(f.data_ro_with_halo[1:-1, -1] == f.data_ro_domain[:, -1] + 1)
+        assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
         assert np.all(f.data_ro_with_halo[:, 0] == 0.)
     else:
-        assert np.all(f.data_ro_with_halo[1:-1, 0] == f.data_ro_domain[:, 0] - 1)
+        assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
         assert np.all(f.data_ro_with_halo[:, -1] == 0.)
     assert np.all(f.data_ro_with_halo[0] == 0.)
     assert np.all(f.data_ro_with_halo[-1] == 0.)
+
+
+@skipif_yask
+@pytest.mark.parallel(nprocs=4)
+def test_halo_exchange_quadrilateral():
+    """
+    Test halo exchange between four processes organised in a 2x2 cartesian grid.
+
+    Their initial data_with_halo looks like:
+
+           rank0           rank1
+        0 0 0 0 0 0     0 0 0 0 0 0
+        0 1 1 1 1 0     0 2 2 2 2 0
+        0 1 1 1 1 0     0 2 2 2 2 0
+        0 1 1 1 1 0     0 2 2 2 2 0
+        0 1 1 1 1 0     0 2 2 2 2 0
+        0 0 0 0 0 0     0 0 0 0 0 0
+
+           rank2           rank3
+        0 0 0 0 0 0     0 0 0 0 0 0
+        0 3 3 3 3 0     0 4 4 4 4 0
+        0 3 3 3 3 0     0 4 4 4 4 0
+        0 3 3 3 3 0     0 4 4 4 4 0
+        0 3 3 3 3 0     0 4 4 4 4 0
+        0 0 0 0 0 0     0 0 0 0 0 0
+
+    After the halo exchange, the following is expected and tested for:
+
+           rank0           rank1
+        0 0 0 0 0 0     0 0 0 0 0 0
+        0 1 1 1 1 2     1 2 2 2 2 0
+        0 1 1 1 1 2     1 2 2 2 2 0
+        0 1 1 1 1 2     1 2 2 2 2 0
+        0 1 1 1 1 2     1 2 2 2 2 0
+        0 3 3 3 3 4     3 4 4 4 4 0
+
+           rank2           rank3
+        0 1 1 1 1 2     1 2 2 2 2 0
+        0 3 3 3 3 4     3 4 4 4 4 0
+        0 3 3 3 3 4     3 4 4 4 4 0
+        0 3 3 3 3 4     3 4 4 4 4 0
+        0 3 3 3 3 4     3 4 4 4 4 0
+        0 0 0 0 0 0     0 0 0 0 0 0
+    """
+    grid = Grid(shape=(12, 12))
+    f = Function(name='f', grid=grid)
+
+    distributor = grid.distributor
+    f.data[:] = distributor.myrank + 1
+
+    # Now trigger a halo exchange...
+    f.data_with_halo   # noqa
+
+    if distributor.myrank == 0:
+        assert np.all(f.data_ro_with_halo[0] == 0.)
+        assert np.all(f.data_ro_with_halo[:, 0] == 0.)
+        assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
+        assert np.all(f.data_ro_with_halo[-1, 1:-1] == 3.)
+        assert f.data_ro_with_halo[-1, -1] == 4.
+    elif distributor.myrank == 1:
+        assert np.all(f.data_ro_with_halo[0] == 0.)
+        assert np.all(f.data_ro_with_halo[:, -1] == 0.)
+        assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
+        assert np.all(f.data_ro_with_halo[-1, 1:-1] == 4.)
+        assert f.data_ro_with_halo[-1, 0] == 3.
+    elif distributor.myrank == 2:
+        assert np.all(f.data_ro_with_halo[-1] == 0.)
+        assert np.all(f.data_ro_with_halo[:, 0] == 0.)
+        assert np.all(f.data_ro_with_halo[1:-1, -1] == 4.)
+        assert np.all(f.data_ro_with_halo[0, 1:-1] == 1.)
+        assert f.data_ro_with_halo[0, -1] == 2.
+    else:
+        assert np.all(f.data_ro_with_halo[-1] == 0.)
+        assert np.all(f.data_ro_with_halo[:, -1] == 0.)
+        assert np.all(f.data_ro_with_halo[1:-1, 0] == 3.)
+        assert np.all(f.data_ro_with_halo[0, 1:-1] == 2.)
+        assert f.data_ro_with_halo[0, 0] == 1.
+
+
+if __name__ == "__main__":
+    test_halo_exchange_quadrilateral()
