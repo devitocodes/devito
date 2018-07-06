@@ -66,10 +66,10 @@ class Grid(object):
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
                  time_dimension=None, dtype=np.float32, comm=None):
-        self._shape = shape
-        self.extent = as_tuple(extent or tuple(1. for _ in shape))
+        self._shape = as_tuple(shape)
+        self.extent = as_tuple(extent or tuple(1. for _ in self.shape))
         self.dtype = dtype
-        origin = as_tuple(origin or tuple(0. for _ in shape))
+        origin = as_tuple(origin or tuple(0. for _ in self.shape))
 
         if dimensions is None:
             # Create the spatial dimensions and constant spacing symbols
@@ -159,3 +159,14 @@ class Grid(object):
         if name is None:
             name = '%s_s' % time_dim.name
         return SteppingDimension(name=name, parent=time_dim)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # A Distributor wraps an MPI communicator, which can't and shouldn't be pickled
+        state.pop('_distributor')
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+        self._distributor = Distributor(self.shape, self.dimensions)
