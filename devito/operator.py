@@ -99,6 +99,9 @@ class Operator(Callable):
         # Translate into backend-specific representation
         iet = self._specialize_iet(iet, **kwargs)
 
+        # Insert code for MPI support
+        iet = self._generate_mpi(iet, **kwargs)
+
         # Insert the required symbol declarations
         iet = iet_insert_C_decls(iet, self.func_table)
 
@@ -260,6 +263,11 @@ class Operator(Callable):
         self._includes.extend(list(dle_state.includes))
 
         return dle_state.nodes
+
+    def _generate_mpi(self, iet, **kwargs):
+        """Transform the Iteration/Expression tree adding nodes performing halo
+        exchanges in between parallel (distributed) :class:`Iteration`s."""
+        return iet
 
     def _build_parameters(self, iet):
         """Determine the Operator parameters based on the Iteration/Expression

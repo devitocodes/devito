@@ -3,8 +3,10 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Function
+from devito import Grid, Function, TimeFunction, Eq, Operator
+from devito.ir.iet import copy, halo_exchange
 from devito.distributed import LEFT, RIGHT
+from devito.types import Array
 
 
 @skipif_yask
@@ -221,6 +223,37 @@ def test_halo_exchange_quadrilateral():
         assert np.all(f.data_ro_with_halo[1:-1, 0] == 3.)
         assert np.all(f.data_ro_with_halo[0, 1:-1] == 2.)
         assert f.data_ro_with_halo[0, 0] == 1.
+
+
+class TestCodeGeneration(object):
+
+    def test_iet_copy(self):
+        grid = Grid(shape=(4, 4))
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        iet = copy(f, {t: 0})
+        assert str(iet.parameters) ==\
+'(dst(dst_t, dst_x, dst_y), dst_t_size, dst_x_size,\
+ dst_y_size, f(t, x, y), ox, oy, x_size, y_size)'
+        assert """for (int x = 0, dst_x = 0; x <= dst_x_size; x += 1, dst_x = dst_x + 1)
+  {
+    for (int y = 0, dst_y = 0; y <= dst_y_size; y += 1, dst_y = dst_y + 1)
+    {
+      dst[0][dst_x][dst_y] = f[0][x + ox][y + oy];
+    }
+  }
+}""" in str(iet)
+
+    def test_iet_halo_exchange(self):
+        grid = Grid(shape=(4, 4))
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        iet = halo_exchange(f, {t: 0})
+        from IPython import embed; embed()
 
 
 if __name__ == "__main__":
