@@ -148,10 +148,6 @@ class TensorFunction(AbstractCachedFunction):
             self._data = None
             self._allocator = kwargs.get('allocator', default_allocator())
 
-    def __getitem__(self, index):
-        """Shortcut for ``self.indexed[index]``."""
-        return self.indexed[index]
-
     def _allocate_memory(func):
         """Allocate memory as a :class:`Data`."""
         def wrapper(self):

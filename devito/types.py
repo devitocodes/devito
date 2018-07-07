@@ -395,10 +395,10 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return ()
 
     def __halo_setup__(self, **kwargs):
-        return tuple((0, 0) for i in range(self.ndim))
+        return kwargs.get('halo', tuple((0, 0) for i in range(self.ndim)))
 
     def __padding_setup__(self, **kwargs):
-        return tuple((0, 0) for i in range(self.ndim))
+        return kwargs.get('padding', tuple((0, 0) for i in range(self.ndim)))
 
     @property
     def name(self):
@@ -595,6 +595,10 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         indices = [a.subs(subs) for a in self.args]
         return Indexed(self.indexed, *indices)
 
+    def __getitem__(self, index):
+        """Shortcut for ``self.indexed[index]``."""
+        return self.indexed[index]
+
     # Pickling support
     _pickle_kwargs = ['name', 'halo', 'padding']
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -629,10 +633,9 @@ class Array(AbstractCachedFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.dtype = kwargs.get('dtype', np.float32)
+            super(Array, self).__init__(*args, **kwargs)
 
-            self._halo = kwargs.get('halo', tuple((0, 0) for i in range(self.ndim)))
-            self._padding = kwargs.get('padding', tuple((0, 0) for i in range(self.ndim)))
+            self.dtype = kwargs.get('dtype', np.float32)
 
             self._external = bool(kwargs.get('external', False))
             self._onstack = bool(kwargs.get('onstack', False))
