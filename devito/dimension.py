@@ -258,6 +258,10 @@ class DefaultDimension(Dimension):
         newobj._default_value = default_value or 0
         return newobj
 
+    @cached_property
+    def symbolic_size(self):
+        return sympy.Number(self._default_value)
+
     def _arg_defaults(self, start=None, size=None, alias=None):
         dim = alias or self
         size = size or dim._default_value
