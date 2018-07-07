@@ -613,7 +613,6 @@ class Array(AbstractCachedFunction):
 
     :param name: Name of the object.
     :param dtype: Data type of the object.
-    :param shape: The shape of the object.
     :param dimensions: The symbolic dimensions of the object.
     :param halo: The halo region of the object, expressed as an iterable
                  ``[(dim1_left_halo, dim1_right_halo), (dim2_left_halo, ...)]``
@@ -646,11 +645,7 @@ class Array(AbstractCachedFunction):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        return tuple(kwargs.get('dimensions'))
-
-    @classmethod
-    def __shape_setup__(cls, **kwargs):
-        return tuple(kwargs.get('shape'))
+        return tuple(kwargs['dimensions'])
 
     @property
     def _mem_external(self):
@@ -663,6 +658,10 @@ class Array(AbstractCachedFunction):
     @property
     def _mem_heap(self):
         return self._onheap
+
+    @property
+    def shape(self):
+        return self.symbolic_shape
 
     def update(self, dtype=None, shape=None, dimensions=None, halo=None, padding=None,
                onstack=None, onheap=None, external=None):
