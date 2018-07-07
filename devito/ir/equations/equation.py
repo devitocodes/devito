@@ -219,8 +219,7 @@ class DummyEq(ClusterizedEq):
     DummyEq(expr)
     DummyEq(lhs, rhs)
 
-    A special :class:`ClusterizedEq` that should never be used except for
-    writing tests, when there is no need to know the iteration/data spaces.
+    A special :class:`ClusterizedEq` that tracks no iteration or data spaces.
     """
 
     def __new__(cls, *args):
