@@ -1,4 +1,4 @@
-from devito import TimeFunction, memoized_meth, warning
+from devito import TimeFunction, memoized_meth, error
 from examples.seismic import Receiver
 from examples.seismic.elastic.operators import ForwardOperator
 
@@ -12,17 +12,9 @@ class ElasticWaveSolver(object):
     :param model: Physical model with domain parameters
     :param source: Sparse point symbol providing the injected wave
     :param receiver: Sparse point symbol describing an array of receivers
-    :param time_order: Order of the time-stepping scheme (default: 2, choices: 2,4)
-                       time_order=4 will not implement a 4th order FD discretization
-                       of the time-derivative as it is unstable. It implements instead
-                       a 4th order accurate wave-equation with only second order
-                       time derivative. Full derivation and explanation of the 4th order
-                       in time can be found at:
-                       http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf
     :param space_order: Order of the spatial stencil discretisation (default: 4)
 
-    Note: space_order must always be greater than time_order
-    Note2: This is an experimental staggered grid elastic modeling kernel.
+    Note: This is an experimental staggered grid elastic modeling kernel.
     Only 2D supported
     """
     def __init__(self, model, source, receiver, space_order=4, **kwargs):
@@ -35,8 +27,9 @@ class ElasticWaveSolver(object):
         self.dt = self.model.critical_dt
         # Cache compiler options
         self._kwargs = kwargs
-        warning("This is an experimental staggered grid elastic modeling kernel." +
-                "Only 2D supported")
+        if model.grid.dim != 2:
+            error("This is an experimental staggered grid elastic modeling kernel." +
+                  "Only 2D supported")
 
     @memoized_meth
     def op_fwd(self, save=None):

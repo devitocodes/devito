@@ -132,7 +132,7 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        vs = .5 * v[:]
+        vs = 0.5 * v[:]
         rho = v[:]/vp_top
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
@@ -243,6 +243,30 @@ def demo_model(preset, **kwargs):
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=v.shape,
                      dtype=np.float32, spacing=spacing, nbpml=20)
+
+    elif preset.lower() in ['marmousi-elastic', 'marmousi2d-elastic']:
+        shape = (1601, 401)
+        spacing = (7.5, 7.5)
+        origin = (0., 0.)
+
+        # Read 2D Marmousi model from opesc/data repo
+        data_path = kwargs.get('data_path', None)
+        if data_path is None:
+            error("Path to opesci/data not found! Please specify with "
+                  "'data_path=<path/to/opesci/data>'")
+            raise ValueError("Path to model data unspecified")
+        path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
+        v = np.fromfile(path, dtype='float32', sep="")
+        v = v.reshape(shape)
+
+        # Cut the model to make it slightly cheaper
+        v = v[301:-300, :]
+        vs = .5 * v[:]
+        rho = v[:]/np.max(v[:])
+
+        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
+                            origin=origin, shape=v.shape,
+                            dtype=np.float32, spacing=spacing, nbpml=20)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
 
@@ -376,7 +400,7 @@ class Pysical_Model(object):
     """
     General model class with comon properties
     """
-    def __init__(self, origin, spacing, shape, space_order, nbpml=40,
+    def __init__(self, origin, spacing, shape, space_order, nbpml=20,
                  dtype=np.float32):
         self.shape = shape
         self.nbpml = int(nbpml)
@@ -457,7 +481,7 @@ class Model(Pysical_Model):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    def __init__(self, origin, spacing, shape, space_order, vp, nbpml=40,
+    def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
 
         super(Model, self).__init__(origin, spacing, shape, space_order,
@@ -569,16 +593,12 @@ class ModelElastic(Pysical_Model):
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
     :param shape: Number of grid points size in (x,y,z) order
     :param space_order: Order of the spatial stencil discretisation
-    :param vp: Velocity in km/s
+    :param vp: P-wave velocity in km/s
+    :param vs: S-wave velocity in km/s
     :param nbpml: The number of PML layers for boundary damping
     :param rho: Density in kg/cm^3 (rho=1 for water)
-    :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
-    :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
-    :param theta: Tilt angle in radian
-    :param phi: Asymuth angle in radian
-    The :class:`Model` provides two symbolic data objects for the
+    The :class:`ModelElastic` provides a symbolic data objects for the
     creation of seismic wave propagation operators:
-    :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,

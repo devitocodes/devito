@@ -232,11 +232,11 @@ def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
     :param order: Order of the coefficient discretization and thus
                   the width of the resulting stencil expression.
     :param stagger: Shift for the FD, `left`, `right` or `centered`
-    :param theta: Dip angle for rotated FD
+    :param theta: Dip (or polar) angle for rotated FD
     :param phi: Azimuth angle for rotated FD
     """
-    ndim = f.grid.dim
-    off = dict([(d, 0) for d, s in zip(f.grid.dimensions, f.staggered)])
+    ndim = len(f.space_dimensions)
+    off = dict([(d, 0) for d in f.space_dimensions])
     if stagger == left:
         off[dim] = -.5
     elif stagger == right:
@@ -250,9 +250,8 @@ def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
                for i in range(-int(order / 2), int(order / 2))]
         return f.diff(dim).as_finite_difference(idx, x0=dim + off[dim]*dim.spacing)
     else:
-        ndim = f.grid.dim
-        x = f.grid.dimensions[0]
-        z = f.grid.dimensions[-1]
+        x = f.space_dimensions[0]
+        z = f.space_dimensions[-1]
         idxx = list(set([(x + int(i+.5+off[x])*x.spacing)
                          for i in range(-int(order / 2), int(order / 2))]))
         dx = f.diff(x).as_finite_difference(idxx, x0=x + off[x]*x.spacing)
@@ -265,7 +264,7 @@ def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
         is_y = False
 
         if ndim == 3:
-            y = f.grid.dimensions[1]
+            y = f.space_dimensions[1]
             idxy = list(set([(y + int(i+.5+off[y])*y.spacing)
                              for i in range(-int(order / 2), int(order / 2))]))
             dy = f.diff(y).as_finite_difference(idxy, x0=y + off[y]*y.spacing)

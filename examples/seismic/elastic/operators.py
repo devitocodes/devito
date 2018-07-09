@@ -4,9 +4,9 @@ from examples.seismic import PointSource, Receiver
 
 
 def ForwardOperator(model, source, receiver, space_order=4,
-                    save=False, kernel='OT2', **kwargs):
+                    save=False, **kwargs):
     """
-    Constructor method for the forward modelling operator in an acoustic media
+    Constructor method for the forward modelling operator in an elastic media
 
     :param model: :class:`Model` object containing the physical parameters
     :param source: :class:`PointData` object containing the source geometry
@@ -68,8 +68,8 @@ def ForwardOperator(model, source, receiver, space_order=4,
     u_txz = Eq(txz.forward, damp * txz - damp * mu*s * (vxdz + vzdx))
 
     # The source injection term
-    src_xx = src.inject(field=txx.forward, expr=src, offset=model.nbpml)
-    src_zz = src.inject(field=tzz.forward, expr=src, offset=model.nbpml)
+    src_xx = src.inject(field=txx.forward, expr=src * s, offset=model.nbpml)
+    src_zz = src.inject(field=tzz.forward, expr=src * s, offset=model.nbpml)
 
     # Create interpolation expression for receivers
     rec_term1 = rec1.interpolate(expr=txx, offset=model.nbpml)

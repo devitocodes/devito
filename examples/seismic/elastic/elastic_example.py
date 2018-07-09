@@ -9,7 +9,7 @@ from examples.seismic import RickerSource, Receiver, TimeAxis, demo_model
 def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
                   constant=False, **kwargs):
 
-    nrec = shape[0]
+    nrec = 2*shape[0]
     preset = 'constant-elastic' if constant else 'layers-elastic'
     model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
@@ -36,23 +36,19 @@ def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, 
 
 
 def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
-        space_order=4, nbpml=40, constant=False,
-        autotune=False, **kwargs):
+        space_order=4, nbpml=40, autotune=False, constant=False, **kwargs):
 
     solver = elastic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
                            space_order=space_order, constant=constant, **kwargs)
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
-    rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward()
+    rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
+    return rec1, rec2, vx, vz, txx, tzz, txz, summary
 
 
 if __name__ == "__main__":
-    description = ("Example script for a set of acoustic operators.")
+    description = ("Example script for a set of elastic operators.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
-                        help="Preset to determine the physical problem setup")
-    parser.add_argument('-f', '--full', default=False, action='store_true',
-                        help="Execute all operators and store forward wavefield")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
                         help="Enable autotuning for block sizes")
     parser.add_argument("-so", "--space_order", default=4,
@@ -73,8 +69,8 @@ if __name__ == "__main__":
     # 3D preset parameters
     shape = (150, 150)
     spacing = (15.0, 15.0)
-    tn = 3500.0
+    tn = 1500.0
 
-    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
-        space_order=args.space_order, constant=args.constant,
-        autotune=args.autotune, dse=args.dse, dle=args.dle)
+    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn, dle=args.dle,
+        space_order=args.space_order, autotune=args.autotune, constant=args.constant,
+        dse=args.dse)
