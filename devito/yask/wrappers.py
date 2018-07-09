@@ -203,9 +203,9 @@ class YaskKernel(object):
         self.soln.prepare_solution()
 
         # Set up auto-tuning
-        if configuration.yask['autotuning'] == 'off':
+        if configuration['autotuning'] is False:
             self.soln.reset_auto_tuner(False)
-        elif configuration.yask['autotuning'] == 'preemptive':
+        elif configuration['autotuning'] == 'preemptive':
             self.soln.run_auto_tuner_now()
 
         # Run the kernel
