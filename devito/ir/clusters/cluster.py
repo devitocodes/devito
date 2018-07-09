@@ -29,7 +29,7 @@ class PartialCluster(object):
     """
 
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
-        self._exprs = list(ClusterizedEq(i, ispace, dspace) for i in exprs)
+        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace) for i in exprs)
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = set(atomics or [])
@@ -167,7 +167,8 @@ class Cluster(PartialCluster):
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
         self._exprs = exprs
         # Keep expressions ordered based on information flow
-        self._exprs = tuple(ClusterizedEq(v, ispace, dspace) for v in self.trace.values())
+        self._exprs = tuple(ClusterizedEq(v, ispace=ispace, dspace=dspace)
+                            for v in self.trace.values())
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = frozenset(atomics or ())

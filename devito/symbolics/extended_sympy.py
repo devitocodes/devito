@@ -7,7 +7,7 @@ from sympy import Expr, Integer, Float, Symbol
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
-from devito.tools import as_tuple
+from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'IntDiv',
            'FunctionFromPointer', 'ListInitializer', 'taylor_sin', 'taylor_cos',
@@ -100,7 +100,7 @@ class IntDiv(sympy.Expr):
     __repr__ = __str__
 
 
-class FunctionFromPointer(sympy.Expr):
+class FunctionFromPointer(sympy.Expr, Pickable):
 
     """
     Symbolic representation of the C notation ``pointer->function(params)``.
@@ -150,8 +150,13 @@ class FunctionFromPointer(sympy.Expr):
         else:
             return self.pointer
 
+    # Pickling support
+    _pickle_args = ['function', 'pointer']
+    _pickle_kwargs = ['params']
+    __reduce_ex__ = Pickable.__reduce_ex__
 
-class ListInitializer(sympy.Expr):
+
+class ListInitializer(sympy.Expr, Pickable):
 
     """
     Symbolic representation of the C++ list initializer notation ``{a, b, ...}``.
@@ -174,6 +179,10 @@ class ListInitializer(sympy.Expr):
         return "{%s}" % ", ".join(str(i) for i in self.params)
 
     __repr__ = __str__
+
+    # Pickling support
+    _pickle_args = ['params']
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class taylor_sin(TrigonometricFunction):
