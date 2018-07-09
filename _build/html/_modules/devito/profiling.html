@@ -156,92 +156,85 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
+<span class="kn">import</span> <span class="nn">os</span>
 
 <span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">byref</span><span class="p">,</span> <span class="n">c_double</span>
 <span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">Value</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">ExpressionBundle</span><span class="p">,</span> <span class="n">TimedList</span><span class="p">,</span> <span class="n">Section</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span>
-                           <span class="n">Transformer</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Call</span><span class="p">,</span> <span class="n">ExpressionBundle</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">TimedList</span><span class="p">,</span> <span class="n">Section</span><span class="p">,</span>
+                           <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">IntervalGroup</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">estimate_cost</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;create_profile&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="create_profile"><a class="viewcode-back" href="../../devito.html#devito.profiling.create_profile">[docs]</a><span class="k">def</span> <span class="nf">create_profile</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Enrich the Iteration/Expression tree ``iet`` adding nodes for C-level</span>
-<span class="sd">    performance profiling. In particular, turn all :class:`Section`s within ``iet``</span>
-<span class="sd">    into :class:`TimedList`s.</span>
-
-<span class="sd">    A :class:`Profiler` is returned to access profiling data.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">sections</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Section</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
-
-    <span class="c1"># Construct the Profiler</span>
-    <span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">:</span>
-        <span class="c1"># All ExpressionBundles within `section`</span>
-        <span class="n">bundles</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">ExpressionBundle</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">section</span><span class="p">)</span>
-
-        <span class="c1"># Total operation count</span>
-        <span class="n">ops</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">ops</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">)</span>
-
-        <span class="c1"># Operation count at each section iteration</span>
-        <span class="n">sops</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">estimate_cost</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">exprs</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">))</span>
-
-        <span class="c1"># Total memory traffic</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">traffic</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-        <span class="n">traffic</span> <span class="o">=</span> <span class="p">[</span><span class="n">IntervalGroup</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s1">&#39;merge&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
-        <span class="n">traffic</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">extent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">traffic</span><span class="p">)</span>
-
-        <span class="c1"># Each ExpressionBundle lives in its own iteration space</span>
-        <span class="n">itershapes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">]</span>
-
-        <span class="c1"># Track how many grid points are written within `section`</span>
-        <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">:</span>
-            <span class="n">writes</span> <span class="o">=</span> <span class="p">{</span><span class="n">e</span><span class="o">.</span><span class="n">write</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">exprs</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_tensor</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">is_TimeFunction</span><span class="p">}</span>
-            <span class="n">points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">writes</span><span class="p">))</span>
-        <span class="n">points</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
-
-        <span class="n">profiler</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="n">SectionData</span><span class="p">(</span><span class="n">ops</span><span class="p">,</span> <span class="n">sops</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span> <span class="n">traffic</span><span class="p">,</span> <span class="n">itershapes</span><span class="p">))</span>
-
-    <span class="c1"># Transform the Iteration/Expression tree introducing the C-level timers</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">TimedList</span><span class="p">(</span><span class="n">gname</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">lname</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">body</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">}</span>
-    <span class="n">iet</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">iet</span><span class="p">,</span> <span class="n">profiler</span></div>
-
-
 <span class="k">class</span> <span class="nc">Profiler</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="n">_default_includes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">_default_libs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">_ext_calls</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">section</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Add a profiling section.</span>
-
-<span class="sd">        :param section: The :class:`Section` node being profiled.</span>
-<span class="sd">        :param data: An iterable of :class:`SectionData`s. Each SectionData represents</span>
-<span class="sd">                     an IET rooted in the Section, and includes the number of</span>
-<span class="sd">                     floating-point operations performed in the IET as well as the</span>
-<span class="sd">                     compulsory memory traffic, as bytes moved from/to memory.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">[</span><span class="n">section</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initialized</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">new</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Allocate and return a pointer to a new C-level Struct capable of storing</span>
-<span class="sd">        all timers added through ``self.add(...)``.</span>
+<span class="sd">        all timers inserted by :meth:`instrument`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">byref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">instrument</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Enrich the Iteration/Expression tree ``iet`` adding nodes for C-level</span>
+<span class="sd">        performance profiling. In particular, turn all :class:`Section`s within ``iet``</span>
+<span class="sd">        into :class:`TimedList`s.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">sections</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Section</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">:</span>
+            <span class="n">bundles</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">ExpressionBundle</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">section</span><span class="p">)</span>
+
+            <span class="c1"># Total operation count</span>
+            <span class="n">ops</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">ops</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">)</span>
+
+            <span class="c1"># Operation count at each section iteration</span>
+            <span class="n">sops</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">estimate_cost</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">exprs</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">))</span>
+
+            <span class="c1"># Total memory traffic</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">traffic</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="n">traffic</span> <span class="o">=</span> <span class="p">[</span><span class="n">IntervalGroup</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s1">&#39;merge&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+            <span class="n">traffic</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">extent</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">traffic</span><span class="p">)</span>
+
+            <span class="c1"># Each ExpressionBundle lives in its own iteration space</span>
+            <span class="n">itershapes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">]</span>
+
+            <span class="c1"># Track how many grid points are written within `section`</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bundles</span><span class="p">:</span>
+                <span class="n">writes</span> <span class="o">=</span> <span class="p">{</span><span class="n">e</span><span class="o">.</span><span class="n">write</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">exprs</span>
+                          <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_tensor</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">is_TimeFunction</span><span class="p">}</span>
+                <span class="n">points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">writes</span><span class="p">))</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">[</span><span class="n">section</span><span class="p">]</span> <span class="o">=</span> <span class="n">SectionData</span><span class="p">(</span><span class="n">ops</span><span class="p">,</span> <span class="n">sops</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span> <span class="n">traffic</span><span class="p">,</span> <span class="n">itershapes</span><span class="p">)</span>
+
+        <span class="c1"># Transform the Iteration/Expression tree introducing the C-level timers</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">TimedList</span><span class="p">(</span><span class="n">gname</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">lname</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+                  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">}</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">iet</span>
 
     <span class="k">def</span> <span class="nf">summary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -298,11 +291,50 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">cdef</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a :class:`cgen.Struct` representing the profiler data structure in C</span>
+<span class="sd">        Return a :class:`cgen.Struct` representing the profiler data structure in C</span>
 <span class="sd">        (a ``struct``).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
                       <span class="p">[</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;double&#39;</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">])</span>
+
+
+<span class="k">class</span> <span class="nc">AdvisorProfiler</span><span class="p">(</span><span class="n">Profiler</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Rely on Intel Advisor ``v &gt;= 2018`` for performance profiling.&quot;&quot;&quot;</span>
+
+    <span class="n">_api_resume</span> <span class="o">=</span> <span class="s1">&#39;__itt_resume&#39;</span>
+    <span class="n">_api_pause</span> <span class="o">=</span> <span class="s1">&#39;__itt_pause&#39;</span>
+
+    <span class="n">_default_includes</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ittnotify.h&#39;</span><span class="p">]</span>
+    <span class="n">_default_libs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ittnotify&#39;</span><span class="p">]</span>
+    <span class="n">_ext_calls</span> <span class="o">=</span> <span class="p">[</span><span class="n">_api_resume</span><span class="p">,</span> <span class="n">_api_pause</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">locate_intel_advisor</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">initialized</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">AdvisorProfiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="c1"># Make sure future compilations will get the proper header and</span>
+            <span class="c1"># shared object files</span>
+            <span class="n">compiler</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
+            <span class="n">compiler</span><span class="o">.</span><span class="n">add_include_dirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;include&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span>
+            <span class="n">compiler</span><span class="o">.</span><span class="n">add_libraries</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_default_libs</span><span class="p">)</span>
+            <span class="n">libdir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;lib64&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span>
+            <span class="n">compiler</span><span class="o">.</span><span class="n">add_library_dirs</span><span class="p">(</span><span class="n">libdir</span><span class="p">)</span>
+            <span class="n">compiler</span><span class="o">.</span><span class="n">add_ldflags</span><span class="p">(</span><span class="s1">&#39;-Wl,-rpath,</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">libdir</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">instrument</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">):</span>
+        <span class="n">sections</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Section</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+        <span class="c1"># Transform the Iteration/Expression tree introducing Advisor calls that</span>
+        <span class="c1"># resume and stop data collection</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="p">[</span><span class="n">Call</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_api_resume</span><span class="p">),</span> <span class="n">i</span><span class="p">,</span> <span class="n">Call</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_api_pause</span><span class="p">)])</span>
+                  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">}</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">iet</span>
 
 
 <span class="k">class</span> <span class="nc">PerformanceSummary</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
@@ -333,6 +365,44 @@
 
 <span class="n">PerfEntry</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;PerfEntry&#39;</span><span class="p">,</span> <span class="s1">&#39;time gflopss gpointss oi ops itershapes&#39;</span><span class="p">)</span>
 <span class="sd">&quot;&quot;&quot;Runtime profiling data for a :class:`Section`.&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="create_profile"><a class="viewcode-back" href="../../devito.html#devito.profiling.create_profile">[docs]</a><span class="k">def</span> <span class="nf">create_profile</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a new :class:`Profiler`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">level</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;profiling&#39;</span><span class="p">]</span>
+    <span class="n">profiler</span> <span class="o">=</span> <span class="n">profiler_registry</span><span class="p">[</span><span class="n">level</span><span class="p">](</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">profiler</span><span class="o">.</span><span class="n">initialized</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">profiler</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t set up `</span><span class="si">%s</span><span class="s2">` profiler; reverting to `basic`&quot;</span> <span class="o">%</span> <span class="n">level</span><span class="p">)</span>
+        <span class="n">profiler</span> <span class="o">=</span> <span class="n">profiler_registry</span><span class="p">[</span><span class="s1">&#39;basic&#39;</span><span class="p">](</span><span class="n">name</span><span class="p">)</span>
+        <span class="c1"># We expect the `basic` profiler to always initialize successfully</span>
+        <span class="k">assert</span> <span class="n">profiler</span><span class="o">.</span><span class="n">initialized</span>
+        <span class="k">return</span> <span class="n">profiler</span></div>
+
+
+<span class="c1"># Set up profiling levels</span>
+<span class="n">profiler_registry</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;basic&#39;</span><span class="p">:</span> <span class="n">Profiler</span><span class="p">,</span>
+    <span class="s1">&#39;advisor&#39;</span><span class="p">:</span> <span class="n">AdvisorProfiler</span>
+<span class="p">}</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;profiling&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">profiler_registry</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">locate_intel_advisor</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;ADVISOR_HOME&#39;</span><span class="p">])</span>
+        <span class="c1"># Little hack: assuming a 64bit system</span>
+        <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;bin64&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;advixe-cl&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">path</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Requested `advisor` profiler, but couldn&#39;t locate executable&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Requested `advisor` profiler, but ADVISOR_HOME isn&#39;t set&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
 </pre></div>
 
            </div>

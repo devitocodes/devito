@@ -533,10 +533,13 @@
                      <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">summary</span>
 
-    <span class="k">def</span> <span class="nf">_profile_sections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">,):</span>
-        <span class="sd">&quot;&quot;&quot;Introduce C-level profiling nodes within the Iteration/Expression tree.&quot;&quot;&quot;</span>
-        <span class="n">iet</span><span class="p">,</span> <span class="n">profiler</span> <span class="o">=</span> <span class="n">create_profile</span><span class="p">(</span><span class="s1">&#39;timers&#39;</span><span class="p">,</span> <span class="n">iet</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_profile_sections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Instrument the Iteration/Expression tree for C-level profiling.&quot;&quot;&quot;</span>
+        <span class="n">profiler</span> <span class="o">=</span> <span class="n">create_profile</span><span class="p">(</span><span class="s1">&#39;timers&#39;</span><span class="p">)</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">instrument</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_globals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">cdef</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">_default_includes</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="n">MetaCall</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">profiler</span><span class="o">.</span><span class="n">_ext_calls</span><span class="p">})</span>
         <span class="k">return</span> <span class="n">iet</span><span class="p">,</span> <span class="n">profiler</span></div>
 
 

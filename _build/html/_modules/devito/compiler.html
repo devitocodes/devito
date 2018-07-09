@@ -167,7 +167,8 @@
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">CompilationError</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">log</span><span class="p">,</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">change_directory</span><span class="p">,</span> <span class="n">memoized_func</span><span class="p">,</span> <span class="n">make_tempdir</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">as_tuple</span><span class="p">,</span> <span class="n">change_directory</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span>
+                          <span class="n">memoized_func</span><span class="p">,</span> <span class="n">make_tempdir</span><span class="p">)</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;make&#39;</span><span class="p">,</span> <span class="s1">&#39;GNUCompiler&#39;</span><span class="p">]</span>
 
@@ -300,6 +301,18 @@
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;DevitoJITCompiler[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+
+    <span class="k">def</span> <span class="nf">add_include_dirs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dirs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">include_dirs</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">include_dirs</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">dirs</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">add_library_dirs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dirs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">library_dirs</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">library_dirs</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">dirs</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">add_libraries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">libs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">libraries</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">libraries</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">libs</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">add_ldflags</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flags</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">flags</span><span class="p">)))</span>
 
 
 <div class="viewcode-block" id="GNUCompiler"><a class="viewcode-back" href="../../devito.html#devito.compiler.GNUCompiler">[docs]</a><span class="k">class</span> <span class="nc">GNUCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
