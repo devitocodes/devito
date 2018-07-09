@@ -174,7 +174,7 @@
 
 <span class="sd">    Further, this script can generate a roofline plot from a benchmark</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">mode_benchmark</span><span class="p">()</span>
+    <span class="k">pass</span>
 
 
 <div class="viewcode-block" id="option_simulation"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.benchmark.option_simulation">[docs]</a><span class="k">def</span> <span class="nf">option_simulation</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
@@ -207,16 +207,12 @@
 
     <span class="n">_preset</span> <span class="o">=</span> <span class="p">{</span>
         <span class="c1"># Fixed</span>
-        <span class="s1">&#39;O1&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;autotune&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;basic&#39;</span><span class="p">},</span>
-        <span class="s1">&#39;O2&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;autotune&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">},</span>
-        <span class="s1">&#39;O3&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;autotune&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">},</span>
+        <span class="s1">&#39;O1&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;basic&#39;</span><span class="p">},</span>
+        <span class="s1">&#39;O2&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">},</span>
+        <span class="s1">&#39;O3&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">},</span>
         <span class="c1"># Parametric</span>
-        <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;autotune&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-                <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">],</span>
-                <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">},</span>
-        <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;autotune&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-                <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">]}</span>
+        <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">],</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">},</span>
+        <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">]}</span>
     <span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">from_preset</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
@@ -241,8 +237,6 @@
         <span class="n">click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;--dle&#39;</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">from_value</span><span class="p">,</span>
                      <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">Choice</span><span class="p">([</span><span class="s1">&#39;noop&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">]),</span>
                      <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Devito loop engine (DLE) mode&#39;</span><span class="p">),</span>
-        <span class="n">click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-a&#39;</span><span class="p">,</span> <span class="s1">&#39;--autotune&#39;</span><span class="p">,</span> <span class="n">is_flag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">from_value</span><span class="p">,</span>
-                     <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Switch auto tuning on/off&#39;</span><span class="p">),</span>
     <span class="p">]</span>
     <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">options</span><span class="p">):</span>
         <span class="n">f</span> <span class="o">=</span> <span class="n">option</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
@@ -252,10 +246,13 @@
 <span class="nd">@benchmark</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;run&#39;</span><span class="p">)</span>
 <span class="nd">@option_simulation</span>
 <span class="nd">@option_performance</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-a&#39;</span><span class="p">,</span> <span class="s1">&#39;--autotune&#39;</span><span class="p">,</span> <span class="n">is_flag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+              <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Switch auto tuning on/off&#39;</span><span class="p">)</span>
 <span class="k">def</span> <span class="nf">cli_run</span><span class="p">(</span><span class="n">problem</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A single run with a specific set of performance parameters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mode_benchmark</span><span class="p">()</span>
     <span class="n">run</span><span class="p">(</span><span class="n">problem</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
@@ -272,6 +269,8 @@
 <span class="nd">@benchmark</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;test&#39;</span><span class="p">)</span>
 <span class="nd">@option_simulation</span>
 <span class="nd">@option_performance</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-a&#39;</span><span class="p">,</span> <span class="s1">&#39;--autotune&#39;</span><span class="p">,</span> <span class="n">is_flag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+              <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Switch auto tuning on/off&#39;</span><span class="p">)</span>
 <span class="k">def</span> <span class="nf">cli_test</span><span class="p">(</span><span class="n">problem</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Test numerical correctness with different parameters.</span>
@@ -310,6 +309,8 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Complete benchmark with multiple simulation and performance parameters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mode_benchmark</span><span class="p">()</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">level</span>
     <span class="n">bench</span><span class="p">(</span><span class="n">problem</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
@@ -332,6 +333,10 @@
 <span class="nd">@benchmark</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;plot&#39;</span><span class="p">)</span>
 <span class="nd">@option_simulation</span>
 <span class="nd">@option_performance</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;--autotune&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Used auto-tuning level&#39;</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;--backend&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;core&#39;</span><span class="p">,</span>
+              <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">Choice</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;backend&#39;</span><span class="p">]),</span>
+              <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Used execution backend (e.g., core, yask)&#39;</span><span class="p">)</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;-r&#39;</span><span class="p">,</span> <span class="s1">&#39;--resultsdir&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;results&#39;</span><span class="p">,</span>
               <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Directory containing results&#39;</span><span class="p">)</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s1">&#39;--max-bw&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
@@ -354,6 +359,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Plotting mode to generate plots for performance analysis.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">backend</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">)</span>
     <span class="n">resultsdir</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;resultsdir&#39;</span><span class="p">)</span>
     <span class="n">max_bw</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;max_bw&#39;</span><span class="p">)</span>
     <span class="n">flop_ceils</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;flop_ceil&#39;</span><span class="p">)</span>
@@ -363,8 +369,6 @@
     <span class="n">space_order</span> <span class="o">=</span> <span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;space_order&#39;</span><span class="p">])</span>
     <span class="n">time_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;time_order&#39;</span><span class="p">]</span>
     <span class="n">shape</span> <span class="o">=</span> <span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;shape&#39;</span><span class="p">])</span>
-
-    <span class="n">backend</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;backend&#39;</span><span class="p">]</span>
 
     <span class="n">RooflinePlotter</span> <span class="o">=</span> <span class="n">get_ob_plotter</span><span class="p">()</span>
     <span class="n">bench</span> <span class="o">=</span> <span class="n">get_ob_bench</span><span class="p">(</span><span class="n">problem</span><span class="p">,</span> <span class="n">resultsdir</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
@@ -382,15 +386,15 @@
     <span class="n">modes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">,</span> <span class="s1">&#39;autotune&#39;</span><span class="p">]</span>
              <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">j</span><span class="p">)[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">gflopss</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]</span>
 
-    <span class="c1"># Filaneme</span>
+    <span class="c1"># Filename</span>
     <span class="n">figname</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_dim</span><span class="si">%s</span><span class="s2">_so</span><span class="si">%s</span><span class="s2">_to</span><span class="si">%s</span><span class="s2">_arch[</span><span class="si">%s</span><span class="s2">]_bkend[</span><span class="si">%s</span><span class="s2">].pdf&quot;</span> <span class="o">%</span> <span class="p">(</span>
         <span class="n">problem</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">space_order</span><span class="p">,</span> <span class="n">time_order</span><span class="p">,</span> <span class="n">arch</span><span class="p">,</span> <span class="n">backend</span>
     <span class="p">)</span>
 
     <span class="c1"># Legend setup. Do not plot a legend if there&#39;s no variation in performance</span>
-    <span class="c1"># options (dse, dle, autotuning)</span>
+    <span class="c1"># options (dse, dle, autotune)</span>
     <span class="k">if</span> <span class="n">modes</span><span class="p">:</span>
-        <span class="n">legend</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;loc&#39;</span><span class="p">:</span> <span class="s1">&#39;upper left&#39;</span><span class="p">,</span> <span class="s1">&#39;fontsize&#39;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s1">&#39;ncol&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">}</span>
+        <span class="n">legend</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;loc&#39;</span><span class="p">:</span> <span class="s1">&#39;upper left&#39;</span><span class="p">,</span> <span class="s1">&#39;fontsize&#39;</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="s1">&#39;ncol&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">}</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">legend</span> <span class="o">=</span> <span class="s1">&#39;drop&#39;</span>
 
@@ -424,18 +428,18 @@
             <span class="n">marker</span> <span class="o">=</span> <span class="n">used_markers</span><span class="p">[</span><span class="n">so</span><span class="p">]</span> <span class="k">if</span> <span class="n">so</span> <span class="ow">in</span> <span class="n">used_markers</span> <span class="k">else</span> <span class="n">avail_markers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
             <span class="n">used_markers</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">so</span><span class="p">,</span> <span class="n">marker</span><span class="p">)</span>
 
-            <span class="n">oi_loc</span> <span class="o">=</span> <span class="mf">0.05</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">so</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="mf">0.06</span>
-            <span class="n">oi_annotate</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="s1">&#39;SO=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">so</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;xy&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">oi_value</span><span class="p">,</span> <span class="n">oi_loc</span><span class="p">)}</span>
+            <span class="n">oi_loc</span> <span class="o">=</span> <span class="mf">0.076</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">so</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="mf">0.09</span>
+            <span class="n">oi_annotate</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="s1">&#39;SO=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">so</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span> <span class="s1">&#39;xy&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">oi_value</span><span class="p">,</span> <span class="n">oi_loc</span><span class="p">)}</span>
             <span class="k">if</span> <span class="n">time_value</span> <span class="ow">in</span> <span class="n">min_max</span><span class="p">[</span><span class="n">oi_value</span><span class="p">]</span> <span class="ow">and</span> <span class="n">point_runtime</span><span class="p">:</span>
                 <span class="c1"># Only annotate min and max runtimes on each OI line, to avoid</span>
                 <span class="c1"># polluting the plot too much</span>
-                <span class="n">point_annotate</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="si">%.1f</span><span class="s2"> s&quot;</span> <span class="o">%</span> <span class="n">time_value</span><span class="p">,</span> <span class="s1">&#39;xytext&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">5.2</span><span class="p">),</span>
-                                  <span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="mf">3.5</span><span class="p">,</span> <span class="s1">&#39;weight&#39;</span><span class="p">:</span> <span class="s1">&#39;bold&#39;</span><span class="p">,</span> <span class="s1">&#39;rotation&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+                <span class="n">point_annotate</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="si">%.0f</span><span class="s2">s&quot;</span> <span class="o">%</span> <span class="n">time_value</span><span class="p">,</span> <span class="s1">&#39;xytext&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">5.5</span><span class="p">),</span>
+                                  <span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span> <span class="s1">&#39;rotation&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">point_annotate</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="n">oi_line</span> <span class="o">=</span> <span class="n">time_value</span> <span class="o">==</span> <span class="n">min_max</span><span class="p">[</span><span class="n">oi_value</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
             <span class="k">if</span> <span class="n">oi_line</span><span class="p">:</span>
-                <span class="n">perf_annotate</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;xytext&#39;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)}</span>
+                <span class="n">perf_annotate</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span> <span class="s1">&#39;xytext&#39;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">)}</span>
 
             <span class="n">plot</span><span class="o">.</span><span class="n">add_point</span><span class="p">(</span><span class="n">gflops</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">oi</span><span class="o">=</span><span class="n">oi_value</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="n">marker</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span>
                            <span class="n">oi_line</span><span class="o">=</span><span class="n">oi_line</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">perf_annotate</span><span class="o">=</span><span class="n">perf_annotate</span><span class="p">,</span>
@@ -462,8 +466,7 @@
             <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;to&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;time_order&#39;</span><span class="p">]</span>
             <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">]</span>
             <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">]</span>
-            <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;at&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span> <span class="ow">and</span>
-                                   <span class="n">configuration</span><span class="o">.</span><span class="n">backend</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">])</span>
+            <span class="n">devito_params</span><span class="p">[</span><span class="s1">&#39;at&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span>
             <span class="k">return</span> <span class="s1">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">[</span><span class="si">%s</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">devito_params</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
 
     <span class="k">return</span> <span class="n">DevitoBenchmark</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">problem</span><span class="p">,</span> <span class="n">resultsdir</span><span class="o">=</span><span class="n">resultsdir</span><span class="p">,</span> <span class="n">parameters</span><span class="o">=</span><span class="n">parameters</span><span class="p">)</span></div>

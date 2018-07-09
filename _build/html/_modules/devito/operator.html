@@ -311,7 +311,7 @@
         <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="p">{}))</span>
 
         <span class="c1"># Execute autotuning and adjust arguments accordingly</span>
-        <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;autotune&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;autotune&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">level</span><span class="p">):</span>
             <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
         <span class="c1"># Check all user-provided keywords are known to the Operator</span>

@@ -275,11 +275,12 @@
                 <span class="k">continue</span>
 
             <span class="c1"># Derived metrics</span>
+            <span class="c1"># Note: some casts to `float` are simply to turn `sympy.Float` into `float`</span>
             <span class="n">gflops</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">ops</span><span class="p">)</span><span class="o">/</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span>
             <span class="n">gpoints</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">points</span><span class="p">)</span><span class="o">/</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span>
             <span class="n">gflopss</span> <span class="o">=</span> <span class="n">gflops</span><span class="o">/</span><span class="n">time</span>
             <span class="n">gpointss</span> <span class="o">=</span> <span class="n">gpoints</span><span class="o">/</span><span class="n">time</span>
-            <span class="n">oi</span> <span class="o">=</span> <span class="n">ops</span><span class="o">/</span><span class="n">traffic</span>
+            <span class="n">oi</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">ops</span><span class="o">/</span><span class="n">traffic</span><span class="p">)</span>
 
             <span class="c1"># Keep track of performance achieved</span>
             <span class="n">summary</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">sops</span><span class="p">,</span> <span class="n">itershapes</span><span class="p">)</span>
