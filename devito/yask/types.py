@@ -4,7 +4,7 @@ import devito.types as types
 from devito.yask.utils import namespace
 from devito.yask.wrappers import contexts
 
-__all__ = ['CacheManager']
+__all__ = ['CacheManager', 'YaskGridObject', 'YaskSolnObject']
 
 
 types.Basic.from_YASK = False
@@ -16,11 +16,22 @@ class YaskGridObject(types.Object):
 
     is_YaskGridObject = True
 
+    dtype = namespace['type-grid']
+    value = None
+
     def __init__(self, mapped_function_name):
         self.mapped_function_name = mapped_function_name
         self.name = namespace['code-grid-name'](mapped_function_name)
-        self.dtype = namespace['type-grid']
-        self.value = None
+
+
+class YaskSolnObject(types.Object):
+
+    name = namespace['code-soln-name']
+    dtype = namespace['type-solution']
+    value = None
+
+    def __init__(self):
+        pass
 
 
 class CacheManager(types.CacheManager):

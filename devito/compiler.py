@@ -149,6 +149,10 @@ class Compiler(GCCToolchain):
     def __repr__(self):
         return "DevitoJITCompiler[%s]" % self.__class__.__name__
 
+    def __getstate__(self):
+        # The superclass would otherwise only return a subset of attributes
+        return self.__dict__
+
     def add_include_dirs(self, dirs):
         self.include_dirs = filter_ordered(self.include_dirs + list(as_tuple(dirs)))
 
@@ -280,6 +284,25 @@ def load(soname):
     :return: The loaded shared object.
     """
     return npct.load_library(str(get_jit_dir().joinpath(soname)), '.')
+
+
+def save(soname, binary, compiler):
+    """
+    Store a binary into a file within a temporary directory.
+
+    :param soname: Name of the .so file (w/o the suffix).
+    :param binary: The binary data.
+    :param compiler: The toolchain used for compilation.
+    """
+    sofile = get_jit_dir().joinpath(soname).with_suffix(compiler.so_ext)
+    if sofile.is_file():
+        log("%s: `%s` was not saved in `%s` as it already exists"
+            % (compiler, sofile.name, get_jit_dir()))
+    else:
+        with open(str(path), 'wb') as f:
+            f.write(binary)
+        log("%s: `%s` successfully saved in `%s`"
+            % (compiler, sofile.name, get_jit_dir()))
 
 
 def jit_compile(soname, code, compiler):

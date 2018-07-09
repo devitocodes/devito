@@ -250,6 +250,9 @@ class Symbol(AbstractCachedSymbol):
     def base(self):
         return self
 
+    # Pickling support
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype']
+
 
 class Scalar(Symbol):
     """Symbolic object representing a scalar.
@@ -647,7 +650,7 @@ class Object(Basic):
 # - To override SymPy caching behaviour
 
 
-class IndexedData(sympy.IndexedBase):
+class IndexedData(sympy.IndexedBase, Pickable):
     """Wrapper class that inserts a pointer to the symbolic data object"""
 
     def __new__(cls, label, shape=None, function=None):
@@ -666,6 +669,10 @@ class IndexedData(sympy.IndexedBase):
         """
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
+
+    # Pickling support
+    _pickle_kwargs = ['label', 'shape', 'function']
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class Indexed(sympy.Indexed):
