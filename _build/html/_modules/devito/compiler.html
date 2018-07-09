@@ -302,6 +302,10 @@
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;DevitoJITCompiler[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
 
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># The superclass would otherwise only return a subset of attributes</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span>
+
     <span class="k">def</span> <span class="nf">add_include_dirs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dirs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">include_dirs</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">include_dirs</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">dirs</span><span class="p">)))</span>
 
@@ -433,6 +437,25 @@
 <span class="sd">    :return: The loaded shared object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">npct</span><span class="o">.</span><span class="n">load_library</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">get_jit_dir</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">soname</span><span class="p">)),</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="n">soname</span><span class="p">,</span> <span class="n">binary</span><span class="p">,</span> <span class="n">compiler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Store a binary into a file within a temporary directory.</span>
+
+<span class="sd">    :param soname: Name of the .so file (w/o the suffix).</span>
+<span class="sd">    :param binary: The binary data.</span>
+<span class="sd">    :param compiler: The toolchain used for compilation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sofile</span> <span class="o">=</span> <span class="n">get_jit_dir</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">soname</span><span class="p">)</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="n">compiler</span><span class="o">.</span><span class="n">so_ext</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">sofile</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: `</span><span class="si">%s</span><span class="s2">` was not saved in `</span><span class="si">%s</span><span class="s2">` as it already exists&quot;</span>
+            <span class="o">%</span> <span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">sofile</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">get_jit_dir</span><span class="p">()))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">binary</span><span class="p">)</span>
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: `</span><span class="si">%s</span><span class="s2">` successfully saved in `</span><span class="si">%s</span><span class="s2">`&quot;</span>
+            <span class="o">%</span> <span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">sofile</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">get_jit_dir</span><span class="p">()))</span>
 
 
 <div class="viewcode-block" id="jit_compile"><a class="viewcode-back" href="../../devito.html#devito.compiler.jit_compile">[docs]</a><span class="k">def</span> <span class="nf">jit_compile</span><span class="p">(</span><span class="n">soname</span><span class="p">,</span> <span class="n">code</span><span class="p">,</span> <span class="n">compiler</span><span class="p">):</span>

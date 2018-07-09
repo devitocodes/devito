@@ -160,7 +160,7 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
 
-<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span>
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span><span class="p">,</span> <span class="n">save</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">rewrite</span>
@@ -172,11 +172,10 @@
                            <span class="n">ArrayCast</span><span class="p">,</span> <span class="n">PointerCast</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="k">import</span> <span class="n">schedule</span><span class="p">,</span> <span class="n">section</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">create_profile</span>
+<span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">Timer</span><span class="p">,</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span>
-                          <span class="n">numpy_to_ctypes</span><span class="p">,</span> <span class="n">split</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Object</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span>
+                          <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">numpy_to_ctypes</span><span class="p">,</span> <span class="n">split</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">Callable</span><span class="p">):</span>
@@ -244,7 +243,7 @@
         <span class="n">stree</span> <span class="o">=</span> <span class="n">schedule</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
         <span class="n">stree</span> <span class="o">=</span> <span class="n">section</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
 
-        <span class="c1"># Lower Sections to an Iteration/Expression tree (IET)</span>
+        <span class="c1"># Lower Schedule tree to an Iteration/Expression tree (IET)</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
 
         <span class="c1"># Insert code for C-level performance profiling</span>
@@ -295,14 +294,12 @@
             <span class="n">dim</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">argument</span>
             <span class="n">osize</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">arg</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_end</span>
                      <span class="o">-</span> <span class="n">arg</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_start</span><span class="p">)</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">osize</span>
-                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
-                    <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">osize</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">osize</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">osize</span><span class="p">)</span>
 
         <span class="c1"># Add in the profiler argument</span>
         <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">()</span>
@@ -426,9 +423,29 @@
         <span class="sd">&quot;&quot;&quot;Introduce array and pointer casts at the top of the Iteration/Expression</span>
 <span class="sd">        tree ``iet``.&quot;&quot;&quot;</span>
         <span class="n">casts</span> <span class="o">=</span> <span class="p">[</span><span class="n">ArrayCast</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Tensor</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">]</span>
-        <span class="n">profiler</span> <span class="o">=</span> <span class="n">Object</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">)</span>
-        <span class="n">casts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PointerCast</span><span class="p">(</span><span class="n">profiler</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">casts</span> <span class="o">+</span> <span class="p">[</span><span class="n">iet</span><span class="p">])</span></div>
+        <span class="n">casts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PointerCast</span><span class="p">(</span><span class="n">Timer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">casts</span> <span class="o">+</span> <span class="p">[</span><span class="n">iet</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="p">:</span>
+            <span class="n">state</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">)</span>
+            <span class="c1"># The compiled shared-object will be pickled; upon unpickling, it</span>
+            <span class="c1"># will be restored into a potentially different temporary directory,</span>
+            <span class="c1"># so the entire process during which the shared-object is loaded and</span>
+            <span class="c1"># given to ctypes must be performed again</span>
+            <span class="n">state</span><span class="p">[</span><span class="s1">&#39;_lib&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">state</span><span class="p">[</span><span class="s1">&#39;_cfunction&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">state</span><span class="p">[</span><span class="s1">&#39;binary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">state</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="n">binary</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;binary&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">,</span> <span class="n">binary</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="OperatorRunnable"><a class="viewcode-back" href="../../devito.html#devito.operator.OperatorRunnable">[docs]</a><span class="k">class</span> <span class="nc">OperatorRunnable</span><span class="p">(</span><span class="n">Operator</span><span class="p">):</span>

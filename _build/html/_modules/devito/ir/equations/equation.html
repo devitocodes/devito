@@ -161,6 +161,7 @@
                                <span class="n">force_directions</span><span class="p">,</span> <span class="n">detect_flow_directions</span><span class="p">,</span> <span class="n">build_intervals</span><span class="p">,</span>
                                <span class="n">build_iterators</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">FrozenExpr</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Pickable</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;LoweredEq&#39;</span><span class="p">,</span> <span class="s1">&#39;ClusterizedEq&#39;</span><span class="p">,</span> <span class="s1">&#39;DummyEq&#39;</span><span class="p">]</span>
 
@@ -171,6 +172,8 @@
 <span class="sd">    A mixin providing operations common to all :mod:`ir` equation types.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">_state</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;is_Increment&#39;</span><span class="p">,</span> <span class="s1">&#39;ispace&#39;</span><span class="p">,</span> <span class="s1">&#39;dspace&#39;</span><span class="p">)</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Symbol</span>
@@ -178,6 +181,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_Increment</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ispace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -203,43 +210,49 @@
     <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">dtype</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state</span><span class="p">}</span>
+
 
 <div class="viewcode-block" id="LoweredEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.LoweredEq">[docs]</a><span class="k">class</span> <span class="nc">LoweredEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">IREq</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    LoweredEq(expr)</span>
-<span class="sd">    LoweredEq(expr, ispace, dspace, reads, writes)</span>
-<span class="sd">    LoweredEq(lhs, rhs, stamp=LoweredEq)</span>
+<span class="sd">    LoweredEq(sympy.Eq)</span>
+<span class="sd">    LoweredEq(devito.LoweredEq, **kwargs)</span>
+<span class="sd">    LoweredEq(lhs, rhs, **kwargs)</span>
 
 <span class="sd">    A SymPy equation with associated :class:`IterationSpace` and</span>
 <span class="sd">    :class:`DataSpace`.</span>
 
-<span class="sd">    When created as ``LoweredEq(expr)``, the iteration and data spaces are</span>
+<span class="sd">    When created as ``LoweredEq(sympy.Eq)``, the iteration and data spaces are</span>
 <span class="sd">    automatically derived from analysis of ``expr``.</span>
+
+<span class="sd">    When created as ``LoweredEq(devito.LoweredEq, **kwargs)``, the keyword</span>
+<span class="sd">    arguments can be anything that appears in ``LoweredEq._state`` (i.e.,</span>
+<span class="sd">    ispace, dspace, ...).</span>
+
+<span class="sd">    When created as ``LoweredEq(lhs, rhs, **kwargs)``, *all* keywords in</span>
+<span class="sd">    ``LoweredEq._state`` must appear in ``kwargs``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">_state</span> <span class="o">=</span> <span class="n">IREq</span><span class="o">.</span><span class="n">_state</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;reads&#39;</span><span class="p">,</span> <span class="s1">&#39;writes&#39;</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="c1"># origin: LoweredEq(expr)</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="n">input_expr</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="k">assert</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">LoweredEq</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="c1"># origin: LoweredEq(lhs, rhs, stamp=...)</span>
-            <span class="n">stamp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;stamp&#39;</span><span class="p">)</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stamp</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="n">stamp</span><span class="o">.</span><span class="n">is_Increment</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">_ispace</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">stamp</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">stamp</span><span class="o">.</span><span class="n">dspace</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">reads</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">writes</span> <span class="o">=</span> <span class="n">stamp</span><span class="o">.</span><span class="n">reads</span><span class="p">,</span> <span class="n">stamp</span><span class="o">.</span><span class="n">writes</span>
-            <span class="k">return</span> <span class="n">expr</span>
-        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
-            <span class="c1"># origin: LoweredEq(expr, ispace, space)</span>
-            <span class="n">input_expr</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="p">,</span> <span class="n">reads</span><span class="p">,</span> <span class="n">writes</span> <span class="o">=</span> <span class="n">args</span>
-            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ispace</span><span class="p">,</span> <span class="n">IterationSpace</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dspace</span><span class="p">,</span> <span class="n">DataSpace</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">LoweredEq</span><span class="p">):</span>
+            <span class="c1"># origin: LoweredEq(devito.LoweredEq, **kwargs)</span>
+            <span class="n">input_expr</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">input_expr</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="n">input_expr</span><span class="o">.</span><span class="n">is_Increment</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">_ispace</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">reads</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">writes</span> <span class="o">=</span> <span class="n">reads</span><span class="p">,</span> <span class="n">writes</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_state</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">expr</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Eq</span><span class="p">):</span>
+            <span class="c1"># origin: LoweredEq(sympy.Eq)</span>
+            <span class="n">input_expr</span> <span class="o">=</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_state</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
             <span class="k">return</span> <span class="n">expr</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot construct LoweredEq from args=</span><span class="si">%s</span><span class="s2"> &quot;</span>
@@ -277,25 +290,33 @@
 
         <span class="c1"># Finally create the LoweredEq with all metadata attached</span>
         <span class="n">expr</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">LoweredEq</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="s1">&#39;is_Increment&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">expr</span><span class="o">.</span><span class="n">_is_Increment</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="s1">&#39;is_Increment&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="n">expr</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">dspace</span>
         <span class="n">expr</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">ispace</span>
-        <span class="n">expr</span><span class="o">.</span><span class="n">reads</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">writes</span> <span class="o">=</span> <span class="n">detect_io</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="n">expr</span><span class="o">.</span><span class="n">_reads</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">_writes</span> <span class="o">=</span> <span class="n">detect_io</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">expr</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">reads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reads</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">writes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_writes</span>
+
 <div class="viewcode-block" id="LoweredEq.xreplace"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.LoweredEq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">LoweredEq</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="n">stamp</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">LoweredEq</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="LoweredEq.func"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.LoweredEq.func">[docs]</a>    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">LoweredEq</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">stamp</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">LoweredEq</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div></div>
 
 
-<div class="viewcode-block" id="ClusterizedEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.ClusterizedEq">[docs]</a><span class="k">class</span> <span class="nc">ClusterizedEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">IREq</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
+<div class="viewcode-block" id="ClusterizedEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.ClusterizedEq">[docs]</a><span class="k">class</span> <span class="nc">ClusterizedEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">IREq</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    ClusterizedEq(expr, ispace, dspace)</span>
-<span class="sd">    ClusterizedEq(lhs, rhs, stamp=ClusterizedEq)</span>
+<span class="sd">    ClusterizedEq(devito.IREq, **kwargs)</span>
+<span class="sd">    ClusterizedEq(lhs, rhs, **kwargs)</span>
 
 <span class="sd">    A SymPy equation with associated :class:`IterationSpace` and</span>
 <span class="sd">    :class:`DataSpace`.</span>
@@ -314,27 +335,31 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="c1"># origin: ClusterizedEq(lhs, rhs, stamp=...)</span>
-            <span class="n">stamp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;stamp&#39;</span><span class="p">)</span>
-            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stamp</span><span class="p">,</span> <span class="n">ClusterizedEq</span><span class="p">)</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="n">stamp</span><span class="o">.</span><span class="n">is_Increment</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">_ispace</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">stamp</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">stamp</span><span class="o">.</span><span class="n">dspace</span>
-        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
-            <span class="c1"># origin: ClusterizedEq(expr, ispace, dspace)</span>
-            <span class="n">input_expr</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span> <span class="o">=</span> <span class="n">args</span>
-            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ispace</span><span class="p">,</span> <span class="n">IterationSpace</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dspace</span><span class="p">,</span> <span class="n">DataSpace</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># origin: ClusterizedEq(expr, **kwargs)</span>
+            <span class="n">input_expr</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">input_expr</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span> <span class="o">=</span> <span class="n">input_expr</span><span class="o">.</span><span class="n">is_Increment</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">_ispace</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_state</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">input_expr</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">IterationSpace</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="n">DataSpace</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1"># origin: ClusterizedEq(lhs, rhs, **kwargs)</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_state</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot construct ClusterizedEq from args=</span><span class="si">%s</span><span class="s2"> &quot;</span>
                              <span class="s2">&quot;and kwargs=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)))</span>
         <span class="k">return</span> <span class="n">expr</span>
 
 <div class="viewcode-block" id="ClusterizedEq.func"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.ClusterizedEq.func">[docs]</a>    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">stamp</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">)</span></div>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;lhs&#39;</span><span class="p">,</span> <span class="s1">&#39;rhs&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">IREq</span><span class="o">.</span><span class="n">_state</span>
+    <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span></div>
 
 
 <div class="viewcode-block" id="DummyEq"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.equation.DummyEq">[docs]</a><span class="k">class</span> <span class="nc">DummyEq</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">):</span>
@@ -356,7 +381,7 @@
             <span class="n">obj</span> <span class="o">=</span> <span class="n">LoweredEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot construct DummyEq from args=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">ClusterizedEq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">dspace</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">ClusterizedEq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">ispace</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">dspace</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

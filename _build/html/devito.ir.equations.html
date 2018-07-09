@@ -221,14 +221,19 @@ extracted.</li>
 <span id="devito-ir-equations-equation-module"></span><h2>devito.ir.equations.equation module<a class="headerlink" href="#module-devito.ir.equations.equation" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.ir.equations.equation.LoweredEq">
-<em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">LoweredEq</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#LoweredEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">LoweredEq</code><span class="sig-paren">(</span><em>sympy.Eq</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#LoweredEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code></p>
-<p>LoweredEq(expr, ispace, dspace, reads, writes)
-LoweredEq(lhs, rhs, stamp=LoweredEq)</p>
+<p>LoweredEq(devito.LoweredEq, <a href="#id5"><span class="problematic" id="id6">**</span></a>kwargs)
+LoweredEq(lhs, rhs, <a href="#id7"><span class="problematic" id="id8">**</span></a>kwargs)</p>
 <p>A SymPy equation with associated <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code> and
 <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code>.</p>
-<p>When created as <code class="docutils literal notranslate"><span class="pre">LoweredEq(expr)</span></code>, the iteration and data spaces are
+<p>When created as <code class="docutils literal notranslate"><span class="pre">LoweredEq(sympy.Eq)</span></code>, the iteration and data spaces are
 automatically derived from analysis of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+<p>When created as <code class="docutils literal notranslate"><span class="pre">LoweredEq(devito.LoweredEq,</span> <span class="pre">**kwargs)</span></code>, the keyword
+arguments can be anything that appears in <code class="docutils literal notranslate"><span class="pre">LoweredEq._state</span></code> (i.e.,
+ispace, dspace, …).</p>
+<p>When created as <code class="docutils literal notranslate"><span class="pre">LoweredEq(lhs,</span> <span class="pre">rhs,</span> <span class="pre">**kwargs)</span></code>, <em>all</em> keywords in
+<code class="docutils literal notranslate"><span class="pre">LoweredEq._state</span></code> must appear in <code class="docutils literal notranslate"><span class="pre">kwargs</span></code>.</p>
 <dl class="attribute">
 <dt id="devito.ir.equations.equation.LoweredEq.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -255,6 +260,16 @@ automatically derived from analysis of <code class="docutils literal notranslate
 </pre></div>
 </div>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.equations.equation.LoweredEq.reads">
+<code class="descname">reads</code><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq.reads" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.equations.equation.LoweredEq.writes">
+<code class="descname">writes</code><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq.writes" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="method">
 <dt id="devito.ir.equations.equation.LoweredEq.xreplace">
@@ -314,9 +329,9 @@ but xreplace does:</p>
 
 <dl class="class">
 <dt id="devito.ir.equations.equation.ClusterizedEq">
-<em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">ClusterizedEq</code><span class="sig-paren">(</span><em>expr</em>, <em>ispace</em>, <em>dspace</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#ClusterizedEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.ClusterizedEq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code>, <a class="reference internal" href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
-<p>ClusterizedEq(lhs, rhs, stamp=ClusterizedEq)</p>
+<em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">ClusterizedEq</code><span class="sig-paren">(</span><em>devito.IREq</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#ClusterizedEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.ClusterizedEq" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code>, <a class="reference internal" href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a>, <a class="reference internal" href="devito.tools.html#devito.tools.abc.Pickable" title="devito.tools.abc.Pickable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Pickable</span></code></a></p>
+<p>ClusterizedEq(lhs, rhs, <a href="#id9"><span class="problematic" id="id10">**</span></a>kwargs)</p>
 <p>A SymPy equation with associated <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code> and
 <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code>.</p>
 <p>There are two main differences between a <a class="reference internal" href="#devito.ir.equations.equation.LoweredEq" title="devito.ir.equations.equation.LoweredEq"><code class="xref py py-class docutils literal notranslate"><span class="pre">LoweredEq</span></code></a> and a

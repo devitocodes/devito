@@ -587,7 +587,12 @@
 <span class="sd">        A :class:`SubDimension` provides no arguments, so there are</span>
 <span class="sd">        no argument values to be derived.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{}</span></div>
+        <span class="k">return</span> <span class="p">{}</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_args</span> <span class="o">+</span>\
+        <span class="p">[</span><span class="s1">&#39;symbolic_start&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_end&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_size&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span></div>
 
 
 <div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -643,7 +648,10 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_properties</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span><span class="p">)</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;factor&#39;</span><span class="p">,</span> <span class="s1">&#39;condition&#39;</span><span class="p">]</span></div>
 
 
 <div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -784,6 +792,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{}</span>
 
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;offset&#39;</span><span class="p">,</span> <span class="s1">&#39;modulo&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+
 
 <span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
@@ -841,6 +853,10 @@
 <span class="sd">        no argument values to be derived.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{}</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_start&#39;</span><span class="p">,</span> <span class="s1">&#39;step&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="dimensions"><a class="viewcode-back" href="../../devito.html#devito.dimension.dimensions">[docs]</a><span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="n">names</span><span class="p">):</span>
