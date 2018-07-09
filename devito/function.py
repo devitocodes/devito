@@ -365,7 +365,7 @@ class TensorFunction(AbstractCachedFunction):
             neighbour = neighbours[dim][i]
             if neighbour is not None:
                 sendbuf = np.ascontiguousarray(self._get_owned(dim, i))
-                recvbuf = np.ndarray(shape=sendbuf.shape, dtype=sendbuf.dtype)
+                recvbuf = np.ndarray(shape=self._get_halo(dim, i).shape, dtype=self.dtype)
                 self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
                 self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
 

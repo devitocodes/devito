@@ -58,7 +58,7 @@ def test_halo_exchange_bilateral():
     """
     Test halo exchange between two processes organised in a 1x2 cartesian grid.
 
-    Their initial data_with_halo looks like:
+    The initial ``data_with_halo`` looks like:
 
            rank0           rank1
         0 0 0 0 0 0     0 0 0 0 0 0
@@ -98,12 +98,61 @@ def test_halo_exchange_bilateral():
 
 
 @skipif_yask
+@pytest.mark.parallel(nprocs=2)
+def test_halo_exchange_bilateral_asymmetric():
+    """
+    Test halo exchange between two processes organised in a 1x2 cartesian grid.
+
+    In this test, the size of left and right halo regions are different.
+
+    The initial ``data_with_halo`` looks like:
+
+           rank0           rank1
+        0 0 0 0 0 0 0     0 0 0 0 0 0 0
+        0 0 0 0 0 0 0     0 0 0 0 0 0 0
+        0 0 1 1 1 1 0     0 0 2 2 2 2 0
+        0 0 1 1 1 1 0     0 0 2 2 2 2 0
+        0 0 1 1 1 1 0     0 0 2 2 2 2 0
+        0 0 1 1 1 1 0     0 0 2 2 2 2 0
+        0 0 0 0 0 0 0     0 0 0 0 0 0 0
+
+    After the halo exchange, the following is expected and tested for:
+
+           rank0           rank1
+        0 0 0 0 0 0 0     0 0 0 0 0 0 0
+        0 0 0 0 0 0 0     0 0 0 0 0 0 0
+        0 0 1 1 1 1 2     1 1 2 2 2 2 0
+        0 0 1 1 1 1 2     1 1 2 2 2 2 0
+        0 0 1 1 1 1 2     1 1 2 2 2 2 0
+        0 0 1 1 1 1 2     1 1 2 2 2 2 0
+        0 0 0 0 0 0 0     0 0 0 0 0 0 0
+    """
+    grid = Grid(shape=(12, 12))
+    f = Function(name='f', grid=grid, space_order=(1, 2, 1))
+
+    distributor = grid.distributor
+    f.data[:] = distributor.myrank + 1
+
+    # Now trigger a halo exchange...
+    f.data_with_halo   # noqa
+
+    if distributor.myrank == 0:
+        assert np.all(f.data_ro_with_halo[2:-1, -1] == 2.)
+        assert np.all(f.data_ro_with_halo[:, 0:2] == 0.)
+    else:
+        assert np.all(f.data_ro_with_halo[2:-1, 0:2] == 1.)
+        assert np.all(f.data_ro_with_halo[:, -1] == 0.)
+    assert np.all(f.data_ro_with_halo[0:2] == 0.)
+    assert np.all(f.data_ro_with_halo[-1] == 0.)
+
+
+@skipif_yask
 @pytest.mark.parallel(nprocs=4)
 def test_halo_exchange_quadrilateral():
     """
     Test halo exchange between four processes organised in a 2x2 cartesian grid.
 
-    Their initial data_with_halo looks like:
+    The initial ``data_with_halo`` looks like:
 
            rank0           rank1
         0 0 0 0 0 0     0 0 0 0 0 0
@@ -175,4 +224,4 @@ def test_halo_exchange_quadrilateral():
 
 
 if __name__ == "__main__":
-    test_halo_exchange_quadrilateral()
+    test_halo_exchange_bilateral_asymmetric()

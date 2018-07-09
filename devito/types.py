@@ -571,15 +571,17 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         index_array = []
         for i in self.dimensions:
             if i == dimension:
+                # Note: the extent must be taken along the opposite side, because
+                # we send as much data as expected on the other side!
                 if direction is LEFT:
                     start = self._offset_domain[dimension].left
-                    extent = self._extent_halo[dimension].left
+                    extent = self._extent_halo[dimension].right
                     end = start + extent
                 else:
                     assert direction is RIGHT
                     start = -self._offset_domain[dimension].right -\
-                        self._extent_halo[dimension].right
-                    extent = self._extent_halo[dimension].right
+                        self._extent_halo[dimension].left
+                    extent = self._extent_halo[dimension].left
                     end = (start + extent) or None  # The end point won't be 0
                 index_array.append(slice(start, end))
             else:
