@@ -9,12 +9,7 @@ from devito.dle import (BasicRewriter, AdvancedRewriter, AdvancedRewriterSafeMat
 from devito.parameters import Parameters, add_sub_configuration
 
 core_configuration = Parameters('core')
-core_configuration.add('autotuning', 'basic', ['none', 'basic', 'aggressive'])
-
-env_vars_mapper = {
-    'DEVITO_AUTOTUNING': 'autotuning',
-}
-
+env_vars_mapper = {}
 add_sub_configuration(core_configuration, env_vars_mapper)
 
 # Initialize the DLE
