@@ -23,7 +23,7 @@ def benchmark():
 
     Further, this script can generate a roofline plot from a benchmark
     """
-    mode_benchmark()
+    pass
 
 
 def option_simulation(f):
@@ -56,16 +56,12 @@ def option_performance(f):
 
     _preset = {
         # Fixed
-        'O1': {'autotune': True, 'dse': 'basic', 'dle': 'basic'},
-        'O2': {'autotune': True, 'dse': 'advanced', 'dle': 'advanced'},
-        'O3': {'autotune': True, 'dse': 'aggressive', 'dle': 'advanced'},
+        'O1': {'dse': 'basic', 'dle': 'basic'},
+        'O2': {'dse': 'advanced', 'dle': 'advanced'},
+        'O3': {'dse': 'aggressive', 'dle': 'advanced'},
         # Parametric
-        'dse': {'autotune': True,
-                'dse': ['basic', 'advanced', 'aggressive'],
-                'dle': 'advanced'},
-        'dle': {'autotune': True,
-                'dse': 'advanced',
-                'dle': ['basic', 'advanced']}
+        'dse': {'dse': ['basic', 'advanced', 'aggressive'], 'dle': 'advanced'},
+        'dle': {'dse': 'advanced', 'dle': ['basic', 'advanced']}
     }
 
     def from_preset(ctx, param, value):
@@ -90,8 +86,6 @@ def option_performance(f):
         click.option('--dle', callback=from_value,
                      type=click.Choice(['noop'] + configuration._accepted['dle']),
                      help='Devito loop engine (DLE) mode'),
-        click.option('-a', '--autotune', is_flag=True, callback=from_value,
-                     help='Switch auto tuning on/off'),
     ]
     for option in reversed(options):
         f = option(f)
@@ -101,10 +95,13 @@ def option_performance(f):
 @benchmark.command(name='run')
 @option_simulation
 @option_performance
+@click.option('-a', '--autotune', is_flag=True,
+              help='Switch auto tuning on/off')
 def cli_run(problem, **kwargs):
     """
     A single run with a specific set of performance parameters.
     """
+    mode_benchmark()
     run(problem, **kwargs)
 
 
@@ -121,6 +118,8 @@ def run(problem, **kwargs):
 @benchmark.command(name='test')
 @option_simulation
 @option_performance
+@click.option('-a', '--autotune', is_flag=True,
+              help='Switch auto tuning on/off')
 def cli_test(problem, **kwargs):
     """
     Test numerical correctness with different parameters.
@@ -159,6 +158,8 @@ def cli_bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
+    mode_benchmark()
+    kwargs['autotune'] = configuration['autotuning'].level
     bench(problem, **kwargs)
 
 
@@ -181,6 +182,10 @@ def bench(problem, **kwargs):
 @benchmark.command(name='plot')
 @option_simulation
 @option_performance
+@click.option('--autotune', type=str, help='Used auto-tuning level')
+@click.option('--backend', default='core',
+              type=click.Choice(configuration._accepted['backend']),
+              help='Used execution backend (e.g., core, yask)')
 @click.option('-r', '--resultsdir', default='results',
               help='Directory containing results')
 @click.option('--max-bw', type=float,
@@ -203,6 +208,7 @@ def plot(problem, **kwargs):
     """
     Plotting mode to generate plots for performance analysis.
     """
+    backend = kwargs.pop('backend')
     resultsdir = kwargs.pop('resultsdir')
     max_bw = kwargs.pop('max_bw')
     flop_ceils = kwargs.pop('flop_ceil')
@@ -212,8 +218,6 @@ def plot(problem, **kwargs):
     space_order = "[%s]" % ",".join(str(i) for i in kwargs['space_order'])
     time_order = kwargs['time_order']
     shape = "[%s]" % ",".join(str(i) for i in kwargs['shape'])
-
-    backend = configuration['backend']
 
     RooflinePlotter = get_ob_plotter()
     bench = get_ob_bench(problem, resultsdir, kwargs)
@@ -231,15 +235,15 @@ def plot(problem, **kwargs):
     modes = [i for i in ['dse', 'dle', 'autotune']
              if len(set(dict(j)[i] for j in gflopss)) > 1]
 
-    # Filaneme
+    # Filename
     figname = "%s_dim%s_so%s_to%s_arch[%s]_bkend[%s].pdf" % (
         problem, shape, space_order, time_order, arch, backend
     )
 
     # Legend setup. Do not plot a legend if there's no variation in performance
-    # options (dse, dle, autotuning)
+    # options (dse, dle, autotune)
     if modes:
-        legend = {'loc': 'upper left', 'fontsize': 5, 'ncol': 4}
+        legend = {'loc': 'upper left', 'fontsize': 7, 'ncol': 4}
     else:
         legend = 'drop'
 
@@ -273,18 +277,18 @@ def plot(problem, **kwargs):
             marker = used_markers[so] if so in used_markers else avail_markers.pop(0)
             used_markers.setdefault(so, marker)
 
-            oi_loc = 0.05 if len(str(so)) == 1 else 0.06
-            oi_annotate = {'s': 'SO=%s' % so, 'size': 4, 'xy': (oi_value, oi_loc)}
+            oi_loc = 0.076 if len(str(so)) == 1 else 0.09
+            oi_annotate = {'s': 'SO=%s' % so, 'size': 6, 'xy': (oi_value, oi_loc)}
             if time_value in min_max[oi_value] and point_runtime:
                 # Only annotate min and max runtimes on each OI line, to avoid
                 # polluting the plot too much
-                point_annotate = {'s': "%.1f s" % time_value, 'xytext': (0, 5.2),
-                                  'size': 3.5, 'weight': 'bold', 'rotation': 0}
+                point_annotate = {'s': "%.0fs" % time_value, 'xytext': (0.0, 5.5),
+                                  'size': 6, 'rotation': 0}
             else:
                 point_annotate = None
             oi_line = time_value == min_max[oi_value][0]
             if oi_line:
-                perf_annotate = {'size': 4, 'xytext': (-4, 4)}
+                perf_annotate = {'size': 6, 'xytext': (-4, 5)}
 
             plot.add_point(gflops=v, oi=oi_value, marker=marker, color=color,
                            oi_line=oi_line, label=label, perf_annotate=perf_annotate,
@@ -311,8 +315,7 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['to'] = params['time_order']
             devito_params['dse'] = params['dse']
             devito_params['dle'] = params['dle']
-            devito_params['at'] = (params['autotune'] and
-                                   configuration.backend['autotuning'])
+            devito_params['at'] = params['autotune']
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
     return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)

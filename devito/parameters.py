@@ -3,10 +3,10 @@
 from collections import OrderedDict
 from os import environ
 
-from devito.tools import Signer
+from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'add_sub_configuration', 'mode_develop', 'mode_performance', 'mode_benchmark']
+           'add_sub_configuration']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -101,16 +101,19 @@ env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
     'DEVITO_ISA': 'isa',
     'DEVITO_PLATFORM': 'platform',
+    'DEVITO_PROFILING': 'profiling',
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
     'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
+    'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_LOGGING': 'log_level',
     'DEVITO_FIRST_TOUCH': 'first_touch',
     'DEVITO_DEBUG_COMPILER': 'debug_compiler',
 }
+
 
 configuration = Parameters("Devito-Configuration")
 """The Devito configuration parameters."""
@@ -119,9 +122,14 @@ configuration = Parameters("Devito-Configuration")
 def init_configuration(configuration=configuration, env_vars_mapper=env_vars_mapper):
     # Populate /configuration/ with user-provided options
     if environ.get('DEVITO_CONFIG') is None:
-        # Try env variables, otherwise stick to defaults
+        # At init time, it is important to first configure the compiler, then
+        # the backend (which is impacted by the compiler), finally everything
+        # else in any arbitrary order
+        process_order = filter_ordered(['compiler', 'backend'] +
+                                       list(env_vars_mapper.values()))
+        queue = sorted(env_vars_mapper.items(), key=lambda i: process_order.index(i[1]))
         unprocessed = OrderedDict([(v, environ.get(k, configuration._defaults[v]))
-                                   for k, v in sorted(env_vars_mapper.items())])
+                                   for k, v in queue])
     else:
         # Attempt reading from the specified configuration file
         raise NotImplementedError("Devito doesn't support configuration via file yet.")
@@ -181,24 +189,3 @@ def print_state():
     from devito.logger import info
     for k, v in configuration.items():
         info('%s: %s' % (k, v))
-
-
-def mode_develop():
-    """Run all future :class:`Operator`s in develop mode. This is the default
-    configuration for Devito."""
-    configuration['develop-mode'] = True
-
-
-def mode_performance():
-    """Run all future :class:`Operator`s in performance mode. The performance
-    mode will also try to allocate any future :class:`TensorFunction` with
-    a suitable NUMA strategy."""
-    configuration['develop-mode'] = False
-
-
-def mode_benchmark():
-    """Like ``mode_performance``, but also switch YASK's autotuner mode to
-    ``preemptive``."""
-    mode_performance()
-    if configuration['backend'] == 'yask':
-        configuration.yask['autotuning'] = 'preemptive'

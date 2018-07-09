@@ -158,7 +158,7 @@ class Operator(Callable):
         args.update(kwargs.pop('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        if kwargs.pop('autotune', False):
+        if kwargs.pop('autotune', configuration['autotuning'].level):
             args = self._autotune(args)
 
         # Check all user-provided keywords are known to the Operator
@@ -380,10 +380,13 @@ class OperatorRunnable(Operator):
                      (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
-    def _profile_sections(self, iet,):
-        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        iet, profiler = create_profile('timers', iet)
+    def _profile_sections(self, iet):
+        """Instrument the Iteration/Expression tree for C-level profiling."""
+        profiler = create_profile('timers')
+        iet = profiler.instrument(iet)
         self._globals.append(profiler.cdef)
+        self._includes.extend(profiler._default_includes)
+        self.func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
         return iet, profiler
 
 

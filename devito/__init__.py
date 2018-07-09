@@ -2,6 +2,8 @@ from __future__ import absolute_import
 
 import os
 from subprocess import PIPE, Popen
+from collections import namedtuple
+from itertools import product
 
 import cpuinfo
 
@@ -23,24 +25,39 @@ from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
 del get_versions
 
-# First add the compiler configuration option...
 configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
+configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
 
-
-def _cast_and_update_compiler(val):
+# OpenMP setup
+def _cast_and_update_compiler(val):  # noqa
     # Force re-build the compiler
     configuration['compiler'].__init__(suffix=configuration['compiler'].suffix)
     return bool(val)
+configuration.add('openmp', 0, [0, 1], callback=_cast_and_update_compiler)  # noqa
 
+# Autotuning setup
+AT_LEVELs = ['off', 'basic', 'aggressive']
+AT_MODEs = ['preemptive', 'runtime']
+at_default_mode = {'core': 'preemptive', 'yask': 'runtime'}
+at_setup = namedtuple('at_setup', 'level mode')
+at_accepted = AT_LEVELs + [list(i) for i in product(AT_LEVELs, AT_MODEs)]
+def _at_callback(val):  # noqa
+    if isinstance(val, str):
+        level, mode = val, at_default_mode[configuration['backend']]
+    else:
+        level, mode = val
+    if level == 'off':
+        level = False
+    if configuration['backend'] == 'core' and mode == 'runtime':
+        warning("Unsupported auto-tuning mode `runtime` with backend `core`")
+        return at_setup(level, 'preemptive')
+    else:
+        return at_setup(level, mode)
+configuration.add('autotuning', 'off', at_accepted, callback=_at_callback)  # noqa
 
-configuration.add('openmp', 0, [0, 1], callback=_cast_and_update_compiler)
+# Should Devito emit the JIT compilation commands?
 configuration.add('debug_compiler', 0, [0, 1], lambda i: bool(i))
-
-# ... then the backend configuration. The order is important since the
-# backend might depend on the compiler configuration.
-configuration.add('backend', 'core', list(backends_registry),
-                  callback=init_backend)
 
 # Set the Instruction Set Architecture (ISA)
 ISAs = ['cpp', 'avx', 'avx2', 'avx512']
@@ -110,3 +127,26 @@ init_configuration()
 
 # Expose a mechanism to clean up the symbol caches (SymPy's, Devito's)
 clear_cache = CacheManager().clear  # noqa
+
+
+# Helper functions to switch on/off optimisation levels
+def mode_develop():
+    """Run all future :class:`Operator`s in develop mode. This is the default
+    configuration for Devito."""
+    configuration['develop-mode'] = True
+
+
+def mode_performance():
+    """Run all future :class:`Operator`s in performance mode. The performance
+    mode will also try to allocate any future :class:`TensorFunction` with
+    a suitable NUMA strategy."""
+    configuration['develop-mode'] = False
+    configuration['autotuning'] = ['aggressive',
+                                   at_default_mode[configuration['backend']]]
+
+
+def mode_benchmark():
+    """Like ``mode_performance``, but also switch YASK's autotuner mode to
+    ``preemptive``."""
+    mode_performance()
+    configuration['autotuning'] = ['aggressive', 'preemptive']
