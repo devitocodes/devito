@@ -90,8 +90,8 @@ class Distributor(object):
     @property
     def neighbours(self):
         """
-        Return the mapper ``proc -> direction``; ``proc`` is the rank of a
-        neighboring process, while ``direction`` tells whether ``proc`` is
+        Return the mapper ``proc -> side``; ``proc`` is the rank of a
+        neighboring process, while ``side`` tells whether ``proc`` is
         logically at right (value=1) or left (value=-1) of ``self``.
         """
         shifts = {d: self._comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
@@ -106,10 +106,10 @@ class Distributor(object):
         return "Distributor(nprocs=%d)" % self.nprocs
 
 
-class RankRelativePosition(Tag):
+class Side(Tag):
     pass
 
 
-LEFT = RankRelativePosition('left')
-RIGHT = RankRelativePosition('right')
-CENTER = RankRelativePosition('center')
+LEFT = Side('left')
+RIGHT = Side('right')
+CENTER = Side('center')

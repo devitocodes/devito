@@ -545,18 +545,18 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return tuple(slice(i, -j) if j != 0 else slice(i, None)
                      for i, j in self._offset_halo)
 
-    def _get_halo(self, dimension, direction):
+    def _get_halo(self, dimension, side):
         """A view of the halo region along given :class:`Dimension`
-        and ``direction`` (an object of type :class:`RankRelativePosition`)."""
+        and ``side`` (an object of type :class:`Side`)."""
         index_array = []
         for i in self.dimensions:
             if i == dimension:
-                if direction is LEFT:
+                if side is LEFT:
                     start = self._offset_halo[dimension].left
                     extent = self._extent_halo[dimension].left
                     end = start + extent
                 else:
-                    assert direction is RIGHT
+                    assert side is RIGHT
                     start = -self._offset_domain[dimension].right
                     extent = self._extent_halo[dimension].right
                     end = (start + extent) or None  # The end point won't be 0
@@ -565,20 +565,20 @@ class AbstractCachedFunction(AbstractFunction, Cached):
                 index_array.append(slice(None))
         return self._data[index_array]
 
-    def _get_owned(self, dimension, direction):
+    def _get_owned(self, dimension, side):
         """A view of the owned region along given :class:`Dimension`
-        and ``direction`` (an object of type :class:`RankRelativePosition`)."""
+        and ``side`` (an object of type :class:`Side`)."""
         index_array = []
         for i in self.dimensions:
             if i == dimension:
                 # Note: the extent must be taken along the opposite side, because
                 # we send as much data as expected on the other side!
-                if direction is LEFT:
+                if side is LEFT:
                     start = self._offset_domain[dimension].left
                     extent = self._extent_halo[dimension].right
                     end = start + extent
                 else:
-                    assert direction is RIGHT
+                    assert side is RIGHT
                     start = -self._offset_domain[dimension].right -\
                         self._extent_halo[dimension].left
                     extent = self._extent_halo[dimension].left
