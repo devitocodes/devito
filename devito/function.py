@@ -20,7 +20,7 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import AbstractCachedFunction, AbstractCachedSymbol
+from devito.types import AbstractCachedFunction, AbstractCachedSymbol, OWNED, HALO
 from devito.tools import Tag, ReducerMap, prod, powerset, is_integer
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
@@ -364,8 +364,10 @@ class TensorFunction(AbstractCachedFunction):
         for i in [LEFT, RIGHT]:
             neighbour = neighbours[dim][i]
             if neighbour is not None:
-                sendbuf = np.ascontiguousarray(self._get_owned(dim, i))
-                recvbuf = np.ndarray(shape=self._get_halo(dim, i).shape, dtype=self.dtype)
+                owned_region = self._get_view(OWNED, dim, i)
+                halo_region = self._get_view(HALO, dim, i)
+                sendbuf = np.ascontiguousarray(owned_region)
+                recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
                 self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
                 self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
 
@@ -377,7 +379,7 @@ class TensorFunction(AbstractCachedFunction):
                 if payload is not None:
                     # The MPI.Request `req` originated from a `comm.Irecv`
                     # Now need to scatter the data to the right place
-                    self._get_halo(d, i)[:] = payload
+                    self._get_view(HALO, d, i)[:] = payload
             self._in_flight.remove((d, i, payload, req))
 
     @property

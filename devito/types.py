@@ -12,7 +12,7 @@ import sympy
 
 from devito.distributed import LEFT, RIGHT
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, Pickable, single_or
+from devito.tools import EnrichedTuple, Pickable, Tag, single_or
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -545,43 +545,61 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return tuple(slice(i, -j) if j != 0 else slice(i, None)
                      for i, j in self._offset_halo)
 
-    def _get_halo(self, dimension, side):
-        """A view of the halo region along given :class:`Dimension`
-        and ``side`` (an object of type :class:`Side`)."""
-        index_array = []
-        for i in self.dimensions:
-            if i == dimension:
-                if side is LEFT:
-                    offset = self._offset_halo[dimension].left
-                    extent = self._extent_halo[dimension].left
-                    end = offset + extent
-                else:
-                    assert side is RIGHT
-                    offset = -self._offset_domain[dimension].right
-                    extent = self._extent_halo[dimension].right
-                    end = (offset + extent) or None  # The end point won't be 0
-                index_array.append(slice(offset, end))
-            else:
-                index_array.append(slice(None))
-        return self._data[index_array]
+    def _get_region(self, region, dimension, side, symbolic=False):
+        """
+        Return the offset and the extent of a given region in ``self.data``.
 
-    def _get_owned(self, dimension, side):
-        """A view of the owned region along given :class:`Dimension`
-        and ``side`` (an object of type :class:`Side`)."""
-        index_array = []
-        for i in self.dimensions:
-            if i == dimension:
-                # Note: the extent must be taken along the opposite side, because
-                # we send as much data as expected on the other side!
-                if side is LEFT:
-                    offset = self._offset_domain[dimension].left
-                    extent = self._extent_halo[dimension].right
-                    end = offset + extent
-                else:
-                    assert side is RIGHT
+        :param region: The :class:`DataRegion` whose offset and extent are retrieved.
+        :param dimension: The region :class:`Dimension`.
+        :param side: The region side.
+        :param symbolic: (Optional) if True, a symbolic offset is returned in place
+                         of negative values representing the distance from the end.
+                         Defaults to False.
+        """
+        assert side in [LEFT, RIGHT]
+        assert region in [OWNED, HALO]
+
+        if region is OWNED:
+            if side is LEFT:
+                offset = self._offset_domain[dimension].left
+                extent = self._extent_halo[dimension].right
+            else:
+                if symbolic is False:
                     offset = -self._offset_domain[dimension].right -\
                         self._extent_halo[dimension].left
-                    extent = self._extent_halo[dimension].left
+                else:
+                    offset = self._offset_domain[dimension].left +\
+                        dimension.symbolic_size - self._extent_halo[dimension].left
+                extent = self._extent_halo[dimension].left
+        else:
+            if side is LEFT:
+                offset = self._offset_halo[dimension].left
+                extent = self._extent_halo[dimension].left
+            else:
+                if symbolic is False:
+                    offset = -self._offset_domain[dimension].right
+                else:
+                    offset = self._offset_domain[dimension].left + dimension.symbolic_size
+                extent = self._extent_halo[dimension].right
+
+        return offset, extent
+
+    def _get_view(self, region, dimension, side):
+        """
+        Return a special view of ``self.data``.
+
+        :param region: A :class:`DataRegion` representing the region of ``self.data``
+                       for which a view is produced.
+        :param dimension: The region :class:`Dimension`.
+        :param side: The region side.
+        """
+        index_array = []
+        for i in self.dimensions:
+            if i == dimension:
+                offset, extent = self._get_region(region, dimension, side)
+                if side is LEFT:
+                    end = offset + extent
+                else:
                     end = (offset + extent) or None  # The end point won't be 0
                 index_array.append(slice(offset, end))
             else:
@@ -782,3 +800,12 @@ class CacheManager(object):
         for key, val in list(_SymbolCache.items()):
             if val() is None:
                 del _SymbolCache[key]
+
+
+class DataRegion(Tag):
+    pass
+
+
+DOMAIN = DataRegion('domain')
+OWNED = DataRegion('owned')
+HALO = DataRegion('halo')
