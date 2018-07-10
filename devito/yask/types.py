@@ -26,12 +26,11 @@ class YaskGridObject(types.Object):
 
 class YaskSolnObject(types.Object):
 
-    name = namespace['code-soln-name']
     dtype = namespace['type-solution']
     value = None
 
-    def __init__(self):
-        pass
+    def __init__(self, name):
+        self.name = name
 
 
 class CacheManager(types.CacheManager):

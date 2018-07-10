@@ -78,8 +78,7 @@ class Profiler(object):
             self._sections[section] = SectionData(ops, sops, points, traffic, itershapes)
 
         # Transform the Iteration/Expression tree introducing the C-level timers
-        mapper = {i: TimedList(gname=self.name, lname=i.name, body=i.body)
-                  for i in sections}
+        mapper = {i: TimedList(gname=self.name, lname=i.name, body=i) for i in sections}
         iet = Transformer(mapper).visit(iet)
 
         return iet
