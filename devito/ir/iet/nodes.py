@@ -151,6 +151,18 @@ class Block(Node):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
                                       len(self.body), len(self.footer))
 
+    @property
+    def functions(self):
+        return ()
+
+    @property
+    def free_symbols(self):
+        return ()
+
+    @property
+    def defines(self):
+        return ()
+
 
 class List(Block):
 
@@ -586,12 +598,22 @@ class Conditional(Node):
             return "<[%s] ? [%s]" % (ccode(self.condition), repr(self.then_body))
 
     @property
+    def functions(self):
+        ret = []
+        for i in self.condition.free_symbols:
+            try:
+                ret.append(i.function)
+            except AttributeError:
+                pass
+        return tuple(ret)
+
+    @property
     def free_symbols(self):
-        """
-        Return all :class:`Symbol` objects used in the condition of this
-        :class:`Conditional`.
-        """
         return tuple(self.condition.free_symbols)
+
+    @property
+    def defines(self):
+        return ()
 
 
 class Definition(Node):
@@ -609,6 +631,10 @@ class Definition(Node):
 
     def __repr__(self):
         return "<Define: %s %s>" % (self.datatype, self.name)
+
+    @property
+    def functions(self):
+        return ()
 
     @property
     def free_symbols(self):
@@ -634,7 +660,6 @@ class TimedList(List):
         :param body: Timed block of code.
         """
         self._name = lname
-        # TODO: need omp master pragma to be thread safe
         header = [c.Statement("struct timeval start_%s, end_%s" % (lname, lname)),
                   c.Statement("gettimeofday(&start_%s, NULL)" % lname)]
         footer = [c.Statement("gettimeofday(&end_%s, NULL)" % lname),

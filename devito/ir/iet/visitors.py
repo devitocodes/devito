@@ -432,12 +432,16 @@ class FindSymbols(Visitor):
         symbols += self.rule(o)
         return filter_sorted(symbols, key=attrgetter('name'))
 
+    visit_Block = visit_Iteration
+    visit_Conditional = visit_Iteration
+
     def visit_Expression(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
     visit_ArrayCast = visit_Expression
     visit_PointerCast = visit_Expression
     visit_Call = visit_Expression
+    visit_Definition = visit_Expression
 
 
 class FindNodes(Visitor):
