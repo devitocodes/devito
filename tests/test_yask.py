@@ -262,10 +262,10 @@ class TestOperatorSimple(object):
         assert 'posix_memalign' not in str(op)
         assert 'run_solution' in str(op)
         # No data has been allocated for the temporaries yet
-        assert op.yk_soln.grids['r1'].is_storage_allocated() is False
+        assert list(op.yk_solns.values())[0].grids['r1'].is_storage_allocated() is False
         op.apply(yu4D=u, yv3D=v, time=0)
         # Temporary data has already been released after execution
-        assert op.yk_soln.grids['r1'].is_storage_allocated() is False
+        assert list(op.yk_solns.values())[0].grids['r1'].is_storage_allocated() is False
         assert np.all(v.data == 0.)
         assert np.all(u.data[1] == 5.)
 

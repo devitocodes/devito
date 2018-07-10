@@ -1,7 +1,6 @@
 import os
-import sys
-import importlib
 import warnings
+from importlib import import_module, invalidate_caches
 from glob import glob
 from subprocess import call
 from collections import OrderedDict
@@ -43,19 +42,18 @@ class YaskKernel(object):
         # Shared object name
         self.soname = "%s.devito.%s" % (name, configuration['platform'])
 
-        # The lock manager prevents race conditions
-        # `lock_m` is used only to keep the lock manager alive
-        with warnings.catch_warnings():
-            cleanup_m = CleanupManager()
-            lock_m = CacheLockManager(cleanup_m, namespace['yask-output-dir'])  # noqa
-
-        try:
-            # Has the kernel already been compiled in a previous session?
-            importlib.invalidate_caches()
-            yk = importlib.import_module(name)
+        if os.path.exists(os.path.join(namespace['yask-pylib'], '%s.py' % name)):
+            # Nothing to do -- the YASK solution was compiled in a previous session
+            yk = import_module(name)
             log("cache hit, `%s` imported w/o jitting" % name)
-        except ModuleNotFoundError:
-            # Nope !
+        else:
+            # We create and JIT compile a fresh YASK solution
+
+            # The lock manager prevents race conditions
+            # `lock_m` is used only to keep the lock manager alive
+            with warnings.catch_warnings():
+                cleanup_m = CleanupManager()
+                lock_m = CacheLockManager(cleanup_m, namespace['yask-output-dir'])  # noqa
 
             # The directory in which the YASK-generated code (.hpp) will be placed
             yk_codegen = namespace['yask-codegen'](name, 'devito',
@@ -101,12 +99,11 @@ class YaskKernel(object):
             make(namespace['path'], args)
 
             # Now we must be able to import the SWIG-generated Python module
-            sys.path.append(os.path.join(namespace['yask-output-dir'], 'yask'))
-            importlib.invalidate_caches()
-            yk = importlib.import_module(name)
+            invalidate_caches()
+            yk = import_module(name)
 
-        # Release the lock manager
-        cleanup_m.clean_up()
+            # Release the lock manager
+            cleanup_m.clean_up()
 
         # Create the YASK solution object
         kfac = yk.yk_factory()
@@ -146,12 +143,10 @@ class YaskKernel(object):
                                              [str(i) for i in obj.indices],
                                              [int(i) for i in obj.shape])  # cast np.int
 
-    def run(self, cfunction, arg_values, toshare):
+    def pre_apply(self, toshare):
         """
-        Run the YaskKernel through a JIT-compiled function.
+        Set up the YaskKernel before it's called from within an Operator.
 
-        :param cfunction: The JIT-compiler function, of type :class:`ctypes.FuncPtr`
-        :param arg_values: The run-time values to be passed to ``cfunction``.
         :param toshare: Mapper from functions to :class:`Data`s for sharing
                         grid storage.
         """
@@ -208,9 +203,10 @@ class YaskKernel(object):
         elif configuration['autotuning'] == 'preemptive':
             self.soln.run_auto_tuner_now()
 
-        # Run the kernel
-        cfunction(*arg_values)
-
+    def post_apply(self):
+        """
+        Release temporary storage and dump performance data about the last run.
+        """
         # Release grid storage. Note: this *will not* cause deallocation, as these
         # grids are actually shared with the hook solution
         for i in self.grids.values():
@@ -410,19 +406,19 @@ class ContextManager(OrderedDict):
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*hook*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*soln*')))
 
-    def fetch(self, grid, dtype, dimensions=None):
+    def fetch(self, dimensions, dtype):
         """
         Fetch the :class:`YaskContext` in ``self`` uniquely identified by
-        ``grid`` and ``dtype``.
+        ``dimensions`` and ``dtype``.
         """
-        key = self._getkey(grid, dtype, dimensions)
+        key = self._getkey(None, dtype, dimensions)
 
         context = self.get(key, self._partial_map.get(key))
         if context is not None:
-            log("Fetched existing context from cache")
+            log("Fetched existing YaskContext from cache")
             return context
         else:
-            exit("Couldn't find context for grid %s" % grid)
+            exit("Couldn't find YaskContext for key=`%s`" % str(key))
 
     def putdefault(self, grid):
         """
@@ -463,22 +459,3 @@ class ContextManager(OrderedDict):
 
 contexts = ContextManager()
 """All known YASK contexts."""
-
-
-# Helpers
-
-class YaskNullKernel(object):
-
-    """Used when an Operator doesn't actually have a YASK-offloadable tree."""
-
-    def __init__(self):
-        self.name = 'null solution'
-        self.grids = {}
-        self.local_grids = {}
-
-    def run(self, cfunction, arg_values, toshare):
-        cfunction(*arg_values)
-
-    @property
-    def rawpointer(self):
-        return None
