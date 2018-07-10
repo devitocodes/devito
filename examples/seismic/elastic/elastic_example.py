@@ -55,18 +55,18 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
-    parser.add_argument("-dse", "-dse", default="advanced",
+    parser.add_argument("-dse", default="advanced",
                         choices=["noop", "basic", "advanced",
                                  "speculative", "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
     parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
-                        help="Devito loop engine (DSE) mode")
+                        help="Devito loop engine (DLEE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
     args = parser.parse_args()
 
-    # 3D preset parameters
+    # 2D preset parameters
     shape = (150, 150)
     spacing = (15.0, 15.0)
     tn = 1500.0

@@ -12,7 +12,8 @@ def ForwardOperator(model, source, receiver, space_order=4,
     :param source: :class:`PointData` object containing the source geometry
     :param receiver: :class:`PointData` object containing the acquisition geometry
     :param space_order: Space discretization order
-    :param save: Saving flag, True saves all time steps, False only the three
+    :param save: Saving flag, True saves all time steps, False only the three buffered
+                 indices (last three time steps)
     """
     vp, vs, rho, damp = model.vp, model.vs, model.rho, model.damp
     s = model.grid.stepping_dim.spacing

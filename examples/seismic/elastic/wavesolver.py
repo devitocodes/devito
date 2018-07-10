@@ -43,8 +43,8 @@ class ElasticWaveSolver(object):
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data
+        :param src: (Optional) Symbol with time series data for the injected source term
+        :param rec: (Optional) Symbol to store interpolated receiver data
         :param u: (Optional) Symbol to store the computed wavefield
         :param m: (Optional) Symbol for the time-constant square slowness
         :param save: Option to store the entire (unrolled) wavefield

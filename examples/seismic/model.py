@@ -398,7 +398,7 @@ def initialize_function(function, data, nbpml):
 
 class Pysical_Model(object):
     """
-    General model class with comon properties
+    General model class with common properties
     """
     def __init__(self, origin, spacing, shape, space_order, nbpml=20,
                  dtype=np.float32):
@@ -469,7 +469,6 @@ class Model(Pysical_Model):
     :param space_order: Order of the spatial stencil discretisation
     :param vp: Velocity in km/s
     :param nbpml: The number of PML layers for boundary damping
-    :param rho: Density in kg/cm^3 (rho=1 for water)
     :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
     :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
     :param theta: Tilt angle in radian

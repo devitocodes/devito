@@ -61,13 +61,13 @@ if __name__ == "__main__":
     parser.add_argument("-k", dest="kernel", default='centered',
                         choices=['centered', 'shifted', 'staggered'],
                         help="Choice of finite-difference kernel")
-    parser.add_argument("-dse", "-dse", default="advanced",
+    parser.add_argument("-dse", default="advanced",
                         choices=["noop", "basic", "advanced",
                                  "speculative", "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
     parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
-                        help="Devito loop engine (DSE) mode")
+                        help="Devito loop engine (DLE) mode")
     args = parser.parse_args()
 
     preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'

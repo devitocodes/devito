@@ -7,6 +7,11 @@ from devito.finite_difference import (centered, first_derivative, right, transpo
 
 
 def second_order_stencil(model, u, v, H0, Hz):
+    """
+    Creates the stencil corresponding to the second order TTI wave equation
+    u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
+    v.dt2 =  (delta * H0 + Hz) - damp * v.dt
+    """
     # Stencils
     m, damp, delta, epsilon = model.m, model.damp, model.delta, model.epsilon
     s = model.grid.stepping_dim.spacing
