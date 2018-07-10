@@ -9,8 +9,8 @@ import sympy
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
-           'filter_sorted', 'numpy_to_ctypes', 'ctypes_to_C', 'ctypes_pointer',
-           'pprint', 'sweep', 'as_mapper']
+           'filter_sorted', 'numpy_to_ctypes', 'numpy_to_mpitypes', 'ctypes_to_C',
+           'ctypes_pointer', 'pprint', 'sweep', 'as_mapper']
 
 
 def prod(iterable):
@@ -154,6 +154,14 @@ def numpy_to_ctypes(dtype):
             np.float32: ctypes.c_float,
             np.int64: ctypes.c_int64,
             np.float64: ctypes.c_double}[dtype]
+
+
+def numpy_to_mpitypes(dtype):
+    """Map numpy types to MPI datatypes."""
+    return {np.int32: 'MPI_INT',
+            np.float32: 'MPI_FLOAT',
+            np.int64: 'MPI_LONG',
+            np.float64: 'MPI_DOUBLE'}[dtype]
 
 
 def ctypes_to_C(ctype):
