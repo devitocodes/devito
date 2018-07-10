@@ -225,6 +225,23 @@ def test_halo_exchange_quadrilateral():
         assert f.data_ro_with_halo[0, 0] == 1.
 
 
+@skipif_yask
+@pytest.mark.parallel(nprocs=[2, 4])
+def test_ctypes_neighboors():
+    grid = Grid(shape=(4, 4))
+    distributor = grid.distributor
+
+    attrs = ['xleft', 'xright', 'yleft', 'yright']
+    expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
+        2: [(-1, -1, -1, 1), (-1, -1, 0, -1)],
+        4: [(-1, 2, -1, 1), (-1, 3, 0, -1), (0, -1, -1, 3), (1, -1, 2, -1)]
+    }
+
+    mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+    ctype, _ = distributor._C_neighbours
+    assert all(getattr(ctype, k) == v for k, v in mapper.items())
+
+
 class TestCodeGeneration(object):
 
     def test_iet_copy(self):
@@ -257,4 +274,4 @@ class TestCodeGeneration(object):
 
 
 if __name__ == "__main__":
-    test_halo_exchange_bilateral_asymmetric()
+    test_ctypes_neighboors()

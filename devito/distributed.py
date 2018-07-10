@@ -1,3 +1,10 @@
+from collections import namedtuple
+from ctypes import Structure, c_int, c_void_p, sizeof
+from itertools import product
+
+from cached_property import cached_property
+from cgen import Struct, Value
+
 import numpy as np
 from mpi4py import MPI
 
@@ -101,6 +108,45 @@ class Distributor(object):
             ret[d][LEFT] = src if src != -1 else None
             ret[d][RIGHT] = dest if dest != -1 else None
         return ret
+
+    @cached_property
+    def _C_comm(self):
+        """
+        A :class:`Object` wrapping an MPI communicator.
+
+        Extracted from: ::
+
+            https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
+        """
+        from devito.types import Object
+        if MPI._sizeof(self._comm) == sizeof(c_int):
+            ctype = type('MPI_Comm', (c_int,), {})
+        else:
+            ctype = type('MPI_Comm', (c_void_p,), {})
+        comm_ptr = MPI._addressof(self._comm)
+        comm_val = ctype.from_address(comm_ptr)
+        return Object(name='comm', dtype=ctype, value=comm_val)
+
+    @cached_property
+    def _C_neighbours(self):
+        """A ctypes Struct to access the neighborhood of a given rank."""
+        from devito.types import Object
+        CNeighbours = namedtuple('CNeighbours', 'ctype cdef obj')
+        # The ctypes type
+        entries = list(product(self.dimensions, [LEFT, RIGHT]))
+        fields = [('%s%s' % (d, i), c_int) for d, i in entries]
+        ctype = type('neighbours', (Structure,), {"_fields_": fields})
+        # Populate the struct
+        value = ctype()
+        neighbours = self.neighbours
+        for d, i in entries:
+            setattr(value, '%s%s' % (d, i),
+                    neighbours[d][i] if neighbours[d][i] is not None else -1)
+        # The corresponding struct in C
+        cdef = Struct('neighbours', [Value('int', i) for i, _ in fields])
+        # The corresponding types.Object
+        obj = Object(name='nb', dtype=ctype, value=value)
+        return CNeighbours(ctype, cdef, obj)
 
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
