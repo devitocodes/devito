@@ -4,7 +4,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito import Grid, Function, TimeFunction, Eq, Operator
-from devito.ir.iet import copy, halo_exchange
+from devito.ir.iet import copy, mpi_exchange
 from devito.distributed import LEFT, RIGHT
 from devito.types import Array
 
@@ -238,30 +238,31 @@ def test_ctypes_neighboors():
     }
 
     mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-    ctype, _ = distributor._C_neighbours
-    assert all(getattr(ctype, k) == v for k, v in mapper.items())
+    _, _, obj = distributor._C_neighbours
+    assert all(getattr(obj.value, k) == v for k, v in mapper.items())
 
 
 class TestCodeGeneration(object):
 
     def test_iet_copy(self):
         grid = Grid(shape=(4, 4))
-        t = grid.stepping_dim
-
         f = TimeFunction(name='f', grid=grid)
 
-        iet = copy(f, {t: 0})
+        iet = copy(f)
         assert str(iet.parameters) ==\
-'(dst(dst_t, dst_x, dst_y), dst_t_size, dst_x_size,\
- dst_y_size, f(t, x, y), ox, oy, x_size, y_size)'
-        assert """for (int x = 0, dst_x = 0; x <= dst_x_size; x += 1, dst_x = dst_x + 1)
+'(dst(dst_time, dst_x, dst_y), dst_time_size, dst_x_size, dst_y_size,\
+ otime, ox, oy,\
+ src(src_time, src_x, src_y), src_time_size, src_x_size, src_y_size)'
+        assert """for (int time = 0; time <= dst_time_size; time += 1)
   {
-    for (int y = 0, dst_y = 0; y <= dst_y_size; y += 1, dst_y = dst_y + 1)
+    for (int x = 0; x <= dst_x_size; x += 1)
     {
-      dst[0][dst_x][dst_y] = f[0][x + ox][y + oy];
+      for (int y = 0; y <= dst_y_size; y += 1)
+      {
+        dst[time][x][y] = src[time + otime][x + ox][y + oy];
+      }
     }
-  }
-}""" in str(iet)
+  }""" in str(iet)
 
     def test_iet_halo_exchange(self):
         grid = Grid(shape=(4, 4))
@@ -269,7 +270,7 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = halo_exchange(f, {t: 0})
+        iet = mpi_exchange(f, {t: 0})
         from IPython import embed; embed()
 
 
