@@ -10,8 +10,8 @@ from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'IntDiv',
-           'FunctionFromPointer', 'FieldFromPointer', 'ListInitializer',
-           'Byref', 'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
+           'FunctionFromPointer', 'FieldFromPointer', 'ListInitializer', 'Byref',
+           'Macro', 'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
@@ -222,6 +222,12 @@ class Byref(sympy.Symbol, Pickable):
     _pickle_args = ['name']
     __reduce_ex__ = Pickable.__reduce_ex__
 
+
+class Macro(sympy.Symbol):
+    """
+    Symbolic representation of a C++ macro.
+    """
+    pass
 
 
 class taylor_sin(TrigonometricFunction):
