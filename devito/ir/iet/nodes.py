@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import abc
 import inspect
+import numbers
 from cached_property import cached_property
 from collections import Iterable, OrderedDict, namedtuple
 
@@ -194,7 +195,11 @@ class Call(Node):
     @cached_property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Call`."""
-        free = tuple(set(flatten(p.free_symbols for p in self.params)))
+        free = set()
+        for p in self.params:
+            if isinstance(p, numbers.Number):
+                continue
+            free.update(p.free_symbols)
         # HACK: Filter dimensions to avoid them on popping onto outer parameters
         free = tuple(s for s in free if not isinstance(s, Dimension))
         return free
