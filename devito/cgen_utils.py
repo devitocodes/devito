@@ -165,6 +165,9 @@ class CodePrinter(C99CodePrinter):
     def _print_IntDiv(self, expr):
         return str(expr)
 
+    def _print_Byref(self, expr):
+        return "&%s" % expr.name
+
 
 def ccode(expr, dtype=np.float32, **settings):
     """Generate C++ code from an expression calling CodePrinter class

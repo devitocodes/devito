@@ -11,7 +11,7 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'ListInitializer',
-           'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
+           'Byref', 'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
@@ -202,6 +202,26 @@ class ListInitializer(sympy.Expr, Pickable):
     # Pickling support
     _pickle_args = ['params']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Byref(sympy.Symbol, Pickable):
+
+    """
+    Symbolic representation of the C++ notation ``&symbol``.
+    """
+
+    def __new__(cls, name):
+        return sympy.Symbol.__new__(cls, name)
+
+    def __str__(self):
+        return "&%s" % self.name
+
+    __repr__ = __str__
+
+    # Pickling support
+    _pickle_args = ['name']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
 
 
 class taylor_sin(TrigonometricFunction):
