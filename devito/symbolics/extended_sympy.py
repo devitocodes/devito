@@ -10,8 +10,8 @@ from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'IntDiv',
-           'FunctionFromPointer', 'ListInitializer', 'taylor_sin', 'taylor_cos',
-           'bhaskara_sin', 'bhaskara_cos']
+           'FunctionFromPointer', 'FieldFromPointer', 'ListInitializer',
+           'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
@@ -154,6 +154,25 @@ class FunctionFromPointer(sympy.Expr, Pickable):
     _pickle_args = ['function', 'pointer']
     _pickle_kwargs = ['params']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class FieldFromPointer(FunctionFromPointer, Pickable):
+
+    """
+    Symbolic representation of the C notation ``pointer->field``.
+    """
+
+    def __new__(cls, field, pointer):
+        return FunctionFromPointer.__new__(cls, field, pointer)
+
+    def __str__(self):
+        return '%s->%s' % (self.pointer, self.function)
+
+    @property
+    def field(self):
+        return self.function
+
+    __repr__ = __str__
 
 
 class ListInitializer(sympy.Expr, Pickable):
