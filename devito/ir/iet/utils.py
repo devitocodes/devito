@@ -1,4 +1,5 @@
 from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
+from devito.symbolics import Macro
 from devito.tools import flatten
 from devito.types import Array
 
@@ -125,6 +126,9 @@ def derive_parameters(nodes, drop_locals=False):
 
     defines = [s.name for s in FindSymbols('defines').visit(nodes)]
     parameters = tuple(s for s in symbols if s.name not in defines)
+
+    # Drop globally-visible objects
+    parameters = [p for p in parameters if not isinstance(p, Macro)]
 
     # Filter out internally-allocated temporary `Array` types
     if drop_locals:
