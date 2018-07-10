@@ -7,7 +7,7 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.compiler import jit_compile, load
+from devito.compiler import jit_compile, load, save
 from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
@@ -19,11 +19,10 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
                            ArrayCast, PointerCast, derive_parameters)
 from devito.ir.stree import schedule, section
 from devito.parameters import configuration
-from devito.profiling import create_profile
+from devito.profiling import Timer, create_profile
 from devito.symbolics import indexify
-from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_sorted,
-                          numpy_to_ctypes, split)
-from devito.types import Object
+from devito.tools import (Signer, ReducerMap, as_tuple, flatten,
+                          filter_sorted, numpy_to_ctypes, split)
 
 
 class Operator(Callable):
@@ -91,7 +90,7 @@ class Operator(Callable):
         stree = schedule(clusters)
         stree = section(stree)
 
-        # Lower Sections to an Iteration/Expression tree (IET)
+        # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
 
         # Insert code for C-level performance profiling
@@ -142,14 +141,12 @@ class Operator(Callable):
             dim = arg.argument
             osize = (1 + arg.original_dim.symbolic_end
                      - arg.original_dim.symbolic_start).subs(args)
-
-            if dim.symbolic_size in self.parameters:
-                if arg.value is None:
-                    args[dim.symbolic_size.name] = osize
-                elif isinstance(arg.value, int):
-                    args[dim.symbolic_size.name] = arg.value
-                else:
-                    args[dim.symbolic_size.name] = arg.value(osize)
+            if arg.value is None:
+                args[dim.symbolic_size.name] = osize
+            elif isinstance(arg.value, int):
+                args[dim.symbolic_size.name] = arg.value
+            else:
+                args[dim.symbolic_size.name] = arg.value(osize)
 
         # Add in the profiler argument
         args[self.profiler.name] = self.profiler.new()
@@ -273,9 +270,29 @@ class Operator(Callable):
         """Introduce array and pointer casts at the top of the Iteration/Expression
         tree ``iet``."""
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
-        profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
-        casts.append(PointerCast(profiler))
+        casts.append(PointerCast(Timer(self.profiler)))
         return List(body=casts + [iet])
+
+    def __getstate__(self):
+        if self._lib:
+            state = dict(self.__dict__)
+            # The compiled shared-object will be pickled; upon unpickling, it
+            # will be restored into a potentially different temporary directory,
+            # so the entire process during which the shared-object is loaded and
+            # given to ctypes must be performed again
+            state['_lib'] = None
+            state['_cfunction'] = None
+            with open(self._lib._name, 'rb') as f:
+                state['binary'] = f.read()
+            return state
+        else:
+            return self.__dict__
+
+    def __setstate__(self, state):
+        binary = state.pop('binary')
+        for k, v in state.items():
+            setattr(self, k, v)
+        save(self._soname, binary, self._compiler)
 
 
 class OperatorRunnable(Operator):

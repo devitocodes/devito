@@ -397,7 +397,7 @@ class ContextManager(OrderedDict):
             dims = filter_sorted([i for i in dimensions if i.is_Space])
             return base + (tuple(dims),)
         else:
-            return base
+            return base + ((),)
 
     def dump(self):
         """
@@ -441,7 +441,7 @@ class ContextManager(OrderedDict):
         # Functions declared with explicit dimensions (i.e., with no Grid) must be
         # able to retrieve the right context
         partial_keys = [self._getkey(None, grid.dtype, i) for i in powerset(key[-1])]
-        if any(i in self._partial_map for i in partial_keys):
+        if any(i in self._partial_map for i in partial_keys if i[2]):
             warning("Non-unique Dimensions found in different contexts; dumping "
                     "all known contexts. Perhaps you're attempting to use multiple "
                     "Grids, and some of them share identical Dimensions? ")

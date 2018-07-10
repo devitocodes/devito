@@ -8,6 +8,7 @@ from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGrou
                                force_directions, detect_flow_directions, build_intervals,
                                build_iterators)
 from devito.symbolics import FrozenExpr
+from devito.tools import Pickable
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
@@ -18,6 +19,8 @@ class IREq(object):
     A mixin providing operations common to all :mod:`ir` equation types.
     """
 
+    _state = ('is_Increment', 'ispace', 'dspace')
+
     @property
     def is_Scalar(self):
         return self.lhs.is_Symbol
@@ -25,6 +28,10 @@ class IREq(object):
     @property
     def is_Tensor(self):
         return self.lhs.is_Indexed
+
+    @property
+    def is_Increment(self):
+        return self._is_Increment
 
     @property
     def ispace(self):
@@ -50,43 +57,49 @@ class IREq(object):
     def dtype(self):
         return self.lhs.dtype
 
+    @property
+    def state(self):
+        return {i: getattr(self, i) for i in self._state}
+
 
 class LoweredEq(Eq, IREq):
 
     """
-    LoweredEq(expr)
-    LoweredEq(expr, ispace, dspace, reads, writes)
-    LoweredEq(lhs, rhs, stamp=LoweredEq)
+    LoweredEq(sympy.Eq)
+    LoweredEq(devito.LoweredEq, **kwargs)
+    LoweredEq(lhs, rhs, **kwargs)
 
     A SymPy equation with associated :class:`IterationSpace` and
     :class:`DataSpace`.
 
-    When created as ``LoweredEq(expr)``, the iteration and data spaces are
+    When created as ``LoweredEq(sympy.Eq)``, the iteration and data spaces are
     automatically derived from analysis of ``expr``.
+
+    When created as ``LoweredEq(devito.LoweredEq, **kwargs)``, the keyword
+    arguments can be anything that appears in ``LoweredEq._state`` (i.e.,
+    ispace, dspace, ...).
+
+    When created as ``LoweredEq(lhs, rhs, **kwargs)``, *all* keywords in
+    ``LoweredEq._state`` must appear in ``kwargs``.
     """
 
+    _state = IREq._state + ('reads', 'writes')
+
     def __new__(cls, *args, **kwargs):
-        if len(args) == 1:
-            # origin: LoweredEq(expr)
-            expr = input_expr = args[0]
-            assert not isinstance(expr, LoweredEq) and isinstance(expr, Eq)
-        elif len(args) == 2:
-            # origin: LoweredEq(lhs, rhs, stamp=...)
-            stamp = kwargs.pop('stamp')
-            expr = Eq.__new__(cls, *args, evaluate=False)
-            assert isinstance(stamp, Eq)
-            expr.is_Increment = stamp.is_Increment
-            expr._ispace, expr._dspace = stamp.ispace, stamp.dspace
-            expr.reads, expr.writes = stamp.reads, stamp.writes
-            return expr
-        elif len(args) == 5:
-            # origin: LoweredEq(expr, ispace, space)
-            input_expr, ispace, dspace, reads, writes = args
-            assert isinstance(ispace, IterationSpace) and isinstance(dspace, DataSpace)
+        if len(args) == 1 and isinstance(args[0], LoweredEq):
+            # origin: LoweredEq(devito.LoweredEq, **kwargs)
+            input_expr = args[0]
             expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
-            expr.is_Increment = input_expr.is_Increment
-            expr._ispace, expr._dspace = ispace, dspace
-            expr.reads, expr.writes = reads, writes
+            for i in cls._state:
+                setattr(expr, '_%s' % i, kwargs.get(i) or getattr(input_expr, i))
+            return expr
+        elif len(args) == 1 and isinstance(args[0], Eq):
+            # origin: LoweredEq(sympy.Eq)
+            input_expr = expr = args[0]
+        elif len(args) == 2:
+            expr = Eq.__new__(cls, *args, evaluate=False)
+            for i in cls._state:
+                setattr(expr, '_%s' % i, kwargs.pop(i))
             return expr
         else:
             raise ValueError("Cannot construct LoweredEq from args=%s "
@@ -124,25 +137,33 @@ class LoweredEq(Eq, IREq):
 
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
-        expr.is_Increment = getattr(input_expr, 'is_Increment', False)
+        expr._is_Increment = getattr(input_expr, 'is_Increment', False)
         expr._dspace = dspace
         expr._ispace = ispace
-        expr.reads, expr.writes = detect_io(expr)
+        expr._reads, expr._writes = detect_io(expr)
 
         return expr
 
+    @property
+    def reads(self):
+        return self._reads
+
+    @property
+    def writes(self):
+        return self._writes
+
     def xreplace(self, rules):
-        return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), stamp=self)
+        return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), **self.state)
 
     def func(self, *args):
-        return super(LoweredEq, self).func(*args, stamp=self, evaluate=False)
+        return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
 
 
-class ClusterizedEq(Eq, IREq, FrozenExpr):
+class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
 
     """
-    ClusterizedEq(expr, ispace, dspace)
-    ClusterizedEq(lhs, rhs, stamp=ClusterizedEq)
+    ClusterizedEq(devito.IREq, **kwargs)
+    ClusterizedEq(lhs, rhs, **kwargs)
 
     A SymPy equation with associated :class:`IterationSpace` and
     :class:`DataSpace`.
@@ -161,27 +182,31 @@ class ClusterizedEq(Eq, IREq, FrozenExpr):
     """
 
     def __new__(cls, *args, **kwargs):
-        if len(args) == 2:
-            # origin: ClusterizedEq(lhs, rhs, stamp=...)
-            stamp = kwargs.pop('stamp')
-            assert isinstance(stamp, ClusterizedEq)
-            expr = Eq.__new__(cls, *args, evaluate=False)
-            expr.is_Increment = stamp.is_Increment
-            expr._ispace, expr._dspace = stamp.ispace, stamp.dspace
-        elif len(args) == 3:
-            # origin: ClusterizedEq(expr, ispace, dspace)
-            input_expr, ispace, dspace = args
-            assert isinstance(ispace, IterationSpace) and isinstance(dspace, DataSpace)
+        if len(args) == 1:
+            # origin: ClusterizedEq(expr, **kwargs)
+            input_expr = args[0]
             expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
-            expr.is_Increment = input_expr.is_Increment
-            expr._ispace, expr._dspace = ispace, dspace
+            for i in cls._state:
+                setattr(expr, '_%s' % i, kwargs.get(i) or getattr(input_expr, i))
+            assert isinstance(expr.ispace, IterationSpace)
+            assert isinstance(expr.dspace, DataSpace)
+        elif len(args) == 2:
+            # origin: ClusterizedEq(lhs, rhs, **kwargs)
+            expr = Eq.__new__(cls, *args, evaluate=False)
+            for i in cls._state:
+                setattr(expr, '_%s' % i, kwargs.pop(i))
         else:
             raise ValueError("Cannot construct ClusterizedEq from args=%s "
                              "and kwargs=%s" % (str(args), str(kwargs)))
         return expr
 
     def func(self, *args, **kwargs):
-        return super(ClusterizedEq, self).func(*args, stamp=self)
+        return super(ClusterizedEq, self).func(*args, **self.state)
+
+    # Pickling support
+    _pickle_args = ['lhs', 'rhs']
+    _pickle_kwargs = IREq._state
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class DummyEq(ClusterizedEq):
@@ -203,4 +228,4 @@ class DummyEq(ClusterizedEq):
             obj = LoweredEq(Eq(*args, evaluate=False))
         else:
             raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
-        return ClusterizedEq.__new__(cls, obj, obj.ispace, obj.dspace)
+        return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace, dspace=obj.dspace)
