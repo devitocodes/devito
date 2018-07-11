@@ -4,9 +4,8 @@ import pytest
 from conftest import skipif_yask
 
 from devito import Grid, Function, TimeFunction, Eq, Operator
-from devito.ir.iet import copy, mpi_exchange
+from devito.ir.iet import FindNodes, Conditional, printAST, copy, sendrecv, update_halo
 from devito.distributed import LEFT, RIGHT
-from devito.types import Array
 
 
 @skipif_yask
@@ -264,14 +263,31 @@ class TestCodeGeneration(object):
     }
   }""" in str(iet)
 
-    def test_iet_halo_exchange(self):
+    def test_iet_sendrecv(self):
         grid = Grid(shape=(4, 4))
-        t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = mpi_exchange(f, {t: 0})
-        from IPython import embed; embed()
+        iet = sendrecv(f)
+        assert str(iet.parameters) ==\
+'(dat(dat_time, dat_x, dat_y), buf_time_size, buf_x_size, buf_y_size, comm,\
+ dat_time_size, dat_x_size, dat_y_size, fromrank, ogtime, ogx, ogy, ostime,\
+ osx, osy, torank)'
+        assert str(iet.body[0]) ==\
+"""float bufs[buf_time_size][buf_x_size][buf_y_size] __attribute__((aligned(64)));
+MPI_Request rrecv;
+float bufg[buf_time_size][buf_x_size][buf_y_size] __attribute__((aligned(64)));
+MPI_Request rsend;
+MPI_Irecv((float*)bufs,buf_time_size*buf_x_size*buf_y_size,MPI_FLOAT,fromrank,\
+MPI_ANY_TAG,*_comm,&rrecv);
+gather((float*)bufg,buf_time_size,buf_x_size,buf_y_size,ogtime,ogx,ogy,(float*)dat,\
+dat_time_size,dat_x_size,dat_y_size);
+MPI_Isend((float*)bufg,buf_time_size*buf_x_size*buf_y_size,MPI_FLOAT,torank,\
+MPI_ANY_TAG,*_comm,&rsend);
+MPI_Wait(&rrecv,MPI_STATUS_IGNORE);
+MPI_Wait(&rsend,MPI_STATUS_IGNORE);
+scatter((float*)bufs,buf_time_size,buf_x_size,buf_y_size,ostime,osx,osy,\
+(float*)dat,dat_time_size,dat_x_size,dat_y_size);"""
 
 
 if __name__ == "__main__":
