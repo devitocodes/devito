@@ -718,6 +718,10 @@ class Object(Basic):
     def __repr__(self):
         return self.name
 
+    @property
+    def free_symbols(self):
+        return {self}
+
     def _arg_defaults(self):
         if callable(self.value):
             return {self.name: self.value()}
