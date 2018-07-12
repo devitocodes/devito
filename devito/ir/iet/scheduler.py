@@ -84,30 +84,30 @@ def iet_lower_steppers(iet):
     return iet
 
 
-def iet_insert_C_decls(iet, func_table):
+def iet_insert_C_decls(iet, func_table=None):
     """
     Given an Iteration/Expression tree ``iet``, build a new tree with the
     necessary symbol declarations. Declarations are placed as close as
     possible to the first symbol use.
 
     :param iet: The input Iteration/Expression tree.
-    :param func_table: A mapper from callable names to :class:`Callable`s
-                       called from within ``iet``.
+    :param func_table: (Optional) a mapper from callable names within ``iet``
+                       to :class:`Callable`s.
     """
-    # Resolve function calls first
+    func_table = func_table or {}
+    allocator = Allocator()
+    mapper = OrderedDict()
+
+    # First, schedule declarations for Expressions
     scopes = []
     me = MapExpressions()
     for k, v in me.visit(iet).items():
         if k.is_Call:
-            func = func_table[k.name]
-            if func.local:
+            func = func_table.get(k.name)
+            if func is not None and func.local:
                 scopes.extend(me.visit(func.root, queue=list(v)).items())
         else:
             scopes.append((k, v))
-
-    # Determine all required declarations
-    allocator = Allocator()
-    mapper = OrderedDict()
     for k, v in scopes:
         if k.is_scalar:
             # Inline declaration
@@ -123,6 +123,27 @@ def iet_insert_C_decls(iet, func_table):
         else:
             # On the heap, as a tensor that must be globally accessible
             allocator.push_heap(k.write)
+
+    # Then, schedule declarations callables arguments passed by reference/pointer
+    # (as modified internally by the callable)
+    scopes = [(k, v) for k, v in me.visit(iet).items() if k.is_Call]
+    for k, v in scopes:
+        site = v[-1] if v else iet
+        for i in k.params:
+            try:
+                if i.is_LocalObject:
+                    # On the stack
+                    allocator.push_stack(site, i)
+                elif i.is_Array:
+                    if i._mem_stack:
+                        # On the stack
+                        allocator.push_stack(site, i)
+                    elif i._mem_heap:
+                        # On the heap
+                        allocator.push_heap(i)
+            except AttributeError:
+                # E.g., a generic SymPy expression
+                pass
 
     # Introduce declarations on the stack
     for k, v in allocator.onstack:
