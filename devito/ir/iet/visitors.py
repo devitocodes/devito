@@ -147,7 +147,7 @@ class CGen(Visitor):
         for i in args:
             if i.is_AbstractObject:
                 ret.append(c.Value('void', '*_%s' % i.name))
-            elif i.is_Scalar:
+            elif i.is_Symbol:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             elif i.is_Tensor:
                 ret.append(c.Value(c.dtype_to_ctype(i.dtype),
