@@ -10,7 +10,6 @@ from functools import reduce
 import numpy as np
 import sympy
 
-from devito.distributed import LEFT, RIGHT
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, Pickable, Tag, ctypes_to_C
 
@@ -832,3 +831,12 @@ class DataRegion(Tag):
 DOMAIN = DataRegion('domain')
 OWNED = DataRegion('owned')
 HALO = DataRegion('halo')
+
+
+class DataSide(Tag):
+    pass
+
+
+LEFT = DataSide('left')
+RIGHT = DataSide('right')
+CENTER = DataSide('center')

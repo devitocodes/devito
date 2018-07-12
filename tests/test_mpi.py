@@ -4,8 +4,8 @@ import pytest
 from conftest import skipif_yask
 
 from devito import Grid, Function, TimeFunction, Eq, Operator
-from devito.ir.iet import FindNodes, Conditional, printAST, copy, sendrecv, update_halo
-from devito.distributed import LEFT, RIGHT
+from devito.mpi import copy, sendrecv
+from devito.types import LEFT, RIGHT
 
 
 @skipif_yask
@@ -248,6 +248,7 @@ class TestCodeGeneration(object):
         f = TimeFunction(name='f', grid=grid)
 
         iet = copy(f)
+        from IPython import embed; embed()
         assert str(iet.parameters) ==\
 '(dst(dst_time, dst_x, dst_y), dst_time_size, dst_x_size, dst_y_size,\
  otime, ox, oy,\

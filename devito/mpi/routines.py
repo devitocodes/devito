@@ -1,18 +1,15 @@
-from collections import OrderedDict
 from functools import reduce
-from itertools import product
 from operator import mul
 from ctypes import c_void_p
 
 from devito.dimension import Dimension
-from devito.distributed import LEFT, RIGHT
+from devito.mpi.utils import get_views
 from devito.ir.equations import DummyEq
-from devito.ir.iet.nodes import (ArrayCast, Call, Callable, Conditional,
-                                 Expression, Iteration, List, PointerCast)
-from devito.ir.iet.scheduler import iet_insert_C_decls
-from devito.ir.iet.utils import derive_parameters
+from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
+                           Iteration, List, PointerCast, iet_insert_C_decls,
+                           derive_parameters)
 from devito.symbolics import FieldFromPointer, Macro
-from devito.types import Array, Symbol, LocalObject, OWNED, HALO
+from devito.types import Array, Symbol, LocalObject, OWNED, HALO, LEFT, RIGHT
 from devito.tools import numpy_to_mpitypes
 
 __all__ = ['copy', 'sendrecv', 'update_halo']
@@ -94,33 +91,8 @@ def sendrecv(f):
     iet = List(body=[recv, gather, send, waitrecv, waitsend, scatter])
     iet = iet_insert_C_decls(iet)
     parameters = derive_parameters(iet, drop_locals=True)
+    from IPython import embed; embed()
     return Callable('sendrecv', iet, 'void', parameters, ('static',))
-
-
-def get_views(f, fixed):
-    """
-    Return a mapper ``(dimension, side, region) -> (size, offset)`` for a
-    :class:`TensorFunction`.
-    """
-    mapper = OrderedDict()
-    for dimension, side, region in product(f.dimensions, [LEFT, RIGHT], [OWNED, HALO]):
-        if dimension in fixed:
-            continue
-        sizes = []
-        offsets = []
-        for d, i in zip(f.dimensions, f.symbolic_shape):
-            if d in fixed:
-                sizes.append(1)
-                offsets.append(fixed[d])
-            elif dimension is d:
-                offset, extent = f._get_region(region, dimension, side, True)
-                sizes.append(extent)
-                offsets.append(offset)
-            else:
-                sizes.append(i)
-                offsets.append(0)
-        mapper[(dimension, side, region)] = (sizes, offsets)
-    return mapper
 
 
 def update_halo(f, fixed):

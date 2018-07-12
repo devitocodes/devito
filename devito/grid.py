@@ -1,6 +1,6 @@
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.distributed import Distributor
+from devito.mpi import Distributor
 from devito.function import Constant
 
 from sympy import prod

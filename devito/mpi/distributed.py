@@ -8,9 +8,9 @@ from cgen import Struct, Value
 import numpy as np
 from mpi4py import MPI
 
-from devito.tools import Tag
+from devito.types import LEFT, RIGHT
 
-__all__ = ['Distributor', 'LEFT', 'RIGHT', 'CENTER']
+__all__ = ['Distributor']
 
 
 class Distributor(object):
@@ -150,12 +150,3 @@ class Distributor(object):
 
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
-
-
-class Side(Tag):
-    pass
-
-
-LEFT = Side('left')
-RIGHT = Side('right')
-CENTER = Side('center')

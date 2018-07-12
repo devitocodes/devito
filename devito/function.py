@@ -10,7 +10,6 @@ from mpi4py import MPI
 from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
-from devito.distributed import LEFT, RIGHT
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.finite_difference import (centered, cross_derivative,
@@ -20,7 +19,8 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import AbstractCachedFunction, AbstractCachedSymbol, OWNED, HALO
+from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
+                          OWNED, HALO, LEFT, RIGHT)
 from devito.tools import Tag, ReducerMap, prod, powerset, is_integer
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
