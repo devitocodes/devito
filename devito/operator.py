@@ -265,7 +265,8 @@ class Operator(Callable):
 
     def _generate_mpi(self, iet, **kwargs):
         """Transform the Iteration/Expression tree adding nodes performing halo
-        exchanges in between parallel (distributed) :class:`Iteration`s."""
+        exchanges right before :class:`Iteration`s accessing distributed
+        :class:`TensorFunction`s."""
         return iet
 
     def _build_parameters(self, iet):

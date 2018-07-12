@@ -23,13 +23,14 @@ def copy(f, swap=False):
         * if ``swap=True``, a contiguous :class:`Array` into an arbitrary convex
           region of ``f``.
     """
-    src_indices, dst_indices = [], []
-    src_dimensions, dst_dimensions = [], []
-    for d in f.dimensions:
-        dst_dimensions.append(Dimension(name='dst_%s' % d.root))
-        src_dimensions.append(Dimension(name='src_%s' % d.root))
-        src_indices.append(d.root + Symbol(name='o%s' % d.root))
-        dst_indices.append(d.root)
+    src_dimensions = [Dimension(name='src_%s' % d.root) for d in f.dimensions]
+    dst_dimensions = [Dimension(name='dst_%s' % d.root) for d in f.dimensions]
+
+    offsets = [Symbol(name='o%s' % d.root) for d in f.dimensions]
+
+    src_indices = [d.root + i for d, i in zip(f.dimensions, offsets)]
+    dst_indices = [d.root for d in f.dimensions]
+
     src = Array(name='src', dimensions=src_dimensions, dtype=f.dtype)
     dst = Array(name='dst', dimensions=dst_dimensions, dtype=f.dtype)
 
@@ -44,7 +45,7 @@ def copy(f, swap=False):
     for d, dd in reversed(list(zip(f.dimensions, dst.dimensions))):
         iet = Iteration(iet, d.root, dd.symbolic_size)
     iet = List(body=[ArrayCast(src), ArrayCast(dst), iet])
-    parameters = derive_parameters(iet, drop_locals=True)
+    parameters = [dst, src] + list(dst.shape) + offsets + list(src.shape)
     return Callable(name, iet, 'void', parameters, ('static',))
 
 
@@ -67,9 +68,9 @@ def sendrecv(f):
     ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
     ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
 
-    params = [bufg] + list(bufg.symbolic_shape) + ofsg + [dat] + list(dat.symbolic_shape)
+    params = [bufg, dat] + list(bufg.shape) + ofsg + list(dat.shape)
     gather = Call('gather', params)
-    params = [bufs] + list(bufs.symbolic_shape) + ofss + [dat] + list(dat.symbolic_shape)
+    params = [bufs, dat] + list(bufs.shape) + ofss + list(dat.shape)
     scatter = Call('scatter', params)
 
     fromrank = Symbol(name='fromrank')
@@ -79,7 +80,7 @@ def sendrecv(f):
     rrecv = LocalObject(name='rrecv', dtype=MPI_Request)
     rsend = LocalObject(name='rsend', dtype=MPI_Request)
 
-    count = reduce(mul, bufs.symbolic_shape, 1)
+    count = reduce(mul, bufs.shape, 1)
     recv = Call('MPI_Irecv', [bufs, count, Macro(numpy_to_mpitypes(f.dtype)),
                               fromrank, Macro('MPI_ANY_TAG'), comm, rrecv])
     send = Call('MPI_Isend', [bufg, count, Macro(numpy_to_mpitypes(f.dtype)),
@@ -90,8 +91,8 @@ def sendrecv(f):
 
     iet = List(body=[recv, gather, send, waitrecv, waitsend, scatter])
     iet = iet_insert_C_decls(iet)
-    parameters = derive_parameters(iet, drop_locals=True)
-    from IPython import embed; embed()
+    parameters = ([dat] + list(dat.shape) + list(bufs.shape) +
+                  ofsg + ofss + [fromrank, torank, comm])
     return Callable('sendrecv', iet, 'void', parameters, ('static',))
 
 
@@ -122,8 +123,8 @@ def update_halo(f, fixed):
         rsizes, roffsets = mapper[(d, RIGHT, HALO)]
         assert lsizes == rsizes
         sizes = lsizes
-        parameters = ([f] + sizes + [comm] + list(f.symbolic_shape) + [rpeer] +
-                      loffsets + roffsets + [lpeer])
+        parameters = ([f] + list(f.symbolic_shape) + sizes + loffsets +
+                      roffsets + [rpeer, lpeer, comm])
         call = Call('sendrecv', parameters)
         body.append(Conditional(Symbol(name='m%sl' % d), call))
 
@@ -132,8 +133,8 @@ def update_halo(f, fixed):
         lsizes, loffsets = mapper[(d, LEFT, HALO)]
         assert rsizes == lsizes
         sizes = rsizes
-        parameters = ([f] + sizes + [comm] + list(f.symbolic_shape) + [lpeer] +
-                      roffsets + loffsets + [rpeer])
+        parameters = ([f] + list(f.symbolic_shape) + sizes + roffsets +
+                      loffsets + [lpeer, rpeer, comm])
         call = Call('sendrecv', parameters)
         body.append(Conditional(Symbol(name='m%sr' % d), call))
 
