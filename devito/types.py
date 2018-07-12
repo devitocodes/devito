@@ -34,14 +34,14 @@ class Basic(object):
                           to build equations.
         * AbstractFunction: represents a discrete function as a tensor; may
                             carry data; may be used to build equations.
-        * Object: represents a generic object, for example a (pointer to) data
-                  structure.
+        * AbstractObject: represents a generic object, for example a (pointer
+                          to) data structure.
 
                                         Basic
                                           |
                     ------------------------------------------
                     |                     |                  |
-             AbstractSymbol       AbstractFunction        Object
+             AbstractSymbol       AbstractFunction     AbstractObject
 
     .. note::
 
@@ -52,11 +52,13 @@ class Basic(object):
     # Top hierarchy
     is_AbstractFunction = False
     is_AbstractSymbol = False
-    is_Object = False
+    is_AbstractObject = False
 
     # Symbolic objects created internally by Devito
     is_Symbol = False
     is_Array = False
+    is_Object = False
+    is_LocalObject = False
 
     # Created by the user
     is_Input = False
@@ -694,18 +696,17 @@ class Array(AbstractCachedFunction):
 # that need to be passed to external libraries
 
 
-class Object(Basic):
+class AbstractObject(Basic):
 
     """
     Represent a generic pointer object.
     """
 
-    is_Object = True
+    is_AbstractObject = True
 
-    def __init__(self, name, dtype, value=None):
+    def __init__(self, name, dtype):
         self.name = name
         self.dtype = dtype
-        self.value = value
 
     def __repr__(self):
         return self.name
@@ -713,6 +714,23 @@ class Object(Basic):
     @property
     def free_symbols(self):
         return {self}
+
+    @property
+    def ctype(self):
+        return ctypes_to_C(self.dtype)
+
+
+class Object(AbstractObject):
+
+    """
+    Represent a generic pointer object, provided by the outside world.
+    """
+
+    is_Object = True
+
+    def __init__(self, name, dtype, value=None):
+        super(Object, self).__init__(name, dtype)
+        self.value = value
 
     def _arg_defaults(self):
         if callable(self.value):
@@ -725,6 +743,15 @@ class Object(Basic):
             return {self.name: kwargs.pop(self.name)}
         else:
             return {}
+
+
+class LocalObject(AbstractObject):
+
+    """
+    Represent a generic, yet locally defined, pointer object.
+    """
+
+    is_LocalObject = True
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:

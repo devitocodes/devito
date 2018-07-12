@@ -17,7 +17,7 @@ from devito.function import TimeFunction
 from devito.ir.iet.nodes import Node
 from devito.ir.support.space import Backward
 from devito.symbolics import xreplace_indices
-from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C, GenericVisitor
+from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
@@ -145,7 +145,7 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_Object:
+            if i.is_AbstractObject:
                 ret.append(c.Value('void', '*_%s' % i.name))
             elif i.is_Scalar:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
@@ -166,6 +166,8 @@ class CGen(Visitor):
             try:
                 if i.is_Object:
                     ret.append('*_%s' % i.name)
+                elif i.is_LocalObject:
+                    ret.append('&%s' % i.name)
                 elif i.is_Array:
                     ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
                 elif i.is_Symbol:
@@ -191,7 +193,7 @@ class CGen(Visitor):
         """
         Build cgen pointer casts for an :class:`Object`.
         """
-        ctype = ctypes_to_C(o.object.dtype)
+        ctype = o.object.ctype
         lvalue = c.Pointer(c.Value(ctype, o.object.name))
         rvalue = '(%s*) %s' % (ctype, '_%s' % o.object.name)
         return c.Initializer(lvalue, rvalue)
