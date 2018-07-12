@@ -32,9 +32,8 @@ def scalar(name):
     return Scalar(name=name)
 
 
-def array(name, shape, dimensions, onstack=False):
-    return Array(name=name, shape=shape, dimensions=dimensions,
-                 onstack=onstack, onheap=(not onstack))
+def array(name, shape, dimensions, scope='heap'):
+    return Array(name=name, shape=shape, dimensions=dimensions, scope=scope)
 
 
 def constant(name):
@@ -167,7 +166,7 @@ def c(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def c_stack(dims):
-    return array('c_stack', (3, 5), (dims['i'], dims['j']), True).indexify()
+    return array('c_stack', (3, 5), (dims['i'], dims['j']), 'stack').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)

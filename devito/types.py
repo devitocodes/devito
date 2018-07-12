@@ -12,7 +12,7 @@ import sympy
 
 from devito.distributed import LEFT, RIGHT
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, Pickable, Tag, single_or
+from devito.tools import EnrichedTuple, Pickable, Tag, ctypes_to_C
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -638,9 +638,10 @@ class Array(AbstractCachedFunction):
                  ``[(dim1_left_halo, dim1_right_halo), (dim2_left_halo, ...)]``
     :param padding: The padding region of the object, expressed as an iterable
                     ``[(dim1_left_pad, dim1_right_pad), (dim2_left_pad, ...)]``
-    :param external: Pass True if there is no need to allocate storage
-    :param onstack: Pass True to enforce allocation on the stack
-    :param onheap: Pass True to enforce allocation on the heap
+    :param scope: (Optional) Control memory allocation. Allowed values are
+                  ['heap', 'stack', 'external']. Defaults to 'heap'.
+                  'external' implies that no storage needs to be allocated
+                  for the Array.
     """
 
     is_Array = True
@@ -656,12 +657,8 @@ class Array(AbstractCachedFunction):
 
             self.dtype = kwargs.get('dtype', np.float32)
 
-            self._external = bool(kwargs.get('external', False))
-            self._onstack = bool(kwargs.get('onstack', False))
-            self._onheap = bool(kwargs.get('onheap', True))
-
-            # The memory scope of an Array must be well-defined
-            assert single_or([self._external, self._onstack, self._onheap])
+            self._scope = kwargs.get('scope', 'heap')
+            assert self._scope in ['heap', 'stack', 'external']
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -669,33 +666,28 @@ class Array(AbstractCachedFunction):
 
     @property
     def _mem_external(self):
-        return self._external
+        return self._scope == 'external'
 
     @property
     def _mem_stack(self):
-        return self._onstack
+        return self._scope == 'stack'
 
     @property
     def _mem_heap(self):
-        return self._onheap
+        return self._scope == 'heap'
 
     @property
     def shape(self):
         return self.symbolic_shape
 
-    def update(self, dtype=None, shape=None, dimensions=None, halo=None, padding=None,
-               onstack=None, onheap=None, external=None):
-        self.dtype = dtype or self.dtype
-        self._shape = shape or self.shape
-        self._indices = dimensions or self.indices
-        self._halo = halo or self._halo
-        self._padding = padding or self._padding
-
-        if any(i is not None for i in [external, onstack, onheap]):
-            self._external = bool(external)
-            self._onstack = bool(onstack)
-            self._onheap = bool(onheap)
-            assert single_or([self._external, self._onstack, self._onheap])
+    def update(self, **kwargs):
+        self.dtype = kwargs.get('dtype', self.dtype)
+        self._shape = kwargs.get('shape', self.shape)
+        self._indices = kwargs.get('dimensions', self.indices)
+        self._halo = kwargs.get('halo', self._halo)
+        self._padding = kwargs.get('padding', self._padding)
+        self._scope = kwargs.get('scope', self._scope)
+        assert self._scope in ['heap', 'stack', 'external']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures
