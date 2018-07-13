@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
-                           Conditional, Section, ExpressionBundle, MetaCall,
+                           Conditional, Section, HaloSpot, ExpressionBundle, MetaCall,
                            MapExpressions, Transformer, NestedTransformer, FindNodes,
                            ReplaceStepIndices, iet_analyze, filter_iterations)
 from devito.tools import as_mapper
@@ -56,6 +56,9 @@ def iet_make(stree):
         elif i.is_Section:
             body = [Section('section%d' % nsections, body=queues.pop(i))]
             nsections += 1
+
+        elif i.is_Halo:
+            body = [HaloSpot(i.halo_updates, body=queues.pop(i))]
 
         queues.setdefault(i.parent, []).extend(body)
 
