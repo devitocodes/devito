@@ -58,7 +58,7 @@ def iet_make(stree):
             nsections += 1
 
         elif i.is_Halo:
-            body = [HaloSpot(i.halo_updates, body=queues.pop(i))]
+            body = [HaloSpot(i.halo_scheme, body=queues.pop(i))]
 
         queues.setdefault(i.parent, []).extend(body)
 

@@ -5,7 +5,7 @@ from anytree import LevelOrderIter, findall
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeExprs, NodeSection, NodeHalo, insert)
 from devito.ir.support.space import DataSpace, IterationSpace
-from devito.mpi import derive_halo_updates
+from devito.mpi import derive_halo_scheme
 from devito.tools import flatten
 
 __all__ = ['st_build']
@@ -61,7 +61,7 @@ def st_schedule(clusters):
             mapper[i] = root
 
         # Add in Expressions
-        NodeExprs(c.exprs, c.dspace, c.shape, c.ops, c.traffic, root)
+        NodeExprs(c.exprs, c.shape, c.ops, c.traffic, root)
 
         # Add in Conditionals
         for k, v in mapper.items():
@@ -82,11 +82,12 @@ def st_haloify(stree):
     for n in LevelOrderIter(stree, stop=lambda i: i.parent in done):
         if not n.is_Iteration:
             continue
-        nexprs = findall(n, lambda i: i.is_Exprs)
-        dspace = DataSpace.merge(*[i.dspace for i in nexprs])
-        dmapper, fmapper = derive_halo_updates(dspace)
+        exprs = flatten(i.exprs for i in findall(n, lambda i: i.is_Exprs))
+        dspace = DataSpace.merge(*[i.dspace for i in exprs])
+        directions = {i.dim: i.direction for i in n.ancestors if i.is_Iteration}
+        dmapper, fmapper, fixed = derive_halo_scheme(dspace, directions)
         if n.dim in dmapper:
-            done[n] = NodeHalo(fmapper)
+            done[n] = NodeHalo(fmapper, fixed)
 
     for k, v in done.items():
         insert(v, k.parent, [k])

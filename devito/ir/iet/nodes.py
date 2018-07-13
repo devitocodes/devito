@@ -818,9 +818,21 @@ class HaloSpot(List):
 
     is_HaloSpot = True
 
-    def __init__(self, halo_updates, body=None):
+    def __init__(self, halo_scheme, body=None):
         super(HaloSpot, self).__init__(body=body)
-        self.halo_updates = halo_updates
+        self.halo_scheme = halo_scheme
+
+    @property
+    def fmapper(self):
+        return self.halo_scheme.fmapper
+
+    @property
+    def mask(self):
+        return self.halo_scheme.mask
+
+    @property
+    def fixed(self):
+        return self.halo_scheme.fixed
 
     def __repr__(self):
         return "<HaloSpot>"

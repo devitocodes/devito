@@ -86,10 +86,9 @@ class NodeExprs(ScheduleTree):
 
     is_Exprs = True
 
-    def __init__(self, exprs, dspace, shape, ops, traffic, parent=None):
+    def __init__(self, exprs, shape, ops, traffic, parent=None):
         super(NodeExprs, self).__init__(parent)
         self.exprs = exprs
-        self.dspace = dspace
         self.shape = shape
         self.ops = ops
         self.traffic = traffic
@@ -107,8 +106,8 @@ class NodeHalo(ScheduleTree):
 
     is_Halo = True
 
-    def __init__(self, halo_updates):
-        self.halo_updates = halo_updates
+    def __init__(self, halo_scheme):
+        self.halo_scheme = halo_scheme
 
     @property
     def __repr_render__(self):
