@@ -6,10 +6,23 @@ from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeExprs, NodeSection)
 from devito.tools import flatten
 
-__all__ = ['schedule', 'section']
+__all__ = ['st_build']
 
 
-def schedule(clusters):
+def st_build(clusters):
+    """
+    Create a :class:`ScheduleTree` from a :class:`ClusterGroup`.
+    """
+    # ClusterGroup -> Schedule tree
+    stree = st_schedule(clusters)
+
+    # Add in Sections
+    stree = st_section(stree)
+
+    return stree
+
+
+def st_schedule(clusters):
     """
     Arrange an iterable of :class:`Cluster`s into a :class:`ScheduleTree`.
     """
@@ -55,10 +68,10 @@ def schedule(clusters):
     return stree
 
 
-def section(stree):
+def st_section(stree):
     """
-    Create sections in a :class:`ScheduleTree`. A section is a sub-tree with
-    the following properties: ::
+    Add :class:`NodeSection` to a :class:`ScheduleTree`. A section defines a
+    sub-tree with the following properties: ::
 
         * The root is a node of type :class:`NodeSection`;
         * The immediate children of the root are nodes of type :class:`NodeIteration`
