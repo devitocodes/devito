@@ -22,7 +22,7 @@ from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatt
 from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
-           'Call', 'Conditional', 'Iteration', 'List', 'Definition', 'LocalExpression',
+           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression',
            'TimedList', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression',
            'Section', 'HaloSpot', 'IterationTree', 'ExpressionBundle']
 
@@ -41,7 +41,6 @@ class Node(Signer):
     is_Callable = False
     is_Call = False
     is_List = False
-    is_Definition = False
     is_Element = False
     is_Section = False
     is_HaloSpot = False
@@ -615,35 +614,6 @@ class Conditional(Node):
     @property
     def defines(self):
         return ()
-
-
-class Definition(Node):
-
-    """
-    A node representing the definition (declaration+allocation) of a
-    (primitive, or even composite) data type.
-    """
-
-    is_Definition = True
-
-    def __init__(self, datatype, name):
-        self.datatype = datatype
-        self.name = as_symbol(name)
-
-    def __repr__(self):
-        return "<Define: %s %s>" % (self.datatype, self.name)
-
-    @property
-    def functions(self):
-        return ()
-
-    @property
-    def free_symbols(self):
-        return (self.name,)
-
-    @property
-    def defines(self):
-        return (self.name,)
 
 
 # Second level IET nodes

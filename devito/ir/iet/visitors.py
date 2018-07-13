@@ -236,9 +236,6 @@ class CGen(Visitor):
         else:
             return c.If(ccode(o.condition), then_body)
 
-    def visit_Definition(self, o):
-        return c.Value(o.datatype, o.name)
-
     def visit_Iteration(self, o):
         body = flatten(self.visit(i) for i in o.children)
 
@@ -443,7 +440,6 @@ class FindSymbols(Visitor):
     visit_ArrayCast = visit_Expression
     visit_PointerCast = visit_Expression
     visit_Call = visit_Expression
-    visit_Definition = visit_Expression
 
 
 class FindNodes(Visitor):
