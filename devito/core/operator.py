@@ -1,10 +1,12 @@
-from __future__ import absolute_import
+from collections import OrderedDict
 
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.equation import Eq
-from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
+from devito.ir.iet import (List, Transformer, FindNodes, HaloSpot, MetaCall,
+                           filter_iterations, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
+from devito.mpi import copy, sendrecv, update_halo 
 from devito.operator import OperatorRunnable
 from devito.types import Array
 from devito.tools import flatten
@@ -21,11 +23,19 @@ class OperatorCore(OperatorRunnable):
         return super(OperatorCore, self)._specialize_exprs(expressions)
 
     def _generate_mpi(self, iet, **kwargs):
-        if kwargs.get('skip_mpi'):
-            return iet
-        # First, generate the `update_halo` functions
-        for i in self.input:
-            pass
+        # For each function, generate all necessary C-level routines to perform
+        # a halo exchange
+        mapper = {}
+        callables = []
+        halo_spots = FindNodes(HaloSpot).visit(iet)
+        for hs in halo_spots:
+            for f, v in hs.halo_updates.items():
+                callables.extend(copy(f), sendrecv(f), update_halo(f, hs.fixed))
+#
+#        # Generate all support routines
+#        #self._func_table.update(OrderedDict([(i.name, )]))
+#        from IPython import embed; embed()
+
         return iet
 
     def _autotune(self, args):

@@ -15,7 +15,7 @@ from devito.tools import numpy_to_mpitypes
 __all__ = ['copy', 'sendrecv', 'update_halo']
 
 
-def copy(f, swap=False):
+def copy(f, fixed, swap=False):
     """
     Construct a :class:`Callable` capable of copying: ::
 
@@ -23,33 +23,40 @@ def copy(f, swap=False):
         * if ``swap=True``, a contiguous :class:`Array` into an arbitrary convex
           region of ``f``.
     """
-    src_dimensions = [Dimension(name='src_%s' % d.root) for d in f.dimensions]
-    dst_dimensions = [Dimension(name='dst_%s' % d.root) for d in f.dimensions]
+    buf_dims = []
+    buf_indices = []
+    for d in f.dimensions:
+        if d not in fixed:
+            buf_dims.append(Dimension(name='buf_%s' % d.root))
+            buf_indices.append(d.root)
+    buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype)
 
-    offsets = [Symbol(name='o%s' % d.root) for d in f.dimensions]
-
-    src_indices = [d.root + i for d, i in zip(f.dimensions, offsets)]
-    dst_indices = [d.root for d in f.dimensions]
-
-    src = Array(name='src', dimensions=src_dimensions, dtype=f.dtype)
-    dst = Array(name='dst', dimensions=dst_dimensions, dtype=f.dtype)
+    dat_dims = []
+    dat_offsets = []
+    dat_indices = []
+    for d in f.dimensions:
+        dat_dims.append(Dimension(name='dat_%s' % d.root))
+        offset = Symbol(name='o%s' % d.root)
+        dat_offsets.append(offset)
+        dat_indices.append(offset + (d.root if d not in fixed else 0))
+    dat = Array(name='dat', dimensions=dat_dims, dtype=f.dtype)
 
     if swap is False:
-        eq = DummyEq(dst[dst_indices], src[src_indices])
-        name = 'gather'
+        eq = DummyEq(buf[buf_indices], dat[dat_indices])
+        name = 'gather_%s' % f.name
     else:
-        eq = DummyEq(src[src_indices], dst[dst_indices])
-        name = 'scatter'
+        eq = DummyEq(dat[dat_indices], buf[buf_indices])
+        name = 'scatter_%s' % f.name
 
     iet = Expression(eq)
-    for d, dd in reversed(list(zip(f.dimensions, dst.dimensions))):
-        iet = Iteration(iet, d.root, dd.symbolic_size)
-    iet = List(body=[ArrayCast(src), ArrayCast(dst), iet])
-    parameters = [dst, src] + list(dst.shape) + offsets + list(src.shape)
+    for i, d in reversed(list(zip(buf_indices, buf_dims))):
+        iet = Iteration(iet, i, d.symbolic_size)
+    iet = List(body=[ArrayCast(dat), ArrayCast(buf), iet])
+    parameters = [buf] + list(buf.shape) + [dat] + list(dat.shape) + dat_offsets
     return Callable(name, iet, 'void', parameters, ('static',))
 
 
-def sendrecv(f):
+def sendrecv(f, fixed):
     """Construct an IET performing a halo exchange along arbitrary
     dimension and side."""
     assert f.is_Function
@@ -57,21 +64,20 @@ def sendrecv(f):
 
     comm = f.grid.distributor._C_comm
 
-    buf_dimensions = [Dimension(name='buf_%s' % d.root) for d in f.dimensions]
-    bufg = Array(name='bufg', dimensions=buf_dimensions, dtype=f.dtype, scope='stack')
-    bufs = Array(name='bufs', dimensions=buf_dimensions, dtype=f.dtype, scope='stack')
+    buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions if d not in fixed]
+    bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, scope='stack')
+    bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype, scope='stack')
 
-    dat_dimensions = [Dimension(name='dat_%s' % d.root) for d in f.dimensions]
-    dat = Array(name='dat', dimensions=dat_dimensions, dtype=f.dtype,
-                scope='external')
+    dat_dims = [Dimension(name='dat_%s' % d.root) for d in f.dimensions]
+    dat = Array(name='dat', dimensions=dat_dims, dtype=f.dtype, scope='external')
 
     ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
     ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
 
-    params = [bufg, dat] + list(bufg.shape) + ofsg + list(dat.shape)
-    gather = Call('gather', params)
-    params = [bufs, dat] + list(bufs.shape) + ofss + list(dat.shape)
-    scatter = Call('scatter', params)
+    parameters = [bufg] + list(bufg.shape) + [dat] + list(dat.shape) + ofsg
+    gather = Call('gather_%s' % f.name, parameters)
+    parameters = [bufs] + list(bufs.shape) + [dat] + list(dat.shape) + ofss
+    scatter = Call('scatter_%s' % f.name, parameters)
 
     fromrank = Symbol(name='fromrank')
     torank = Symbol(name='torank')
@@ -93,7 +99,7 @@ def sendrecv(f):
     iet = iet_insert_C_decls(iet)
     parameters = ([dat] + list(dat.shape) + list(bufs.shape) +
                   ofsg + ofss + [fromrank, torank, comm])
-    return Callable('sendrecv', iet, 'void', parameters, ('static',))
+    return Callable('sendrecv_%s' % f.name, iet, 'void', parameters, ('static',))
 
 
 def update_halo(f, fixed):
@@ -107,6 +113,8 @@ def update_halo(f, fixed):
     distributor = f.grid.distributor
     nb = distributor._C_neighbours.obj
     comm = distributor._C_comm
+
+    fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}
 
     mapper = get_views(f, fixed)
 
@@ -140,4 +148,4 @@ def update_halo(f, fixed):
 
     iet = List(body=([PointerCast(comm), PointerCast(nb)] + body))
     parameters = derive_parameters(iet, drop_locals=True)
-    return Callable('halo_exchange', iet, 'void', parameters, ('static',))
+    return Callable('halo_exchange_%s' % f.name, iet, 'void', parameters, ('static',))

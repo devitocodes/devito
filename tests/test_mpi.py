@@ -4,7 +4,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito import Grid, Function, TimeFunction, Eq, Operator
-from devito.mpi import copy, sendrecv
+from devito.mpi import copy, sendrecv, update_halo
 from devito.types import LEFT, RIGHT
 
 
@@ -245,47 +245,77 @@ class TestCodeGeneration(object):
 
     def test_iet_copy(self):
         grid = Grid(shape=(4, 4))
+        t = grid.stepping_dim
+
         f = TimeFunction(name='f', grid=grid)
 
-        iet = copy(f)
+        iet = copy(f, [t])
         assert str(iet.parameters) == """\
-(dst(dst_time, dst_x, dst_y), src(src_time, src_x, src_y), dst_time_size, dst_x_size,\
- dst_y_size, otime, ox, oy, src_time_size, src_x_size, src_y_size)"""
-        assert """for (int time = 0; time <= dst_time_size; time += 1)
+(buf(buf_x, buf_y), buf_x_size, buf_y_size, dat(dat_time, dat_x, dat_y),\
+ dat_time_size, dat_x_size, dat_y_size, otime, ox, oy)"""
+        assert """\
+  for (int x = 0; x <= buf_x_size; x += 1)
   {
-    for (int x = 0; x <= dst_x_size; x += 1)
+    for (int y = 0; y <= buf_y_size; y += 1)
     {
-      for (int y = 0; y <= dst_y_size; y += 1)
-      {
-        dst[time][x][y] = src[time + otime][x + ox][y + oy];
-      }
+      buf[x][y] = dat[otime][x + ox][y + oy];
     }
   }""" in str(iet)
 
     def test_iet_sendrecv(self):
         grid = Grid(shape=(4, 4))
+        t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = sendrecv(f)
+        iet = sendrecv(f, [t])
         assert str(iet.parameters) == """\
-(dat(dat_time, dat_x, dat_y), dat_time_size, dat_x_size, dat_y_size, buf_time_size,\
+(dat(dat_time, dat_x, dat_y), dat_time_size, dat_x_size, dat_y_size,\
  buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy, fromrank, torank, comm)"""
         assert str(iet.body[0]) == """\
-float bufs[buf_time_size][buf_x_size][buf_y_size] __attribute__((aligned(64)));
+float bufs[buf_x_size][buf_y_size] __attribute__((aligned(64)));
 MPI_Request rrecv;
-float bufg[buf_time_size][buf_x_size][buf_y_size] __attribute__((aligned(64)));
+float bufg[buf_x_size][buf_y_size] __attribute__((aligned(64)));
 MPI_Request rsend;
-MPI_Irecv((float*)bufs,buf_time_size*buf_x_size*buf_y_size,MPI_FLOAT,fromrank,\
+MPI_Irecv((float*)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,\
 MPI_ANY_TAG,*_comm,&rrecv);
-gather((float*)bufg,(float*)dat,buf_time_size,buf_x_size,buf_y_size,ogtime,ogx,ogy,\
-dat_time_size,dat_x_size,dat_y_size);
-MPI_Isend((float*)bufg,buf_time_size*buf_x_size*buf_y_size,MPI_FLOAT,torank,\
+gather_f((float*)bufg,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
+dat_y_size,ogtime,ogx,ogy);
+MPI_Isend((float*)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,\
 MPI_ANY_TAG,*_comm,&rsend);
 MPI_Wait(&rrecv,MPI_STATUS_IGNORE);
 MPI_Wait(&rsend,MPI_STATUS_IGNORE);
-scatter((float*)bufs,(float*)dat,buf_time_size,buf_x_size,buf_y_size,ostime,osx,osy,\
-dat_time_size,dat_x_size,dat_y_size);"""
+scatter_f((float*)bufs,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
+dat_y_size,ostime,osx,osy);"""
+
+    def test_iet_update_halo(self):
+        grid = Grid(shape=(4, 4))
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        iet = update_halo(f, [t])
+        assert str(iet.parameters) == """\
+(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime, time_size, x_size, y_size)"""
+        assert """\
+MPI_Comm *comm = (MPI_Comm*) _comm;
+struct neighbours *nb = (struct neighbours*) _nb;
+if (mxl)
+{
+  sendrecv(f_vec,time_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,otime,1,0,otime,x_size + 1,0,nb->xright,nb->xleft,*_comm);
+}
+if (mxr)
+{
+  sendrecv(f_vec,time_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,otime,x_size,0,otime,0,0,nb->xleft,nb->xright,*_comm);
+}
+if (myl)
+{
+  sendrecv(f_vec,time_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,otime,0,1,otime,0,y_size + 1,nb->yright,nb->yleft,*_comm);
+}
+if (myr)
+{
+  sendrecv(f_vec,time_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,otime,0,y_size,otime,0,0,nb->yleft,nb->yright,*_comm);
+}"""
 
 
 if __name__ == "__main__":
