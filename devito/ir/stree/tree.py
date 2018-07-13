@@ -1,6 +1,7 @@
 from anytree import NodeMixin, PostOrderIter, RenderTree, ContStyle
 
-__all__ = ["ScheduleTree", "NodeSection", "NodeIteration", "NodeConditional", "NodeExprs"]
+__all__ = ["ScheduleTree", "NodeSection", "NodeIteration", "NodeConditional",
+           "NodeExprs", "NodeHalo"]
 
 
 class ScheduleTree(NodeMixin):
@@ -9,6 +10,7 @@ class ScheduleTree(NodeMixin):
     is_Iteration = False
     is_Conditional = False
     is_Exprs = False
+    is_Halo = False
 
     def __init__(self, parent=None):
         self.parent = parent
@@ -84,9 +86,10 @@ class NodeExprs(ScheduleTree):
 
     is_Exprs = True
 
-    def __init__(self, exprs, shape, ops, traffic, parent=None):
+    def __init__(self, exprs, dspace, shape, ops, traffic, parent=None):
         super(NodeExprs, self).__init__(parent)
         self.exprs = exprs
+        self.dspace = dspace
         self.shape = shape
         self.ops = ops
         self.traffic = traffic
@@ -98,6 +101,34 @@ class NodeExprs(ScheduleTree):
         ret = ",".join("Eq" for i in range(min(n, ths)))
         ret = ("%s,..." % ret) if n > ths else ret
         return "[%s]" % ret
+
+
+class NodeHalo(ScheduleTree):
+
+    is_Halo = True
+
+    def __init__(self, halo_updates):
+        self.halo_updates = halo_updates
+
+    @property
+    def __repr_render__(self):
+        return "<Halo>"
+
+
+def insert(node, parent, children):
+    """
+    Insert ``node`` between ``parent`` and ``children``, where ``children``
+    are a subset of nodes in ``parent.children``.
+    """
+    processed = []
+    for n in list(parent.children):
+        if n in children:
+            n.parent = node
+            if node not in processed:
+                processed.append(node)
+        else:
+            processed.append(n)
+    parent.children = processed
 
 
 def render(stree):

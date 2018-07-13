@@ -1,9 +1,11 @@
 from collections import OrderedDict
 
-from anytree import findall
+from anytree import LevelOrderIter, findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeExprs, NodeSection)
+                                  NodeExprs, NodeSection, NodeHalo, insert)
+from devito.ir.support.space import DataSpace, IterationSpace
+from devito.mpi import derive_halo_updates
 from devito.tools import flatten
 
 __all__ = ['st_build']
@@ -16,8 +18,11 @@ def st_build(clusters):
     # ClusterGroup -> Schedule tree
     stree = st_schedule(clusters)
 
-    # Add in Sections
+    # Add in section nodes
     stree = st_section(stree)
+
+    # Add in halo update nodes
+    stree = st_haloify(stree)
 
     return stree
 
@@ -45,7 +50,7 @@ def st_schedule(clusters):
 
         # The reused sub-trees might acquire some new sub-iterators
         for i in pointers[:index]:
-            mapper[i].ispace.merge(c.ispace)
+            mapper[i].ispace = IterationSpace.merge(mapper[i].ispace, c.ispace)
         # Later sub-trees, instead, will not be used anymore
         for i in pointers[index:]:
             mapper.pop(i)
@@ -56,7 +61,7 @@ def st_schedule(clusters):
             mapper[i] = root
 
         # Add in Expressions
-        NodeExprs(c.exprs, c.shape, c.ops, c.traffic, root)
+        NodeExprs(c.exprs, c.dspace, c.shape, c.ops, c.traffic, root)
 
         # Add in Conditionals
         for k, v in mapper.items():
@@ -64,6 +69,27 @@ def st_schedule(clusters):
                 node = NodeConditional(c.guards[k.dim])
                 v.last.parent = node
                 node.parent = v
+
+    return stree
+
+
+def st_haloify(stree):
+    """
+    Add :class:`NodeHalo` to a :class:`ScheduleTree`. A halo node describes
+    what halo exchanges should take place before executing the sub-tree.
+    """
+    done = {}
+    for n in LevelOrderIter(stree, stop=lambda i: i.parent in done):
+        if not n.is_Iteration:
+            continue
+        nexprs = findall(n, lambda i: i.is_Exprs)
+        dspace = DataSpace.merge(*[i.dspace for i in nexprs])
+        dmapper, fmapper = derive_halo_updates(dspace)
+        if n.dim in dmapper:
+            done[n] = NodeHalo(fmapper)
+
+    for k, v in done.items():
+        insert(v, k.parent, [k])
 
     return stree
 
@@ -112,15 +138,6 @@ def st_section(stree):
 
     # Transform the schedule tree by adding in sections
     for i in sections:
-        node = NodeSection()
-        processed = []
-        for n in list(i.parent.children):
-            if n in i.nodes:
-                n.parent = node
-                if node not in processed:
-                    processed.append(node)
-            else:
-                processed.append(n)
-        i.parent.children = processed
+        insert(NodeSection(), i.parent, i.nodes)
 
     return stree
