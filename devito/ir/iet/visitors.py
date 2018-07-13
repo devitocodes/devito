@@ -302,7 +302,7 @@ class CGen(Visitor):
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
         # Elemental functions
-        efuncs = [i.root.ccode for i in o.func_table.values() if i.local] + [blankline]
+        efuncs = [i.root.ccode for i in o._func_table.values() if i.local] + [blankline]
 
         # Header files, extra definitions, ...
         header = [c.Line(i) for i in o._headers]

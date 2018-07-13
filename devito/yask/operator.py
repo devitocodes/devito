@@ -91,7 +91,7 @@ class Operator(OperatorRunnable):
                 iet = Transformer(mapper).visit(iet)
 
                 # Mark `funcall` as an external function call
-                self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
+                self._func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
                 yk_soln = context.make_yk_solution(name, yc_soln, local_grids)

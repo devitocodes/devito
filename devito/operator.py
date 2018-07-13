@@ -68,7 +68,7 @@ class Operator(Callable):
         self._cfunction = None
 
         # References to local or external routines
-        self.func_table = OrderedDict()
+        self._func_table = OrderedDict()
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
@@ -102,7 +102,7 @@ class Operator(Callable):
         iet = self._generate_mpi(iet, **kwargs)
 
         # Insert the required symbol declarations
-        iet = iet_insert_C_decls(iet, self.func_table)
+        iet = iet_insert_C_decls(iet, self._func_table)
 
         # Insert data and pointer casts for array parameters and profiling structs
         iet = self._build_casts(iet)
@@ -184,7 +184,7 @@ class Operator(Callable):
 
     @property
     def elemental_functions(self):
-        return tuple(i.root for i in self.func_table.values())
+        return tuple(i.root for i in self._func_table.values())
 
     @cached_property
     def _soname(self):
@@ -255,8 +255,8 @@ class Operator(Callable):
 
         self._dle_args = dle_state.arguments
         self._dle_flags = dle_state.flags
-        self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                            for i in dle_state.elemental_functions]))
+        self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
+                                             for i in dle_state.elemental_functions]))
         self.dimensions.extend([i.argument for i in self._dle_args
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
@@ -411,7 +411,7 @@ class OperatorRunnable(Operator):
         iet = profiler.instrument(iet)
         self._globals.append(profiler.cdef)
         self._includes.extend(profiler._default_includes)
-        self.func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
+        self._func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
         return iet, profiler
 
 
