@@ -24,7 +24,7 @@ from devito.types import AbstractFunction, Symbol, Indexed
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'Definition', 'LocalExpression',
            'TimedList', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression',
-           'Section', 'IterationTree', 'ExpressionBundle']
+           'Section', 'HaloSpot', 'IterationTree', 'ExpressionBundle']
 
 # First-class IET nodes
 
@@ -44,6 +44,7 @@ class Node(Signer):
     is_Definition = False
     is_Element = False
     is_Section = False
+    is_HaloSpot = False
     is_ExpressionBundle = False
 
     """
@@ -841,6 +842,18 @@ class Section(List):
     @property
     def roots(self):
         return self.body
+
+
+class HaloSpot(List):
+
+    is_HaloSpot = True
+
+    def __init__(self, halo_updates, body=None):
+        super(HaloSpot, self).__init__(body=body)
+        self.halo_updates = halo_updates
+
+    def __repr__(self):
+        return "<HaloSpot>"
 
 
 class ExpressionBundle(List):
