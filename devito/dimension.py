@@ -521,27 +521,15 @@ class SteppingDimension(DerivedDimension):
 
     @property
     def symbolic_start(self):
-        """
-        The symbol defining the iteration start for this dimension.
-
-        note ::
-
-        Internally we always define symbolic iteration ranges in terms
-        of the parent variable.
-        """
         return self.parent.symbolic_start
 
     @property
     def symbolic_end(self):
-        """
-        The symbol defining the iteration end for this dimension.
-
-        note ::
-
-        Internally we always define symbolic iteration ranges in terms
-        of the parent variable.
-        """
         return self.parent.symbolic_end
+
+    @property
+    def symbolic_size(self):
+        return self.parent.symbolic_size
 
     @property
     def _arg_names(self):
