@@ -29,12 +29,14 @@ configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
 
-# OpenMP setup
-def _cast_and_update_compiler(val):  # noqa
+# Execution mode setup
+def _reinit_compiler(val):  # noqa
     # Force re-build the compiler
-    configuration['compiler'].__init__(suffix=configuration['compiler'].suffix)
+    configuration['compiler'].__init__(suffix=configuration['compiler'].suffix,
+                                       mpi=configuration['mpi'])
     return bool(val)
-configuration.add('openmp', 0, [0, 1], callback=_cast_and_update_compiler)  # noqa
+configuration.add('openmp', 0, [0, 1], callback=_reinit_compiler)  # noqa
+configuration.add('mpi', 0, [0, 1], callback=_reinit_compiler)
 
 # Autotuning setup
 AT_LEVELs = ['off', 'basic', 'aggressive']

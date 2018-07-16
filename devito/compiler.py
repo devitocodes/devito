@@ -105,13 +105,19 @@ class Compiler(GCCToolchain):
 
     CC = 'unknown'
     CPP = 'unknown'
+    MPICC = 'unknown'
+    MPICXX = 'unknown'
 
     def __init__(self, **kwargs):
         super(Compiler, self).__init__(**kwargs)
 
         self.suffix = kwargs.get('suffix')
-        self.cc = self.CC if kwargs.get('cpp', False) is False else self.CPP
-        self.cc = self.cc if self.suffix is None else ('%s-%s' % (self.cc, self.suffix))
+        if kwargs.get('mpi', False) is False:
+            self.cc = self.CC if kwargs.get('cpp', False) is False else self.CPP
+            self.cc = self.cc if self.suffix is None else ('%s-%s' %
+                                                           (self.cc, self.suffix))
+        else:
+            self.cc = self.MPICC if kwargs.get('cpp', False) is False else self.MPICXX
         self.ld = self.cc  # Wanted by the superclass
 
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
@@ -171,6 +177,8 @@ class GNUCompiler(Compiler):
 
     CC = 'gcc'
     CPP = 'g++'
+    MPICC = 'mpicc'
+    MPICXX = 'mpicxx'
 
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
@@ -208,6 +216,8 @@ class IntelCompiler(Compiler):
 
     CC = 'icc'
     CPP = 'icpc'
+    MPICC = 'mpiicc'
+    MPICXX = 'mpicxx'
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
@@ -249,6 +259,8 @@ class CustomCompiler(Compiler):
 
     CC = environ.get('CC', 'gcc')
     CPP = environ.get('CPP', 'g++')
+    MPICC = environ.get('MPICC', 'mpicc')
+    MPICXX = environ.get('MPICXX', 'mpicxx')
 
     def __init__(self, *args, **kwargs):
         super(CustomCompiler, self).__init__(*args, **kwargs)
