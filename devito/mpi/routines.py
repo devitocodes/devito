@@ -6,7 +6,7 @@ from devito.dimension import Dimension
 from devito.mpi.utils import get_views
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
-                           Iteration, List, PointerCast, iet_insert_C_decls,
+                           Iteration, List, iet_insert_C_decls,
                            derive_parameters)
 from devito.symbolics import FieldFromPointer, Macro
 from devito.types import Array, Symbol, LocalObject, OWNED, HALO, LEFT, RIGHT
@@ -96,7 +96,7 @@ def sendrecv(f, fixed):
     waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
     iet = List(body=[recv, gather, send, waitrecv, waitsend, scatter])
-    iet = iet_insert_C_decls(iet)
+    iet = List(body=[ArrayCast(dat), iet_insert_C_decls(iet)])
     parameters = ([dat] + list(dat.shape) + list(bufs.shape) +
                   ofsg + ofss + [fromrank, torank, comm])
     return Callable('sendrecv_%s' % f.name, iet, 'void', parameters, ('static',))
@@ -123,8 +123,8 @@ def update_halo(f, fixed):
         if d in fixed:
             continue
 
-        rpeer = FieldFromPointer("%sright" % d, nb.name)
-        lpeer = FieldFromPointer("%sleft" % d, nb.name)
+        rpeer = FieldFromPointer("%sright" % d, nb)
+        lpeer = FieldFromPointer("%sleft" % d, nb)
 
         # Sending to left, receiving from right
         lsizes, loffsets = mapper[(d, LEFT, OWNED)]
@@ -133,7 +133,7 @@ def update_halo(f, fixed):
         sizes = lsizes
         parameters = ([f] + list(f.symbolic_shape) + sizes + loffsets +
                       roffsets + [rpeer, lpeer, comm])
-        call = Call('sendrecv', parameters)
+        call = Call('sendrecv_%s' % f.name, parameters)
         body.append(Conditional(Symbol(name='m%sl' % d), call))
 
         # Sending to right, receiving from left
@@ -143,9 +143,9 @@ def update_halo(f, fixed):
         sizes = rsizes
         parameters = ([f] + list(f.symbolic_shape) + sizes + roffsets +
                       loffsets + [lpeer, rpeer, comm])
-        call = Call('sendrecv', parameters)
+        call = Call('sendrecv_%s' % f.name, parameters)
         body.append(Conditional(Symbol(name='m%sr' % d), call))
 
-    iet = List(body=([PointerCast(comm), PointerCast(nb)] + body))
+    iet = List(body=body)
     parameters = derive_parameters(iet, drop_locals=True)
     return Callable('halo_exchange_%s' % f.name, iet, 'void', parameters, ('static',))

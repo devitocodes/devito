@@ -4,8 +4,9 @@ from anytree import LevelOrderIter, findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support.space import DataSpace, IterationSpace
-from devito.mpi import derive_halo_scheme
+from devito.ir.support.space import IterationSpace
+from devito.mpi import HaloScheme, HaloSchemeException
+from devito.parameters import configuration
 from devito.tools import flatten
 
 __all__ = ['st_build']
@@ -22,7 +23,7 @@ def st_build(clusters):
     stree = st_section(stree)
 
     # Add in halo update nodes
-    stree = st_haloify(stree)
+    stree = st_make_halo(stree)
 
     return stree
 
@@ -73,23 +74,34 @@ def st_schedule(clusters):
     return stree
 
 
-def st_haloify(stree):
+def st_make_halo(stree):
     """
     Add :class:`NodeHalo` to a :class:`ScheduleTree`. A halo node describes
     what halo exchanges should take place before executing the sub-tree.
     """
-    done = {}
-    for n in LevelOrderIter(stree, stop=lambda i: i.parent in done):
+    processed = {}
+    for n in LevelOrderIter(stree, stop=lambda i: i.parent in processed):
         if not n.is_Iteration:
             continue
         exprs = flatten(i.exprs for i in findall(n, lambda i: i.is_Exprs))
-        dspace = DataSpace.merge(*[i.dspace for i in exprs])
-        directions = {i.dim: i.direction for i in n.ancestors if i.is_Iteration}
-        dmapper, fmapper, fixed = derive_halo_scheme(dspace, directions)
-        if n.dim in dmapper:
-            done[n] = NodeHalo(fmapper, fixed)
+        try:
+            halo_scheme = HaloScheme(exprs)
+            if n.dim in halo_scheme.dmapper:
+                processed[n] = NodeHalo(halo_scheme)
+        except HaloSchemeException:
+            # We should get here only when trying to compute a halo
+            # scheme for a group of expressions that belong to different
+            # iteration spaces. We expect proper halo schemes to be built
+            # as the `stree` visit proceeds.
+            # TODO: However, at the end, we should check that a halo scheme,
+            # possibly even a "void" one, has been built for *all* of the
+            # expressions, and error out otherwise.
+            continue
+        except RuntimeError as e:
+            if configuration['mpi'] is True:
+                raise RuntimeError(str(e))
 
-    for k, v in done.items():
+    for k, v in processed.items():
         insert(v, k.parent, [k])
 
     return stree
