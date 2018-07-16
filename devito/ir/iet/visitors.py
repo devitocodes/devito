@@ -295,14 +295,19 @@ class CGen(Visitor):
     def visit_Operator(self, o):
         # Kernel signature and body
         body = flatten(self.visit(i) for i in o.children)
-        params = o.parameters
-        decls = self._args_decl(params)
+        decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         retval = [c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
         # Elemental functions
-        efuncs = [i.root.ccode for i in o._func_table.values() if i.local] + [blankline]
+        esigns = []
+        efuncs = [blankline]
+        for i in o._func_table.values():
+            if i.local:
+                esigns.append(c.FunctionDeclaration(c.Value(i.root.retval, i.root.name),
+                                                    self._args_decl(i.root.parameters)))
+                efuncs.extend([i.root.ccode, blankline])
 
         # Header files, extra definitions, ...
         header = [c.Line(i) for i in o._headers]
@@ -313,7 +318,8 @@ class CGen(Visitor):
             cglobals += [c.Extern('C', signature)]
         cglobals = [i for j in cglobals for i in (j, blankline)]
 
-        return c.Module(header + includes + cglobals + efuncs + [kernel])
+        return c.Module(header + includes + cglobals +
+                        esigns + [blankline, kernel] + efuncs)
 
 
 class FindSections(Visitor):
