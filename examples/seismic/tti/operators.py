@@ -278,7 +278,7 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
     return field.laplace - Gzz_centered_2d(field, costheta, sintheta, space_order)
 
 
-def kernel_shifted_2d(model, u, v, costheta, sintheta, cosphi, sinphi, space_order):
+def kernel_shifted_2d(model, u, v, space_order):
     """
     TTI finite difference kernel. The equation we solve is:
 
@@ -291,19 +291,19 @@ def kernel_shifted_2d(model, u, v, costheta, sintheta, cosphi, sinphi, space_ord
 
     :param u: first TTI field
     :param v: second TTI field
-    :param costheta: cosine of the tilt angle
-    :param sintheta:  sine of the tilt angle
-    :param cosphi: cosine of the azymuth angle, has to be 0 in 2D
-    :param sinphi: sine of the azymuth angle, has to be 0 in 2D
     :param space_order: discretization order
     :return: u and v component of the rotated Laplacian in 2D
     """
+    # Tilt and azymuth setup
+    costheta = cos(model.theta)
+    sintheta = sin(model.theta)
+
     Gxx = Gxx_shifted_2d(u, costheta, sintheta, space_order)
     Gzz = Gzz_shifted_2d(v, costheta, sintheta, space_order)
     return second_order_stencil(model, u, v, Gxx, Gzz)
 
 
-def kernel_shifted_3d(model, u, v, costheta, sintheta, cosphi, sinphi, space_order):
+def kernel_shifted_3d(model, u, v, space_order):
     """
     TTI finite difference kernel. The equation we solve is:
 
@@ -316,20 +316,22 @@ def kernel_shifted_3d(model, u, v, costheta, sintheta, cosphi, sinphi, space_ord
 
     :param u: first TTI field
     :param v: second TTI field
-    :param costheta: cosine of the tilt angle
-    :param sintheta:  sine of the tilt angle
-    :param cosphi: cosine of the azymuth angle
-    :param sinphi: sine of the azymuth angle
     :param space_order: discretization order
     :return: u and v component of the rotated Laplacian in 3D
     """
+    # Tilt and azymuth setup
+    costheta = cos(model.theta)
+    sintheta = sin(model.theta)
+    cosphi = cos(model.phi)
+    sinphi = sin(model.phi)
+
     Gxx = Gxx_shifted(u, costheta, sintheta, cosphi, sinphi, space_order)
     Gyy = Gyy_shifted(u, cosphi, sinphi, space_order)
     Gzz = Gzz_shifted(v, costheta, sintheta, cosphi, sinphi, space_order)
     return second_order_stencil(model, u, v, Gxx + Gyy, Gzz)
 
 
-def kernel_centered_2d(model, u, v, costheta, sintheta, cosphi, sinphi, space_order):
+def kernel_centered_2d(model, u, v, space_order):
     """
     TTI finite difference kernel. The equation we solve is:
 
@@ -342,19 +344,19 @@ def kernel_centered_2d(model, u, v, costheta, sintheta, cosphi, sinphi, space_or
 
     :param u: first TTI field
     :param v: second TTI field
-    :param costheta: cosine of the tilt angle
-    :param sintheta:  sine of the tilt angle
-    :param cosphi: cosine of the azymuth angle, has to be 0 in 2D
-    :param sinphi: sine of the azymuth angle, has to be 0 in 2D
     :param space_order: discretization order
     :return: u and v component of the rotated Laplacian in 2D
     """
+    # Tilt and azymuth setup
+    costheta = cos(model.theta)
+    sintheta = sin(model.theta)
+
     Gxx = Gxx_centered_2d(u, costheta, sintheta, space_order)
     Gzz = Gzz_centered_2d(v, costheta, sintheta, space_order)
     return second_order_stencil(model, u, v, Gxx, Gzz)
 
 
-def kernel_centered_3d(model, u, v, costheta, sintheta, cosphi, sinphi, space_order):
+def kernel_centered_3d(model, u, v, space_order):
     """
     TTI finite difference kernel. The equation we solve is:
 
@@ -367,16 +369,112 @@ def kernel_centered_3d(model, u, v, costheta, sintheta, cosphi, sinphi, space_or
 
     :param u: first TTI field
     :param v: second TTI field
-    :param costheta: cosine of the tilt angle
-    :param sintheta:  sine of the tilt angle
-    :param cosphi: cosine of the azymuth angle
-    :param sinphi: sine of the azymuth angle
-    :param space_order: discretization order
     :return: u and v component of the rotated Laplacian in 2D
     """
+    # Tilt and azymuth setup
+    costheta = cos(model.theta)
+    sintheta = sin(model.theta)
+    cosphi = cos(model.phi)
+    sinphi = sin(model.phi)
+
     Gxx = Gxxyy_centered(u, costheta, sintheta, cosphi, sinphi, space_order)
     Gzz = Gzz_centered(v, costheta, sintheta, cosphi, sinphi, space_order)
     return second_order_stencil(model, u, v, Gxx, Gzz)
+
+
+def kernel_staggered_2d(model, u, v, space_order):
+    """
+    TTI finite difference. The equation solved is:
+    vx.dt = - u.dx
+    vz.dt = - v.dx
+    m * v.dt = - sqrt(1 + 2 delta) vx.dx - vz.dz + Fh
+    m * u.dt = - (1 + 2 epsilon) vx.dx - sqrt(1 + 2 delta) vz.dz + Fv
+    """
+    dampl = 1 - model.damp
+    m, epsilon, delta, theta = (model.m, model.epsilon, model.delta, model.theta)
+    s = model.grid.stepping_dim.spacing
+    # Staggered setup
+    stagg_x = (0, 1, 0)
+    stagg_z = (0, 0, 1)
+    x, z = model.grid.dimensions
+    # Create symbols for forward wavefield, source and receivers
+    vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
+                      time_order=1, space_order=space_order)
+    vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
+                      time_order=1, space_order=space_order)
+
+    # Stencils
+    phdx = staggered_diff(u, dim=x, order=space_order, stagger=left, theta=theta)
+    u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
+
+    pvdz = staggered_diff(v, dim=z, order=space_order, stagger=left, theta=theta)
+    u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
+
+    dvx = staggered_diff(vx.forward, dim=x, order=space_order, stagger=right,
+                         theta=theta)
+    dvz = staggered_diff(vz.forward, dim=z, order=space_order, stagger=right,
+                         theta=theta)
+
+    # u and v equations
+    pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * dvx + dvz)))
+
+    ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * dvx + delta * dvz)))
+
+    return [u_vx, u_vz] + [pv_eq, ph_eq]
+
+
+def kernel_staggered_3d(model, u, v, space_order):
+    """
+    TTI finite difference. The equation solved is:
+    vx.dt = - u.dx
+    vy.dt = - u.dx
+    vz.dt = - v.dx
+    m * v.dt = - sqrt(1 + 2 delta) (vx.dx + vy.dy) - vz.dz + Fh
+    m * u.dt = - (1 + 2 epsilon) (vx.dx + vy.dy) - sqrt(1 + 2 delta) vz.dz + Fv
+    """
+    dampl = 1 - model.damp
+    m, epsilon, delta, theta, phi = (model.m, model.epsilon, model.delta,
+                                     model.theta, model.phi)
+    s = model.grid.stepping_dim.spacing
+    # Staggered setup
+    stagg_x = (0, 1, 0, 0)
+    stagg_y = (0, 0, 1, 0)
+    stagg_z = (0, 0, 0, 1)
+    x, y, z = model.grid.dimensions
+    # Create symbols for forward wavefield, source and receivers
+    vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
+                      time_order=1, space_order=space_order)
+    vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
+                      time_order=1, space_order=space_order)
+    vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
+                      time_order=1, space_order=space_order)
+
+    # Stencils
+    phdx = staggered_diff(u, dim=x, order=space_order, stagger=left,
+                          theta=theta, phi=phi)
+    u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
+
+    phdy = staggered_diff(u, dim=y, order=space_order, stagger=left,
+                          theta=theta, phi=phi)
+    u_vy = Eq(vy.forward, dampl * vy - dampl * s * phdy)
+
+    pvdz = staggered_diff(v, dim=z, order=space_order, stagger=left,
+                          theta=theta, phi=phi)
+    u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
+
+    dvx = staggered_diff(vx.forward, dim=x, order=space_order, stagger=right,
+                         theta=theta, phi=phi)
+    dvy = staggered_diff(vy.forward, dim=y, order=space_order, stagger=right,
+                         theta=theta, phi=phi)
+    dvz = staggered_diff(vz.forward, dim=z, order=space_order, stagger=right,
+                         theta=theta, phi=phi)
+
+    # u and v equations
+    pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * (dvx + dvy) + dvz)))
+
+    ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * (dvx + dvy) + delta * dvz)))
+
+    return [u_vx, u_vy, u_vz] + [pv_eq, ph_eq]
 
 
 def ForwardOperator(model, source, receiver, space_order=4,
@@ -390,39 +488,30 @@ def ForwardOperator(model, source, receiver, space_order=4,
        :param: time_order: Time discretization order
        :param: spc_order: Space discretization order
        """
-    if kernel == 'staggered':
-        return ForwardOperatorStagg(model, source, receiver, space_order=space_order,
-                                    save=save, **kwargs)
+
     dt = model.grid.time_dim.spacing
     m = model.m
+    time_order = 1 if kernel == 'staggered' else 2
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
                      save=source.nt if save else None,
-                     time_order=2, space_order=space_order)
+                     time_order=time_order, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid,
                      save=source.nt if save else None,
-                     time_order=2, space_order=space_order)
+                     time_order=time_order, space_order=space_order)
     src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
                       npoint=source.npoint)
     rec = Receiver(name='rec', grid=model.grid, time_range=receiver.time_range,
                    npoint=receiver.npoint)
 
-    # Tilt and azymuth setup
-    ang0 = cos(model.theta)
-    ang1 = sin(model.theta)
-    ang2 = 0
-    ang3 = 0
-    if len(model.shape) == 3:
-        ang2 = cos(model.phi)
-        ang3 = sin(model.phi)
-
+    # FD kernels of the PDE
     FD_kernel = kernels[(kernel, len(model.shape))]
-    stencils = FD_kernel(model, u, v, ang0, ang1, ang2, ang3, space_order)
+    stencils = FD_kernel(model, u, v, space_order)
 
     # Source and receivers
-    stencils += src.inject(field=u.forward, expr=src * dt**2 / (m * u.grid.volume_cell),
+    stencils += src.inject(field=u.forward, expr=src * dt**2 / m,
                            offset=model.nbpml)
-    stencils += src.inject(field=v.forward, expr=src * dt**2 / (m * v.grid.volume_cell),
+    stencils += src.inject(field=v.forward, expr=src * dt**2 / m,
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
 
@@ -430,97 +519,98 @@ def ForwardOperator(model, source, receiver, space_order=4,
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
 
 
-def ForwardOperatorStagg(model, source, receiver, space_order=4,
-                         save=False, **kwargs):
-    """
-    Constructor method for the forward modelling operator in an acoustic media
-    :param model: :class:`Model` object containing the physical parameters
-    :param source: :class:`PointData` object containing the source geometry
-    :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param space_order: Space discretization order
-    :param save: Saving flag, True saves all time steps, False only the three
-    """
-    dt = model.grid.time_dim.spacing
-
-    m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
-                                           model.delta, model.theta, model.phi)
-    rho = 1
-    ndim = model.grid.dim
-    s = model.grid.time_dim.spacing
-    damp_loc = (1 - damp)
-    if ndim == 3:
-        stagg_x = (0, 1, 0, 0)
-        stagg_z = (0, 0, 0, 1)
-        stagg_y = (0, 0, 1, 0)
-        x, y, z = model.grid.dimensions
-    else:
-        stagg_x = (0, 1, 0)
-        stagg_z = (0, 0, 1)
-        x, z = model.grid.dimensions
-    # Create symbols for forward wavefield, source and receivers
-    vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                      time_order=1, space_order=space_order)
-    vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                      time_order=1, space_order=space_order)
-
-    if model.grid.dim == 3:
-        vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
-                          time_order=1, space_order=space_order)
-
-    pv = TimeFunction(name='u', grid=model.grid,
-                      save=source.nt if save else None,
-                      time_order=1, space_order=space_order)
-
-    ph = TimeFunction(name='v', grid=model.grid,
-                      save=source.nt if save else None,
-                      time_order=1, space_order=space_order)
-    # Stencils
-    phdx = staggered_diff(ph, dim=x, order=space_order, stagger=left,
-                          theta=theta, phi=phi)
-    u_vx = Eq(vx.forward, damp_loc * vx - damp_loc * s / rho * phdx)
-
-    pvdz = staggered_diff(pv, dim=z, order=space_order, stagger=left,
-                          theta=theta, phi=phi)
-    u_vz = Eq(vz.forward, damp_loc * vz - damp_loc * s / rho * pvdz)
-
-    dvx = staggered_diff(vx.forward, dim=x, order=space_order, stagger=right,
-                         theta=theta, phi=phi)
-    dvz = staggered_diff(vz.forward, dim=z, order=space_order, stagger=right,
-                         theta=theta, phi=phi)
-
-    u_vy = []
-    dvy = 0
-    if ndim == 3:
-        phdy = staggered_diff(ph, dim=y, order=space_order, stagger=left,
-                              theta=theta, phi=phi)
-        u_vy = [Eq(vy.forward, damp_loc * vy - damp_loc * s / rho * phdy)]
-        dvy = staggered_diff(vy.forward, dim=y, order=space_order, stagger=right,
-                             theta=theta, phi=phi)
-
-    pv_eq = Eq(pv.forward,
-               damp_loc * (pv - s * rho / m * (delta * (dvx + dvy) + dvz)))
-
-    ph_eq = Eq(ph.forward,
-               damp_loc * (ph - s * rho / m * (epsilon * (dvx + dvy) + delta * dvz)))
-
-    # Source symbol with input wavelet
-    src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
-                      npoint=source.npoint)
-    rec = Receiver(name='rec', grid=model.grid, time_range=receiver.time_range,
-                   npoint=receiver.npoint)
-    src_term = src.inject(field=pv.forward, offset=model.nbpml,
-                          expr=src * rho * dt / m)
-    src_term += src.inject(field=ph.forward, offset=model.nbpml,
-                           expr=src * rho * dt / m)
-    # Data is sampled at receiver locations
-    rec_term = rec.interpolate(expr=pv + ph, offset=model.nbpml)
-
-    # Substitute spacing terms to reduce flops
-    op = Operator([u_vx, u_vz] + u_vy + rec_term + [pv_eq, ph_eq] + src_term,
-                  subs=model.spacing_map, **kwargs)
-
-    return op
+# def ForwardOperatorStagg(model, source, receiver, space_order=4,
+#                          save=False, **kwargs):
+#     """
+#     Constructor method for the forward modelling operator in an acoustic media
+#     :param model: :class:`Model` object containing the physical parameters
+#     :param source: :class:`PointData` object containing the source geometry
+#     :param receiver: :class:`PointData` object containing the acquisition geometry
+#     :param space_order: Space discretization order
+#     :param save: Saving flag, True saves all time steps, False only the three
+#     """
+#     dt = model.grid.time_dim.spacing
+#
+#     m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
+#                                            model.delta, model.theta, model.phi)
+#     rho = 1
+#     ndim = model.grid.dim
+#     s = model.grid.time_dim.spacing
+#     damp_loc = (1 - damp)
+#     if ndim == 3:
+#         stagg_x = (0, 1, 0, 0)
+#         stagg_z = (0, 0, 0, 1)
+#         stagg_y = (0, 0, 1, 0)
+#         x, y, z = model.grid.dimensions
+#     else:
+#         stagg_x = (0, 1, 0)
+#         stagg_z = (0, 0, 1)
+#         x, z = model.grid.dimensions
+#     # Create symbols for forward wavefield, source and receivers
+#     vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
+#                       time_order=1, space_order=space_order)
+#     vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
+#                       time_order=1, space_order=space_order)
+#
+#     if model.grid.dim == 3:
+#         vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
+#                           time_order=1, space_order=space_order)
+#
+#     pv = TimeFunction(name='u', grid=model.grid,
+#                       save=source.nt if save else None,
+#                       time_order=1, space_order=space_order)
+#
+#     ph = TimeFunction(name='v', grid=model.grid,
+#                       save=source.nt if save else None,
+#                       time_order=1, space_order=space_order)
+#     # Stencils
+#     phdx = staggered_diff(ph, dim=x, order=space_order, stagger=left,
+#                           theta=theta, phi=phi)
+#     u_vx = Eq(vx.forward, damp_loc * vx - damp_loc * s / rho * phdx)
+#
+#     pvdz = staggered_diff(pv, dim=z, order=space_order, stagger=left,
+#                           theta=theta, phi=phi)
+#     u_vz = Eq(vz.forward, damp_loc * vz - damp_loc * s / rho * pvdz)
+#
+#     dvx = staggered_diff(vx.forward, dim=x, order=space_order, stagger=right,
+#                          theta=theta, phi=phi)
+#     dvz = staggered_diff(vz.forward, dim=z, order=space_order, stagger=right,
+#                          theta=theta, phi=phi)
+#
+#     u_vy = []
+#     dvy = 0
+#     if ndim == 3:
+#         phdy = staggered_diff(ph, dim=y, order=space_order, stagger=left,
+#                               theta=theta, phi=phi)
+#         u_vy = [Eq(vy.forward, damp_loc * vy - damp_loc * s / rho * phdy)]
+#         dvy = staggered_diff(vy.forward, dim=y, order=space_order, stagger=right,
+#                              theta=theta, phi=phi)
+#
+#     pv_eq = Eq(pv.forward,
+#                damp_loc * (pv - s * rho / m * (delta * (dvx + dvy) + dvz)))
+#
+#     ph_eq = Eq(ph.forward,
+#                damp_loc * (ph - s * rho / m * (epsilon * (dvx + dvy) + delta * dvz)))
+#
+#     # Source symbol with input wavelet
+#     src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
+#                       npoint=source.npoint)
+#     rec = Receiver(name='rec', grid=model.grid, time_range=receiver.time_range,
+#                    npoint=receiver.npoint)
+#     src_term = src.inject(field=pv.forward, offset=model.nbpml,
+#                           expr=src * rho * dt / m)
+#     src_term += src.inject(field=ph.forward, offset=model.nbpml,
+#                            expr=src * rho * dt / m)
+#     # Data is sampled at receiver locations
+#     rec_term = rec.interpolate(expr=pv + ph, offset=model.nbpml)
+#
+#     # Substitute spacing terms to reduce flops
+#     op = Operator([u_vx, u_vz] + u_vy + rec_term + [pv_eq, ph_eq] + src_term,
+#                   subs=model.spacing_map, **kwargs)
+#
+#     return op
 
 
 kernels = {('shifted', 3): kernel_shifted_3d, ('shifted', 2): kernel_shifted_2d,
-           ('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d}
+           ('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d,
+           ('staggered', 3): kernel_staggered_3d, ('staggered', 2): kernel_staggered_2d}
