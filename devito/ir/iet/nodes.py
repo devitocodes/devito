@@ -23,7 +23,7 @@ from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression',
-           'TimedList', 'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression',
+           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression',
            'Section', 'HaloSpot', 'IterationTree', 'ExpressionBundle']
 
 # First-class IET nodes
@@ -623,22 +623,23 @@ class TimedList(List):
 
     """Wrap a Node with C-level timers."""
 
-    def __init__(self, lname, gname, body):
+    def __init__(self, timer, lname, body):
         """
-        Initialize a TimedList object.
+        Initialize a TimedList.
 
-        :param lname: Timer name in the local scope.
-        :param gname: Name of the global struct tracking all timers.
-        :param body: Timed block of code.
+        :param timer: A :class:`Timer` object.
+        :param lname: Name of the timed code block.
+        :param body: Timed code block.
         """
         self._name = lname
+        self._timer = timer
         header = [c.Statement("struct timeval start_%s, end_%s" % (lname, lname)),
                   c.Statement("gettimeofday(&start_%s, NULL)" % lname)]
         footer = [c.Statement("gettimeofday(&end_%s, NULL)" % lname),
                   c.Statement(("%(gn)s->%(ln)s += " +
                                "(double)(end_%(ln)s.tv_sec-start_%(ln)s.tv_sec)+" +
                                "(double)(end_%(ln)s.tv_usec-start_%(ln)s.tv_usec)" +
-                               "/1000000") % {'gn': gname, 'ln': lname})]
+                               "/1000000") % {'gn': timer.name, 'ln': lname})]
         super(TimedList, self).__init__(header, body, footer)
 
     def __repr__(self):
@@ -648,6 +649,14 @@ class TimedList(List):
     @property
     def name(self):
         return self._name
+
+    @property
+    def timer(self):
+        return self._timer
+
+    @property
+    def free_symbols(self):
+        return (self.timer,)
 
 
 class Denormals(List):
@@ -698,41 +707,6 @@ class ArrayCast(Node):
         """
         sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
         return (self.function, ) + as_tuple(sizes)
-
-
-class PointerCast(Node):
-
-    """
-    A node encapsulating a cast of a raw C pointer to a
-    struct or object.
-    """
-
-    def __init__(self, object):
-        self.object = object
-
-    @property
-    def functions(self):
-        """
-        Return all :class:`Function` objects used by this :class:`PointerCast`
-        """
-        return ()
-
-    @property
-    def defines(self):
-        """
-        Return the base symbol an :class:`PointerCast` defines.
-        """
-        return ()
-
-    @property
-    def free_symbols(self):
-        """
-        Return the symbols required to perform an :class:`PointerCast`.
-
-        This includes the :class:`AbstractFunction` object that
-        defines the data, as well as the dimension sizes.
-        """
-        return (self.object, )
 
 
 class LocalExpression(Expression):

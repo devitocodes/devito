@@ -1,13 +1,14 @@
 from __future__ import absolute_import
 
 from collections import OrderedDict, namedtuple
+from ctypes import Structure, POINTER, byref, c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
 import os
 
-from ctypes import Structure, byref, c_double
 from cgen import Struct, Value
+from cached_property import cached_property
 
 from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
                            FindNodes, Transformer)
@@ -38,7 +39,7 @@ class Profiler(object):
         Allocate and return a pointer to a new C-level Struct capable of storing
         all timers inserted by :meth:`instrument`.
         """
-        return byref(self.dtype())
+        return byref(self.dtype._type_())
 
     def instrument(self, iet):
         """
@@ -78,7 +79,7 @@ class Profiler(object):
             self._sections[section] = SectionData(ops, sops, points, traffic, itershapes)
 
         # Transform the Iteration/Expression tree introducing the C-level timers
-        mapper = {i: TimedList(gname=self.name, lname=i.name, body=i) for i in sections}
+        mapper = {i: TimedList(timer=self.timer, lname=i.name, body=i) for i in sections}
         iet = Transformer(mapper).visit(iet)
 
         return iet
@@ -127,13 +128,17 @@ class Profiler(object):
 
         return summary
 
+    @cached_property
+    def timer(self):
+        return Timer(self)
+
     @property
     def dtype(self):
         """
         Return the profiler C type in ctypes format.
         """
-        return type(Profiler.__name__, (Structure,),
-                    {"_fields_": [(i.name, c_double) for i in self._sections]})
+        return POINTER(type(Profiler.__name__, (Structure,),
+                            {"_fields_": [(i.name, c_double) for i in self._sections]}))
 
     @property
     def cdef(self):

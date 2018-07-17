@@ -146,7 +146,7 @@ class CGen(Visitor):
         ret = []
         for i in args:
             if i.is_AbstractObject:
-                ret.append(c.Value('void', '*_%s' % i.name))
+                ret.append(c.Value(i.ctype, i.name))
             elif i.is_Symbol:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             elif i.is_Tensor:
@@ -165,7 +165,7 @@ class CGen(Visitor):
         for i in args:
             try:
                 if i.is_Object:
-                    ret.append('*_%s' % i.name)
+                    ret.append(i.name)
                 elif i.is_LocalObject:
                     ret.append('&%s' % i.name)
                 elif i.is_Array:
@@ -187,15 +187,6 @@ class CGen(Visitor):
         shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
         lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
         rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(f.dtype), shape, '%s_vec' % f.name)
-        return c.Initializer(lvalue, rvalue)
-
-    def visit_PointerCast(self, o):
-        """
-        Build cgen pointer casts for an :class:`Object`.
-        """
-        ctype = o.object.ctype
-        lvalue = c.Pointer(c.Value(ctype, o.object.name))
-        rvalue = '(%s*) %s' % (ctype, '_%s' % o.object.name)
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
@@ -444,7 +435,6 @@ class FindSymbols(Visitor):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
     visit_ArrayCast = visit_Expression
-    visit_PointerCast = visit_Expression
     visit_Call = visit_Expression
 
 
