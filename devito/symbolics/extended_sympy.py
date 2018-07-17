@@ -110,8 +110,6 @@ class FunctionFromPointer(sympy.Expr, Pickable):
         args = []
         if isinstance(pointer, str):
             pointer = Symbol(pointer)
-        elif not isinstance(pointer, Expr):
-            raise ValueError("`pointer` must be Expr or str")
         args.append(pointer)
         if isinstance(function, FunctionFromPointer):
             args.append(function)
