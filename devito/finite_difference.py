@@ -246,8 +246,10 @@ def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
 
     if theta == 0 and phi == 0:
         diff = dim.spacing
-        idx = [(dim + int(i+.5+off[dim])*diff)
-               for i in range(-int(order / 2), int(order / 2))]
+        idx = list(set([(dim + int(i+.5+off[dim])*diff)
+                        for i in range(-int(order / 2), int(order / 2))]))
+        if int(order / 2) == 1:
+            idx = [dim - diff, dim]
         return f.diff(dim).as_finite_difference(idx, x0=dim + off[dim]*dim.spacing)
     else:
         x = f.space_dimensions[0]
