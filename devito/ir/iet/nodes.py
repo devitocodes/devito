@@ -38,6 +38,7 @@ class Node(Signer):
     is_Iteration = False
     is_IterationFold = False
     is_Expression = False
+    is_ForeignExpression = False
     is_Callable = False
     is_Call = False
     is_List = False
@@ -751,6 +752,8 @@ class LocalExpression(Expression):
 class ForeignExpression(Expression):
 
     """A node representing a SymPy :class:`FunctionFromPointer` expression."""
+
+    is_ForeignExpression = True
 
     @validate_type(('expr', FunctionFromPointer),
                    ('dtype', type))
