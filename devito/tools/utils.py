@@ -170,6 +170,8 @@ def ctypes_to_C(ctype):
         return 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):
         return 'union %s' % ctype.__name__
+    elif issubclass(ctype, ctypes._Pointer):
+        return '%s*' % ctypes_to_C(ctype._type_)
     elif ctype.__name__.startswith('c_'):
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
