@@ -201,6 +201,10 @@ class Timer(Object):
     def value(self):
         return self.profiler.new
 
+    # Pickling support
+    _pickle_args = ['profiler']
+    _pickle_kwargs = []
+
 
 class PerformanceSummary(OrderedDict):
 

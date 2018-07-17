@@ -695,13 +695,18 @@ class Array(AbstractCachedFunction):
 # that need to be passed to external libraries
 
 
-class AbstractObject(Basic):
+class AbstractObject(Basic, sympy.Basic, Pickable):
 
     """
     Represent a generic pointer object.
     """
 
     is_AbstractObject = True
+
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Basic.__new__(cls)
+        obj.__init__(*args, **kwargs)
+        return obj
 
     def __init__(self, name, dtype):
         self.name = name
@@ -710,6 +715,11 @@ class AbstractObject(Basic):
     def __repr__(self):
         return self.name
 
+    __str__ = __repr__
+
+    def _hashable_content(self):
+        return (self.name, self.dtype)
+
     @property
     def free_symbols(self):
         return {self}
@@ -717,6 +727,10 @@ class AbstractObject(Basic):
     @property
     def ctype(self):
         return ctypes_to_C(self.dtype)
+
+    # Pickling support
+    _pickle_args = ['name', 'dtype']
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class Object(AbstractObject):
@@ -742,6 +756,9 @@ class Object(AbstractObject):
             return {self.name: kwargs.pop(self.name)}
         else:
             return {}
+
+    # Pickling support
+    _pickle_kwargs = ['value']
 
 
 class LocalObject(AbstractObject):
