@@ -30,6 +30,7 @@ class ElasticWaveSolver(object):
         if model.grid.dim != 2:
             error("This is an experimental staggered grid elastic modeling kernel." +
                   "Only 2D supported")
+            raise NotImplementedError("Elastic solver only supports 2D at the moment")
 
     @memoized_meth
     def op_fwd(self, save=None):

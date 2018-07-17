@@ -252,6 +252,11 @@ def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
             idx = [dim - diff, dim]
         return f.diff(dim).as_finite_difference(idx, x0=dim + off[dim]*dim.spacing)
     else:
+        if ndim < 2 or ndim > 3:
+            error("Only 2D and 3D supports rotated finite difference,"
+                  " %d dimensions as input" % ndim)
+            raise ValueError("Non supported number of dimensions")
+
         x = f.space_dimensions[0]
         z = f.space_dimensions[-1]
         idxx = list(set([(x + int(i+.5+off[x])*x.spacing)
