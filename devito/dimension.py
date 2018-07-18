@@ -535,19 +535,19 @@ class SteppingDimension(DerivedDimension):
     def _arg_names(self):
         return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
-    def _arg_defaults(self, start=None, **kwargs):
+    def _arg_defaults(self, start=None, size=None, **kwargs):
         """
         Returns a map of default argument values defined by this dimension.
 
-        :param start: Optional, known starting point as provided by
+        :param start: (Optional) known starting point as provided by
                       data-carrying symbols.
+        :param size: (Optional) known size as provided by data-carrying symbols.
 
-        note ::
+        .. note ::
 
-        A :class:`SteppingDimension` neither knows its size nor its
-        iteration end point. So all we can provide is a starting point.
+            A :class:`SteppingDimension` does not know its end point.
         """
-        return {self.parent.min_name: start}
+        return {self.parent.min_name: start, self.parent.size_name: size}
 
     def _arg_values(self, *args, **kwargs):
         """
