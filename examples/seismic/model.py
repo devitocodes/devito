@@ -354,8 +354,12 @@ class Model(object):
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = kwargs.get('grid', Grid(extent=extent, shape=shape_pml,
-                                            origin=origin, dtype=dtype))
+        # Check for input grid
+        self.grid = kwargs.get('grid', None)
+        # Or create a new one
+        if self.grid is None:
+            self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype)
+
         assert (self.grid.extent == extent)
         assert (self.grid.shape == shape_pml).all()
         # Create square slowness of the wave as symbol `m`
