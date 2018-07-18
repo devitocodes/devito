@@ -1,5 +1,5 @@
 from collections import namedtuple
-from ctypes import Structure, POINTER, c_int, c_void_p, sizeof
+from ctypes import Structure, POINTER, byref, c_int, c_void_p, sizeof
 from itertools import product
 
 from cached_property import cached_property
@@ -125,6 +125,7 @@ class Distributor(object):
             ctype = type('MPI_Comm', (c_void_p,), {})
         comm_ptr = MPI._addressof(self._comm)
         comm_val = ctype.from_address(comm_ptr)
+        comm_val = byref(comm_val)
         return Object(name='comm', dtype=ctype, value=comm_val)
 
     @cached_property
@@ -137,11 +138,12 @@ class Distributor(object):
         fields = [('%s%s' % (d, i), c_int) for d, i in entries]
         ctype = POINTER(type('neighbours', (Structure,), {"_fields_": fields}))
         # Populate the struct
-        value = ctype()
+        value = ctype._type_()
         neighbours = self.neighbours
         for d, i in entries:
             setattr(value, '%s%s' % (d, i),
                     neighbours[d][i] if neighbours[d][i] is not None else -1)
+        value = byref(value)
         # The corresponding struct in C
         cdef = Struct('neighbours', [Value('int', i) for i, _ in fields])
         # The corresponding types.Object

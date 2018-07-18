@@ -2,6 +2,8 @@ from functools import reduce
 from operator import mul
 from ctypes import c_void_p
 
+from sympy import Ge
+
 from devito.dimension import Dimension
 from devito.mpi.utils import get_views
 from devito.ir.equations import DummyEq
@@ -134,7 +136,7 @@ def update_halo(f, fixed):
         parameters = ([f] + list(f.symbolic_shape) + sizes + loffsets +
                       roffsets + [rpeer, lpeer, comm])
         call = Call('sendrecv_%s' % f.name, parameters)
-        body.append(Conditional(Symbol(name='m%sl' % d), call))
+        body.append(Conditional(Symbol(name='m%sl' % d) & Ge(lpeer, 0), call))
 
         # Sending to right, receiving from left
         rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
@@ -144,7 +146,7 @@ def update_halo(f, fixed):
         parameters = ([f] + list(f.symbolic_shape) + sizes + roffsets +
                       loffsets + [lpeer, rpeer, comm])
         call = Call('sendrecv_%s' % f.name, parameters)
-        body.append(Conditional(Symbol(name='m%sr' % d), call))
+        body.append(Conditional(Symbol(name='m%sr' % d) & Ge(rpeer, 0), call))
 
     iet = List(body=body)
     parameters = derive_parameters(iet, drop_locals=True)

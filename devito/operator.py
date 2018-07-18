@@ -98,11 +98,11 @@ class Operator(Callable):
         # Translate into backend-specific representation
         iet = self._specialize_iet(iet, **kwargs)
 
-        # Insert code for MPI support
-        iet = self._generate_mpi(iet, **kwargs)
-
         # Insert the required symbol declarations
         iet = iet_insert_C_decls(iet, self._func_table)
+
+        # Insert code for MPI support
+        iet = self._generate_mpi(iet, **kwargs)
 
         # Insert data and pointer casts for array parameters and profiling structs
         iet = self._build_casts(iet)
