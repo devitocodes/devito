@@ -6,13 +6,13 @@ from cached_property import cached_property
 from devito.exceptions import InvalidArgument
 from devito.types import AbstractSymbol, Scalar
 from devito.logger import debug
-from devito.tools import Pickable
+from devito.tools import ArgProvider, Pickable
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
 
 
-class Dimension(AbstractSymbol):
+class Dimension(AbstractSymbol, ArgProvider):
 
     is_Dimension = True
     is_Space = False

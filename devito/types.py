@@ -11,7 +11,7 @@ import numpy as np
 import sympy
 
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, Pickable, Tag, ctypes_to_C
+from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -80,24 +80,6 @@ class Basic(object):
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         return
-
-    @abc.abstractmethod
-    def _arg_defaults(self):
-        """
-        Returns a map of default argument values defined by this symbol.
-        """
-        raise NotImplementedError('%s does not provide any default arguments' %
-                                  self.__class__)
-
-    @abc.abstractmethod
-    def _arg_values(self, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        """
-        raise NotImplementedError('%s does not provide argument value derivation' %
-                                  self.__class__)
 
 
 class Cached(object):
@@ -733,7 +715,7 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class Object(AbstractObject):
+class Object(AbstractObject, ArgProvider):
 
     """
     Represent a generic pointer object, provided by the outside world.
