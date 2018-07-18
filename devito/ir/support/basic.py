@@ -501,6 +501,10 @@ class Dependence(object):
         return set(flatten(i._defines for i in self.findices))
 
     @property
+    def distance_mapper(self):
+        return {i: j for i, j in zip(self.findices, self.distance)}
+
+    @property
     def cause(self):
         """Return the findex causing the dependence."""
         for i, j in zip(self.findices, self.distance):
@@ -537,7 +541,7 @@ class Dependence(object):
         return test0 and test1 and test2
 
     def is_reduce_atmost(self, dim=None):
-        """More flexible than :meth:`is_reduce`. Return True  if ``dim`` may
+        """More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may
         represent a reduction dimension for ``self`` or if `self`` is definitely
         independent of ``dim``, False otherwise."""
         return self.is_reduce(dim) or self.is_indep(dim)
