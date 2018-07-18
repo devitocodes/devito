@@ -399,6 +399,11 @@ class TensorFunction(AbstractCachedFunction):
         # Collect default dimension arguments from all indices
         for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
             args.update(i._arg_defaults(start=0, size=s+o, alias=k))
+
+        # Add MPI-related data structures
+        if self.grid is not None:
+            args.update(self.grid._arg_defaults())
+
         return args
 
     def _arg_values(self, **kwargs):
@@ -421,6 +426,9 @@ class TensorFunction(AbstractCachedFunction):
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
                     values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
+                # Add MPI-related data structures
+                if self.grid is not None:
+                    values.update(self.grid._arg_defaults())
         else:
             values = self._arg_defaults(alias=self).reduce_all()
 
