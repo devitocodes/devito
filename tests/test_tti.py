@@ -3,9 +3,9 @@ import pytest
 from conftest import skipif_yask
 from numpy import linalg
 
-from devito import TimeFunction
+from devito import TimeFunction, configuration
 from devito.logger import log
-from examples.seismic import TimeAxis, RickerSource, Receiver, Model
+from examples.seismic import TimeAxis, RickerSource, Receiver, Model, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
@@ -83,5 +83,47 @@ def test_tti(shape, space_order, kernel):
     assert np.isclose(res, 0.0, atol=1e-4)
 
 
+@skipif_yask
+@pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
+def test_tti_staggered(shape):
+    spacing = [10. for _ in shape]
+
+    # Model
+    model = demo_model('constant-tti', shape=shape, spacing=spacing)
+
+    # Define seismic data and parameters
+    f0 = .010
+    dt = model.critical_dt
+    t0 = 0.0
+    tn = 350.0
+    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    nt = time_range.num
+
+    last = (nt - 1) % 2
+    # Generate a wavefield as initial condition
+    source = RickerSource(name='src', grid=model.grid, f0=f0, time_range=time_range)
+    source.coordinates.data[0, :] = np.array(model.domain_size) * .5
+
+    receiver = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=1)
+
+    # Solvers
+    solver_tti = AnisotropicWaveSolver(model, source=source, receiver=receiver,
+                                       time_order=2, space_order=8)
+
+    # Solve
+    rec1, u1, v1, _ = solver_tti.forward(kernel='staggered')
+    configuration['openmp'] = 0
+    configuration['dle'] = 'basic'
+    configuration['dse'] = 'basic'
+    rec2, u2, v2, _ = solver_tti.forward(kernel='staggered')
+
+    u_staggered1 = u1.data[last, :] + v1.data[last, :]
+    u_staggered2 = u2.data[last, :] + v2.data[last, :]
+
+    res = np.linalg.norm(u_staggered1.reshape(-1) - u_staggered2.reshape(-1))
+    log("DSE/DLE introduces error %2.4e in %d dimensions" % (res, len(shape)))
+    assert np.isclose(res, 0.0, atol=1e-8)
+
+
 if __name__ == "__main__":
-    test_tti((120, 140, 150), 8, 'shifted')
+    test_tti_staggered((120, 140))

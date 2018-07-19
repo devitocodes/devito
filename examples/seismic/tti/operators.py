@@ -382,6 +382,36 @@ def kernel_centered_3d(model, u, v, space_order):
     return second_order_stencil(model, u, v, Gxx, Gzz)
 
 
+def particle_velocity_fields(model, space_order):
+    """
+    Initialize partcle vleocity fields for staggered tti
+    """
+    if model.grid.dim == 2:
+        stagg_x = (0, 1, 0)
+        stagg_z = (0, 0, 1)
+        x, z = model.grid.dimensions
+        # Create symbols for forward wavefield, source and receivers
+        vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
+                          time_order=1, space_order=space_order)
+        vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
+                          time_order=1, space_order=space_order)
+        vy = None
+    elif model.grid.dim == 3:
+        stagg_x = (0, 1, 0, 0)
+        stagg_y = (0, 0, 1, 0)
+        stagg_z = (0, 0, 0, 1)
+        x, y, z = model.grid.dimensions
+        # Create symbols for forward wavefield, source and receivers
+        vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
+                          time_order=1, space_order=space_order)
+        vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
+                          time_order=1, space_order=space_order)
+        vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
+                          time_order=1, space_order=space_order)
+
+    return vx, vz, vy
+
+
 def kernel_staggered_2d(model, u, v, space_order):
     """
     TTI finite difference. The equation solved is:
@@ -393,15 +423,9 @@ def kernel_staggered_2d(model, u, v, space_order):
     dampl = 1 - model.damp
     m, epsilon, delta, theta = (model.m, model.epsilon, model.delta, model.theta)
     s = model.grid.stepping_dim.spacing
-    # Staggered setup
-    stagg_x = (0, 1, 0)
-    stagg_z = (0, 0, 1)
     x, z = model.grid.dimensions
-    # Create symbols for forward wavefield, source and receivers
-    vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                      time_order=1, space_order=space_order)
-    vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                      time_order=1, space_order=space_order)
+    # Staggered setup
+    vx, vz, _ = particle_velocity_fields(model, space_order)
 
     # Stencils
     phdx = staggered_diff(u, dim=x, order=space_order, stagger=left, theta=theta)
@@ -436,18 +460,9 @@ def kernel_staggered_3d(model, u, v, space_order):
     m, epsilon, delta, theta, phi = (model.m, model.epsilon, model.delta,
                                      model.theta, model.phi)
     s = model.grid.stepping_dim.spacing
-    # Staggered setup
-    stagg_x = (0, 1, 0, 0)
-    stagg_y = (0, 0, 1, 0)
-    stagg_z = (0, 0, 0, 1)
     x, y, z = model.grid.dimensions
-    # Create symbols for forward wavefield, source and receivers
-    vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                      time_order=1, space_order=space_order)
-    vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
-                      time_order=1, space_order=space_order)
-    vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                      time_order=1, space_order=space_order)
+    # Staggered setup
+    vx, vz, vy = particle_velocity_fields(model, space_order)
 
     # Stencils
     phdx = staggered_diff(u, dim=x, order=space_order, stagger=left,
