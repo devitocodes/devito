@@ -178,7 +178,7 @@ def demo_model(preset, **kwargs):
         v[x*x + y*y <= r*r] = vp
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbpml=nbpml)
+                     dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['marmousi-isotropic', 'marmousi2d-isotropic']:
         shape = (1601, 401)
@@ -199,7 +199,7 @@ def demo_model(preset, **kwargs):
         v = v[301:-300, :]
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=v.shape,
-                     dtype=np.float32, spacing=spacing, nbpml=20)
+                     dtype=np.float32, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
 
@@ -345,7 +345,8 @@ class Model(object):
     """
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
-                 dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
+                 dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
+                 **kwargs):
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
@@ -353,9 +354,14 @@ class Model(object):
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml,
-                         origin=origin, dtype=dtype)
+        # Check for input grid
+        self.grid = kwargs.get('grid', None)
+        # Or create a new one
+        if self.grid is None:
+            self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype)
 
+        assert (self.grid.extent == extent)
+        assert (self.grid.shape == shape_pml).all()
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.m = Function(name="m", grid=self.grid, space_order=space_order)
