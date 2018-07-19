@@ -58,6 +58,10 @@ class CondEq(sympy.Eq, FrozenExpr):
     def __new__(cls, *args, **kwargs):
         return sympy.Eq.__new__(cls, *args, evaluate=False)
 
+    @property
+    def canonical(self):
+        return self
+
 
 class CondNe(sympy.Ne, FrozenExpr):
     """A customized version of :class:`sympy.Ne` representing a conditional
@@ -65,6 +69,10 @@ class CondNe(sympy.Ne, FrozenExpr):
 
     def __new__(cls, *args, **kwargs):
         return sympy.Ne.__new__(cls, *args, evaluate=False)
+
+    @property
+    def canonical(self):
+        return self
 
 
 class Mul(sympy.Mul, FrozenExpr):
