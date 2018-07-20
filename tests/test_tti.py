@@ -1,10 +1,12 @@
 import numpy as np
 import pytest
+import os
 from conftest import skipif_yask
 from numpy import linalg
 
 from devito import TimeFunction, configuration
 from devito.logger import log
+from devito.compiler import get_jit_dir
 from examples.seismic import TimeAxis, RickerSource, Receiver, Model, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -84,7 +86,7 @@ def test_tti(shape, space_order, kernel):
 
 
 @skipif_yask
-@pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
+@pytest.mark.parametrize('shape', [(50, 60), (50, 60, 70)])
 def test_tti_staggered(shape):
     spacing = [10. for _ in shape]
 
@@ -95,7 +97,7 @@ def test_tti_staggered(shape):
     f0 = .010
     dt = model.critical_dt
     t0 = 0.0
-    tn = 350.0
+    tn = 250.0
     time_range = TimeAxis(start=t0, stop=tn, step=dt)
     nt = time_range.num
 
@@ -109,14 +111,18 @@ def test_tti_staggered(shape):
     # Solvers
     solver_tti = AnisotropicWaveSolver(model, source=source, receiver=receiver,
                                        time_order=2, space_order=8)
+    solver_tti2 = AnisotropicWaveSolver(model, source=source, receiver=receiver,
+                                        time_order=2, space_order=8)
 
     # Solve
+    configuration['dle'] = 'advanced'
     rec1, u1, v1, _ = solver_tti.forward(kernel='staggered')
-    configuration['openmp'] = 0
     configuration['dle'] = 'basic'
-    configuration['dse'] = 'basic'
-    rec2, u2, v2, _ = solver_tti.forward(kernel='staggered')
-
+    rec2, u2, v2, _ = solver_tti2.forward(kernel='staggered')
+    # import matplotlib.pyplot as plt
+    # plt.imshow(np.transpose(u1.data[-1, :, :]), vmin=-.001, vmax=.001, cmap="seismic")
+    # plt.figure();plt.imshow(np.transpose(u2.data[-1, :, :]), vmin=-.001, vmax=.001, cmap="seismic")
+    # plt.show()
     u_staggered1 = u1.data[last, :] + v1.data[last, :]
     u_staggered2 = u2.data[last, :] + v2.data[last, :]
 
@@ -126,4 +132,4 @@ def test_tti_staggered(shape):
 
 
 if __name__ == "__main__":
-    test_tti_staggered((120, 140))
+    test_tti_staggered((50, 60, 70))
