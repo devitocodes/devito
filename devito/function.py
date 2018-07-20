@@ -363,20 +363,20 @@ class TensorFunction(AbstractCachedFunction):
         comm = distributor.comm
         for i in [LEFT, RIGHT]:
             neighbour = neighbours[dim][i]
-            if neighbour is not None:
-                owned_region = self._get_view(OWNED, dim, i)
-                halo_region = self._get_view(HALO, dim, i)
-                sendbuf = np.ascontiguousarray(owned_region)
-                recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
-                self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
-                self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
+            owned_region = self._get_view(OWNED, dim, i)
+            halo_region = self._get_view(HALO, dim, i)
+            sendbuf = np.ascontiguousarray(owned_region)
+            recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
+            self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
+            self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
 
     def __halo_end_exchange(self, dim):
         """End a halo exchange along a given :class:`Dimension`."""
         for d, i, payload, req in list(self._in_flight):
             if d == dim:
-                req.Wait()
-                if payload is not None:
+                status = MPI.Status()
+                req.Wait(status=status)
+                if payload is not None and status.source != MPI.PROC_NULL:
                     # The MPI.Request `req` originated from a `comm.Irecv`
                     # Now need to scatter the data to the right place
                     self._get_view(HALO, d, i)[:] = payload

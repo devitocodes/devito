@@ -105,8 +105,8 @@ class Distributor(object):
         ret = {}
         for d, (src, dest) in shifts.items():
             ret[d] = {}
-            ret[d][LEFT] = src if src != -1 else None
-            ret[d][RIGHT] = dest if dest != -1 else None
+            ret[d][LEFT] = src
+            ret[d][RIGHT] = dest
         return ret
 
     @cached_property
@@ -141,8 +141,7 @@ class Distributor(object):
         value = ctype._type_()
         neighbours = self.neighbours
         for d, i in entries:
-            setattr(value, '%s%s' % (d, i),
-                    neighbours[d][i] if neighbours[d][i] is not None else -1)
+            setattr(value, '%s%s' % (d, i), neighbours[d][i])
         value = byref(value)
         # The corresponding struct in C
         cdef = Struct('neighbours', [Value('int', i) for i, _ in fields])

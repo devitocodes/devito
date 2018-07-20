@@ -1,4 +1,5 @@
 import numpy as np
+from mpi4py import MPI
 
 import pytest
 from conftest import skipif_yask
@@ -49,15 +50,15 @@ def test_neighborhood_2d():
     # |
     # x
     expected = {
-        0: {x: {LEFT: None, RIGHT: 3}, y: {LEFT: None, RIGHT: 1}},
-        1: {x: {LEFT: None, RIGHT: 4}, y: {LEFT: 0, RIGHT: 2}},
-        2: {x: {LEFT: None, RIGHT: 5}, y: {LEFT: 1, RIGHT: None}},
-        3: {x: {LEFT: 0, RIGHT: 6}, y: {LEFT: None, RIGHT: 4}},
+        0: {x: {LEFT: MPI.PROC_NULL, RIGHT: 3}, y: {LEFT: MPI.PROC_NULL, RIGHT: 1}},
+        1: {x: {LEFT: MPI.PROC_NULL, RIGHT: 4}, y: {LEFT: 0, RIGHT: 2}},
+        2: {x: {LEFT: MPI.PROC_NULL, RIGHT: 5}, y: {LEFT: 1, RIGHT: MPI.PROC_NULL}},
+        3: {x: {LEFT: 0, RIGHT: 6}, y: {LEFT: MPI.PROC_NULL, RIGHT: 4}},
         4: {x: {LEFT: 1, RIGHT: 7}, y: {LEFT: 3, RIGHT: 5}},
-        5: {x: {LEFT: 2, RIGHT: 8}, y: {LEFT: 4, RIGHT: None}},
-        6: {x: {LEFT: 3, RIGHT: None}, y: {LEFT: None, RIGHT: 7}},
-        7: {x: {LEFT: 4, RIGHT: None}, y: {LEFT: 6, RIGHT: 8}},
-        8: {x: {LEFT: 5, RIGHT: None}, y: {LEFT: 7, RIGHT: None}},
+        5: {x: {LEFT: 2, RIGHT: 8}, y: {LEFT: 4, RIGHT: MPI.PROC_NULL}},
+        6: {x: {LEFT: 3, RIGHT: MPI.PROC_NULL}, y: {LEFT: MPI.PROC_NULL, RIGHT: 7}},
+        7: {x: {LEFT: 4, RIGHT: MPI.PROC_NULL}, y: {LEFT: 6, RIGHT: 8}},
+        8: {x: {LEFT: 5, RIGHT: MPI.PROC_NULL}, y: {LEFT: 7, RIGHT: MPI.PROC_NULL}},
     }
     assert expected[distributor.myrank] == distributor.neighbours
 
@@ -235,14 +236,15 @@ def test_halo_exchange_quadrilateral():
 
 @skipif_yask
 @pytest.mark.parallel(nprocs=[2, 4])
-def test_ctypes_neighboors():
+def test_ctypes_neighbours():
     grid = Grid(shape=(4, 4))
     distributor = grid.distributor
 
+    PN = MPI.PROC_NULL
     attrs = ['xleft', 'xright', 'yleft', 'yright']
     expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
-        2: [(-1, -1, -1, 1), (-1, -1, 0, -1)],
-        4: [(-1, 2, -1, 1), (-1, 3, 0, -1), (0, -1, -1, 3), (1, -1, 2, -1)]
+        2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
+        4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
     }
 
     mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
