@@ -249,7 +249,7 @@ def test_ctypes_neighbours():
 
     mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
     _, _, obj = distributor._C_neighbours
-    assert all(getattr(obj.value, k) == v for k, v in mapper.items())
+    assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
 
 @skipif_yask
@@ -266,9 +266,9 @@ class TestCodeGeneration(object):
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, dat(dat_time, dat_x, dat_y),\
  dat_time_size, dat_x_size, dat_y_size, otime, ox, oy)"""
         assert """\
-  for (int x = 0; x <= buf_x_size; x += 1)
+  for (int x = 0; x <= buf_x_size - 1; x += 1)
   {
-    for (int y = 0; y <= buf_y_size; y += 1)
+    for (int y = 0; y <= buf_y_size - 1; y += 1)
     {
       buf[x][y] = dat[otime][x + ox][y + oy];
     }
@@ -291,16 +291,18 @@ float bufs[buf_x_size][buf_y_size] __attribute__((aligned(64)));
 MPI_Request rrecv;
 float bufg[buf_x_size][buf_y_size] __attribute__((aligned(64)));
 MPI_Request rsend;
-MPI_Irecv((float*)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,\
-MPI_ANY_TAG,comm,&rrecv);
+MPI_Status srecv;
+MPI_Irecv((float*)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
 gather_f((float*)bufg,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
 dat_y_size,ogtime,ogx,ogy);
-MPI_Isend((float*)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,\
-MPI_ANY_TAG,comm,&rsend);
-MPI_Wait(&rrecv,MPI_STATUS_IGNORE);
+MPI_Isend((float*)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
 MPI_Wait(&rsend,MPI_STATUS_IGNORE);
-scatter_f((float*)bufs,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
-dat_y_size,ostime,osx,osy);"""
+MPI_Wait(&rrecv,&srecv);
+if (fromrank != MPI_PROC_NULL)
+{
+  scatter_f((float*)bufs,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
+dat_y_size,ostime,osx,osy);
+}"""
 
     def test_iet_update_halo(self):
         grid = Grid(shape=(4, 4))
@@ -310,33 +312,34 @@ dat_y_size,ostime,osx,osy);"""
 
         iet = update_halo(f, [t])
         assert str(iet.parameters) == """\
-(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime, time_size, x_size, y_size)"""
+(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime, t_size, x_size, y_size)"""
         assert """\
 MPI_Comm *comm = (MPI_Comm*) _comm;
 struct neighbours *nb = (struct neighbours*) _nb;
 if (mxl)
 {
-  sendrecv(f_vec,time_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
+  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
 otime,1,0,otime,x_size + 1,0,nb->xright,nb->xleft,comm);
 }
 if (mxr)
 {
-  sendrecv(f_vec,time_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
+  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
 otime,x_size,0,otime,0,0,nb->xleft,nb->xright,comm);
 }
 if (myl)
 {
-  sendrecv(f_vec,time_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
+  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
 otime,0,1,otime,0,y_size + 1,nb->yright,nb->yleft,comm);
 }
 if (myr)
 {
-  sendrecv(f_vec,time_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
+  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
 otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 }"""
 
 
 @skipif_yask
+@pytest.mark.parallel(nprocs=2)
 def test_iet_simple_operator():
     grid = Grid(shape=(10,))
     x = grid.dimensions[0]
@@ -348,14 +351,13 @@ def test_iet_simple_operator():
     op = Operator(Eq(f.forward, f[t, x-1] + f[t, x+1] + 1))
     op.apply(time=1)
 
-    assert np.all(f.data_ro_domain[0] == 7.)
     assert np.all(f.data_ro_domain[1] == 3.)
     if f.grid.distributor.myrank == 0:
-        assert f.data_ro_with_halo[0, -1] == 4
-        assert f.data_ro_with_halo[1, -1] == 3
+        assert f.data_ro_domain[0, 0] == 5.
+        assert np.all(f.data_ro_domain[0, 1:] == 7.)
     else:
-        assert f.data_ro_with_halo[0, 0] == 4
-        assert f.data_ro_with_halo[1, 0] == 3
+        assert f.data_ro_domain[0, -1] == 5.
+        assert np.all(f.data_ro_domain[0, :-1] == 7.)
 
 
 if __name__ == "__main__":

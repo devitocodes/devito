@@ -2,15 +2,13 @@ from functools import reduce
 from operator import mul
 from ctypes import c_void_p
 
-from sympy import Ge
-
 from devito.dimension import Dimension
 from devito.mpi.utils import get_views
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls,
                            derive_parameters)
-from devito.symbolics import FieldFromPointer, Macro
+from devito.symbolics import CondNe, FieldFromPointer, Macro
 from devito.types import Array, Symbol, LocalObject, OWNED, HALO, LEFT, RIGHT
 from devito.tools import numpy_to_mpitypes
 
@@ -52,7 +50,7 @@ def copy(f, fixed, swap=False):
 
     iet = Expression(eq)
     for i, d in reversed(list(zip(buf_indices, buf_dims))):
-        iet = Iteration(iet, i, d.symbolic_size)
+        iet = Iteration(iet, i, d.symbolic_size - 1)  # -1 as Iteration generates <=
     iet = List(body=[ArrayCast(dat), ArrayCast(buf), iet])
     parameters = [buf] + list(buf.shape) + [dat] + list(dat.shape) + dat_offsets
     return Callable(name, iet, 'void', parameters, ('static',))
@@ -76,13 +74,20 @@ def sendrecv(f, fixed):
     ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
     ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
 
+    fromrank = Symbol(name='fromrank')
+    torank = Symbol(name='torank')
+
     parameters = [bufg] + list(bufg.shape) + [dat] + list(dat.shape) + ofsg
     gather = Call('gather_%s' % f.name, parameters)
     parameters = [bufs] + list(bufs.shape) + [dat] + list(dat.shape) + ofss
     scatter = Call('scatter_%s' % f.name, parameters)
 
-    fromrank = Symbol(name='fromrank')
-    torank = Symbol(name='torank')
+    # The scatter must be guarded as we must not alter the halo values along
+    # the domain boundary, where the sender is actually MPI.PROC_NULL
+    scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
+
+    MPI_Status = type('MPI_Status', (c_void_p,), {})
+    srecv = LocalObject(name='srecv', dtype=MPI_Status)
 
     MPI_Request = type('MPI_Request', (c_void_p,), {})
     rrecv = LocalObject(name='rrecv', dtype=MPI_Request)
@@ -90,14 +95,14 @@ def sendrecv(f, fixed):
 
     count = reduce(mul, bufs.shape, 1)
     recv = Call('MPI_Irecv', [bufs, count, Macro(numpy_to_mpitypes(f.dtype)),
-                              fromrank, Macro('MPI_ANY_TAG'), comm, rrecv])
+                              fromrank, '13', comm, rrecv])
     send = Call('MPI_Isend', [bufg, count, Macro(numpy_to_mpitypes(f.dtype)),
-                              torank, Macro('MPI_ANY_TAG'), comm, rsend])
+                              torank, '13', comm, rsend])
 
-    waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
+    waitrecv = Call('MPI_Wait', [rrecv, srecv])
     waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
-    iet = List(body=[recv, gather, send, waitrecv, waitsend, scatter])
+    iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
     iet = List(body=[ArrayCast(dat), iet_insert_C_decls(iet)])
     parameters = ([dat] + list(dat.shape) + list(bufs.shape) +
                   ofsg + ofss + [fromrank, torank, comm])
@@ -136,7 +141,7 @@ def update_halo(f, fixed):
         parameters = ([f] + list(f.symbolic_shape) + sizes + loffsets +
                       roffsets + [rpeer, lpeer, comm])
         call = Call('sendrecv_%s' % f.name, parameters)
-        body.append(Conditional(Symbol(name='m%sl' % d) & Ge(lpeer, 0), call))
+        body.append(Conditional(Symbol(name='m%sl' % d), call))
 
         # Sending to right, receiving from left
         rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
@@ -146,7 +151,7 @@ def update_halo(f, fixed):
         parameters = ([f] + list(f.symbolic_shape) + sizes + roffsets +
                       loffsets + [lpeer, rpeer, comm])
         call = Call('sendrecv_%s' % f.name, parameters)
-        body.append(Conditional(Symbol(name='m%sr' % d) & Ge(rpeer, 0), call))
+        body.append(Conditional(Symbol(name='m%sr' % d), call))
 
     iet = List(body=body)
     parameters = derive_parameters(iet, drop_locals=True)

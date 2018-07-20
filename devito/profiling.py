@@ -132,7 +132,7 @@ class Profiler(object):
     def timer(self):
         return Timer(self)
 
-    @property
+    @cached_property
     def dtype(self):
         """
         Return the profiler C type in ctypes format.
@@ -140,7 +140,7 @@ class Profiler(object):
         return POINTER(type(Profiler.__name__, (Structure,),
                             {"_fields_": [(i.name, c_double) for i in self._sections]}))
 
-    @property
+    @cached_property
     def cdef(self):
         """
         Return a :class:`cgen.Struct` representing the profiler data structure in C
