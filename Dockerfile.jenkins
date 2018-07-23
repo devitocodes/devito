@@ -38,7 +38,9 @@ RUN if [ -f /usr/bin/gcov-dump-$gccvers ] ; then \
 RUN if [ -f /usr/bin/gcov-tool-$gccvers ] ; then \
       update-alternatives --install /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-$gccvers 10 ; \
     fi
-    
+
+# Install MPI
+RUN apt-get install -y -q mpich libmpich-dev
 # Set up conda
 RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh
 RUN bash /tmp/miniconda.sh -b -p /usr/local/miniconda
