@@ -104,6 +104,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.distributed">devito.distributed module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
@@ -625,7 +626,7 @@ entry that should be staggered, and <code class="docutils literal notranslate"><
 
 <dl class="class">
 <dt id="devito.base.Grid">
-<em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Grid</code><span class="sig-paren">(</span><em>shape</em>, <em>extent=None</em>, <em>origin=None</em>, <em>dimensions=None</em>, <em>time_dimension=None</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Grid" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Grid</code><span class="sig-paren">(</span><em>shape</em>, <em>extent=None</em>, <em>origin=None</em>, <em>dimensions=None</em>, <em>time_dimension=None</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>comm=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Grid" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.grid.Grid</span></code></a></p>
 <p>A cartesian grid that encapsulates a physical domain over which
 to discretize :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Function`s.</p>
@@ -635,10 +636,10 @@ to discretize :class:<a href="#id1"><span class="problematic" id="id2">`</span><
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>shape</strong> – Shape of the domain region in grid points.</li>
-<li><strong>extent</strong> – Physical extent of the domain in m; defaults to a
-unit box of extent 1m in all dimensions.</li>
-<li><strong>origin</strong> – Physical coordinate of the origin of the domain;
-defaults to 0. in all dimensions.</li>
+<li><strong>extent</strong> – (Optional) physical extent of the domain in m; defaults
+to a unit box of extent 1m in all dimensions.</li>
+<li><strong>origin</strong> – (Optional) physical coordinate of the origin of the
+domain; defaults to 0.0 in all dimensions.</li>
 <li><strong>dimensions</strong> – (Optional) list of <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code>
 symbols that defines the spatial directions of
 the physical domain encapsulated by this
@@ -647,8 +648,11 @@ the physical domain encapsulated by this
 to to define the time dimension for all
 <a class="reference internal" href="#devito.base.TimeFunction" title="devito.base.TimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeFunction</span></code></a> symbols created
 from this <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
-<li><strong>dtype</strong> – Default data type to be inherited by all Functions
-created from this <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
+<li><strong>dtype</strong> – (Optional) default data type to be inherited by all
+<code class="xref py py-class docutils literal notranslate"><span class="pre">Function`s</span> <span class="pre">created</span> <span class="pre">from</span> <span class="pre">this</span> <span class="pre">:class:`Grid</span></code>.
+Defaults to <code class="docutils literal notranslate"><span class="pre">numpy.float32</span></code>.</li>
+<li><strong>comm</strong> – (Optional) an MPI communicator defining the set of
+processes among which the grid is distributed.</li>
 </ul>
 </td>
 </tr>
@@ -1884,6 +1888,84 @@ the size of the dimension to initialize the arrays as e.g:</p>
 </dd></dl>
 
 </div>
+<div class="section" id="module-devito.distributed">
+<span id="devito-distributed-module"></span><h2>devito.distributed module<a class="headerlink" href="#module-devito.distributed" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.distributed.Distributor">
+<em class="property">class </em><code class="descclassname">devito.distributed.</code><code class="descname">Distributor</code><span class="sig-paren">(</span><em>shape</em>, <em>dimensions</em>, <em>input_comm=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/distributed.html#Distributor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.distributed.Distributor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A class to perform domain decomposition for a set of MPI processes.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>shape</strong> – The shape of the domain to be decomposed.</li>
+<li><strong>dimensions</strong> – The :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Dimension`s defining the domain.</li>
+<li><strong>comm</strong> – An MPI communicator.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.comm">
+<code class="descname">comm</code><a class="headerlink" href="#devito.distributed.Distributor.comm" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.dimensions">
+<code class="descname">dimensions</code><a class="headerlink" href="#devito.distributed.Distributor.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.glb_numb">
+<code class="descname">glb_numb</code><a class="headerlink" href="#devito.distributed.Distributor.glb_numb" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the global numbering of this process’ domain.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.mycoords">
+<code class="descname">mycoords</code><a class="headerlink" href="#devito.distributed.Distributor.mycoords" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.myrank">
+<code class="descname">myrank</code><a class="headerlink" href="#devito.distributed.Distributor.myrank" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.ndim">
+<code class="descname">ndim</code><a class="headerlink" href="#devito.distributed.Distributor.ndim" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.neighbours">
+<code class="descname">neighbours</code><a class="headerlink" href="#devito.distributed.Distributor.neighbours" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the mapper <code class="docutils literal notranslate"><span class="pre">proc</span> <span class="pre">-&gt;</span> <span class="pre">direction</span></code>; <code class="docutils literal notranslate"><span class="pre">proc</span></code> is the rank of a
+neighboring process, while <code class="docutils literal notranslate"><span class="pre">direction</span></code> tells whether <code class="docutils literal notranslate"><span class="pre">proc</span></code> is
+logically at right (value=1) or left (value=-1) of <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.nprocs">
+<code class="descname">nprocs</code><a class="headerlink" href="#devito.distributed.Distributor.nprocs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.shape">
+<code class="descname">shape</code><a class="headerlink" href="#devito.distributed.Distributor.shape" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the shape of this process’ domain.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.distributed.Distributor.topology">
+<code class="descname">topology</code><a class="headerlink" href="#devito.distributed.Distributor.topology" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
 <div class="section" id="module-devito.equation">
 <span id="devito-equation-module"></span><h2>devito.equation module<a class="headerlink" href="#module-devito.equation" title="Permalink to this headline">¶</a></h2>
 <p>User API to specify equations.</p>
@@ -2886,20 +2968,20 @@ symbolic function.</p>
 <span id="devito-grid-module"></span><h2>devito.grid module<a class="headerlink" href="#module-devito.grid" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.grid.Grid">
-<em class="property">class </em><code class="descclassname">devito.grid.</code><code class="descname">Grid</code><span class="sig-paren">(</span><em>shape</em>, <em>extent=None</em>, <em>origin=None</em>, <em>dimensions=None</em>, <em>time_dimension=None</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/grid.html#Grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.Grid" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.grid.</code><code class="descname">Grid</code><span class="sig-paren">(</span><em>shape</em>, <em>extent=None</em>, <em>origin=None</em>, <em>dimensions=None</em>, <em>time_dimension=None</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>comm=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/grid.html#Grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.Grid" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>A cartesian grid that encapsulates a physical domain over which
-to discretize :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Function`s.</p>
+to discretize :class:<a href="#id5"><span class="problematic" id="id6">`</span></a>Function`s.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>shape</strong> – Shape of the domain region in grid points.</li>
-<li><strong>extent</strong> – Physical extent of the domain in m; defaults to a
-unit box of extent 1m in all dimensions.</li>
-<li><strong>origin</strong> – Physical coordinate of the origin of the domain;
-defaults to 0. in all dimensions.</li>
+<li><strong>extent</strong> – (Optional) physical extent of the domain in m; defaults
+to a unit box of extent 1m in all dimensions.</li>
+<li><strong>origin</strong> – (Optional) physical coordinate of the origin of the
+domain; defaults to 0.0 in all dimensions.</li>
 <li><strong>dimensions</strong> – (Optional) list of <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code>
 symbols that defines the spatial directions of
 the physical domain encapsulated by this
@@ -2908,8 +2990,11 @@ the physical domain encapsulated by this
 to to define the time dimension for all
 <code class="xref py py-class docutils literal notranslate"><span class="pre">TimeFunction</span></code> symbols created
 from this <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
-<li><strong>dtype</strong> – Default data type to be inherited by all Functions
-created from this <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
+<li><strong>dtype</strong> – (Optional) default data type to be inherited by all
+<code class="xref py py-class docutils literal notranslate"><span class="pre">Function`s</span> <span class="pre">created</span> <span class="pre">from</span> <span class="pre">this</span> <span class="pre">:class:`Grid</span></code>.
+Defaults to <code class="docutils literal notranslate"><span class="pre">numpy.float32</span></code>.</li>
+<li><strong>comm</strong> – (Optional) an MPI communicator defining the set of
+processes among which the grid is distributed.</li>
 </ul>
 </td>
 </tr>
@@ -2948,9 +3033,21 @@ the conventions for defining the coordinate space in 2D are:</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.grid.Grid.distributor">
+<code class="descname">distributor</code><a class="headerlink" href="#devito.grid.Grid.distributor" title="Permalink to this definition">¶</a></dt>
+<dd><p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">Distributor</span></code> used for domain decomposition.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.grid.Grid.shape">
+<code class="descname">shape</code><a class="headerlink" href="#devito.grid.Grid.shape" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shape of the physical domain.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.grid.Grid.shape_domain">
 <code class="descname">shape_domain</code><a class="headerlink" href="#devito.grid.Grid.shape_domain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shape of the physical domain (without external boundary layer)</p>
+<dd><p>Shape of the local (per-process) physical domain.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -3124,7 +3221,7 @@ when running the operator.</p>
 <dl class="method">
 <dt id="devito.operator.Operator.prepare_arguments">
 <code class="descname">prepare_arguments</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.prepare_arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.prepare_arguments" title="Permalink to this definition">¶</a></dt>
-<dd><p>Process runtime arguments passed to <a href="#id5"><span class="problematic" id="id6">``</span></a>.apply()` and derive
+<dd><p>Process runtime arguments passed to <a href="#id7"><span class="problematic" id="id8">``</span></a>.apply()` and derive
 default values for any remaining arguments.</p>
 </dd></dl>
 
@@ -3190,7 +3287,7 @@ run, for example</p>
 <code class="docutils literal notranslate"><span class="pre">u=u2,</span> <span class="pre">x_m=1,</span> <span class="pre">x_M=2,</span> <span class="pre">y_m=0,</span> <span class="pre">y_M=1,</span> <span class="pre">time_m=0,</span> <span class="pre">time_M=3</span></code>.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p>To run an operator that only uses buffered :class:<a href="#id7"><span class="problematic" id="id8">`</span></a>TimeFunction`s,
+<p>To run an operator that only uses buffered :class:<a href="#id9"><span class="problematic" id="id10">`</span></a>TimeFunction`s,
 the maximum iteration point along the time dimension must be explicitly
 specified (otherwise, the operator wouldn’t know how many iterations
 to run).</p>
@@ -3379,7 +3476,7 @@ values if the detection procedure was unsuccesful.</p>
 <dl class="function">
 <dt id="devito.mode_develop">
 <code class="descclassname">devito.</code><code class="descname">mode_develop</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito.html#mode_develop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mode_develop" title="Permalink to this definition">¶</a></dt>
-<dd><p>Run all future :class:<a href="#id9"><span class="problematic" id="id10">`</span></a>Operator`s in develop mode. This is the default
+<dd><p>Run all future :class:<a href="#id11"><span class="problematic" id="id12">`</span></a>Operator`s in develop mode. This is the default
 configuration for Devito.</p>
 </dd></dl>
 

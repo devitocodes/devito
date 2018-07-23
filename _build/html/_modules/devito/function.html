@@ -154,13 +154,16 @@
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
+
 <span class="kn">import</span> <span class="nn">sympy</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">psutil</span> <span class="k">import</span> <span class="n">virtual_memory</span>
+<span class="kn">from</span> <span class="nn">mpi4py</span> <span class="k">import</span> <span class="n">MPI</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span>
 <span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">Data</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">,</span> <span class="n">first_touch</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">DefaultDimension</span>
+<span class="kn">from</span> <span class="nn">devito.distributed</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
 <span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="p">(</span><span class="n">centered</span><span class="p">,</span> <span class="n">cross_derivative</span><span class="p">,</span>
@@ -279,6 +282,8 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
             <span class="c1"># Staggered mask</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_staggered</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="mi">0</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">))</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
@@ -292,16 +297,6 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first_touch&#39;</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;allocator&#39;</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">())</span>
-
-            <span class="c1"># Setup halo and padding regions</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__halo_setup__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__padding_setup__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">__halo_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">__padding_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Shortcut for ``self.indexed[index]``.&quot;&quot;&quot;</span>
@@ -382,9 +377,15 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The function data values, as a :class:`numpy.ndarray`.</span>
+<span class="sd">        The domain data values, as a :class:`numpy.ndarray`.</span>
 
 <span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            With this accessor you are claiming that you will modify</span>
+<span class="sd">            the values you get back. If you only need to look at the</span>
+<span class="sd">            values, use :meth:`data_ro` instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_domain</span>
 
@@ -398,8 +399,15 @@
 
 <span class="sd">        .. note::</span>
 
+<span class="sd">            With this accessor you are claiming that you will modify</span>
+<span class="sd">            the values you get back. If you only need to look at the</span>
+<span class="sd">            values, use :meth:`data_ro_domain` instead.</span>
+
+<span class="sd">        .. note::</span>
+
 <span class="sd">            Alias to ``self.data``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">]</span>
 
     <span class="nd">@property</span>
@@ -409,7 +417,15 @@
 <span class="sd">        The domain+halo data values.</span>
 
 <span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            With this accessor you are claiming that you will modify</span>
+<span class="sd">            the values you get back. If you only need to look at the</span>
+<span class="sd">            values, use :meth:`data_ro_with_halo` instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_halo_exchange</span><span class="p">()</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_with_halo</span><span class="p">]</span>
 
     <span class="nd">@property</span>
@@ -419,16 +435,42 @@
 <span class="sd">        The allocated data values, that is domain+halo+padding.</span>
 
 <span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            With this accessor you are claiming that you will modify</span>
+<span class="sd">            the values you get back. If you only need to look at the</span>
+<span class="sd">            values, use :meth:`data_ro_allocated` instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_halo_exchange</span><span class="p">()</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_ro_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A read-only view of the domain data values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">]</span>
+        <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">view</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">padding</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_ro_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A read-only view of the domain+halo data values.&quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_with_halo</span><span class="p">]</span>
+        <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">view</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_ro_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A read-only view of the domain+halo+padding data values.&quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">view</span><span class="p">()</span>
+        <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">view</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -451,6 +493,46 @@
         <span class="n">symbolic_shape</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">symbolic_shape</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">j</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">symbolic_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Perform the halo exchange with the neighboring processes.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` cannot perfom a halo exchange as it has &quot;</span>
+                               <span class="s2">&quot;no Grid attached&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_in_flight</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` cannot initiate a halo exchange as previous &quot;</span>
+                               <span class="s2">&quot;exchanges are still in flight&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__halo_begin_exchange</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__halo_end_exchange</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">assert</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_in_flight</span>
+
+    <span class="k">def</span> <span class="nf">__halo_begin_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Begin a halo exchange along a given :class:`Dimension`.&quot;&quot;&quot;</span>
+        <span class="n">distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span>
+        <span class="n">neighbours</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">neighbours</span>
+        <span class="n">comm</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">]:</span>
+            <span class="n">neighbour</span> <span class="o">=</span> <span class="n">neighbours</span><span class="p">[</span><span class="n">dim</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">neighbour</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">sendbuf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_owned</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+                <span class="n">recvbuf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">sendbuf</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">sendbuf</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_in_flight</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">recvbuf</span><span class="p">,</span> <span class="n">comm</span><span class="o">.</span><span class="n">Irecv</span><span class="p">(</span><span class="n">recvbuf</span><span class="p">,</span> <span class="n">neighbour</span><span class="p">)))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_in_flight</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">dim</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">comm</span><span class="o">.</span><span class="n">Isend</span><span class="p">(</span><span class="n">sendbuf</span><span class="p">,</span> <span class="n">neighbour</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">__halo_end_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;End a halo exchange along a given :class:`Dimension`.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">req</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_in_flight</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">d</span> <span class="o">==</span> <span class="n">dim</span><span class="p">:</span>
+                <span class="n">req</span><span class="o">.</span><span class="n">Wait</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># The MPI.Request `req` originated from a `comm.Irecv`</span>
+                    <span class="c1"># Now need to scatter the data to the right place</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_get_halo</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">)[:]</span> <span class="o">=</span> <span class="n">payload</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_in_flight</span><span class="o">.</span><span class="n">remove</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">req</span><span class="p">))</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -516,8 +598,7 @@
             <span class="n">i</span><span class="o">.</span><span class="n">_arg_check</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">intervals</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
 
     <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span>\
-        <span class="p">[</span><span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="s1">&#39;padding&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;staggered&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../devito.html#devito.function.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>

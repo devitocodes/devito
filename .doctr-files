@@ -36,6 +36,7 @@
 ./_build/html/_modules/devito/core/autotuning.html
 ./_build/html/_modules/devito/core/operator.html
 ./_build/html/_modules/devito/dimension.html
+./_build/html/_modules/devito/distributed.html
 ./_build/html/_modules/devito/dle/backends/advanced.html
 ./_build/html/_modules/devito/dle/backends/basic.html
 ./_build/html/_modules/devito/dle/backends/common.html

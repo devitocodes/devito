@@ -64,6 +64,14 @@ devito.dimension module
     :undoc-members:
     :show-inheritance:
 
+devito.distributed module
+-------------------------
+
+.. automodule:: devito.distributed
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.equation module
 ----------------------
 
