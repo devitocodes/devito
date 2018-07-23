@@ -32,7 +32,7 @@ class Node(Eq):
 
     @property
     def function(self):
-        return self.lhs.base.function
+        return self.lhs.function
 
     @property
     def is_Increment(self):
@@ -49,6 +49,10 @@ class Node(Eq):
     @property
     def is_tensor(self):
         return self.lhs.is_Indexed and self.lhs.rank > 0
+
+    @property
+    def is_unbound_temporary(self):
+        return self.function.is_Array and not self.reads and not self.readby
 
     @property
     def is_scalar(self):
