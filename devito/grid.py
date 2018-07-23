@@ -1,5 +1,6 @@
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
+from devito.distributed import Distributor
 from devito.function import Constant
 
 from sympy import prod
@@ -15,10 +16,10 @@ class Grid(object):
     to discretize :class:`Function`s.
 
     :param shape: Shape of the domain region in grid points.
-    :param extent: Physical extent of the domain in m; defaults to a
-                   unit box of extent 1m in all dimensions.
-    :param origin: Physical coordinate of the origin of the domain;
-                   defaults to 0. in all dimensions.
+    :param extent: (Optional) physical extent of the domain in m; defaults
+                   to a unit box of extent 1m in all dimensions.
+    :param origin: (Optional) physical coordinate of the origin of the
+                   domain; defaults to 0.0 in all dimensions.
     :param dimensions: (Optional) list of :class:`SpaceDimension`
                        symbols that defines the spatial directions of
                        the physical domain encapsulated by this
@@ -27,8 +28,11 @@ class Grid(object):
                            to to define the time dimension for all
                            :class:`TimeFunction` symbols created
                            from this :class:`Grid`.
-    :param dtype: Default data type to be inherited by all Functions
-                  created from this :class:`Grid`.
+    :param dtype: (Optional) default data type to be inherited by all
+                  :class:`Function`s created from this :class:`Grid`.
+                  Defaults to ``numpy.float32``.
+    :param comm: (Optional) an MPI communicator defining the set of
+                 processes among which the grid is distributed.
 
     The :class:`Grid` encapsulates the topology and geometry
     information of the computational domain that :class:`Function`
@@ -61,11 +65,11 @@ class Grid(object):
     _default_dimensions = ('x', 'y', 'z')
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
-                 time_dimension=None, dtype=np.float32):
-        self.shape = as_tuple(shape)
-        self.extent = as_tuple(extent or tuple(1. for _ in shape))
+                 time_dimension=None, dtype=np.float32, comm=None):
+        self._shape = as_tuple(shape)
+        self.extent = as_tuple(extent or tuple(1. for _ in self.shape))
         self.dtype = dtype
-        origin = as_tuple(origin or tuple(0. for _ in shape))
+        origin = as_tuple(origin or tuple(0. for _ in self.shape))
 
         if dimensions is None:
             # Create the spatial dimensions and constant spacing symbols
@@ -92,6 +96,8 @@ class Grid(object):
             self.stepping_dim = self._make_stepping_dim(self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
+
+        self._distributor = Distributor(self.shape, self.dimensions, comm)
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
@@ -129,9 +135,19 @@ class Grid(object):
         return dict(zip(self.spacing_symbols, self.spacing))
 
     @property
+    def shape(self):
+        """Shape of the physical domain."""
+        return self._shape
+
+    @property
     def shape_domain(self):
-        """Shape of the physical domain (without external boundary layer)"""
-        return self.shape
+        """Shape of the local (per-process) physical domain."""
+        return self._distributor.shape
+
+    @property
+    def distributor(self):
+        """The :class:`Distributor` used for domain decomposition."""
+        return self._distributor
 
     @property
     def _const(self):
@@ -143,3 +159,14 @@ class Grid(object):
         if name is None:
             name = '%s_s' % time_dim.name
         return SteppingDimension(name=name, parent=time_dim)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # A Distributor wraps an MPI communicator, which can't and shouldn't be pickled
+        state.pop('_distributor')
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+        self._distributor = Distributor(self.shape, self.dimensions)

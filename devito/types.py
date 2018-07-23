@@ -10,6 +10,7 @@ from functools import reduce
 import numpy as np
 import sympy
 
+from devito.distributed import LEFT, RIGHT
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, Pickable, single_or
 
@@ -373,6 +374,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             newcls._cache_put(newobj)
         return newobj
 
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            # Setup halo and padding regions
+            self._is_halo_dirty = False
+            self._in_flight = []
+            self._halo = self.__halo_setup__(**kwargs)
+            self._padding = self.__padding_setup__(**kwargs)
+
     __hash__ = Cached.__hash__
 
     @classmethod
@@ -384,6 +393,12 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     def __shape_setup__(cls, **kwargs):
         """Extract the function shape from ``kwargs``."""
         return ()
+
+    def __halo_setup__(self, **kwargs):
+        return tuple((0, 0) for i in range(self.ndim))
+
+    def __padding_setup__(self, **kwargs):
+        return tuple((0, 0) for i in range(self.ndim))
 
     @property
     def name(self):
@@ -423,15 +438,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return tuple(sympy.Add(i, j, k, evaluate=False)
                      for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
 
-    def indexify(self, indices=None):
-        """Create a :class:`sympy.Indexed` object from the current object."""
-        if indices is not None:
-            return Indexed(self.indexed, *indices)
-
-        subs = dict([(i.spacing, 1) for i in self.indices])
-        indices = [a.subs(subs) for a in self.args]
-        return Indexed(self.indexed, *indices)
-
     @property
     def indexed(self):
         """Extract a :class:`IndexedData` object from the current object."""
@@ -462,6 +468,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
            size in bytes
         """
         return reduce(mul, self.shape)
+
+    @property
+    def halo(self):
+        return self._halo
+
+    @property
+    def padding(self):
+        return self._padding
 
     @property
     def _offset_domain(self):
@@ -531,8 +545,58 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return tuple(slice(i, -j) if j != 0 else slice(i, None)
                      for i, j in self._offset_halo)
 
+    def _get_halo(self, dimension, direction):
+        """A view of the halo region along given :class:`Dimension`
+        and ``direction`` (an object of type :class:`RankRelativePosition`)."""
+        index_array = []
+        for i in self.dimensions:
+            if i == dimension:
+                if direction is LEFT:
+                    start = self._offset_halo[dimension].left
+                    extent = self._extent_halo[dimension].left
+                    end = start + extent
+                else:
+                    assert direction is RIGHT
+                    start = -self._offset_domain[dimension].right
+                    extent = self._extent_halo[dimension].right
+                    end = (start + extent) or None  # The end point won't be 0
+                index_array.append(slice(start, end))
+            else:
+                index_array.append(slice(None))
+        return self._data[index_array]
+
+    def _get_owned(self, dimension, direction):
+        """A view of the owned region along given :class:`Dimension`
+        and ``direction`` (an object of type :class:`RankRelativePosition`)."""
+        index_array = []
+        for i in self.dimensions:
+            if i == dimension:
+                if direction is LEFT:
+                    start = self._offset_domain[dimension].left
+                    extent = self._extent_halo[dimension].left
+                    end = start + extent
+                else:
+                    assert direction is RIGHT
+                    start = -self._offset_domain[dimension].right -\
+                        self._extent_halo[dimension].right
+                    extent = self._extent_halo[dimension].right
+                    end = (start + extent) or None  # The end point won't be 0
+                index_array.append(slice(start, end))
+            else:
+                index_array.append(slice(None))
+        return self._data[index_array]
+
+    def indexify(self, indices=None):
+        """Create a :class:`sympy.Indexed` object from the current object."""
+        if indices is not None:
+            return Indexed(self.indexed, *indices)
+
+        subs = dict([(i.spacing, 1) for i in self.indices])
+        indices = [a.subs(subs) for a in self.args]
+        return Indexed(self.indexed, *indices)
+
     # Pickling support
-    _pickle_kwargs = ['name']
+    _pickle_kwargs = ['name', 'halo', 'padding']
     __reduce_ex__ = Pickable.__reduce_ex__
 
     @property
