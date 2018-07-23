@@ -16,7 +16,7 @@ pipeline {
                      agent { dockerfile { label 'azure-linux-8core'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=4.9" } }
-                     environment { 
+                     environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
                          PYTHONPATH="${WORKSPACE}/lib/python3.6/site-packages/"
@@ -28,10 +28,10 @@ pipeline {
                      }
                 }
                 stage('Build and test gcc-4.9 OpenMP container') {
-                     agent { dockerfile { label 'azure-linux-8core' 
+                     agent { dockerfile { label 'azure-linux-8core'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=4.9" } }
-                     environment { 
+                     environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=1
                          OMP_NUM_THREADS=2
@@ -46,10 +46,10 @@ pipeline {
                      }
                 }
                 stage('Build and test gcc-5 container') {
-                     agent { dockerfile { label 'azure-linux-8core' 
+                     agent { dockerfile { label 'azure-linux-8core'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=5" } }
-                     environment { 
+                     environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
                      }
@@ -66,7 +66,7 @@ pipeline {
                      agent { dockerfile { label 'azure-linux'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=7" } }
-                     environment { 
+                     environment {
                          HOME="${WORKSPACE}"
                          DEVITO_BACKEND="yask"
                          DEVITO_OPENMP="0"
@@ -82,10 +82,10 @@ pipeline {
                      }
                 }
                 stage('Build and test gcc-8 container') {
-                     agent { dockerfile { label 'azure-linux-8core' 
+                     agent { dockerfile { label 'azure-linux-8core'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=8" } }
-                     environment { 
+                     environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
                      }
@@ -126,7 +126,7 @@ def installYask () {
     sh "source activate devito ; conda install swig"
     sh "mkdir ${WORKSPACE}/scratch"
     dir ("${WORKSPACE}/scratch") { sh 'git clone https://github.com/opesci/yask.git' }
-    dir ("${WORKSPACE}/scratch/yask") { 
+    dir ("${WORKSPACE}/scratch/yask") {
         sh '''source activate devito
               make compiler-api
               pip install -e .
@@ -151,6 +151,7 @@ def runExamples () {
     sh 'source activate devito ; python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec'
     sh 'source activate devito ; python examples/seismic/tti/tti_example.py -a'
     sh 'source activate devito ; python examples/seismic/tti/tti_example.py -a --noazimuth'
+    sh 'source activate devito ; python examples/seismic/elastic/elastic_example.py'
     sh 'source activate devito ; py.test --nbval examples/cfd'
     sh 'source activate devito ; py.test --nbval examples/seismic/tutorials/0[1-3]*'
 }

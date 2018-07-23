@@ -16,6 +16,10 @@ def laplacian(field, m, s, kernel):
     :param s: symbol for the time-step
     :return: H
     """
+    if kernel not in ['OT2', 'OT4']:
+        error("Unrecognized kernel, has to be OT2 or OT4")
+        raise ValueError("Unrecognized kernel")
+
     biharmonic = field.laplace2(1/m) if kernel == 'OT4' else 0
     return field.laplace + s**2/12 * biharmonic
 
@@ -151,8 +155,6 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
     elif kernel == 'OT4':
         gradient_update = Inc(grad, grad - (u.dt2 +
                                             s**2 / 12.0 * u.laplace2(m**(-2))) * v)
-    else:
-        error("Unrecognized kernel, has to be OT2 or OT4")
     # Add expression for receiver injection
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
                            offset=model.nbpml)

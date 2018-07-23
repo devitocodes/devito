@@ -1,6 +1,6 @@
 # coding: utf-8
 from devito import TimeFunction, memoized_meth
-from examples.seismic.tti.operators import ForwardOperator
+from examples.seismic.tti.operators import ForwardOperator, particle_velocity_fields
 from examples.seismic import Receiver
 
 
@@ -58,6 +58,8 @@ class AnisotropicWaveSolver(object):
         # overall space_order discretization
         self.space_order = self.space_order // 2 if kernel == 'shifted' \
             else self.space_order
+
+        time_order = 1 if kernel == 'staggered' else 2
         # Source term is read-only, so re-use the default
         if src is None:
             src = self.source
@@ -71,12 +73,20 @@ class AnisotropicWaveSolver(object):
         if u is None:
             u = TimeFunction(name='u', grid=self.model.grid,
                              save=self.source.nt if save else None,
-                             time_order=2, space_order=self.space_order)
+                             time_order=time_order, space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeFunction(name='v', grid=self.model.grid,
                              save=self.source.nt if save else None,
-                             time_order=2, space_order=self.space_order)
+                             time_order=time_order, space_order=self.space_order)
+
+        if kernel == 'staggered':
+            vx, vz, vy = particle_velocity_fields(self.model, self.space_order)
+            kwargs["vx"] = vx
+            kwargs["vz"] = vz
+            if vy is not None:
+                kwargs["vy"] = vy
+
         # Pick m from model unless explicitly provided
         kwargs.update(self.model.physical_params(m=m, epsilon=epsilon, delta=delta,
                                                  theta=theta, phi=phi))
