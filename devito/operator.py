@@ -151,7 +151,7 @@ class Operator(Callable):
                 args[dim.symbolic_size.name] = arg.value(osize)
 
         # Add in the profiler argument
-        args[self.profiler.name] = self.profiler.new()
+        args[self.profiler.name] = self.profiler.timer.reset()
 
         # Add in any backend-specific argument
         args.update(kwargs.pop('backend', {}))

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 from collections import OrderedDict, namedtuple
-from ctypes import Structure, POINTER, byref, c_double
+from ctypes import Structure, c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
@@ -17,7 +17,7 @@ from devito.logger import warning
 from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
-from devito.types import Object
+from devito.types import CompositeObject
 
 __all__ = ['Timer', 'create_profile']
 
@@ -33,13 +33,6 @@ class Profiler(object):
         self._sections = OrderedDict()
 
         self.initialized = True
-
-    def new(self):
-        """
-        Allocate and return a pointer to a new C-level Struct capable of storing
-        all timers inserted by :meth:`instrument`.
-        """
-        return byref(self.dtype._type_())
 
     def instrument(self, iet):
         """
@@ -130,15 +123,7 @@ class Profiler(object):
 
     @cached_property
     def timer(self):
-        return Timer(self)
-
-    @cached_property
-    def dtype(self):
-        """
-        Return the profiler C type in ctypes format.
-        """
-        return POINTER(type(Profiler.__name__, (Structure,),
-                            {"_fields_": [(i.name, c_double) for i in self._sections]}))
+        return Timer(self.name, [i.name for i in self._sections])
 
     @cached_property
     def cdef(self):
@@ -146,8 +131,7 @@ class Profiler(object):
         Return a :class:`cgen.Struct` representing the profiler data structure in C
         (a ``struct``).
         """
-        return Struct(Profiler.__name__,
-                      [Value('double', i.name) for i in self._sections])
+        return Struct('profiler', [Value('double', i.name) for i in self._sections])
 
 
 class AdvisorProfiler(Profiler):
@@ -189,25 +173,19 @@ class AdvisorProfiler(Profiler):
         return iet
 
 
-class Timer(Object):
+class Timer(CompositeObject):
 
-    def __init__(self, profiler):
-        self.profiler = profiler
+    def __init__(self, name, sections):
+        super(Timer, self).__init__(name, 'profiler', Structure,
+                                    [(i, c_double) for i in sections])
 
-    @property
-    def name(self):
-        return self.profiler.name
-
-    @property
-    def dtype(self):
-        return self.profiler.dtype
-
-    @property
-    def value(self):
-        return self.profiler.new
+    def reset(self):
+        for i in self.pfields:
+            setattr(self.value._obj, i, 0.0)
+        return self.value
 
     # Pickling support
-    _pickle_args = ['profiler']
+    _pickle_args = ['name', 'pfields']
     _pickle_kwargs = []
 
 
