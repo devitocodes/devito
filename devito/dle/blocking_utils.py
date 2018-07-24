@@ -5,7 +5,7 @@ from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacentItera
                            FindNodes, IsPerfectIteration, NestedTransformer, Transformer,
                            compose_nodes, retrieve_iteration_tree)
 from devito.symbolics import as_symbol, xreplace_indices
-from devito.tools import as_tuple
+from devito.tools import as_tuple, flatten
 
 __all__ = ['fold_blockable_tree', 'unfold_blocked_tree']
 
@@ -43,6 +43,11 @@ def fold_blockable_tree(node, exclude_innermost=False):
                 pairwise_folds = pairwise_folds[:-1]
             # Perhaps there's nothing to fold
             if len(pairwise_folds) == 1:
+                continue
+            # TODO: we do not currently support blocking if any of the foldable
+            # iterations writes to user data (need min/max loop bounds?)
+            exprs = flatten(FindNodes(Expression).visit(j.root) for j in trees[:-1])
+            if any(j.write.is_Input for j in exprs):
                 continue
             # Perform folding
             for j in pairwise_folds:
