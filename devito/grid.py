@@ -2,6 +2,7 @@ from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
 from devito.mpi import Distributor
 from devito.function import Constant
+from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap
 
 from sympy import prod
@@ -167,9 +168,11 @@ class Grid(ArgProvider):
         """
         args = ReducerMap()
 
-        distributor = self.distributor
-        args[distributor._C_comm.name] = distributor._C_comm.value
-        args[distributor._C_neighbours.obj.name] = distributor._C_neighbours.obj.value
+        if configuration['mpi']:
+            distributor = self.distributor
+            args[distributor._C_comm.name] = distributor._C_comm.value
+            args[distributor._C_neighbours.obj.name] = distributor._C_neighbours.obj.value
+
         return args
 
     def __getstate__(self):
