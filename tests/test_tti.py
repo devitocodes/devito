@@ -1,12 +1,10 @@
 import numpy as np
 import pytest
-import os
 from conftest import skipif_yask
 from numpy import linalg
 
 from devito import TimeFunction, configuration
 from devito.logger import log
-from devito.compiler import get_jit_dir
 from examples.seismic import TimeAxis, RickerSource, Receiver, Model, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -120,17 +118,10 @@ def test_tti_staggered(shape):
     rec1, u1, v1, _ = solver_tti.forward(kernel='staggered')
     configuration['dle'] = 'basic'
     rec2, u2, v2, _ = solver_tti2.forward(kernel='staggered')
-    # import matplotlib.pyplot as plt
-    # plt.imshow(np.transpose(u1.data[-1, :, :]), vmin=-.001, vmax=.001, cmap="seismic")
-    # plt.figure();plt.imshow(np.transpose(u2.data[-1, :, :]), vmin=-.001, vmax=.001, cmap="seismic")
-    # plt.show()
+
     u_staggered1 = u1.data[last, :] + v1.data[last, :]
     u_staggered2 = u2.data[last, :] + v2.data[last, :]
 
     res = np.linalg.norm(u_staggered1.reshape(-1) - u_staggered2.reshape(-1))
     log("DSE/DLE introduces error %2.4e in %d dimensions" % (res, len(shape)))
     assert np.isclose(res, 0.0, atol=1e-8)
-
-
-if __name__ == "__main__":
-    test_tti_staggered((50, 60, 70))
