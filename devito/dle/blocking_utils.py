@@ -155,6 +155,16 @@ def optimize_unfolded_tree(unfolded, root):
     processed = []
     for i, tree in enumerate(unfolded):
         assert len(tree) == len(root)
+
+        # We can optimize the folded trees only if they compute temporary
+        # arrays, but not if they compute input data
+        exprs = FindNodes(Expression).visit(tree[-1])
+        writes = [j.write for j in exprs if j.is_tensor]
+        if not all(j.is_Array for j in writes):
+            processed.append(compose_nodes(tree))
+            root = compose_nodes(root)
+            continue
+
         modified_tree = []
         modified_root = []
         mapper = {}
@@ -172,14 +182,13 @@ def optimize_unfolded_tree(unfolded, root):
             mapper[t1.dim] = t1_udim
 
         # Temporary arrays can now be moved onto the stack
-        exprs = FindNodes(Expression).visit(modified_tree[-1])
         if all(not j.is_Remainder for j in modified_tree):
             dimensions = tuple(j.limits[0] for j in modified_root)
-            for j in exprs:
-                if j.write.is_Array:
-                    j_dimensions = dimensions + j.write.dimensions[len(modified_root):]
+            for j in writes:
+                if j.is_Array:
+                    j_dimensions = dimensions + j.dimensions[len(modified_root):]
                     j_shape = tuple(k.symbolic_size for k in j_dimensions)
-                    j.write.update(shape=j_shape, dimensions=j_dimensions, onstack=True)
+                    j.update(shape=j_shape, dimensions=j_dimensions, onstack=True)
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)
