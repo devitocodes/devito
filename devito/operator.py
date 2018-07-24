@@ -220,7 +220,7 @@ class Operator(Callable):
             argtypes = []
             for i in self.parameters:
                 if i.is_Object:
-                    argtypes.append(ctypes.c_void_p)
+                    argtypes.append(i.dtype)
                 elif i.is_Scalar:
                     argtypes.append(numpy_to_ctypes(i.dtype))
                 elif i.is_Tensor:
