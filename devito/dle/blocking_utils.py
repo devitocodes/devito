@@ -3,7 +3,7 @@ import cgen as c
 from devito.dimension import IncrDimension
 from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacentIterations,
                            FindNodes, IsPerfectIteration, NestedTransformer, Transformer,
-                           compose_nodes, is_foldable, retrieve_iteration_tree)
+                           compose_nodes, retrieve_iteration_tree)
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple
 
@@ -104,6 +104,19 @@ def unfold_blocked_tree(node):
     processed = Transformer(mapper).visit(node)
 
     return processed
+
+
+def is_foldable(nodes):
+    """
+    Return True if the iterable ``nodes`` consists of foldable :class:`Iteration`s,
+    False otherwise.
+    """
+    nodes = as_tuple(nodes)
+    if len(nodes) <= 1 or any(not i.is_Iteration for i in nodes):
+        return False
+    main = nodes[0]
+    return all(i.dim == main.dim and i.limits == main.limits and i.index == main.index
+               and i.properties == main.properties for i in nodes)
 
 
 def optimize_unfolded_tree(unfolded, root):
