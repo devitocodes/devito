@@ -162,6 +162,9 @@ class CodePrinter(C99CodePrinter):
     def _print_FieldFromPointer(self, expr):
         return "%s->%s" % (expr.pointer, expr.field)
 
+    def _print_FieldFromComposite(self, expr):
+        return "%s.%s" % (expr.pointer, expr.field)
+
     def _print_ListInitializer(self, expr):
         return "{%s}" % ', '.join([self._print(i) for i in expr.params])
 

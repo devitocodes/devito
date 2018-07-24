@@ -10,8 +10,9 @@ from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'IntDiv',
-           'FunctionFromPointer', 'FieldFromPointer', 'ListInitializer', 'Byref',
-           'Macro', 'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
+           'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
+           'ListInitializer', 'Byref', 'Macro', 'taylor_sin', 'taylor_cos',
+           'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
@@ -172,11 +173,35 @@ class FieldFromPointer(FunctionFromPointer, Pickable):
         return FunctionFromPointer.__new__(cls, field, pointer)
 
     def __str__(self):
-        return '%s->%s' % (self.pointer, self.function)
+        return '%s->%s' % (self.pointer, self.field)
 
     @property
     def field(self):
         return self.function
+
+    __repr__ = __str__
+
+
+class FieldFromComposite(FunctionFromPointer, Pickable):
+
+    """
+    Symbolic representation of the C notation ``composite.field``,
+    where ``composite`` is a struct/union/...
+    """
+
+    def __new__(cls, field, composite):
+        return FunctionFromPointer.__new__(cls, field, composite)
+
+    def __str__(self):
+        return '%s.%s' % (self.composite, self.field)
+
+    @property
+    def field(self):
+        return self.function
+
+    @property
+    def composite(self):
+        return self.pointer
 
     __repr__ = __str__
 
