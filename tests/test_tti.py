@@ -115,6 +115,7 @@ def test_tti_staggered(shape):
                                         time_order=2, space_order=8)
 
     # Solve
+    configuration['dse'] = 'aggressive'
     configuration['dle'] = 'advanced'
     rec1, u1, v1, _ = solver_tti.forward(kernel='staggered')
     configuration['dle'] = 'basic'
