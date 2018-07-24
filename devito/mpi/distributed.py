@@ -1,5 +1,5 @@
 from collections import namedtuple
-from ctypes import Structure, POINTER, byref, c_int, c_void_p, sizeof
+from ctypes import Structure, c_int, c_void_p, sizeof
 from itertools import product
 
 from cached_property import cached_property
@@ -118,35 +118,26 @@ class Distributor(object):
 
             https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
         """
-        from devito.types import Object
-        if MPI._sizeof(self._comm) == sizeof(c_int):
-            ctype = type('MPI_Comm', (c_int,), {})
-        else:
-            ctype = type('MPI_Comm', (c_void_p,), {})
+        from devito.types import CompositeObject
+        ptype = c_int if MPI._sizeof(self._comm) == sizeof(c_int) else c_void_p
+        obj = CompositeObject('comm', 'MPI_Comm', ptype, [])
         comm_ptr = MPI._addressof(self._comm)
-        comm_val = ctype.from_address(comm_ptr)
-        return Object(name='comm', dtype=ctype, value=comm_val)
+        comm_val = obj.dtype.from_address(comm_ptr)
+        obj.value = comm_val
+        return obj
 
     @cached_property
     def _C_neighbours(self):
         """A ctypes Struct to access the neighborhood of a given rank."""
-        from devito.types import Object
-        CNeighbours = namedtuple('CNeighbours', 'ctype cdef obj')
-        # The ctypes type
+        from devito.types import CompositeObject
         entries = list(product(self.dimensions, [LEFT, RIGHT]))
         fields = [('%s%s' % (d, i), c_int) for d, i in entries]
-        ctype = POINTER(type('neighbours', (Structure,), {"_fields_": fields}))
-        # Populate the struct
-        value = ctype._type_()
-        neighbours = self.neighbours
+        obj = CompositeObject('nb', 'neighbours', Structure, fields)
         for d, i in entries:
-            setattr(value, '%s%s' % (d, i), neighbours[d][i])
-        value = byref(value)
-        # The corresponding struct in C
+            setattr(obj.value._obj, '%s%s' % (d, i), self.neighbours[d][i])
         cdef = Struct('neighbours', [Value('int', i) for i, _ in fields])
-        # The corresponding types.Object
-        obj = Object(name='nb', dtype=ctype, value=value)
-        return CNeighbours(ctype, cdef, obj)
+        CNeighbours = namedtuple('CNeighbours', 'ctype cdef obj')
+        return CNeighbours(obj.dtype, cdef, obj)
 
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
