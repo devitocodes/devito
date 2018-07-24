@@ -528,10 +528,6 @@ class SteppingDimension(DerivedDimension):
         return self.parent.symbolic_end
 
     @property
-    def symbolic_size(self):
-        return self.parent.symbolic_size
-
-    @property
     def _arg_names(self):
         return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
@@ -547,7 +543,7 @@ class SteppingDimension(DerivedDimension):
 
             A :class:`SteppingDimension` does not know its end point.
         """
-        return {self.parent.min_name: start, self.parent.size_name: size}
+        return {self.parent.min_name: start, self.size_name: size}
 
     def _arg_values(self, *args, **kwargs):
         """
