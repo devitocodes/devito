@@ -340,7 +340,7 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 
 @skipif_yask
 @pytest.mark.parallel(nprocs=2)
-def test_iet_simple_operator():
+def test_simple_operator():
     grid = Grid(shape=(10,))
     x = grid.dimensions[0]
     t = grid.stepping_dim
@@ -361,4 +361,4 @@ def test_iet_simple_operator():
 
 
 if __name__ == "__main__":
-    test_iet_simple_operator()
+    test_simple_operator()
