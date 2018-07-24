@@ -270,6 +270,12 @@ def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
         dy = 0
         is_y = False
 
+        try:
+            a, b = dx.args[1], dx.args[3]
+            print(a.args[0]+b.args[0])
+        except:
+            pass
+
         if ndim == 3:
             y = f.space_dimensions[1]
             idxy = list(set([(y + int(i+.5+off[y])*y.spacing)
