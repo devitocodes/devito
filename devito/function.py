@@ -13,16 +13,16 @@ from devito.exceptions import InvalidArgument
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
-                                      second_cross_derivative)
+                                      second_cross_derivative, initialize_derivatives)
 from devito.logger import debug, warning
 from devito.parameters import configuration
-from devito.symbolics import indexify, retrieve_indexed
+from devito.symbolics import indexify, retrieve_indexed, Add, Mul, Pow
 from devito.types import AbstractCachedFunction, AbstractCachedSymbol
 from devito.tools import Tag, ReducerMap, prod, powerset
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
-           'PrecomputedSparseTimeFunction', 'Buffer']
+           'PrecomputedSparseTimeFunction', 'Buffer', 'TensorFunction']
 
 
 class Constant(AbstractCachedSymbol):
@@ -366,6 +366,26 @@ class TensorFunction(AbstractCachedFunction):
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
         ['staggered', 'halo', 'padding']
 
+    def __add__(self, other):
+        return Add(self, other)
+
+    def __iadd__(self, other):
+        return Add(self, other)
+
+    def __radd__(self, other):
+        return Add(self, other)
+
+    def __mul__(self, other):
+        return Mul(self, other)
+
+    def __imul__(self, other):
+        return Mul(self, other)
+
+    def __rmul__(self, other):
+        return Mul(self, other)
+
+    def __pow__(self, other):
+        return Pow(self, other)
 
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express
@@ -455,73 +475,8 @@ class Function(TensorFunction):
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
 
             # Dynamically add derivative short-cuts
-            self._initialize_derivatives()
+            initialize_derivatives(self)
 
-    def _initialize_derivatives(self):
-        """
-        Dynamically create notational shortcuts for space derivatives.
-        """
-        for dim in self.space_dimensions:
-            name = dim.parent.name if dim.is_Derived else dim.name
-            # First derivative, centred
-            dx = partial(first_derivative, order=self.space_order,
-                         dim=dim, side=centered)
-            setattr(self.__class__, 'd%s' % name,
-                    property(dx, 'Return the symbolic expression for '
-                             'the centered first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # First derivative, left
-            dxl = partial(first_derivative, order=self.space_order,
-                          dim=dim, side=left)
-            setattr(self.__class__, 'd%sl' % name,
-                    property(dxl, 'Return the symbolic expression for '
-                             'the left-sided first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # First derivative, right
-            dxr = partial(first_derivative, order=self.space_order,
-                          dim=dim, side=right)
-            setattr(self.__class__, 'd%sr' % name,
-                    property(dxr, 'Return the symbolic expression for '
-                             'the right-sided first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # Second derivative
-            dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
-                          fd_order=int(self.space_order / 2))
-            setattr(self.__class__, 'd%s2' % name,
-                    property(dx2, 'Return the symbolic expression for '
-                             'the second derivative wrt. the '
-                             '%s dimension' % name))
-
-            # Fourth derivative
-            dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
-                          fd_order=max(int(self.space_order / 2), 2))
-            setattr(self.__class__, 'd%s4' % name,
-                    property(dx4, 'Return the symbolic expression for '
-                             'the fourth derivative wrt. the '
-                             '%s dimension' % name))
-
-            for dim2 in self.space_dimensions:
-                name2 = dim2.parent.name if dim2.is_Derived else dim2.name
-                # First cross derivative
-                dxy = partial(cross_derivative, order=self.space_order,
-                              dims=(dim, dim2))
-                setattr(self.__class__, 'd%s%s' % (name, name2),
-                        property(dxy, 'Return the symbolic expression for '
-                                 'the first cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (name, name2)))
-
-                # Second cross derivative
-                dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
-                                order=self.space_order)
-                setattr(self.__class__, 'd%s2%s2' % (dim.name, name2),
-                        property(dx2y2, 'Return the symbolic expression for '
-                                 'the second cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (name, name2)))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -686,6 +641,8 @@ class TimeFunction(Function):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            self.time_order = kwargs.get('time_order', 1)
+            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
             super(TimeFunction, self).__init__(*args, **kwargs)
 
             # Check we won't allocate too much memory for the system
@@ -694,8 +651,6 @@ class TimeFunction(Function):
                 warning("Trying to allocate more memory for symbol %s " % self.name +
                         "than available on physical device, this will start swapping")
 
-            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
-            self.time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise TypeError("`time_order` must be int")
 
@@ -757,29 +712,6 @@ class TimeFunction(Function):
 
         return self.subs(_t, _t - i * _t.spacing)
 
-    @property
-    def dt(self):
-        """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[self._time_position]
-        if self.time_order == 1:
-            # This hack is needed for the first-order diffusion test
-            indices = [_t, _t + _t.spacing]
-        else:
-            width = int(self.time_order / 2)
-            indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
-
-        return self.diff(_t).as_finite_difference(indices)
-
-    @property
-    def dt2(self):
-        """Symbol for the second derivative wrt the t dimension"""
-        _t = self.indices[0]
-        width_t = int(self.time_order / 2)
-        indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
-
-        return self.diff(_t, _t).as_finite_difference(indt)
-
-    @property
     def _time_size(self):
         return self.shape_allocated[self._time_position]
 
