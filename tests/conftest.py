@@ -47,9 +47,9 @@ def timefunction(name, space_order=1):
 
 
 @pytest.fixture(scope="session")
-def unit_box(name='a', shape=(11, 11)):
+def unit_box(name='a', shape=(11, 11), grid=None):
     """Create a field with value 0. to 1. in each dimension"""
-    grid = Grid(shape=shape)
+    grid = grid or Grid(shape=shape)
     a = Function(name=name, grid=grid)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
     a.data[:] = np.meshgrid(*dims)[1]

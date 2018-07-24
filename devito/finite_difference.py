@@ -262,25 +262,22 @@ def staggered_diff(f, dim, order, stagger=centered, theta=0, phi=0):
         idxx = list(set([(x + int(i+.5+off[x])*x.spacing)
                          for i in range(-int(order / 2), int(order / 2))]))
         dx = f.diff(x).as_finite_difference(idxx, x0=x + off[x]*x.spacing)
+        dx = dx.evalf(9)
 
         idxz = list(set([(z + int(i+.5+off[z])*z.spacing)
                          for i in range(-int(order / 2), int(order / 2))]))
         dz = f.diff(z).as_finite_difference(idxz, x0=z + off[z]*z.spacing)
+        dz = dx.evalf(9)
 
         dy = 0
         is_y = False
-
-        try:
-            a, b = dx.args[1], dx.args[3]
-            print(a.args[0]+b.args[0])
-        except:
-            pass
 
         if ndim == 3:
             y = f.space_dimensions[1]
             idxy = list(set([(y + int(i+.5+off[y])*y.spacing)
                              for i in range(-int(order / 2), int(order / 2))]))
             dy = f.diff(y).as_finite_difference(idxy, x0=y + off[y]*y.spacing)
+            dy = dy.evalf(9)
             is_y = (dim == y)
 
         if dim == x:
