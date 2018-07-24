@@ -2,10 +2,10 @@ from __future__ import absolute_import
 import weakref
 import abc
 import gc
-
 from collections import namedtuple
 from operator import mul
 from functools import reduce
+from ctypes import POINTER, byref
 
 import numpy as np
 import sympy
@@ -739,8 +739,45 @@ class Object(AbstractObject, ArgProvider):
         else:
             return {}
 
+
+class CompositeObject(Object):
+
+    """
+    Represent a pointer object to a composite type (e.g., struct, union),
+    provided by the outside world.
+    """
+
+    _dtype_cache = {}
+
+    @classmethod
+    def _generate_unique_dtype(cls, pname, ptype, pfields):
+        dtype = POINTER(type(pname, (ptype,), {'_fields_': pfields}))
+        key = (pname, ptype, tuple(pfields))
+        return cls._dtype_cache.setdefault(key, dtype)
+
+    def __init__(self, name, pname, ptype, pfields, value=None):
+        dtype = CompositeObject._generate_unique_dtype(pname, ptype, pfields)
+        value = value or byref(dtype._type_())
+        super(CompositeObject, self).__init__(name, dtype, value)
+
+    @property
+    def pfields(self):
+        return tuple(i for i, _ in self.dtype._type_._fields_)
+
+    @property
+    def ptype(self):
+        return self.dtype._type_.__base__
+
+    @property
+    def pname(self):
+        return self.dtype._type_.__name__
+
+    def _hashable_content(self):
+        return (self.name, self.pfields)
+
     # Pickling support
-    _pickle_kwargs = ['value']
+    _pickle_args = ['name', 'pname', 'ptype', 'pfields']
+    _pickle_kwargs = []
 
 
 class LocalObject(AbstractObject):
