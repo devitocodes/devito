@@ -1,5 +1,4 @@
-from __future__ import absolute_import
-
+import ctypes
 from collections import OrderedDict
 from pathlib import Path
 
@@ -15,8 +14,7 @@ from devito.tools import ReducerMap, Signer, filter_ordered, flatten
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
-from devito.yask.utils import (make_grid_accesses, make_sharedptr_funcall, rawpointer,
-                               namespace)
+from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, namespace
 from devito.yask.wrappers import contexts
 from devito.yask.transformer import yaskizer
 from devito.yask.types import YaskGridObject, YaskSolnObject
@@ -136,7 +134,8 @@ class Operator(OperatorRunnable):
         args.update({i.name: v.rawpointer for (_, i), v in self.yk_solns.items()})
         # Add in local grids pointers
         for k, v in self._local_grids.items():
-            args[namespace['code-grid-name'](k)] = rawpointer(v)
+            args[namespace['code-grid-name'](k)] = ctypes.cast(int(v),
+                                                               namespace['type-grid'])
         return super(Operator, self).arguments(backend=args, **kwargs)
 
     def apply(self, **kwargs):

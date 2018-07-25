@@ -1,3 +1,4 @@
+import ctypes
 import sys
 
 import numpy as np
@@ -5,7 +6,7 @@ import numpy as np
 from devito.logger import yask as log
 from devito.tools import as_tuple
 
-from devito.yask.utils import rawpointer
+from devito.yask.utils import namespace
 
 
 class Data(object):
@@ -251,7 +252,7 @@ class Data(object):
 
     @property
     def rawpointer(self):
-        return rawpointer(self.grid)
+        return ctypes.cast(int(self.grid), namespace['type-grid'])
 
     def reset(self):
         """

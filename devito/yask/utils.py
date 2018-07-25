@@ -6,8 +6,7 @@ from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
 from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.tools import ctypes_pointer
 
-__all__ = ['make_grid_accesses', 'make_sharedptr_funcall', 'rawpointer',
-           'split_increment']
+__all__ = ['make_grid_accesses', 'make_sharedptr_funcall', 'split_increment']
 
 
 def make_sharedptr_funcall(call, params, sharedptr):
@@ -55,11 +54,6 @@ def make_grid_accesses(node, yk_grid_objs):
         mapper.update({e: processed})
 
     return Transformer(mapper).visit(node)
-
-
-def rawpointer(obj):
-    """Return a :class:`ctypes.c_void_p` pointing to ``obj``."""
-    return ctypes.cast(int(obj), ctypes.c_void_p)
 
 
 def split_increment(expr):
