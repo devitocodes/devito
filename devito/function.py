@@ -1,13 +1,16 @@
 from collections import OrderedDict
 from functools import partial
 from itertools import product
+
 import sympy
 import numpy as np
 from psutil import virtual_memory
+from mpi4py import MPI
 
 from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
+from devito.distributed import LEFT, RIGHT
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.finite_difference import (centered, cross_derivative,
@@ -126,6 +129,8 @@ class TensorFunction(AbstractCachedFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            super(TensorFunction, self).__init__(*args, **kwargs)
+
             # Staggered mask
             self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
@@ -139,16 +144,6 @@ class TensorFunction(AbstractCachedFunction):
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data = None
             self._allocator = kwargs.get('allocator', default_allocator())
-
-            # Setup halo and padding regions
-            self._halo = self.__halo_setup__(**kwargs)
-            self._padding = self.__padding_setup__(**kwargs)
-
-    def __halo_setup__(self, **kwargs):
-        return tuple((0, 0) for i in range(self.ndim))
-
-    def __padding_setup__(self, **kwargs):
-        return tuple((0, 0) for i in range(self.ndim))
 
     def __getitem__(self, index):
         """Shortcut for ``self.indexed[index]``."""
@@ -229,9 +224,15 @@ class TensorFunction(AbstractCachedFunction):
     @property
     def data(self):
         """
-        The function data values, as a :class:`numpy.ndarray`.
+        The domain data values, as a :class:`numpy.ndarray`.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro` instead.
         """
         return self.data_domain
 
@@ -245,8 +246,15 @@ class TensorFunction(AbstractCachedFunction):
 
         .. note::
 
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_domain` instead.
+
+        .. note::
+
             Alias to ``self.data``.
         """
+        self._is_halo_dirty = True
         return self._data[self._mask_domain]
 
     @property
@@ -256,7 +264,15 @@ class TensorFunction(AbstractCachedFunction):
         The domain+halo data values.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_with_halo` instead.
         """
+        self._is_halo_dirty = True
+        self._halo_exchange()
         return self._data[self._mask_with_halo]
 
     @property
@@ -266,16 +282,42 @@ class TensorFunction(AbstractCachedFunction):
         The allocated data values, that is domain+halo+padding.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_allocated` instead.
         """
+        self._is_halo_dirty = True
+        self._halo_exchange()
         return self._data
 
     @property
-    def halo(self):
-        return self._halo
+    @_allocate_memory
+    def data_ro_domain(self):
+        """
+        A read-only view of the domain data values.
+        """
+        view = self._data[self._mask_domain]
+        view.setflags(write=False)
+        return view
 
     @property
-    def padding(self):
-        return self._padding
+    @_allocate_memory
+    def data_ro_with_halo(self):
+        """A read-only view of the domain+halo data values."""
+        view = self._data[self._mask_with_halo]
+        view.setflags(write=False)
+        return view
+
+    @property
+    @_allocate_memory
+    def data_ro_allocated(self):
+        """A read-only view of the domain+halo+padding data values."""
+        view = self._data.view()
+        view.setflags(write=False)
+        return view
 
     @property
     def space_dimensions(self):
@@ -298,6 +340,46 @@ class TensorFunction(AbstractCachedFunction):
         symbolic_shape = super(TensorFunction, self).symbolic_shape
         return tuple(sympy.Add(i, -j, evaluate=False)
                      for i, j in zip(symbolic_shape, self.staggered))
+
+    def _halo_exchange(self):
+        """Perform the halo exchange with the neighboring processes."""
+        if MPI.COMM_WORLD.size == 1 or not self._is_halo_dirty:
+            return
+        if MPI.COMM_WORLD.size > 1 and self.grid is None:
+            raise RuntimeError("`%s` cannot perfom a halo exchange as it has "
+                               "no Grid attached" % self.name)
+        if self._in_flight:
+            raise RuntimeError("`%s` cannot initiate a halo exchange as previous "
+                               "exchanges are still in flight" % self.name)
+        for i in self.space_dimensions:
+            self.__halo_begin_exchange(i)
+            self.__halo_end_exchange(i)
+        self._is_halo_dirty = False
+        assert not self._in_flight
+
+    def __halo_begin_exchange(self, dim):
+        """Begin a halo exchange along a given :class:`Dimension`."""
+        distributor = self.grid.distributor
+        neighbours = distributor.neighbours
+        comm = distributor.comm
+        for i in [LEFT, RIGHT]:
+            neighbour = neighbours[dim][i]
+            if neighbour is not None:
+                sendbuf = np.ascontiguousarray(self._get_owned(dim, i))
+                recvbuf = np.ndarray(shape=sendbuf.shape, dtype=sendbuf.dtype)
+                self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
+                self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
+
+    def __halo_end_exchange(self, dim):
+        """End a halo exchange along a given :class:`Dimension`."""
+        for d, i, payload, req in list(self._in_flight):
+            if d == dim:
+                req.Wait()
+                if payload is not None:
+                    # The MPI.Request `req` originated from a `comm.Irecv`
+                    # Now need to scatter the data to the right place
+                    self._get_halo(d, i)[:] = payload
+            self._in_flight.remove((d, i, payload, req))
 
     @property
     def _arg_names(self):
@@ -363,8 +445,7 @@ class TensorFunction(AbstractCachedFunction):
             i._arg_check(args, s, intervals[i])
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
-        ['staggered', 'halo', 'padding']
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
 
 
 class Function(TensorFunction):

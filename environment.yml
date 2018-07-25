@@ -8,6 +8,7 @@ dependencies:
   - sympy==1.1
   - cgen
   - scipy
+  - mpi4py
   - matplotlib
   - pytest
   - flake8>=2.1.0
