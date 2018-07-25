@@ -1,7 +1,6 @@
 from sympy import solve, Symbol
 
 from devito import Eq, Operator, Function, TimeFunction, Inc
-from devito.logger import error
 from examples.seismic import PointSource, Receiver
 
 
@@ -17,7 +16,6 @@ def laplacian(field, m, s, kernel):
     :return: H
     """
     if kernel not in ['OT2', 'OT4']:
-        error("Unrecognized kernel, has to be OT2 or OT4")
         raise ValueError("Unrecognized kernel")
 
     biharmonic = field.laplace2(1/m) if kernel == 'OT4' else 0
