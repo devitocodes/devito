@@ -77,7 +77,7 @@ def build_iterators(mapper):
     iterators = OrderedDict()
     for k, v in mapper.items():
         for d, offs in v.items():
-            if d.is_Stepping:
+            if d.is_Stepping and k is not None:
                 sub_iterators = iterators.setdefault(d.parent, set())
                 sub_iterators.update({ModuloDimension(d, i, k._time_size)
                                       for i in offs})

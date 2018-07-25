@@ -3,7 +3,9 @@ from collections import Iterable, OrderedDict, namedtuple
 import sympy
 from sympy import Number, Indexed, Symbol, LM, LC
 
-from devito.symbolics.extended_sympy import Add, Mul, Eq, FrozenExpr
+# from devito.finite_differences.operations import Add, Mul
+import devito
+from devito.symbolics.extended_sympy import FrozenExpr, Eq
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
@@ -22,10 +24,10 @@ def freeze_expression(expr):
         return expr
     elif expr.is_Add:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
-        return Add(*rebuilt_args, evaluate=False)
+        return devito.finite_differences.operations.Add(*rebuilt_args, evaluate=False)
     elif expr.is_Mul:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
-        return Mul(*rebuilt_args, evaluate=False)
+        return devito.finite_differences.operations.Mul(*rebuilt_args, evaluate=False)
     elif expr.is_Equality:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
         if isinstance(expr, FrozenExpr):

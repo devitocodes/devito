@@ -10,13 +10,10 @@ from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.finite_difference import (centered, cross_derivative,
-                                      first_derivative, left, right,
-                                      second_derivative, generic_derivative,
-                                      second_cross_derivative, initialize_derivatives)
+from devito.finite_differences import initialize_derivatives, Add, Mul, Pow
 from devito.logger import debug, warning
 from devito.parameters import configuration
-from devito.symbolics import indexify, retrieve_indexed, Add, Mul, Pow
+from devito.symbolics import indexify, retrieve_indexed
 from devito.types import AbstractCachedFunction, AbstractCachedSymbol
 from devito.tools import Tag, ReducerMap, prod, powerset
 
@@ -535,7 +532,7 @@ class Function(TensorFunction):
         """
         derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
 
-        return sum([getattr(self, d) for d in derivs[:self.ndim]])
+        return Add(sum([getattr(self, d) for d in derivs[:self.ndim]]))
 
     def laplace2(self, weight=1):
         """
@@ -545,8 +542,8 @@ class Function(TensorFunction):
         order = self.space_order/2
         first = sum([second_derivative(self, dim=d, order=order)
                      for d in self.space_dimensions])
-        return sum([second_derivative(first * weight, dim=d, order=order)
-                    for d in self.space_dimensions])
+        return Add(sum([second_derivative(first * weight, dim=d, order=order)
+                    for d in self.space_dimensions]))
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\

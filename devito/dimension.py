@@ -617,6 +617,7 @@ class ModuloDimension(DerivedDimension):
 
     @cached_property
     def symbolic_start(self):
+        print(self, self.root, self.offset, self.modulo)
         return (self.root + self.offset) % self.modulo
 
     symbolic_incr = symbolic_start
