@@ -7,7 +7,7 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.compiler import jit_compile, load
+from devito.compiler import jit_compile, load, save
 from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
@@ -17,12 +17,12 @@ from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
                            ArrayCast, PointerCast, derive_parameters)
+from devito.ir.stree import schedule, section
 from devito.parameters import configuration
-from devito.profiling import create_profile
+from devito.profiling import Timer, create_profile
 from devito.symbolics import indexify
-from devito.tools import (ReducerMap, as_tuple, flatten, filter_sorted, numpy_to_ctypes,
-                          split)
-from devito.types import Object
+from devito.tools import (Signer, ReducerMap, as_tuple, flatten,
+                          filter_sorted, numpy_to_ctypes, split)
 
 
 class Operator(Callable):
@@ -56,7 +56,6 @@ class Operator(Callable):
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         dse = kwargs.get("dse", configuration['dse'])
-        dle = kwargs.get("dle", configuration['dle'])
 
         # Header files, etc.
         self._headers = list(self._default_headers)
@@ -87,38 +86,30 @@ class Operator(Callable):
         clusters = rewrite(clusters, mode=set_dse_mode(dse))
         self._dtype, self._dspace = clusters.meta
 
-        # Lower Clusters to an Iteration/Expression tree (IET)
-        nodes = iet_build(clusters)
+        # Lower Clusters to a Schedule tree
+        stree = schedule(clusters)
+        stree = section(stree)
 
-        # Introduce C-level profiling infrastructure
-        nodes, self.profiler = self._profile_sections(nodes)
+        # Lower Schedule tree to an Iteration/Expression tree (IET)
+        iet = iet_build(stree)
 
-        # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes = self._specialize_iet(nodes)
+        # Insert code for C-level performance profiling
+        iet, self.profiler = self._profile_sections(iet)
 
-        # Apply the Devito Loop Engine (DLE) for loop optimization
-        dle_state = transform(nodes, *set_dle_mode(dle))
+        # Translate into backend-specific representation
+        iet = self._specialize_iet(iet, **kwargs)
 
-        # Update the Operator state based on the DLE
-        self.dle_args = dle_state.arguments
-        self.dle_flags = dle_state.flags
-        self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                            for i in dle_state.elemental_functions]))
-        self.dimensions.extend([i.argument for i in self.dle_args
-                                if isinstance(i.argument, Dimension)])
-        self._includes.extend(list(dle_state.includes))
-
-        # Introduce the required symbol declarations
-        nodes = iet_insert_C_decls(dle_state.nodes, self.func_table)
+        # Insert the required symbol declarations
+        iet = iet_insert_C_decls(iet, self.func_table)
 
         # Insert data and pointer casts for array parameters and profiling structs
-        nodes = self._build_casts(nodes)
+        iet = self._build_casts(iet)
 
         # Derive parameters as symbols not defined in the kernel itself
-        parameters = self._build_parameters(nodes)
+        parameters = self._build_parameters(iet)
 
         # Finish instantiation
-        super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
+        super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
 
     def prepare_arguments(self, **kwargs):
         """
@@ -146,16 +137,16 @@ class Operator(Callable):
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
         # with the rest of the argument derivation procedure.
-        for arg in self.dle_args:
+        for arg in self._dle_args:
             dim = arg.argument
-            osize = args[arg.original_dim.symbolic_size.name]
-            if dim.symbolic_size in self.parameters:
-                if arg.value is None:
-                    args[dim.symbolic_size.name] = osize
-                elif isinstance(arg.value, int):
-                    args[dim.symbolic_size.name] = arg.value
-                else:
-                    args[dim.symbolic_size.name] = arg.value(osize)
+            osize = (1 + arg.original_dim.symbolic_end
+                     - arg.original_dim.symbolic_start).subs(args)
+            if arg.value is None:
+                args[dim.symbolic_size.name] = osize
+            elif isinstance(arg.value, int):
+                args[dim.symbolic_size.name] = arg.value
+            else:
+                args[dim.symbolic_size.name] = arg.value(osize)
 
         # Add in the profiler argument
         args[self.profiler.name] = self.profiler.new()
@@ -164,7 +155,7 @@ class Operator(Callable):
         args.update(kwargs.pop('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        if kwargs.pop('autotune', False):
+        if kwargs.pop('autotune', configuration['autotuning'].level):
             args = self._autotune(args)
 
         # Check all user-provided keywords are known to the Operator
@@ -193,8 +184,15 @@ class Operator(Callable):
     def elemental_functions(self):
         return tuple(i.root for i in self.func_table.values())
 
-    @property
-    def compile(self):
+    @cached_property
+    def _soname(self):
+        """
+        A unique name for the shared object resulting from the jit-compilation
+        of this Operator.
+        """
+        return Signer._digest(self, configuration)
+
+    def _compile(self):
         """
         JIT-compile the C code generated by the Operator.
 
@@ -204,18 +202,15 @@ class Operator(Callable):
         :returns: The file name of the JIT-compiled function.
         """
         if self._lib is None:
-            # No need to recompile if a shared object has already been loaded.
-            return jit_compile(self.ccode, self._compiler)
-        else:
-            return self._lib.name
+            jit_compile(self._soname, str(self.ccode), self._compiler)
 
     @property
     def cfunction(self):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
-            basename = self.compile
-            self._lib = load(basename, self._compiler)
-            self._lib.name = basename
+            self._compile()
+            self._lib = load(self._soname)
+            self._lib.name = self._soname
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
@@ -234,9 +229,9 @@ class Operator(Callable):
 
         return self._cfunction
 
-    def _profile_sections(self, nodes):
+    def _profile_sections(self, iet):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        return List(body=nodes), None
+        return List(body=iet), None
 
     def _autotune(self, args):
         """Use auto-tuning on this Operator to determine empirically the
@@ -247,24 +242,57 @@ class Operator(Callable):
         """Transform ``expressions`` into a backend-specific representation."""
         return [LoweredEq(i) for i in expressions]
 
-    def _specialize_iet(self, nodes):
+    def _specialize_iet(self, iet, **kwargs):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
-        return nodes
+        # Apply the Devito Loop Engine (DLE) for loop optimization
+        dle = kwargs.get("dle", configuration['dle'])
 
-    def _build_parameters(self, nodes):
+        dle_state = transform(iet, *set_dle_mode(dle))
+
+        self._dle_args = dle_state.arguments
+        self._dle_flags = dle_state.flags
+        self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
+                                            for i in dle_state.elemental_functions]))
+        self.dimensions.extend([i.argument for i in self._dle_args
+                                if isinstance(i.argument, Dimension)])
+        self._includes.extend(list(dle_state.includes))
+
+        return dle_state.nodes
+
+    def _build_parameters(self, iet):
         """Determine the Operator parameters based on the Iteration/Expression
-        tree ``nodes``."""
-        return derive_parameters(nodes, True)
+        tree ``iet``."""
+        return derive_parameters(iet, True)
 
-    def _build_casts(self, nodes):
+    def _build_casts(self, iet):
         """Introduce array and pointer casts at the top of the Iteration/Expression
-        tree ``nodes``."""
+        tree ``iet``."""
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
-        profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
-        casts.append(PointerCast(profiler))
-        return List(body=casts + [nodes])
+        casts.append(PointerCast(Timer(self.profiler)))
+        return List(body=casts + [iet])
+
+    def __getstate__(self):
+        if self._lib:
+            state = dict(self.__dict__)
+            # The compiled shared-object will be pickled; upon unpickling, it
+            # will be restored into a potentially different temporary directory,
+            # so the entire process during which the shared-object is loaded and
+            # given to ctypes must be performed again
+            state['_lib'] = None
+            state['_cfunction'] = None
+            with open(self._lib._name, 'rb') as f:
+                state['binary'] = f.read()
+            return state
+        else:
+            return self.__dict__
+
+    def __setstate__(self, state):
+        binary = state.pop('binary')
+        for k, v in state.items():
+            setattr(self, k, v)
+        save(self._soname, binary, self._compiler)
 
 
 class OperatorRunnable(Operator):
@@ -359,17 +387,24 @@ class OperatorRunnable(Operator):
         summary = self.profiler.summary(args, self._dtype)
         with bar():
             for k, v in summary.items():
-                name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
-                gpointss = ", %.2f GPts/s" % v.gpointss if k == 'main' else ''
-                info("Section %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
+                itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
+                if len(itershapes) > 1:
+                    name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
+                else:
+                    name = "%s<%s>" % (k, itershapes[0])
+                gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
+                info("%s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
                      (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
-    def _profile_sections(self, nodes,):
-        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        nodes, profiler = create_profile('timers', nodes)
+    def _profile_sections(self, iet):
+        """Instrument the Iteration/Expression tree for C-level profiling."""
+        profiler = create_profile('timers')
+        iet = profiler.instrument(iet)
         self._globals.append(profiler.cdef)
-        return nodes, profiler
+        self._includes.extend(profiler._default_includes)
+        self.func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
+        return iet, profiler
 
 
 # Misc helpers

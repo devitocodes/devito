@@ -9,12 +9,7 @@ from devito.dle import (BasicRewriter, AdvancedRewriter, AdvancedRewriterSafeMat
 from devito.parameters import Parameters, add_sub_configuration
 
 core_configuration = Parameters('core')
-core_configuration.add('autotuning', 'basic', ['none', 'basic', 'aggressive'])
-
-env_vars_mapper = {
-    'DEVITO_AUTOTUNING': 'autotuning',
-}
-
+env_vars_mapper = {}
 add_sub_configuration(core_configuration, env_vars_mapper)
 
 # Initialize the DLE
@@ -25,7 +20,7 @@ modes = {'basic': BasicRewriter,
 init_dle(modes)
 
 # The following used by backends.backendSelector
-from devito.function import (Constant, Function, TimeFunction, SparseFunction,  # noqa
-                             SparseTimeFunction)
+from devito.function import *  # noqa
+from devito.grid import Grid  # noqa
 from devito.core.operator import Operator  # noqa
 from devito.types import CacheManager  # noqa

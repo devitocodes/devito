@@ -1,8 +1,9 @@
 from conftest import skipif_yask
-
+import pytest
 import numpy as np
 
-from devito import Grid, Function, TimeFunction
+from devito import (Grid, Function, TimeFunction,
+                    ALLOC_GUARD, Operator, Eq, ALLOC_FLAT)
 
 
 def test_basic_indexing():
@@ -43,6 +44,25 @@ def test_basic_indexing():
     block.fill(4.)
     u.data[4:5, :, 4:5] = block
     assert np.all(u.data[4, :, 4] == block)
+
+
+def test_advanced_indexing():
+    """
+    Tests packing/unpacking data in :class:`Function` objects with more advanced
+    access functions.
+    """
+    grid = Grid(shape=(4, 4, 4))
+    u = TimeFunction(name='yu4D', grid=grid, space_order=0, time_order=1)
+    u.data[:] = 0.
+
+    # Test slicing w/ negative indices, combined to explicit indexing
+    u.data[1, 1:-1, 1:-1, 1:-1] = 6.
+    assert np.all(u.data[0] == 0.)
+    assert np.all(u.data[1, 1:-1, 1:-1, 1:-1] == 6.)
+    assert np.all(u.data[1, :, 0] == 0.)
+    assert np.all(u.data[1, :, -1] == 0.)
+    assert np.all(u.data[1, :, :, 0] == 0.)
+    assert np.all(u.data[1, :, :, -1] == 0.)
 
 
 def test_halo_indexing():
@@ -174,3 +194,38 @@ def test_domain_vs_halo():
     assert v._offset_domain.left == v._offset_domain.right == (3, 5, 6)
     assert v._extent_padding == ((1, 1), (3, 3), (4, 4))
     assert v._extent_padding.left == v._extent_padding.right == (1, 3, 4)
+
+
+def test_scalar_arg_substitution(t0, t1):
+    """
+    Tests the relaxed (compared to other devito sympy subclasses)
+    substitution semantics for scalars, which is used for argument
+    substitution into symbolic expressions.
+    """
+    assert t0 != 0
+    assert t0.subs('t0', 2) == 2
+    assert t0.subs('t0', t1) == t1
+
+
+@pytest.mark.skip(reason="will corrupt memory and risk crash")
+def test_oob_noguard():
+    """
+    Tests the guard page allocator.  This writes to memory it shouldn't,
+    and typically gets away with it.
+    """
+    # A tiny grid
+    grid = Grid(shape=(4, 4))
+    u = Function(name='u', grid=grid, space_order=0, allocator=ALLOC_FLAT)
+    Operator(Eq(u[2000, 0], 1.0)).apply()
+
+
+@pytest.mark.skip(reason="will crash entire test suite")
+def test_oob_guard():
+    """
+    Tests the guard page allocator.  This causes a segfault in the
+    test suite, deliberately.
+    """
+    # A tiny grid
+    grid = Grid(shape=(4, 4))
+    u = Function(name='u', grid=grid, space_order=0, allocator=ALLOC_GUARD)
+    Operator(Eq(u[2000, 0], 1.0)).apply()

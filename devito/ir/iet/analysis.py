@@ -9,7 +9,7 @@ from collections import OrderedDict
 from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, MapIteration, NestedTransformer,
+                           VECTOR, WRAPPABLE, AFFINE, MapIteration, NestedTransformer,
                            retrieve_iteration_tree)
 from devito.ir.support import Scope
 from devito.tools import as_tuple, filter_ordered, flatten
@@ -23,7 +23,7 @@ class Analysis(object):
         self.iet = iet
         self.properties = OrderedDict()
 
-        self.trees = retrieve_iteration_tree(iet)
+        self.trees = retrieve_iteration_tree(iet, mode='superset')
         self.scopes = OrderedDict([(k, Scope([i.expr for i in v]))
                                    for k, v in MapIteration().visit(iet).items()])
 
@@ -49,6 +49,7 @@ def iet_analyze(iet):
     analysis = mark_parallel(iet)
     analysis = mark_vectorizable(analysis)
     analysis = mark_wrappable(analysis)
+    analysis = mark_affine(analysis)
 
     # Decorate the Iteration/Expression tree with the found properties
     mapper = OrderedDict()
@@ -70,17 +71,22 @@ def mark_parallel(analysis):
         for depth, i in enumerate(tree):
             if i in properties:
                 continue
+
+            if i.uindices:
+                # Only ++/-- increments of iteration variables are supported
+                properties[i] = SEQUENTIAL
+                continue
+
             # Get all dimensions up to and including Iteration /i/, grouped by Iteration
-            dims = [filter_ordered([j.dim] + [k.dim for k in j.uindices])
-                    for j in tree[:depth + 1]]
+            dims = [filter_ordered(j.dimensions) for j in tree[:depth + 1]]
             # Get all dimensions up to and including Iteration /i-1/
             prev = flatten(dims[:-1])
             # Get all dimensions up to and including Iteration /i/
             dims = flatten(dims)
 
             # The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):
-            # test0 - (d_1, ..., d_{i-1}) > 0, OR
-            # test1 - (d_1, ..., d_i) = 0
+            # test0 := (d_1, ..., d_{i-1}) > 0, OR
+            # test1 := (d_1, ..., d_i) = 0
             is_parallel = True
 
             # The i-th Iteration is PARALLEL_IF_ATOMIC if for all dependeces:
@@ -89,8 +95,9 @@ def mark_parallel(analysis):
 
             for dep in analysis.scopes[i].d_all:
                 test0 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
-                test1 = all(dep.is_independent(d) for d in dims)
-                if not (test0 or test1):
+                test1 = all(dep.is_indep(d) for d in dims)
+                test2 = all(dep.is_reduce_atmost(d) for d in prev) and dep.is_indep(i.dim)
+                if not (test0 or test1 or test2):
                     is_parallel = False
                     if not dep.is_increment:
                         is_atomic_parallel = False
@@ -137,38 +144,67 @@ def mark_vectorizable(analysis):
 def mark_wrappable(analysis):
     """Update the ``analysis`` detecting the ``WRAPPABLE`` Iterations within
     ``analysis.iet``."""
-    # All potential WRAPPABLEs are Stepping dimensions
-    stepper = None
-    for iteration in analysis.scopes:
-        if not iteration.dim.is_Stepping:
+    for i in analysis.scopes:
+        if not i.dim.is_Time:
             continue
-        stepper = iteration
-    if not stepper:
-        return
-    stepping = stepper.dim
-    accesses = [i for i in analysis.scopes[stepper].accesses if stepping in i.findices]
-    if not accesses:
-        return
-    # Pick the /back/ and /front/ slots accessed
-    try:
-        accesses = sorted(accesses, key=cmp_to_key(lambda i, j: i.distance(j, stepping)))
-        back, front = accesses[0][stepping], accesses[-1][stepping]
-    except TypeError:
-        return
-    if back == front:
-        return
-    # Finally check that all data dependences would be honored by using the
-    # /front/ index function in place of the /back/ index function
-    # There must be NO writes to the /back/ timeslot
-    for access in analysis.scopes[stepper].accesses:
-        if access.is_write and access[stepping] == back:
-            return
-    # All reads from the /front/ timeslot must not cause dependences with
-    # the writes in the /back/ timeslot along the /i/ dimension
-    for dep in analysis.scopes[stepper].d_flow:
-        if dep.source[stepping] != front or dep.sink[stepping] != back:
+
+        scope = analysis.scopes[i]
+        accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
+
+        # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
+        if not accesses or any(not a.function._time_buffering_default for a in accesses):
             continue
-        if dep.sink.lex_gt(dep.source) and\
-                dep.source.section(stepping) != dep.sink.section(stepping):
-            return
-    analysis.update({stepper: WRAPPABLE})
+
+        stepping = {a.function.time_dim for a in accesses}
+        if len(stepping) > 1:
+            # E.g., with ConditionalDimensions we may have `stepping={t, tsub}`
+            continue
+        stepping = stepping.pop()
+
+        # All accesses must be affine in `stepping`
+        if any(not a.affine_if_present(stepping._defines) for a in accesses):
+            continue
+
+        # Pick the `back` and `front` slots accessed
+        try:
+            compareto = cmp_to_key(lambda a0, a1: a0.distance(a1, stepping))
+            accesses = sorted(accesses, key=compareto)
+            back, front = accesses[0][stepping], accesses[-1][stepping]
+        except TypeError:
+            continue
+
+        # Check we're not accessing (read, write) always the same slot
+        if back == front:
+            continue
+
+        accesses_back = [a for a in accesses if a[stepping] == back]
+
+        # There must be NO writes to the `back` timeslot
+        if any(a.is_write for a in accesses_back):
+            continue
+
+        # There must be NO further accesses to the `back` timeslot after
+        # any earlier timeslot is written
+        # Note: potentially, this can be relaxed by replacing "any earlier timeslot"
+        # with the `front timeslot`
+        if not all(all(d.sink is not a or d.source.lex_ge(a) for d in scope.d_flow)
+                   for a in accesses_back):
+            continue
+
+        analysis.update({i: WRAPPABLE})
+
+
+@propertizer
+def mark_affine(analysis):
+    """Update the ``analysis`` detecting the ``AFFINE`` Iterations within
+    ``analysis.iet``."""
+    properties = OrderedDict()
+    for tree in analysis.trees:
+        for i in tree:
+            if i in properties:
+                continue
+            arrays = [a for a in analysis.scopes[i].accesses if not a.is_scalar]
+            if all(a.is_regular and a.affine_if_present(i.dim._defines) for a in arrays):
+                properties[i] = AFFINE
+
+    analysis.update(properties)

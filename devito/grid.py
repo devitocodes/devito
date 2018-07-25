@@ -1,7 +1,9 @@
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.base import Constant
+from devito.distributed import Distributor
+from devito.function import Constant
 
+from sympy import prod
 import numpy as np
 
 __all__ = ['Grid']
@@ -14,10 +16,10 @@ class Grid(object):
     to discretize :class:`Function`s.
 
     :param shape: Shape of the domain region in grid points.
-    :param extent: Physical extent of the domain in m; defaults to a
-                   unit box of extent 1m in all dimensions.
-    :param origin: Physical coordinate of the origin of the domain;
-                   defaults to 0. in all dimensions.
+    :param extent: (Optional) physical extent of the domain in m; defaults
+                   to a unit box of extent 1m in all dimensions.
+    :param origin: (Optional) physical coordinate of the origin of the
+                   domain; defaults to 0.0 in all dimensions.
     :param dimensions: (Optional) list of :class:`SpaceDimension`
                        symbols that defines the spatial directions of
                        the physical domain encapsulated by this
@@ -26,8 +28,11 @@ class Grid(object):
                            to to define the time dimension for all
                            :class:`TimeFunction` symbols created
                            from this :class:`Grid`.
-    :param dtype: Default data type to be inherited by all Functions
-                  created from this :class:`Grid`.
+    :param dtype: (Optional) default data type to be inherited by all
+                  :class:`Function`s created from this :class:`Grid`.
+                  Defaults to ``numpy.float32``.
+    :param comm: (Optional) an MPI communicator defining the set of
+                 processes among which the grid is distributed.
 
     The :class:`Grid` encapsulates the topology and geometry
     information of the computational domain that :class:`Function`
@@ -60,38 +65,39 @@ class Grid(object):
     _default_dimensions = ('x', 'y', 'z')
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
-                 time_dimension=None, dtype=np.float32):
-        self.shape = as_tuple(shape)
-        self.extent = as_tuple(extent or tuple(1. for _ in shape))
+                 time_dimension=None, dtype=np.float32, comm=None):
+        self._shape = as_tuple(shape)
+        self.extent = as_tuple(extent or tuple(1. for _ in self.shape))
         self.dtype = dtype
-        origin = as_tuple(origin or tuple(0. for _ in shape))
+        origin = as_tuple(origin or tuple(0. for _ in self.shape))
 
         if dimensions is None:
             # Create the spatial dimensions and constant spacing symbols
             assert(self.dim <= 3)
             dim_names = self._default_dimensions[:self.dim]
-            dim_spacing = tuple(Constant(name='h_%s' % name, value=val, dtype=self.dtype)
-                                for name, val in zip(dim_names, self.spacing))
-            self.dimensions = tuple(SpaceDimension(name=name, spacing=spc)
-                                    for name, spc in zip(dim_names, dim_spacing))
+            dim_spacing = tuple(self._const(name='h_%s' % n, value=v, dtype=self.dtype)
+                                for n, v in zip(dim_names, self.spacing))
+            self.dimensions = tuple(SpaceDimension(name=n, spacing=s)
+                                    for n, s in zip(dim_names, dim_spacing))
         else:
             self.dimensions = dimensions
 
-        self.origin = tuple(Constant(name='o_%s' % dim.name, value=val, dtype=self.dtype)
-                            for dim, val in zip(self.dimensions, origin))
+        self.origin = tuple(self._const(name='o_%s' % d.name, value=v, dtype=self.dtype)
+                            for d, v in zip(self.dimensions, origin))
         # TODO: Raise proper exceptions and logging
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
-            self.time_dim = TimeDimension(name='time',
-                                          spacing=Constant(name='dt', dtype=self.dtype))
-            self.stepping_dim = SteppingDimension(name='t', parent=self.time_dim)
+            spacing = self._const(name='dt', dtype=self.dtype)
+            self.time_dim = TimeDimension(name='time', spacing=spacing)
+            self.stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
         elif isinstance(time_dimension, TimeDimension):
             self.time_dim = time_dimension
-            self.stepping_dim = SteppingDimension(name='%s_s' % time_dimension.name,
-                                                  parent=self.time_dim)
+            self.stepping_dim = self._make_stepping_dim(self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
+
+        self._distributor = Distributor(self.shape, self.dimensions, comm)
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
@@ -102,6 +108,13 @@ class Grid(object):
     def dim(self):
         """Problem dimension, or number of spatial dimensions."""
         return len(self.shape)
+
+    @property
+    def volume_cell(self):
+        """
+        Volume of a single cell e.g  h_x*h_y*h_z in 3D
+        """
+        return prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
 
     @property
     def spacing(self):
@@ -122,6 +135,38 @@ class Grid(object):
         return dict(zip(self.spacing_symbols, self.spacing))
 
     @property
+    def shape(self):
+        """Shape of the physical domain."""
+        return self._shape
+
+    @property
     def shape_domain(self):
-        """Shape of the physical domain (without external boundary layer)"""
-        return self.shape
+        """Shape of the local (per-process) physical domain."""
+        return self._distributor.shape
+
+    @property
+    def distributor(self):
+        """The :class:`Distributor` used for domain decomposition."""
+        return self._distributor
+
+    @property
+    def _const(self):
+        """Return the type to create constant symbols."""
+        return Constant
+
+    def _make_stepping_dim(self, time_dim, name=None):
+        """Create a stepping dimension for this Grid."""
+        if name is None:
+            name = '%s_s' % time_dim.name
+        return SteppingDimension(name=name, parent=time_dim)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # A Distributor wraps an MPI communicator, which can't and shouldn't be pickled
+        state.pop('_distributor')
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+        self._distributor = Distributor(self.shape, self.dimensions)

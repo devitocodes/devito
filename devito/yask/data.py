@@ -26,13 +26,13 @@ class Data(object):
 
     The storage layout of a YASK grid looks as follows: ::
 
-        --------------------------------------------------------------
-        | extra_padding | halo |              | halo | extra_padding |
-        ------------------------    domain    ------------------------
-        |       padding        |              |       padding        |
-        --------------------------------------------------------------
-        |                         allocation                         |
-        --------------------------------------------------------------
+    ------------------------------------------------------------------------------------
+    | left_extra_padding | left_halo |              | right_halo | right_extra_padding |
+    ----------------------------------    domain    ------------------------------------
+    |            left_padding        |              |       right_padding              |
+    ------------------------------------------------------------------------------------
+    |                                   allocation                                     |
+    ------------------------------------------------------------------------------------
 
     :param grid: The viewed YASK grid.
     :param shape: Shape of the data view in grid points.
@@ -62,7 +62,7 @@ class Data(object):
 
         offset = offset or tuple(0 for _ in dimensions)
         assert len(offset) == len(dimensions)
-        self._offset = [0 if i.is_Time else (self.get_first_rank_alloc_index(i.name)+j)
+        self._offset = [(self.get_first_rank_alloc_index(i.name)+j) if i.is_Space else 0
                         for i, j in zip(dimensions, offset)]
 
     def __getitem__(self, index):
@@ -163,7 +163,7 @@ class Data(object):
                 if i.stop is None:
                     stop = size - 1
                 elif i.stop < 0:
-                    stop = size + i.stop
+                    stop = size + (i.stop - 1)
                 else:
                     stop = i.stop - 1
                 shape = stop - start + 1
@@ -204,10 +204,12 @@ class Data(object):
         Share self's storage with ``target``.
         """
         for i in self.dimensions:
-            if i.is_Time:
-                target.set_alloc_size(i.name, self.get_alloc_size(i.name))
+            if i.is_Space:
+                target.set_left_halo_size(i.name, self.get_left_halo_size(i.name))
+                target.set_right_halo_size(i.name, self.get_right_halo_size(i.name))
             else:
-                target.set_halo_size(i.name, self.get_halo_size(i.name))
+                # time and misc dimensions
+                target.set_alloc_size(i.name, self.get_alloc_size(i.name))
         target.share_storage(self.grid)
 
     def __getattr__(self, name):

@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-from devito.tools import DefaultOrderedDict
+from devito.tools import DefaultOrderedDict, as_tuple
 
 __all__ = ['Stencil']
 
@@ -31,9 +31,9 @@ class Stencil(DefaultOrderedDict):
         for i in (entries or []):
             if isinstance(i, StencilEntry):
                 processed.append((i.dim, i.ofs))
-            elif isinstance(i, tuple) and len(i) == 2:
-                entry = StencilEntry(*i)  # Type checking
-                processed.append((entry.dim, entry.ofs))
+            elif isinstance(i, tuple):
+                entry = StencilEntry(*i)  # Implicit type check
+                processed.append((entry.dim, set(as_tuple(entry.ofs))))
             else:
                 raise TypeError('Cannot construct a Stencil for %s' % str(i))
         super(Stencil, self).__init__(set, processed)

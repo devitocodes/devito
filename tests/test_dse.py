@@ -144,7 +144,7 @@ def test_tti_rewrite_aggressive(tti_nodse):
 def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)
     _, _, _, summary = operator.forward(kernel=kernel, save=False)
-    assert summary['main'].ops == expected
+    assert summary['section1'].ops == expected
 
 
 # DSE manipulation

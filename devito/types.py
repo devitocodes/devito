@@ -10,8 +10,9 @@ from functools import reduce
 import numpy as np
 import sympy
 
+from devito.distributed import LEFT, RIGHT
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, single_or
+from devito.tools import EnrichedTuple, Pickable, single_or
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -69,6 +70,7 @@ class Basic(object):
     is_SparseTimeFunction = False
     is_SparseFunction = False
     is_PrecomputedSparseFunction = False
+    is_PrecomputedSparseTimeFunction = False
 
     # Basic symbolic object properties
     is_Scalar = False
@@ -99,7 +101,7 @@ class Basic(object):
 
 class Cached(object):
     """
-    Base class for symbolic objects that caches on the class type.
+    Base class for symbolic objects that cache on the class type.
 
     In order to maintain meta information across the numerous
     re-instantiation SymPy performs during symbolic manipulation, we inject
@@ -136,8 +138,13 @@ class Cached(object):
         original = _SymbolCache[self.__class__]
         self.__dict__ = original().__dict__
 
+    def __hash__(self):
+        """The hash value of an object that caches on its type is the
+        hash value of the type itself."""
+        return hash(type(self))
 
-class AbstractSymbol(sympy.Symbol, Basic):
+
+class AbstractSymbol(sympy.Symbol, Basic, Pickable):
     """
     Base class for dimension-free symbols, only cached by SymPy.
 
@@ -219,6 +226,16 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             newcls._cache_put(newobj)
         return newobj
 
+    __hash__ = Cached.__hash__
+
+    # Pickling support
+    _pickle_kwargs = ['name']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+    @property
+    def _pickle_reconstruct(self):
+        return self.__class__.__base__
+
 
 class Symbol(AbstractCachedSymbol):
 
@@ -233,6 +250,9 @@ class Symbol(AbstractCachedSymbol):
     @property
     def base(self):
         return self
+
+    # Pickling support
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype']
 
 
 class Scalar(Symbol):
@@ -257,27 +277,45 @@ class Scalar(Symbol):
     def update(self, dtype=None, **kwargs):
         self.dtype = dtype or self.dtype
 
+    def _subs(self, old, new, **hints):
+        """This stub allows sympy.Basic.subs to operate on an expression
+        involving devito Scalars.  Ordinarily the comparisons between
+        devito subclasses of sympy types are quite strict."""
+        try:
+            if old.name == self.name:
+                return new
+        except AttributeError:
+            pass
 
-class AbstractFunction(sympy.Function, Basic):
+        return self
+
+
+class AbstractFunction(sympy.Function, Basic, Pickable):
     """
     Base class for tensor symbols, only cached by SymPy. It inherits from and
     mimick the behaviour of a :class:`sympy.Function`.
 
     The sub-hierarchy is structured as follows
 
-                          AbstractFunction
-                                 |
-                       AbstractCachedFunction
-                                 |
-               -------------------------------------
-               |                                   |
-             Array                          TensorFunction
-                                                   |
-                                     ------------------------------
-                                     |                            |
-                                  Function                  SparseFunction
-                                     |                            |
-                                TimeFunction              SparseTimeFunction
+                         AbstractFunction
+                                |
+                      AbstractCachedFunction
+                                |
+                 ---------------------------------
+                 |                               |
+           TensorFunction                      Array
+                 |
+         ----------------------------------------
+         |                                      |
+         |                           AbstractSparseFunction
+         |                                      |
+         |               -----------------------------------------------------
+         |               |                      |                            |
+      Function     SparseFunction   AbstractSparseTimeFunction  PrecomputedSparseFunction
+         |               |                      |                            |
+         |               |   ------------------------------------     --------
+         |               |   |                                  |     |
+    TimeFunction  SparseTimeFunction                 PrecomputedSparseTimeFunction
 
     There are five relevant :class:`AbstractFunction` sub-types: ::
 
@@ -291,6 +329,11 @@ class AbstractFunction(sympy.Function, Basic):
         * SparseTimeFunction: A time- and space-varying function representing "sparse"
                           points, i.e. points that are not aligned with the
                           computational grid.
+        * PrecomputedSparseFunction: A SparseFunction that uses a custom interpolation
+                                     scheme, instead of the included linear interpolators.
+        * PrecomputedSparseTimeFunction: A SparseTimeFunction that uses a custom
+                                         interpolation scheme, instead of the included
+                                         linear interpolators.
     """
 
     is_AbstractFunction = True
@@ -331,6 +374,16 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             newcls._cache_put(newobj)
         return newobj
 
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            # Setup halo and padding regions
+            self._is_halo_dirty = False
+            self._in_flight = []
+            self._halo = self.__halo_setup__(**kwargs)
+            self._padding = self.__padding_setup__(**kwargs)
+
+    __hash__ = Cached.__hash__
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """Extract the function indices from ``kwargs``."""
@@ -340,6 +393,12 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     def __shape_setup__(cls, **kwargs):
         """Extract the function shape from ``kwargs``."""
         return ()
+
+    def __halo_setup__(self, **kwargs):
+        return tuple((0, 0) for i in range(self.ndim))
+
+    def __padding_setup__(self, **kwargs):
+        return tuple((0, 0) for i in range(self.ndim))
 
     @property
     def name(self):
@@ -379,15 +438,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return tuple(sympy.Add(i, j, k, evaluate=False)
                      for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
 
-    def indexify(self, indices=None):
-        """Create a :class:`sympy.Indexed` object from the current object."""
-        if indices is not None:
-            return Indexed(self.indexed, *indices)
-
-        subs = dict([(i.spacing, 1) for i in self.indices])
-        indices = [a.subs(subs) for a in self.args]
-        return Indexed(self.indexed, *indices)
-
     @property
     def indexed(self):
         """Extract a :class:`IndexedData` object from the current object."""
@@ -418,6 +468,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
            size in bytes
         """
         return reduce(mul, self.shape)
+
+    @property
+    def halo(self):
+        return self._halo
+
+    @property
+    def padding(self):
+        return self._padding
 
     @property
     def _offset_domain(self):
@@ -486,6 +544,64 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """A mask to access the domain+halo region of the allocated data."""
         return tuple(slice(i, -j) if j != 0 else slice(i, None)
                      for i, j in self._offset_halo)
+
+    def _get_halo(self, dimension, direction):
+        """A view of the halo region along given :class:`Dimension`
+        and ``direction`` (an object of type :class:`RankRelativePosition`)."""
+        index_array = []
+        for i in self.dimensions:
+            if i == dimension:
+                if direction is LEFT:
+                    start = self._offset_halo[dimension].left
+                    extent = self._extent_halo[dimension].left
+                    end = start + extent
+                else:
+                    assert direction is RIGHT
+                    start = -self._offset_domain[dimension].right
+                    extent = self._extent_halo[dimension].right
+                    end = (start + extent) or None  # The end point won't be 0
+                index_array.append(slice(start, end))
+            else:
+                index_array.append(slice(None))
+        return self._data[index_array]
+
+    def _get_owned(self, dimension, direction):
+        """A view of the owned region along given :class:`Dimension`
+        and ``direction`` (an object of type :class:`RankRelativePosition`)."""
+        index_array = []
+        for i in self.dimensions:
+            if i == dimension:
+                if direction is LEFT:
+                    start = self._offset_domain[dimension].left
+                    extent = self._extent_halo[dimension].left
+                    end = start + extent
+                else:
+                    assert direction is RIGHT
+                    start = -self._offset_domain[dimension].right -\
+                        self._extent_halo[dimension].right
+                    extent = self._extent_halo[dimension].right
+                    end = (start + extent) or None  # The end point won't be 0
+                index_array.append(slice(start, end))
+            else:
+                index_array.append(slice(None))
+        return self._data[index_array]
+
+    def indexify(self, indices=None):
+        """Create a :class:`sympy.Indexed` object from the current object."""
+        if indices is not None:
+            return Indexed(self.indexed, *indices)
+
+        subs = dict([(i.spacing, 1) for i in self.indices])
+        indices = [a.subs(subs) for a in self.args]
+        return Indexed(self.indexed, *indices)
+
+    # Pickling support
+    _pickle_kwargs = ['name', 'halo', 'padding']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+    @property
+    def _pickle_reconstruct(self):
+        return self.__class__.__base__
 
 
 class Array(AbstractCachedFunction):
@@ -598,7 +714,7 @@ class Object(Basic):
 # - To override SymPy caching behaviour
 
 
-class IndexedData(sympy.IndexedBase):
+class IndexedData(sympy.IndexedBase, Pickable):
     """Wrapper class that inserts a pointer to the symbolic data object"""
 
     def __new__(cls, label, shape=None, function=None):
@@ -617,6 +733,10 @@ class IndexedData(sympy.IndexedBase):
         """
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
+
+    # Pickling support
+    _pickle_kwargs = ['label', 'shape', 'function']
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class Indexed(sympy.Indexed):

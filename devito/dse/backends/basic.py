@@ -25,9 +25,14 @@ class BasicRewriter(AbstractRewriter):
 
         mapper = OrderedDict()
         for e in cluster.exprs:
-            for indexed in retrieve_indexed(e):
+            # Note: using mode='all' and then checking for presence in the mapper
+            # (a few lines below), rather retrieving unique indexeds only (a set),
+            # is the key to deterministic code generation
+            for indexed in retrieve_indexed(e, mode='all'):
                 for i, d in zip(indexed.indices, indexed.base.function.indices):
-                    if not (q_affine(i, d) or i.is_Number):
+                    if q_affine(i, d) or i.is_Number:
+                        continue
+                    elif i not in mapper:
                         mapper[i] = make()
 
         processed = [Eq(v, k) for k, v in mapper.items()]

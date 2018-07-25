@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 from devito import Grid, Function, Constant
-from devito.logger import error
+from devito.logger import error, warning
 
 
 __all__ = ['Model', 'demo_model']
@@ -126,6 +126,34 @@ def demo_model(preset, **kwargs):
                      dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
                      delta=delta, theta=theta, phi=phi, **kwargs)
 
+    elif preset.lower() in ['layers-tti-noazimuth', 'twolayer-tti-noazimuth',
+                            '2layer-tti-noazimuth']:
+        # A two-layer model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 2.5 km/s.\
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        dtype = kwargs.pop('dtype', np.float32)
+        nbpml = kwargs.pop('nbpml', 10)
+        ratio = kwargs.pop('ratio', 2)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+
+        # Define a velocity profile in km/s
+        v = np.empty(shape, dtype=dtype)
+        v[:] = vp_top  # Top velocity (background)
+        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+
+        epsilon = .3*(v - 1.5)
+        delta = .2*(v - 1.5)
+        theta = .5*(v - 1.5)
+
+        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
+                     dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
+                     delta=delta, theta=theta, **kwargs)
+
     elif preset.lower() in ['circle-isotropic']:
         # A simple circle in a 2D domain with a background velocity.
         # By default, the circle velocity is 2.5 km/s,
@@ -150,7 +178,7 @@ def demo_model(preset, **kwargs):
         v[x*x + y*y <= r*r] = vp
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbpml=nbpml)
+                     dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['marmousi-isotropic', 'marmousi2d-isotropic']:
         shape = (1601, 401)
@@ -171,7 +199,7 @@ def demo_model(preset, **kwargs):
         v = v[301:-300, :]
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=v.shape,
-                     dtype=np.float32, spacing=spacing, nbpml=20)
+                     dtype=np.float32, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
 
@@ -266,21 +294,19 @@ def damp_boundary(damp, nbpml, spacing):
     """
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
     assert all(damp._offset_domain[0] == i for i in damp._offset_domain)
-    for i in range(nbpml):
-        pos = np.abs((nbpml - i + 1) / float(nbpml))
-        val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-        if damp.ndim == 2:
-            damp.data[i, :] += val/spacing[0]
-            damp.data[-(i + 1), :] += val/spacing[0]
-            damp.data[:, i] += val/spacing[1]
-            damp.data[:, -(i + 1)] += val/spacing[1]
-        else:
-            damp.data[i, :, :] += val/spacing[0]
-            damp.data[-(i + 1), :, :] += val/spacing[0]
-            damp.data[:, i, :] += val/spacing[1]
-            damp.data[:, -(i + 1), :] += val/spacing[1]
-            damp.data[:, :, i] += val/spacing[2]
-            damp.data[:, :, -(i + 1)] += val/spacing[2]
+    for i in range(damp.ndim):
+        for j in range(nbpml):
+            # Dampening coefficient
+            pos = np.abs((nbpml - j + 1) / float(nbpml))
+            val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+            # : slices
+            all_ind = [slice(0, d) for d in damp.data.shape]
+            # Left slice for dampening for dimension i
+            all_ind[i] = slice(j, j+1)
+            damp.data[all_ind] += val/spacing[i]
+            # right slice for dampening for dimension i
+            all_ind[i] = slice(damp.data.shape[i]-j, damp.data.shape[i]-j+1)
+            damp.data[all_ind] += val/spacing[i]
 
 
 def initialize_function(function, data, nbpml):
@@ -317,8 +343,10 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
+
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
-                 dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
+                 dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
+                 **kwargs):
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
@@ -326,15 +354,20 @@ class Model(object):
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml,
-                         origin=origin, dtype=dtype)
+        # Check for input grid
+        self.grid = kwargs.get('grid', None)
+        # Or create a new one
+        if self.grid is None:
+            self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype)
 
+        assert (self.grid.extent == extent)
+        assert (self.grid.shape == shape_pml).all()
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.m = Function(name="m", grid=self.grid, space_order=space_order)
         else:
             self.m = Constant(name="m", value=1/vp**2)
-
+        self._physical_parameters = ('m',)
         # Set model velocity, which will also set `m`
         self.vp = vp
 
@@ -347,11 +380,12 @@ class Model(object):
 
         if epsilon is not None:
             if isinstance(epsilon, np.ndarray):
+                self._physical_parameters += ('epsilon',)
                 self.epsilon = Function(name="epsilon", grid=self.grid)
                 initialize_function(self.epsilon, 1 + 2 * epsilon, self.nbpml)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
-                if np.max(self.epsilon.data_with_halo) > 0:
-                    self.scale = np.sqrt(np.max(self.epsilon.data_with_halo))
+                if np.max(self.epsilon.data_with_halo[:]) > 0:
+                    self.scale = np.sqrt(np.max(self.epsilon.data_with_halo[:]))
             else:
                 self.epsilon = 1 + 2 * epsilon
                 self.scale = epsilon
@@ -360,6 +394,7 @@ class Model(object):
 
         if delta is not None:
             if isinstance(delta, np.ndarray):
+                self._physical_parameters += ('delta',)
                 self.delta = Function(name="delta", grid=self.grid)
                 initialize_function(self.delta, np.sqrt(1 + 2 * delta), self.nbpml)
             else:
@@ -369,6 +404,7 @@ class Model(object):
 
         if theta is not None:
             if isinstance(theta, np.ndarray):
+                self._physical_parameters += ('theta',)
                 self.theta = Function(name="theta", grid=self.grid,
                                       space_order=space_order)
                 initialize_function(self.theta, theta, self.nbpml)
@@ -378,13 +414,24 @@ class Model(object):
             self.theta = 0
 
         if phi is not None:
-            if isinstance(phi, np.ndarray):
+            if self.grid.dim < 3:
+                warning("2D TTI does not use an azimuth angle Phi, ignoring input")
+                self.phi = 0
+            elif isinstance(phi, np.ndarray):
+                self._physical_parameters += ('phi',)
                 self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
                 initialize_function(self.phi, phi, self.nbpml)
             else:
                 self.phi = phi
         else:
             self.phi = 0
+
+    def physical_params(self, **kwargs):
+        """
+        Return all set physical parameters and update to input values if provided
+        """
+        known = [getattr(self, i) for i in self._physical_parameters]
+        return {i.name: kwargs.get(i.name, i) or i for i in known}
 
     @property
     def dim(self):
@@ -434,7 +481,8 @@ class Model(object):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
-        return self.dtype(coeff * np.min(self.spacing) / (self.scale*np.max(self.vp)))
+        dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*np.max(self.vp)))
+        return .001 * int(1000 * dt)
 
     @property
     def vp(self):

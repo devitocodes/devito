@@ -28,9 +28,8 @@ def test_resample():
 
     end = min(src_a.data.shape[0], src_c.data.shape[0])
 
-    assert np.isclose(src_a.data[:end], src_c.data[:end]).any()
-    assert np.isclose(np.linalg.norm(src_a.data[:end] - src_c.data[:end]), 0,
-                      rtol=1e-7, atol=1e-7)
+    assert np.allclose(src_a.data[:end], src_c.data[:end])
+    assert np.allclose(src_a.data[:end], src_c.data[:end])
 
     # Text resampling based on num
     src_d = RickerSource(name='src_d', grid=model.grid, f0=f0,
@@ -42,9 +41,8 @@ def test_resample():
     assert np.isclose(src_d._time_range.step, src_e._time_range.step)
     assert np.isclose(src_d._time_range.stop, src_e._time_range.stop)
     assert src_d._time_range.num == src_e._time_range.num
-    assert np.isclose(src_d.data, src_e.data).any()
-    assert np.isclose(np.linalg.norm(src_d.data - src_e.data), 0,
-                      rtol=1e-7, atol=1e-7)
+    assert np.allclose(src_d.data, src_e.data)
+    assert np.allclose(src_d.data, src_e.data)
 
 
 if __name__ == "__main__":

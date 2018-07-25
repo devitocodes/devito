@@ -1,14 +1,24 @@
 import versioneer
-try:
-    from setuptools import setup, find_packages
-except ImportError:
-    from distutils.core import setup
+
+from setuptools import setup, find_packages
+
+with open('requirements.txt') as f:
+    required = f.read().splitlines()
+
+reqs = []
+links = []
+for ir in required:
+    if ir[0:3] == 'git':
+        links += [ir + '#egg=' + ir.split('/')[-1] + '-0']
+        reqs += [ir.split('/')[-1]]
+    else:
+        reqs += [ir]
 
 setup(name='devito',
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
       description="Finite Difference DSL for symbolic computation.",
-      long_descritpion="""Devito is a new tool for performing
+      long_description="""Devito is a new tool for performing
       optimised Finite Difference (FD) computation from high-level
       symbolic problem definitions. Devito performs automated code
       generation and Just-In-time (JIT) compilation based on symbolic
@@ -19,7 +29,7 @@ setup(name='devito',
       author="Imperial College London",
       author_email='opesci@imperial.ac.uk',
       license='MIT',
-      packages=find_packages(exclude=['docs', 'examples', 'tests']),
-      install_requires=['numpy', 'sympy>=1.1', 'mpmath', 'cgen', 'codepy',
-                        'psutil', 'py-cpuinfo', 'cached-property', 'multidict'],
-      test_requires=['pytest', 'flake8', 'isort'])
+      packages=find_packages(exclude=['docs', 'tests', 'examples']),
+      install_requires=reqs,
+      dependency_links=links,
+      test_suite='tests')

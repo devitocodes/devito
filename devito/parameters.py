@@ -3,6 +3,8 @@
 from collections import OrderedDict
 from os import environ
 
+from devito.tools import Signer, filter_ordered
+
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
            'add_sub_configuration']
 
@@ -14,7 +16,7 @@ __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state
 # and never modified.
 
 
-class Parameters(OrderedDict):
+class Parameters(OrderedDict, Signer):
     """
     A dictionary-like class to hold global configuration parameters for devito
     On top of a normal dict, this provides the option to provide callback functions
@@ -91,20 +93,27 @@ class Parameters(OrderedDict):
     def name(self):
         return self._name
 
+    def _signature_items(self):
+        return tuple(str(sorted(self.items()))) + tuple(str(sorted(self.backend.items())))
+
 
 env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
     'DEVITO_ISA': 'isa',
     'DEVITO_PLATFORM': 'platform',
+    'DEVITO_PROFILING': 'profiling',
     'DEVITO_BACKEND': 'backend',
+    'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
     'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
+    'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_LOGGING': 'log_level',
     'DEVITO_FIRST_TOUCH': 'first_touch',
     'DEVITO_DEBUG_COMPILER': 'debug_compiler',
 }
+
 
 configuration = Parameters("Devito-Configuration")
 """The Devito configuration parameters."""
@@ -113,9 +122,14 @@ configuration = Parameters("Devito-Configuration")
 def init_configuration(configuration=configuration, env_vars_mapper=env_vars_mapper):
     # Populate /configuration/ with user-provided options
     if environ.get('DEVITO_CONFIG') is None:
-        # Try env variables, otherwise stick to defaults
+        # At init time, it is important to first configure the compiler, then
+        # the backend (which is impacted by the compiler), finally everything
+        # else in any arbitrary order
+        process_order = filter_ordered(['compiler', 'backend'] +
+                                       list(env_vars_mapper.values()))
+        queue = sorted(env_vars_mapper.items(), key=lambda i: process_order.index(i[1]))
         unprocessed = OrderedDict([(v, environ.get(k, configuration._defaults[v]))
-                                   for k, v in sorted(env_vars_mapper.items())])
+                                   for k, v in queue])
     else:
         # Attempt reading from the specified configuration file
         raise NotImplementedError("Devito doesn't support configuration via file yet.")

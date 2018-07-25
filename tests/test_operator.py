@@ -1,20 +1,17 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict
-
 from conftest import EVAL, dims, time, x, y, z, skipif_yask
 
 import numpy as np
 import pytest
 
-from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
-                    TimeFunction, SparseFunction, SparseTimeFunction, Dimension,
-                    configuration, error)
-from devito.foreign import Operator as OperatorForeign
+from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
+                    SparseFunction, SparseTimeFunction, Dimension, error)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
-from devito.symbolics import indexify
+from devito.symbolics import indexify, retrieve_indexed
+from devito.tools import flatten
 
 
 def dimify(dimensions):
@@ -101,6 +98,35 @@ class TestCodeGen(object):
         assert len(casts) == 1
         cast = casts[0]
         assert cast.ccode.data.replace(' ', '') == expected
+
+    @pytest.mark.parametrize('expr,exp_uindices,exp_mods', [
+        ('Eq(v.forward, u[0, x, y, z] + v + 1)', [(0, 5), (2, 5)], {'v': 5}),
+        ('Eq(v.forward, u + v + 1)', [(0, 5), (2, 5), (0, 2)], {'v': 5, 'u': 2}),
+    ])
+    def test_multiple_steppers(self, expr, exp_uindices, exp_mods):
+        """Tests generation of multiple, mixed time stepping indices."""
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid, time_order=4)  # noqa
+
+        op = Operator(eval(expr), dle='noop')
+
+        iters = FindNodes(Iteration).visit(op)
+        time_iter = [i for i in iters if i.dim.is_Time]
+        assert len(time_iter) == 1
+        time_iter = time_iter[0]
+
+        # Check uindices in Iteration header
+        signatures = [i._properties for i in time_iter.uindices]
+        assert len(signatures) == len(exp_uindices)
+        assert all(i in signatures for i in exp_uindices)
+
+        # Check uindices within each TimeFunction
+        exprs = [i.expr for i in FindNodes(Expression).visit(op)]
+        assert(i.indices[i.function._time_position].modulo == exp_mods[i.function.name]
+               for i in flatten(retrieve_indexed(i) for i in exprs))
 
 
 @skipif_yask
@@ -625,11 +651,13 @@ class TestArguments(object):
         the aliasing on the SparseFunction name.
         """
         grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension(name='p_src')
-        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
-        time = u.indices[0]
         src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim], nt=10,
                                   npoint=1, coordinates=original_coords, time_order=2)
         src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=[time, p_dim],
@@ -639,7 +667,7 @@ class TestArguments(object):
         # Move the source from the location where the setup put it so we can test
         # whether the override picks up the original coordinates or the changed ones
 
-        args = op.arguments(src1=src2, t=0)
+        args = op.arguments(src1=src2, time=0)
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
@@ -802,15 +830,15 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
 
@@ -819,19 +847,19 @@ class TestDeclarator(object):
         assert """\
   float (*c)[j_size];
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
     for (int j = j_m; j <= j_M; j += 1)
     {
-      float s0 = c[i][j];
-      c[i][j] = s0*c[i][j];
+      float sa0 = c[i][j];
+      c[i][j] = sa0*c[i][j];
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   free(c);
   return 0;""" in str(operator.ccode)
 
@@ -842,8 +870,8 @@ class TestDeclarator(object):
   float (*c)[j_size];
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = 0.0F;
@@ -852,9 +880,9 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
@@ -865,17 +893,17 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
     a[i] = 3.0F*t0*t1;
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
 
@@ -883,8 +911,8 @@ class TestDeclarator(object):
         operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle=None)
         assert """\
   float c_stack[i_size][j_size] __attribute__((aligned(64)));
-  struct timeval start_section_0, end_section_0;
-  gettimeofday(&start_section_0, NULL);
+  struct timeval start_section0, end_section0;
+  gettimeofday(&start_section0, NULL);
   for (int k = k_m; k <= k_M; k += 1)
   {
     for (int s = s_m; s <= s_M; s += 1)
@@ -901,9 +929,9 @@ class TestDeclarator(object):
       }
     }
   }
-  gettimeofday(&end_section_0, NULL);
-  timers->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
-+(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
+  gettimeofday(&end_section0, NULL);
+  timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
++(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
   return 0;""" in str(operator.ccode)
 
 
@@ -1074,8 +1102,8 @@ class TestLoopScheduler(object):
         outer, inner = trees
         assert len(outer) == 2 and len(inner) == 3
         assert all(i == j for i, j in zip(outer, inner[:-1]))
-        assert outer[-1].nodes[0].expr.rhs == eq1.rhs
-        assert inner[-1].nodes[0].expr.rhs == eq2.rhs
+        assert outer[-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
+        assert inner[-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
 
     def test_equations_emulate_bc(self, t0):
         """
@@ -1100,8 +1128,8 @@ class TestLoopScheduler(object):
         op = Operator([eq1, eq2], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].expr.rhs == eq1.rhs
-        assert trees[1][-1].nodes[0].expr.rhs == eq2.rhs
+        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
+        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
 
     @pytest.mark.parametrize('exprs', [
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
@@ -1118,8 +1146,8 @@ class TestLoopScheduler(object):
         op = Operator(eqs, dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].expr.rhs == eqs[0].rhs
-        assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
+        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eqs[0].rhs
+        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eqs[1].rhs
 
     @pytest.mark.parametrize('shape, dimensions', [((11, 11), (x, y)),
                                                    ((11, 11), (y, x)),
@@ -1182,9 +1210,9 @@ class TestLoopScheduler(object):
         op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
-        assert len(trees[0][-1].nodes) == 2
-        assert trees[0][-1].nodes[0].write == u1
-        assert trees[0][-1].nodes[1].write == u2
+        assert len(trees[0][-1].nodes[0].exprs) == 2
+        assert trees[0][-1].nodes[0].exprs[0].write == u1
+        assert trees[0][-1].nodes[0].exprs[1].write == u2
 
     def test_flow_detection(self):
         """
@@ -1258,26 +1286,3 @@ class TestLoopScheduler(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(trees[0][0] is i[0] for i in trees)
-
-
-@skipif_yask
-@pytest.mark.xfail
-@pytest.mark.skipif(configuration['backend'] != 'foreign',
-                    reason="'foreign' wasn't selected as backend on startup")
-class TestForeign(object):
-
-    def test_explicit_run(self):
-        time_dim = 6
-        grid = Grid(shape=(11, 11))
-        a = TimeFunction(name='a', grid=grid, time_order=1, save=time_dim)
-        eqn = Eq(a.forward, a + 1.)
-        op = Operator(eqn)
-        assert isinstance(op, OperatorForeign)
-        args = OrderedDict(op.arguments())
-        assert args['a'] is None
-        # Emulate data feeding from outside
-        array = np.ndarray(shape=a.shape, dtype=np.float32)
-        array.fill(0.0)
-        args['a'] = array
-        op.cfunction(*list(args.values()))
-        assert all(np.allclose(args['a'][i], i) for i in range(time_dim))

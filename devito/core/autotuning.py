@@ -7,19 +7,20 @@ from operator import mul
 import resource
 
 from devito.ir.iet import Iteration, FindNodes, FindSymbols
-from devito.logger import info, info_at
+from devito.logger import info, perf, warning
 from devito.parameters import configuration
 
 __all__ = ['autotune']
 
 
-def autotune(operator, arguments, tunable):
+def autotune(operator, arguments, parameters, tunable):
     """
     Acting as a high-order function, take as input an operator and a list of
     operator arguments to perform empirical autotuning. Some of the operator
     arguments are marked as tunable.
     """
-    at_arguments = arguments.copy()
+    # We get passed all the arguments, but the cfunction only requires a subset
+    at_arguments = OrderedDict([(p.name, arguments[p.name]) for p in parameters])
 
     # User-provided output data must not be altered
     output = [i.name for i in operator.output]
@@ -41,14 +42,14 @@ def autotune(operator, arguments, tunable):
         timesteps = stepper.extent(start=start, finish=options['at_squeezer']) - 1
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps
-            info_at("Adjusted auto-tuning timestep to %d" % timesteps)
+            perf("AT: Number of timesteps adjusted to %d" % timesteps)
         at_arguments[stepper.dim.min_name] = start
         at_arguments[stepper.dim.max_name] = timesteps
         if stepper.dim.is_Stepping:
             at_arguments[stepper.dim.parent.min_name] = start
             at_arguments[stepper.dim.parent.max_name] = timesteps
     else:
-        info_at("Couldn't understand loop structure, giving up auto-tuning")
+        warning("AT: Couldn't understand loop structure; giving up")
         return arguments
 
     # Attempted block sizes ...
@@ -56,12 +57,11 @@ def autotune(operator, arguments, tunable):
     # ... Defaults (basic mode)
     blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
     # ... Always try the entire iteration space (degenerate block)
-    datashape = [at_arguments[mapper[i].original_dim.symbolic_end.name] -
-                 at_arguments[mapper[i].original_dim.symbolic_start.name] for i in mapper]
-    blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j))
-                      for i, j in zip(mapper, datashape)]))
+    itershape = [mapper[i].iteration.symbolic_extent.subs(arguments) for i in mapper]
+    blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j-1))
+                      for i, j in zip(mapper, itershape)]))
     # ... More attempts if auto-tuning in aggressive mode
-    if configuration.core['autotuning'] == 'aggressive':
+    if configuration['autotuning'].level == 'aggressive':
         blocksizes = more_heuristic_attempts(blocksizes)
 
     # How many temporaries are allocated on the stack?
@@ -79,8 +79,9 @@ def autotune(operator, arguments, tunable):
         for k, v in at_arguments.items():
             if k in bs:
                 val = bs[k]
-                start = at_arguments[mapper[k].original_dim.symbolic_start.name]
-                end = at_arguments[mapper[k].original_dim.symbolic_end.name]
+                start = mapper[k].original_dim.symbolic_start.subs(arguments)
+                end = mapper[k].original_dim.symbolic_end.subs(arguments)
+
                 if val <= mapper[k].iteration.extent(start, end):
                     at_arguments[k] = val
                 else:
@@ -106,7 +107,7 @@ def autotune(operator, arguments, tunable):
                 continue
         except TypeError:
             # We should never get here
-            info_at("Couldn't determine stack size, skipping block size %s" % str(bs))
+            warning("AT: Couldn't determine stack size; skipping block size %s" % str(bs))
             continue
 
         # Use AT-specific profiler structs
@@ -116,8 +117,8 @@ def autotune(operator, arguments, tunable):
         operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(getattr(timer._obj, i) for i, _ in timer._obj._fields_)
         timings[tuple(bs.items())] = elapsed
-        info_at("Block shape <%s> took %f (s) in %d time steps" %
-                (','.join('%d' % i for i in bs.values()), elapsed, timesteps))
+        perf("AT: Block shape <%s> took %f (s) in %d timesteps" %
+             (','.join('%d' % i for i in bs.values()), elapsed, timesteps))
 
     try:
         best = dict(min(timings, key=timings.get))

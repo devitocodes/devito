@@ -2,7 +2,7 @@
 
 import sympy
 
-__all__ = ['Eq', 'Inc', 'DOMAIN', 'INTERIOR']
+__all__ = ['Eq', 'Inc', 'DOMAIN', 'INTERIOR', 'solve']
 
 
 class Eq(sympy.Eq):
@@ -64,3 +64,24 @@ INTERIOR = Region('INTERIOR')
 Represent the physical interior domain of the PDE; that is, PDE boundaries are
 not included.
 """
+
+
+def solve(eq, target, **kwargs):
+    """
+    solve(expr, target, **kwargs)
+
+    Algebraically rearrange an equation w.r.t. a given symbol.
+
+    This is a wrapper around ``sympy.solve``.
+
+    :param eq: The :class:`sympy.Eq` to be rearranged.
+    :param target: The symbol w.r.t. which the equation is rearranged.
+    :param kwargs: (Optional) Symbolic optimizations applied while rearranging
+                   the equation. For more information. refer to
+                   ``sympy.solve.__doc__``.
+    """
+    # Enforce certain parameters to values that are known to guarantee a quick
+    # turnaround time
+    kwargs['rational'] = False  # Avoid float indices
+    kwargs['simplify'] = False  # Do not attempt premature optimisation
+    return sympy.solve(eq, target, **kwargs)[0]

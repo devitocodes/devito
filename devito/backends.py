@@ -14,7 +14,7 @@ from devito.logger import warning
 
 backends = {}
 
-backends_registry = ('core', 'foreign', 'yask', 'void')
+backends_registry = ('core', 'yask', 'void')
 
 
 class void(object):

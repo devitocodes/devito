@@ -12,19 +12,23 @@ import cgen as c
 from devito.cgen_utils import ccode
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, tagger, ntags)
+                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags)
 from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
-from devito.symbolics import as_symbol
-from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
+from devito.symbolics import FunctionFromPointer, as_symbol
+from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
+                          validate_type)
 from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
-           'UnboundedIndex', 'MetaCall', 'ArrayCast', 'PointerCast']
+           'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression', 'Section',
+           'IterationTree', 'ExpressionBundle']
+
+# First-class IET nodes
 
 
-class Node(object):
+class Node(Signer):
 
     __metaclass__ = abc.ABCMeta
 
@@ -37,6 +41,8 @@ class Node(object):
     is_Call = False
     is_List = False
     is_Element = False
+    is_Section = False
+    is_ExpressionBundle = False
 
     """
     :attr:`_traversable`. The traversable fields of the Node; that is, fields
@@ -122,6 +128,9 @@ class Node(object):
         """
         raise NotImplementedError()
 
+    def _signature_items(self):
+        return (str(self.ccode),)
+
 
 class Block(Node):
 
@@ -202,27 +211,22 @@ class Expression(Node):
 
     is_Expression = True
 
+    @validate_type(('expr', ClusterizedEq))
     def __init__(self, expr):
-        assert isinstance(expr, ClusterizedEq)
-        assert isinstance(expr.lhs, (Symbol, Indexed))
         self.expr = expr
+        self.__expr_finalize__()
 
-        self._functions = tuple(filter_ordered(flatten(detect_io(expr, relax=True))))
-
-        self.dimensions = flatten(i.indices for i in self.functions if i.is_Indexed)
-        self.dimensions = filter_ordered(self.dimensions)
+    def __expr_finalize__(self):
+        """
+        Finalize the Expression initialization.
+        """
+        self._functions = tuple(filter_ordered(flatten(detect_io(self.expr, relax=True))))
+        self._dimensions = flatten(i.indices for i in self.functions if i.is_Indexed)
+        self._dimensions = tuple(filter_ordered(self._dimensions))
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
                              filter_ordered([f.func for f in self.functions]))
-
-    def substitute(self, substitutions):
-        """Apply substitutions to the expression.
-
-        :param substitutions: Dict containing the substitutions to apply to
-                              the stored expression.
-        """
-        self.expr = self.expr.xreplace(substitutions)
 
     @property
     def dtype(self):
@@ -236,6 +240,10 @@ class Expression(Node):
         return self.expr.lhs
 
     @property
+    def dimensions(self):
+        return self._dimensions
+
+    @property
     def functions(self):
         return self._functions
 
@@ -244,7 +252,7 @@ class Expression(Node):
         """
         Return any symbols an :class:`Expression` may define.
         """
-        return (self.write, ) if self.write.is_Scalar else ()
+        return (self.write, ) if self.is_scalar else ()
 
     @property
     def write(self):
@@ -275,13 +283,6 @@ class Expression(Node):
         return self.expr.is_Increment
 
     @property
-    def shape(self):
-        """
-        Return the shape of the written LHS.
-        """
-        return () if self.is_scalar else self.expr.lhs.shape
-
-    @property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Expression`."""
         return tuple(self.expr.free_symbols)
@@ -301,9 +302,10 @@ class Iteration(Node):
     :param properties: A bag of :class:`IterationProperty` objects, decorating
                        the Iteration (sequential, parallel, vectorizable, ...).
     :param pragmas: A bag of pragmas attached to this Iteration.
-    :param uindices: a bag of UnboundedIndex objects, representing free iteration
-                     variables (i.e., the Iteration end point is independent of
-                     any of these UnboundedIndex).
+    :param uindices: a bag of :class:`DerivedDimension`s with ``dimension`` as root
+                     parent, representing additional Iteration variables with
+                     unbounded extreme (hence the "unbounded indices", shortened
+                     as "uindices").
     """
 
     is_Iteration = True
@@ -312,9 +314,7 @@ class Iteration(Node):
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
                  direction=None, properties=None, pragmas=None, uindices=None):
-        # Ensure we deal with a list of Expression objects internally
         self.nodes = as_tuple(nodes)
-
         self.dim = dimension
         self.index = index or self.dim.name
         self.direction = direction or Forward
@@ -336,7 +336,7 @@ class Iteration(Node):
         self.properties = as_tuple(filter_sorted(properties))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
-        assert all(isinstance(i, UnboundedIndex) for i in self.uindices)
+        assert all(i.is_Derived and i.root is dimension for i in self.uindices)
 
     def __repr__(self):
         properties = ""
@@ -345,20 +345,12 @@ class Iteration(Node):
             properties = "WithProperties[%s]::" % ",".join(properties)
         index = self.index
         if self.uindices:
-            index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
+            index += '[%s]' % ','.join(i.name for i in self.uindices)
         return "<%sIteration %s; %s>" % (properties, index, self.limits)
 
     @property
-    def defines(self):
-        """
-        Return any symbols defined in the :class:`Iteration` header.
-        """
-        dims = (self.dim, self.dim.parent) if self.dim.is_Derived else (self.dim,)
-        return dims + tuple(i.name for i in self.uindices)
-
-    @property
-    def is_Linear(self):
-        return len(self.uindices) == 0
+    def is_Affine(self):
+        return AFFINE in self.properties
 
     @property
     def is_Sequential(self):
@@ -412,7 +404,7 @@ class Iteration(Node):
         return self._rebuild(properties=properties)
 
     @property
-    def bounds_symbolic(self):
+    def symbolic_bounds(self):
         """Return a 2-tuple representing the symbolic bounds of the object."""
         start = self.limits[0]
         end = self.limits[1]
@@ -429,30 +421,30 @@ class Iteration(Node):
         return (start + as_symbol(self.offsets[0]), end + as_symbol(self.offsets[1]))
 
     @property
-    def extent_symbolic(self):
+    def symbolic_extent(self):
         """
         Return the symbolic extent of the Iteration.
         """
-        return self.bounds_symbolic[1] - self.bounds_symbolic[0] + 1
+        return self.symbolic_bounds[1] - self.symbolic_bounds[0] + 1
 
     @property
-    def start_symbolic(self):
+    def symbolic_start(self):
         """
         Return the symbolic start of the Iteration.
         """
-        return self.bounds_symbolic[0]
+        return self.symbolic_bounds[0]
 
     @property
-    def end_symbolic(self):
+    def symbolic_end(self):
         """
         Return the symbolic end of the Iteration.
         """
-        return self.bounds_symbolic[1]
+        return self.symbolic_bounds[1]
 
     @property
-    def incr_symbolic(self):
+    def symbolic_incr(self):
         """
-        Return the symbolic extent of the Iteration.
+        Return the symbolic increment of the Iteration.
         """
         return self.limits[2]
 
@@ -489,10 +481,16 @@ class Iteration(Node):
         return self.bounds(finish=finish)[1]
 
     @property
+    def dimensions(self):
+        """
+        Return all :class:`Dimension` objects used in the Iteration header.
+        """
+        return tuple(self.dim._defines) + self.uindices
+
+    @property
     def functions(self):
         """
-        Return all :class:`Function` objects used in the header of
-        this :class:`Iteration`.
+        Return all :class:`Function` objects used in the Iteration header.
         """
         return ()
 
@@ -502,14 +500,23 @@ class Iteration(Node):
         return []
 
     @property
+    def defines(self):
+        """
+        Return any symbols defined in the :class:`Iteration` header.
+        """
+        return self.dimensions
+
+    @property
     def free_symbols(self):
         """
         Return all :class:`Symbol` objects used in the header of this
         :class:`Iteration`.
         """
-        return tuple(self.start_symbolic.free_symbols) \
-            + tuple(self.end_symbolic.free_symbols) \
-            + tuple(flatten(ui.free_symbols for ui in self.uindices))
+        return tuple(self.symbolic_start.free_symbols) \
+            + tuple(self.symbolic_end.free_symbols) \
+            + self.uindices \
+            + tuple(flatten(i.symbolic_start.free_symbols for i in self.uindices)) \
+            + tuple(flatten(i.symbolic_incr.free_symbols for i in self.uindices))
 
 
 class Callable(Node):
@@ -581,7 +588,7 @@ class Conditional(Node):
         return tuple(self.condition.free_symbols)
 
 
-# Utilities
+# Second level IET nodes
 
 class TimedList(List):
 
@@ -714,41 +721,117 @@ class LocalExpression(Expression):
         return (self.write, )
 
 
-class UnboundedIndex(object):
+class ForeignExpression(Expression):
 
-    """
-    A generic loop iteration index that can be used in a :class:`Iteration` to
-    add a non-linear traversal of the iteration space.
-    """
+    """A node representing a SymPy :class:`FunctionFromPointer` expression."""
 
-    def __init__(self, index, start=0, step=None, dim=None, expr=None):
-        self.name = index
-        self.index = index
-        self.dim = dim
+    @validate_type(('expr', FunctionFromPointer),
+                   ('dtype', type))
+    def __init__(self, expr, dtype, **kwargs):
         self.expr = expr
-
-        try:
-            self.start = as_symbol(start)
-        except TypeError:
-            self.start = start
-
-        try:
-            if step is None:
-                self.step = index + 1
-            else:
-                self.step = as_symbol(step)
-        except TypeError:
-            self.step = step
+        self._dtype = dtype
+        self._is_increment = kwargs.get('is_Increment', False)
+        self.__expr_finalize__()
 
     @property
-    def free_symbols(self):
-        """
-        Return the symbols used by this :class:`UnboundedIndex`.
-        """
-        free = self.index.free_symbols
-        free.update(self.start.free_symbols)
-        free.update(self.step.free_symbols)
-        return tuple(free)
+    def dtype(self):
+        return self._dtype
+
+    @property
+    def output(self):
+        return self.expr.base
+
+    @property
+    def write(self):
+        if isinstance(self.output, (Symbol, Indexed)):
+            return self.output.function
+        else:
+            return None
+
+    @property
+    def is_increment(self):
+        return self._is_increment
+
+    @property
+    def is_scalar(self):
+        return False
+
+    @property
+    def is_tensor(self):
+        return False
+
+
+class Section(List):
+
+    """
+    A sequence of nodes.
+
+    Functionally, a :class:`Section` is identical to a :class:`List`; that is,
+    they generate the same code (i.e., their ``body``). However, a Section should
+    be used to define sub-trees that, for some reasons, have a relevance within
+    the IET (e.g., groups of statements that logically represent the same
+    computation unit).
+    """
+
+    is_Sequence = True
+
+    def __init__(self, name, body=None):
+        super(Section, self).__init__(body=body)
+        self.name = name
+
+    def __repr__(self):
+        return "<Section (%d)>" % len(self.body)
+
+    @property
+    def roots(self):
+        return self.body
+
+
+class ExpressionBundle(List):
+
+    """
+    A sequence of :class:`Expression`s.
+    """
+
+    is_ExpressionBundle = True
+
+    def __init__(self, shape, ops, traffic, body=None):
+        super(ExpressionBundle, self).__init__(body=body)
+        self.shape = shape
+        self.ops = ops
+        self.traffic = traffic
+
+    def __repr__(self):
+        return "<ExpressionBundle (%d)>" % len(self.exprs)
+
+    @property
+    def exprs(self):
+        return self.body
+
+
+# Utility classes
+
+
+class IterationTree(tuple):
+
+    """
+    Represent a sequence of nested :class:`Iteration`s.
+    """
+
+    @property
+    def root(self):
+        return self[0] if self else None
+
+    @property
+    def inner(self):
+        return self[-1] if self else None
+
+    def __repr__(self):
+        return "IterationTree%s" % super(IterationTree, self).__repr__()
+
+    def __getitem__(self, key):
+        ret = super(IterationTree, self).__getitem__(key)
+        return IterationTree(ret) if isinstance(key, slice) else ret
 
 
 MetaCall = namedtuple('MetaCall', 'root local')

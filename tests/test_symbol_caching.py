@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Constant,
-                    Operator, Eq, clear_cache)
-from devito.types import _SymbolCache
+from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
+                    Constant, Operator, Eq, Dimension, clear_cache)
+from devito.types import _SymbolCache, Scalar
 
 
 @skipif_yask
@@ -61,7 +61,7 @@ def test_cache_constant_new():
 
 @skipif_yask
 def test_symbol_cache_aliasing():
-    """Test to assert that our aiasing cache isn't defeated by sympys
+    """Test to assert that our aliasing cache isn't defeated by sympys
     non-aliasing symbol cache.
 
     For further explanation consider the symbol u[x, y] and it's first
@@ -164,6 +164,71 @@ def test_cache_after_indexification():
     for i in [u0, u1, u2]:
         assert i.indexify().base.function.space_order ==\
             (i.indexify() + 1.).args[1].base.function.space_order
+
+
+@skipif_yask
+def test_constant_hash():
+    """Test that different Constants have different hash value."""
+    c0 = Constant(name='c')
+    c1 = Constant(name='c')
+    assert c0 is not c1
+    assert hash(c0) != hash(c1)
+
+
+@skipif_yask
+@pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
+def test_function_hash(FunctionType):
+    """Test that different Functions have different hash value."""
+    grid0 = Grid(shape=(3, 3))
+    u0 = FunctionType(name='u', grid=grid0)
+    grid1 = Grid(shape=(4, 4))
+    u1 = FunctionType(name='u', grid=grid1)
+    assert u0 is not u1
+    assert hash(u0) != hash(u1)
+    # Now with the same grid
+    u2 = FunctionType(name='u', grid=grid0)
+    assert u0 is not u2
+    assert hash(u0) != hash(u2)
+
+
+@skipif_yask
+@pytest.mark.parametrize('FunctionType', [SparseFunction, SparseTimeFunction])
+def test_sparse_function_hash(FunctionType):
+    """Test that different Functions have different hash value."""
+    grid0 = Grid(shape=(3, 3))
+    u0 = FunctionType(name='u', grid=grid0, npoint=1, nt=10)
+    grid1 = Grid(shape=(4, 4))
+    u1 = FunctionType(name='u', grid=grid1, npoint=1, nt=10)
+    assert u0 is not u1
+    assert hash(u0) != hash(u1)
+    # Now with the same grid
+    u2 = FunctionType(name='u', grid=grid0, npoint=1, nt=10)
+    assert u0 is not u2
+    assert hash(u0) != hash(u2)
+
+
+@skipif_yask
+def test_dimension_cache():
+    """
+    Test that :class:`Dimension`s with same name but different attributes do not
+    alias to the same Dimension.
+    """
+    d0 = Dimension(name='d')
+    d1 = Dimension(name='d')
+    assert d0 is d1
+
+    s0 = Scalar(name='s0')
+    s1 = Scalar(name='s1')
+
+    d2 = Dimension(name='d', spacing=s0)
+    d3 = Dimension(name='d', spacing=s1)
+    assert d2 is not d3
+
+    d4 = Dimension(name='d', spacing=s1)
+    assert d3 is d4
+
+    d5 = Dimension(name='d', spacing=Constant(name='s1'))
+    assert d2 is not d5
 
 
 @skipif_yask

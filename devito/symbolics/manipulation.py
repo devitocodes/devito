@@ -132,16 +132,24 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
     return found + rebuilt, found
 
 
-def xreplace_indices(exprs, mapper, candidates=None, only_rhs=False):
+def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
     """
-    Create new expressions from ``exprs``, by replacing all index variables
-    specified in mapper appearing as a tensor index. Only tensors whose symbolic
-    name appears in ``candidates`` are considered if ``candidates`` is not None.
+    Replace indices in SymPy equations.
+
+    :param exprs: The target SymPy expression, or a collection of SymPy expressions.
+    :param mapper: A dictionary containing the index substitution rules.
+    :param key: (Optional) either an iterable or a function. In the former case,
+                all objects whose name does not appear in ``key`` are ruled out.
+                Likewise, if a function, all objects for which ``key(obj)`` gives
+                False are ruled out.
+    :param only_rhs: (Optional) apply the substitution rules to right-hand sides only.
     """
     get = lambda i: i.rhs if only_rhs is True else i
     handle = flatten(retrieve_indexed(get(i)) for i in as_tuple(exprs))
-    if candidates is not None:
-        handle = [i for i in handle if i.base.label in candidates]
+    if isinstance(key, Iterable):
+        handle = [i for i in handle if i.base.label in key]
+    elif callable(key):
+        handle = [i for i in handle if key(i)]
     mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
     replaced = [i.xreplace(mapper) for i in as_tuple(exprs)]
     return replaced if isinstance(exprs, Iterable) else replaced[0]

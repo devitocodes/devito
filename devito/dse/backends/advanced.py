@@ -2,7 +2,8 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from devito.ir import DataSpace, IterationSpace, Interval, Cluster, ClusterGroup, groupby
+from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
+                       ClusterGroup, detect_accesses, build_intervals, groupby)
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
 from devito.symbolics import Eq, estimate_cost, xreplace_constrained, iq_timeinvariant
@@ -120,7 +121,7 @@ class AdvancedRewriter(BasicRewriter):
                     (naliases > 1 or time_invariants[v.rhs]):
                 candidates[v.rhs] = k
             else:
-                processed.append(Eq(k, v.rhs))
+                processed.append(v)
 
         # Create alias Clusters and all necessary substitution rules
         # for the new temporaries
@@ -148,8 +149,10 @@ class AdvancedRewriter(BasicRewriter):
             expression = Eq(Indexed(function.indexed, *access), origin)
 
             # Construct a data space suitable for /alias/
-            data_intervals = [i.zero() for i in intervals]
-            dspace = DataSpace(data_intervals, {function: data_intervals})
+            mapper = detect_accesses(expression)
+            parts = {k: IntervalGroup(build_intervals(v)).add(intervals)
+                     for k, v in mapper.items() if k}
+            dspace = DataSpace([i.zero() for i in intervals], parts)
 
             # Create a new Cluster for /alias/
             alias_clusters.append(Cluster([expression], ispace, dspace))
