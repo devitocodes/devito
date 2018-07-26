@@ -332,7 +332,7 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 
 
 @skipif_yask
-class TestOperator(object):
+class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
     def test_trivial_eq_1d(self):
@@ -418,6 +418,22 @@ class TestOperator(object):
             assert np.all(f.data_ro_domain[0] == 3.)
 
 
+class TestIsotropicAcoustic(object):
+
+    """
+    Test the acoustic wave model with MPI.
+    """
+
+    @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
+        # 1 tests with varying time and space orders
+        ((60, ), 'OT2', 4, 10),
+    ])
+    @pytest.mark.parallel(nprocs=2)
+    def test_adjoint_F(self, shape, kernel, space_order, nbpml):
+        from test_adjoint import TestAdjoint
+        TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
+
+
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperator().test_trivial_eq_2d()
+    TestIsotropicAcoustic().test_adjoint_F((60, ), 'OT2', 4, 10)
