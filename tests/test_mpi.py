@@ -393,7 +393,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
     @pytest.mark.parallel(nprocs=4)
-    def test_eq_multiple_funcs(self):
+    def test_multiple_eqs_funcs(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
