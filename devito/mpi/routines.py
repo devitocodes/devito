@@ -6,8 +6,7 @@ from devito.dimension import Dimension
 from devito.mpi.utils import get_views
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
-                           Iteration, List, iet_insert_C_decls,
-                           derive_parameters)
+                           Iteration, List, iet_insert_C_decls)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
 from devito.types import Array, Symbol, LocalObject, OWNED, HALO, LEFT, RIGHT
 from devito.tools import numpy_to_mpitypes
@@ -126,6 +125,7 @@ def update_halo(f, fixed):
     mapper = get_views(f, fixed)
 
     body = []
+    masks = []
     for d in f.dimensions:
         if d in fixed:
             continue
@@ -141,7 +141,9 @@ def update_halo(f, fixed):
         parameters = ([f] + list(f.symbolic_shape) + sizes + loffsets +
                       roffsets + [rpeer, lpeer, comm])
         call = Call('sendrecv_%s' % f.name, parameters)
-        body.append(Conditional(Symbol(name='m%sl' % d), call))
+        mask = Symbol(name='m%sl' % d)
+        body.append(Conditional(mask, call))
+        masks.append(mask)
 
         # Sending to right, receiving from left
         rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
@@ -151,8 +153,11 @@ def update_halo(f, fixed):
         parameters = ([f] + list(f.symbolic_shape) + sizes + roffsets +
                       loffsets + [lpeer, rpeer, comm])
         call = Call('sendrecv_%s' % f.name, parameters)
-        body.append(Conditional(Symbol(name='m%sr' % d), call))
+        mask = Symbol(name='m%sr' % d)
+        body.append(Conditional(mask, call))
+        masks.append(mask)
 
     iet = List(body=body)
-    parameters = derive_parameters(iet, drop_locals=True)
+    parameters = ([f] + masks + [comm, nb] + list(fixed.values()) +
+                  [d.symbolic_size for d in f.dimensions])
     return Callable('halo_exchange_%s' % f.name, iet, 'void', parameters, ('static',))
