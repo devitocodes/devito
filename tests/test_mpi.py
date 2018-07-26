@@ -334,9 +334,9 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 @skipif_yask
 class TestOperator(object):
 
-    @pytest.mark.parallel(nprocs=2)
+    @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
     def test_trivial_eq(self):
-        grid = Grid(shape=(10,))
+        grid = Grid(shape=(32,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
 
@@ -350,10 +350,13 @@ class TestOperator(object):
         if f.grid.distributor.myrank == 0:
             assert f.data_ro_domain[0, 0] == 5.
             assert np.all(f.data_ro_domain[0, 1:] == 7.)
-        else:
+        elif f.grid.distributor.myrank == f.grid.distributor.nprocs - 1:
             assert f.data_ro_domain[0, -1] == 5.
             assert np.all(f.data_ro_domain[0, :-1] == 7.)
+        else:
+            assert np.all(f.data_ro_domain[0] == 7.)
 
 
 if __name__ == "__main__":
-    TestOperator().test_simple_operator()
+    configuration['mpi'] = True
+    TestOperator().test_trivial_eq()
