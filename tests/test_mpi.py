@@ -356,7 +356,33 @@ class TestOperator(object):
         else:
             assert np.all(f.data_ro_domain[0] == 7.)
 
+    @pytest.mark.parallel(nprocs=4)
+    def test_eq_multiple_funcs(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        f.data_with_halo[:] = 0.
+        g = TimeFunction(name='g', grid=grid)
+        g.data_with_halo[:] = 0.
+
+        op = Operator([Eq(f.forward, f[t, x+1] + g[t, x-1] + 1),
+                       Eq(g.forward, f[t, x-1] + g[t, x+1] + 1)])
+        op.apply(time=1)
+
+        assert np.all(f.data_ro_domain[1] == 1.)
+        if f.grid.distributor.myrank == 0:
+            assert f.data_ro_domain[0, 0] == 2.
+            assert np.all(f.data_ro_domain[0, 1:] == 3.)
+        elif f.grid.distributor.myrank == f.grid.distributor.nprocs - 1:
+            assert f.data_ro_domain[0, -1] == 2.
+            assert np.all(f.data_ro_domain[0, :-1] == 3.)
+        else:
+            assert np.all(f.data_ro_domain[0] == 3.)
+
+
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperator().test_trivial_eq()
+    TestOperator().test_eq_multiple_funcs()
