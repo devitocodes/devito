@@ -112,7 +112,7 @@ class Compiler(GCCToolchain):
         super(Compiler, self).__init__(**kwargs)
 
         self.suffix = kwargs.get('suffix')
-        if kwargs.get('mpi', False) is False:
+        if not kwargs.get('mpi'):
             self.cc = self.CC if kwargs.get('cpp', False) is False else self.CPP
             self.cc = self.cc if self.suffix is None else ('%s-%s' %
                                                            (self.cc, self.suffix))
