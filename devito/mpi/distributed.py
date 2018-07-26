@@ -86,6 +86,20 @@ class Distributor(object):
         return tuple(i[j] for i, j in zip(self._glb_numbs, self._comm.coords))
 
     @property
+    def glb_pos_map(self):
+        """Return the mapper ``dimension -> side`` telling the position
+        of the calling rank in the global grid."""
+        ret = {}
+        for d, i, s in zip(self.dimensions, self.mycoords, self.topology):
+            v = []
+            if i == 0:
+                v.append(LEFT)
+            if i == s - 1:
+                v.append(RIGHT)
+            ret[d] = tuple(v)
+        return ret
+
+    @property
     def shape(self):
         """Return the shape of this process' domain."""
         return tuple(len(i) for i in self.glb_numb)

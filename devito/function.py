@@ -371,14 +371,14 @@ class TensorFunction(AbstractCachedFunction):
     def _mask_interior(self):
         """A mask to access the interior region of the allocated data."""
         if self.grid is None:
-            glb_pos = {d: [LEFT, RIGHT] for d in self.dimensions}
+            glb_pos_map = {d: [LEFT, RIGHT] for d in self.dimensions}
         else:
-            glb_pos = self.grid.distributor.glb_pos
+            glb_pos_map = self.grid.distributor.glb_pos_map
         ret = []
         for d, i in zip(self.dimensions, self._mask_domain):
             if d.is_Space:
-                lshift = int(LEFT in glb_pos.get(d, []))
-                rshift = int(RIGHT in glb_pos.get(d, []))
+                lshift = int(LEFT in glb_pos_map.get(d, []))
+                rshift = int(RIGHT in glb_pos_map.get(d, []))
                 if i.stop is None:
                     ret.append(slice(i.start + lshift, -rshift or None))
                 else:
