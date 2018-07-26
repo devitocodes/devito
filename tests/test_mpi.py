@@ -335,7 +335,7 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 class TestOperator(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
-    def test_trivial_eq(self):
+    def test_trivial_eq_1d(self):
         grid = Grid(shape=(32,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -355,6 +355,42 @@ class TestOperator(object):
             assert np.all(f.data_ro_domain[0, :-1] == 7.)
         else:
             assert np.all(f.data_ro_domain[0] == 7.)
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_trivial_eq_2d(self):
+        grid = Grid(shape=(8, 8,))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid, space_order=1)
+        f.data_with_halo[:] = 1.
+
+        eqn = Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + f[t, x, y-1] + f[t, x, y+1])
+        op = Operator(eqn)
+        op.apply(time=1)
+
+        # Expected computed values
+        corner, side, interior = 10., 13., 16.
+
+        glb_pos_map = f.grid.distributor.glb_pos_map
+
+        assert np.all(f.data_ro_interior[0] == interior)
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert f.data_ro_domain[0, 0, 0] == corner
+            assert np.all(f.data_ro_domain[0, 1:, :1] == side)
+            assert np.all(f.data_ro_domain[0, :1, 1:] == side)
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert f.data_ro_domain[0, 0, -1] == corner
+            assert np.all(f.data_ro_domain[0, :1, :-1] == side)
+            assert np.all(f.data_ro_domain[0, 1:, -1:] == side)
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert f.data_ro_domain[0, -1, 0] == corner
+            assert np.all(f.data_ro_domain[0, -1:, 1:] == side)
+            assert np.all(f.data_ro_domain[0, :-1, :1] == side)
+        else:
+            assert f.data_ro_domain[0, -1, -1] == corner
+            assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
+            assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
     @pytest.mark.parallel(nprocs=4)
     def test_eq_multiple_funcs(self):
@@ -382,7 +418,6 @@ class TestOperator(object):
             assert np.all(f.data_ro_domain[0] == 3.)
 
 
-
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperator().test_eq_multiple_funcs()
+    TestOperator().test_trivial_eq_2d()
