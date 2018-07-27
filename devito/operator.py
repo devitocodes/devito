@@ -178,7 +178,7 @@ class Operator(Callable):
         args = self.prepare_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
-            if p.name not in args:
+            if args.get(p.name) is None:
                 raise ValueError("No value found for parameter %s" % p.name)
         return args
 
