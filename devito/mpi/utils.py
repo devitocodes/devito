@@ -137,7 +137,7 @@ class HaloScheme(object):
         for f, v in self.fmapper.items():
             needed = [(d, side) for d, side, _ in v]
             for i in product(f.dimensions, [LEFT, RIGHT]):
-                if i[0] in self.fixed[f]:
+                if i[0] in self.fixed.get(f, []):
                     continue
                 mapper.setdefault(f, OrderedDict())[i] = i in needed
         return mapper

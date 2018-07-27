@@ -32,14 +32,15 @@ class OperatorCore(OperatorRunnable):
         cstructs = set()
         for hs in FindNodes(HaloSpot).visit(iet):
             for f, v in hs.fmapper.items():
-                callables.append(update_halo(f, hs.fixed[f]))
-                callables.append(sendrecv(f, hs.fixed[f]))
-                callables.extend([copy(f, hs.fixed[f]), copy(f, hs.fixed[f], True)])
+                fixed = hs.fixed.get(f, {})
+                callables.append(update_halo(f, fixed))
+                callables.append(sendrecv(f, fixed))
+                callables.extend([copy(f, fixed), copy(f, fixed, True)])
 
                 stencil = [int(i) for i in hs.mask[f].values()]
                 comm = f.grid.distributor._C_comm
                 nb = f.grid.distributor._C_neighbours.obj
-                fixed = list(hs.fixed[f].values())
+                fixed = list(fixed.values())
                 dsizes = [d.symbolic_size for d in f.dimensions]
                 parameters = [f] + stencil + [comm, nb] + fixed + dsizes
                 call = Call('halo_exchange_%s' % f.name, parameters)
