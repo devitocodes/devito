@@ -9,6 +9,7 @@ from devito import (Grid, Function, TimeFunction, Eq, Operator,
 
 _PRECISION = 9
 
+
 @pytest.fixture
 def shape(xdim=20, ydim=30, zdim=20):
     return (xdim, ydim, zdim)
