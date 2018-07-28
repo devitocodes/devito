@@ -7,6 +7,7 @@ from devito import (Grid, Function, TimeFunction, Eq, Operator,
                     clear_cache, ConditionalDimension, left, right, centered,
                     staggered_diff)
 
+_PRECISION = 9
 
 @pytest.fixture
 def shape(xdim=20, ydim=30, zdim=20):
@@ -93,7 +94,7 @@ def test_derivatives_space(grid, derivative, dim, order):
         indices = [dim, dim + dim.spacing]
     else:
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
-    s_expr = u.diff(dim).as_finite_difference(indices)
+    s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
     assert(expr == s_expr)  # Exact equailty
 
@@ -111,7 +112,7 @@ def test_second_derivatives_space(grid, derivative, dim, order):
     # Establish native sympy derivative expression
     width = int(order / 2)
     indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
-    s_expr = u.diff(dim, dim).as_finite_difference(indices)
+    s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
     assert(expr == s_expr)  # Exact equailty
 
