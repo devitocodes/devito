@@ -21,7 +21,7 @@ from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import AbstractCachedFunction, AbstractCachedSymbol
-from devito.tools import Tag, ReducerMap, prod, powerset
+from devito.tools import Tag, ReducerMap, prod, powerset, is_integer
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -783,7 +783,7 @@ class TimeFunction(Function):
             if not isinstance(self.time_order, int):
                 raise TypeError("`time_order` must be int")
 
-            self.save = type(kwargs.get('save', None) or None)
+            self.save = kwargs.get('save')
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -869,11 +869,11 @@ class TimeFunction(Function):
 
     @property
     def _time_buffering(self):
-        return self.save is not int
+        return not is_integer(self.save)
 
     @property
     def _time_buffering_default(self):
-        return self._time_buffering and self.save != Buffer
+        return self._time_buffering and not isinstance(self.save, Buffer)
 
     def _arg_check(self, args, intervals):
         super(TimeFunction, self)._arg_check(args, intervals)
@@ -884,7 +884,7 @@ class TimeFunction(Function):
                                   % (self._time_size, self.name, key_time_size))
 
     # Pickling support
-    _pickle_kwargs = Function._pickle_kwargs + ['time_order']
+    _pickle_kwargs = Function._pickle_kwargs + ['time_order', 'save']
 
 
 class AbstractSparseFunction(TensorFunction):
