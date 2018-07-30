@@ -105,6 +105,9 @@ class Constant(AbstractCachedSymbol):
         except AttributeError:
             pass
 
+    _pickle_kwargs = (AbstractCachedSymbol._pickle_kwargs
+                      + ['dtype', '_value'])
+
 
 class TensorFunction(AbstractCachedFunction):
 
