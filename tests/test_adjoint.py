@@ -164,8 +164,10 @@ class TestAdjoint(object):
         """
         a = unit_box(shape=shape)
         a.data[:] = 0.
-        c = unit_box(shape=shape, name='c')
+        c = unit_box(shape=shape, name='c', grid=a.grid)
         c.data[:] = 27.
+
+        assert a.grid == c.grid
         # Inject receiver
         p = points(a.grid, ranges=coords, npoints=npoints)
         p.data[:] = 1.2

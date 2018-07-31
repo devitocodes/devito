@@ -2,10 +2,10 @@ import numpy as np
 import os
 
 from devito import Grid, Function, Constant
-from devito.logger import error, warning
+from devito.logger import warning
 
 
-__all__ = ['Model', 'demo_model']
+__all__ = ['Model', 'ModelElastic', 'demo_model']
 
 
 def demo_model(preset, **kwargs):
@@ -38,6 +38,22 @@ def demo_model(preset, **kwargs):
                     to be available on your machine.
     """
     space_order = kwargs.pop('space_order', 2)
+
+    if preset.lower() in ['constant-elastic']:
+        # A constant single-layer model in a 2D or 3D domain
+        # with velocity 1.5km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        dtype = kwargs.pop('dtype', np.float32)
+        vp = kwargs.pop('vp', 1.5)
+        vs = 0.5 * vp
+        rho = 1.0
+
+        return ModelElastic(space_order=space_order, vp=vp, vs=vs, rho=rho, origin=origin,
+                            shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml,
+                            **kwargs)
 
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -95,6 +111,33 @@ def demo_model(preset, **kwargs):
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
+
+    elif preset.lower() in ['layers-elastic', 'twolayer-elastic',
+                            '2layer-elastic']:
+        # A two-layer model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 2.5 km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        dtype = kwargs.pop('dtype', np.float32)
+        nbpml = kwargs.pop('nbpml', 10)
+        ratio = kwargs.pop('ratio', 2)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+
+        # Define a velocity profile in km/s
+        v = np.empty(shape, dtype=dtype)
+        v[:] = vp_top  # Top velocity (background)
+        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+
+        vs = 0.5 * v[:]
+        rho = v[:]/vp_top
+
+        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
+                            origin=origin, shape=shape,
+                            dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['layers-tti', 'twolayer-tti', '2layer-tti']:
         # A two-layer model in a 2D or 3D domain with two different
@@ -188,9 +231,8 @@ def demo_model(preset, **kwargs):
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
-            error("Path to opesci/data not found! Please specify with "
-                  "'data_path=<path/to/opesci/data>'")
-            raise ValueError("Path to model data unspecified")
+            raise ValueError("Path to opesci/data not found! Please specify with "
+                             "'data_path=<path/to/opesci/data>'")
         path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
         v = np.fromfile(path, dtype='float32', sep="")
         v = v.reshape(shape)
@@ -200,6 +242,29 @@ def demo_model(preset, **kwargs):
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=v.shape,
                      dtype=np.float32, spacing=spacing, nbpml=nbpml, **kwargs)
+
+    elif preset.lower() in ['marmousi-elastic', 'marmousi2d-elastic']:
+        shape = (1601, 401)
+        spacing = (7.5, 7.5)
+        origin = (0., 0.)
+
+        # Read 2D Marmousi model from opesc/data repo
+        data_path = kwargs.get('data_path', None)
+        if data_path is None:
+            raise ValueError("Path to opesci/data not found! Please specify with "
+                             "'data_path=<path/to/opesci/data>'")
+        path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
+        v = np.fromfile(path, dtype='float32', sep="")
+        v = v.reshape(shape)
+
+        # Cut the model to make it slightly cheaper
+        v = v[301:-300, :]
+        vs = .5 * v[:]
+        rho = v[:]/np.max(v[:])
+
+        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
+                            origin=origin, shape=v.shape,
+                            dtype=np.float32, spacing=spacing, nbpml=20)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
 
@@ -212,9 +277,8 @@ def demo_model(preset, **kwargs):
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
-            error("Path to opesci/data not found! Please specify with "
-                  "'data_path=<path/to/opesci/data>'")
-            raise ValueError("Path to model data unspecified")
+            raise ValueError("Path to opesci/data not found! Please specify with "
+                             "'data_path=<path/to/opesci/data>'")
         path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
 
         # velocity
@@ -251,9 +315,8 @@ def demo_model(preset, **kwargs):
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
-            error("Path to opesci/data not found! Please specify with "
-                  "'data_path=<path/to/opesci/data>'")
-            raise ValueError("Path to model data unspecified")
+            raise ValueError("Path to opesci/data not found! Please specify with "
+                             "'data_path=<path/to/opesci/data>'")
         path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
 
         # Velcoity
@@ -282,16 +345,21 @@ def demo_model(preset, **kwargs):
                      delta=delta, theta=theta, phi=phi, **kwargs)
 
     else:
-        error('Unknown model preset name %s' % preset)
+        raise ValueError("Unknown model preset name")
 
 
-def damp_boundary(damp, nbpml, spacing):
+def damp_boundary(damp, nbpml, spacing, mask=False):
     """Initialise damping field with an absorbing PML layer.
 
     :param damp: The :class:`Function` for the damping field.
     :param nbpml: Number of points in the damping layer.
-    :param spacing: Grid spacing coefficent.
+    :param spacing: Grid spacing coefficient.
+    :param mask: whether the dampening is a mask or layer.
+        mask => 1 inside the domain and decreases in the layer
+        not mask => 0 inside the domain and increase in the layer
     """
+    if mask:
+        damp.data[:] = 1.0
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
     assert all(damp._offset_domain[0] == i for i in damp._offset_domain)
     for i in range(damp.ndim):
@@ -299,6 +367,8 @@ def damp_boundary(damp, nbpml, spacing):
             # Dampening coefficient
             pos = np.abs((nbpml - j + 1) / float(nbpml))
             val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+            if mask:
+                val = -val
             # : slices
             all_ind = [slice(0, d) for d in damp.data.shape]
             # Left slice for dampening for dimension i
@@ -322,7 +392,71 @@ def initialize_function(function, data, nbpml):
     function.data_with_halo[:] = np.pad(data, pad_list, 'edge')
 
 
-class Model(object):
+class Pysical_Model(object):
+    """
+    General model class with common properties
+    """
+    def __init__(self, origin, spacing, shape, space_order, nbpml=20,
+                 dtype=np.float32):
+        self.shape = shape
+        self.nbpml = int(nbpml)
+        self.origin = tuple([dtype(o) for o in origin])
+
+        shape_pml = np.array(shape) + 2 * self.nbpml
+        # Physical extent is calculated per cell, so shape - 1
+        extent = tuple(np.array(spacing) * (shape_pml - 1))
+        self.grid = Grid(extent=extent, shape=shape_pml,
+                         origin=origin, dtype=dtype)
+
+    def physical_params(self, **kwargs):
+        """
+        Return all set physical parameters and update to input values if provided
+        """
+        known = [getattr(self, i) for i in self._physical_parameters]
+        return {i.name: kwargs.get(i.name, i) or i for i in known}
+
+    @property
+    def dim(self):
+        """
+        Spatial dimension of the problem and model domain.
+        """
+        return self.grid.dim
+
+    @property
+    def spacing(self):
+        """
+        Grid spacing for all fields in the physical model.
+        """
+        return self.grid.spacing
+
+    @property
+    def spacing_map(self):
+        """
+        Map between spacing symbols and their values for each :class:`SpaceDimension`
+        """
+        return self.grid.spacing_map
+
+    @property
+    def dtype(self):
+        """
+        Data type for all assocaited data objects.
+        """
+        return self.grid.dtype
+
+    @property
+    def shape_domain(self):
+        """Computational shape of the model domain, with PML layers"""
+        return tuple(d + 2*self.nbpml for d in self.shape)
+
+    @property
+    def domain_size(self):
+        """
+        Physical size of the domain as determined by shape and spacing
+        """
+        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
+
+
+class Model(Pysical_Model):
     """The physical model used in seismic inversion processes.
 
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
@@ -331,7 +465,6 @@ class Model(object):
     :param space_order: Order of the spatial stencil discretisation
     :param vp: Velocity in km/s
     :param nbpml: The number of PML layers for boundary damping
-    :param rho: Density in kg/cm^3 (rho=1 for water)
     :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
     :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
     :param theta: Tilt angle in radian
@@ -343,10 +476,13 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
                  **kwargs):
+
+        super(Model, self).__init__(origin, spacing, shape, space_order,
+                                    nbpml=nbpml, dtype=dtype)
+
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
@@ -426,53 +562,6 @@ class Model(object):
         else:
             self.phi = 0
 
-    def physical_params(self, **kwargs):
-        """
-        Return all set physical parameters and update to input values if provided
-        """
-        known = [getattr(self, i) for i in self._physical_parameters]
-        return {i.name: kwargs.get(i.name, i) or i for i in known}
-
-    @property
-    def dim(self):
-        """
-        Spatial dimension of the problem and model domain.
-        """
-        return self.grid.dim
-
-    @property
-    def spacing(self):
-        """
-        Grid spacing for all fields in the physical model.
-        """
-        return self.grid.spacing
-
-    @property
-    def spacing_map(self):
-        """
-        Map between spacing symbols and their values for each :class:`SpaceDimension`
-        """
-        return self.grid.spacing_map
-
-    @property
-    def dtype(self):
-        """
-        Data type for all assocaited data objects.
-        """
-        return self.grid.dtype
-
-    @property
-    def shape_domain(self):
-        """Computational shape of the model domain, with PML layers"""
-        return tuple(d + 2*self.nbpml for d in self.shape)
-
-    @property
-    def domain_size(self):
-        """
-        Physical size of the domain as determined by shape and spacing
-        """
-        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
-
     @property
     def critical_dt(self):
         """Critical computational time step value from the CFL condition."""
@@ -487,9 +576,7 @@ class Model(object):
     @property
     def vp(self):
         """:class:`numpy.ndarray` holding the model velocity in km/s.
-
         .. note::
-
         Updating the velocity field also updates the square slowness
         ``self.m``. However, only ``self.m`` should be used in seismic
         operators, since it is of type :class:`Function`.
@@ -509,3 +596,60 @@ class Model(object):
             initialize_function(self.m, 1 / (self.vp * self.vp), self.nbpml)
         else:
             self.m.data = 1 / vp**2
+
+
+class ModelElastic(Pysical_Model):
+    """The physical model used in seismic inversion processes.
+    :param origin: Origin of the model in m as a tuple in (x,y,z) order
+    :param spacing: Grid size in m as a Tuple in (x,y,z) order
+    :param shape: Number of grid points size in (x,y,z) order
+    :param space_order: Order of the spatial stencil discretisation
+    :param vp: P-wave velocity in km/s
+    :param vs: S-wave velocity in km/s
+    :param nbpml: The number of PML layers for boundary damping
+    :param rho: Density in kg/cm^3 (rho=1 for water)
+    The :class:`ModelElastic` provides a symbolic data objects for the
+    creation of seismic wave propagation operators:
+    :param damp: The damping field for absorbing boundarycondition
+    """
+    def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
+                 dtype=np.float32):
+        super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
+                                           nbpml=nbpml, dtype=dtype)
+
+        # Create dampening field as symbol `damp`
+        self.damp = Function(name="damp", grid=self.grid)
+        damp_boundary(self.damp, self.nbpml, spacing=self.spacing, mask=True)
+
+        # Create square slowness of the wave as symbol `m`
+        if isinstance(vp, np.ndarray):
+            self.vp = Function(name="vp", grid=self.grid, space_order=space_order)
+            initialize_function(self.vp, vp, self.nbpml)
+        else:
+            self.vp = Constant(name="vp", value=vp)
+        self._physical_parameters = ('vp',)
+
+        # Create square slowness of the wave as symbol `m`
+        if isinstance(vs, np.ndarray):
+            self.vs = Function(name="vs", grid=self.grid, space_order=space_order)
+            initialize_function(self.vs, vs, self.nbpml)
+        else:
+            self.vs = Constant(name="vs", value=vs)
+        self._physical_parameters += ('vs',)
+
+        # Create square slowness of the wave as symbol `m`
+        if isinstance(rho, np.ndarray):
+            self.rho = Function(name="rho", grid=self.grid, space_order=space_order)
+            initialize_function(self.rho, rho, self.nbpml)
+        else:
+            self.rho = Constant(name="rho", value=rho)
+        self._physical_parameters += ('rho',)
+
+    @property
+    def critical_dt(self):
+        """Critical computational time step value from the CFL condition."""
+        # For a fixed time order this number goes down as the space order increases.
+        #
+        # The CFL condtion is then given by
+        # dt < h / (sqrt(2) * max(vp)))
+        return self.dtype(.8*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))

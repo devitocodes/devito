@@ -4,9 +4,10 @@ from sympy import collect, collect_const
 
 from devito.ir import FlowGraph
 from devito.symbolics import Eq, count, estimate_cost, q_op, q_leaf, xreplace_constrained
-from devito.tools import flatten
+from devito.tools import as_mapper, flatten
 
-__all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries']
+__all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries',
+           'cross_cluster_cse']
 
 
 def collect_nested(expr, aggressive=False):
@@ -124,3 +125,29 @@ def compact_temporaries(temporaries, leaves):
             processed.extend(handle)
 
     return processed
+
+
+def cross_cluster_cse(clusters):
+    """
+    Perform common sub-expressions elimination across an iterable of Clusters.
+    """
+    clusters = clusters.unfreeze()
+
+    # Detect redundancies
+    mapper = {}
+    for c in clusters:
+        candidates = [i for i in c.trace.values() if i.is_unbound_temporary]
+        for v in as_mapper(candidates, lambda i: i.rhs).values():
+            for i in v[:-1]:
+                mapper[i.lhs.base] = v[-1].lhs.base
+
+    if not mapper:
+        # Do not waste time reconstructing identical expressions
+        return clusters
+
+    # Apply substitutions
+    for c in clusters:
+        c.exprs = [i.xreplace(mapper) for i in c.trace.values()
+                   if i.lhs.base not in mapper]
+
+    return clusters
