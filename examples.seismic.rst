@@ -7,6 +7,7 @@ Subpackages
 .. toctree::
 
     examples.seismic.acoustic
+    examples.seismic.elastic
     examples.seismic.tti
 
 Submodules

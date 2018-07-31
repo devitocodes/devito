@@ -151,7 +151,7 @@
   <h1>Source code for examples.seismic.tti.wavesolver</h1><div class="highlight"><pre>
 <span></span><span class="c1"># coding: utf-8</span>
 <span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">TimeFunction</span><span class="p">,</span> <span class="n">memoized_meth</span>
-<span class="kn">from</span> <span class="nn">examples.seismic.tti.operators</span> <span class="k">import</span> <span class="n">ForwardOperator</span>
+<span class="kn">from</span> <span class="nn">examples.seismic.tti.operators</span> <span class="k">import</span> <span class="n">ForwardOperator</span><span class="p">,</span> <span class="n">particle_velocity_fields</span>
 <span class="kn">from</span> <span class="nn">examples.seismic</span> <span class="k">import</span> <span class="n">Receiver</span>
 
 
@@ -196,9 +196,14 @@
 <span class="sd">        data objects for running a forward modelling operator.</span>
 
 <span class="sd">        :param src: Symbol with time series data for the injected source term</span>
-<span class="sd">        :param rec: Symbol to store interpolated receiver data</span>
-<span class="sd">        :param u: (Optional) Symbol to store the computed wavefield</span>
+<span class="sd">        :param rec: Symbol to store interpolated receiver data (u+v)</span>
+<span class="sd">        :param u: (Optional) Symbol to store the computed wavefield first component</span>
+<span class="sd">        :param v: (Optional) Symbol to store the computed wavefield second component</span>
 <span class="sd">        :param m: (Optional) Symbol for the time-constant square slowness</span>
+<span class="sd">        :param epsilon: (Optional) Symbol for the time-constant first Thomsen parameter</span>
+<span class="sd">        :param delta: (Optional) Symbol for the time-constant second Thomsen parameter</span>
+<span class="sd">        :param theta: (Optional) Symbol for the time-constant Dip angle (radians)</span>
+<span class="sd">        :param phi: (Optional) Symbol for the time-constant Azimuth angle (radians)</span>
 <span class="sd">        :param save: Option to store the entire (unrolled) wavefield</span>
 <span class="sd">        :param kernel: type of discretization, centered or shifted</span>
 
@@ -209,25 +214,31 @@
         <span class="c1"># overall space_order discretization</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">//</span> <span class="mi">2</span> <span class="k">if</span> <span class="n">kernel</span> <span class="o">==</span> <span class="s1">&#39;shifted&#39;</span> \
             <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span>
+
+        <span class="n">time_order</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">kernel</span> <span class="o">==</span> <span class="s1">&#39;staggered&#39;</span> <span class="k">else</span> <span class="mi">2</span>
         <span class="c1"># Source term is read-only, so re-use the default</span>
-        <span class="k">if</span> <span class="n">src</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">src</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span>
+        <span class="n">src</span> <span class="o">=</span> <span class="n">src</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span>
         <span class="c1"># Create a new receiver object to store the result</span>
-        <span class="k">if</span> <span class="n">rec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">rec</span> <span class="o">=</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                           <span class="n">time_range</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">time_range</span><span class="p">,</span>
-                           <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">rec</span> <span class="o">=</span> <span class="n">rec</span> <span class="ow">or</span> <span class="n">Receiver</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rec&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                              <span class="n">time_range</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">time_range</span><span class="p">,</span>
+                              <span class="n">coordinates</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">receiver</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
 
         <span class="c1"># Create the forward wavefield if not provided</span>
-        <span class="k">if</span> <span class="n">u</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">u</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                             <span class="n">save</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span> <span class="k">if</span> <span class="n">save</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-                             <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">u</span> <span class="ow">or</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                              <span class="n">save</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span> <span class="k">if</span> <span class="n">save</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                              <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
         <span class="c1"># Create the forward wavefield if not provided</span>
-        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">v</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;v&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
-                             <span class="n">save</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span> <span class="k">if</span> <span class="n">save</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-                             <span class="n">time_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span> <span class="ow">or</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;v&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                              <span class="n">save</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">nt</span> <span class="k">if</span> <span class="n">save</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                              <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">kernel</span> <span class="o">==</span> <span class="s1">&#39;staggered&#39;</span><span class="p">:</span>
+            <span class="n">vx</span><span class="p">,</span> <span class="n">vz</span><span class="p">,</span> <span class="n">vy</span> <span class="o">=</span> <span class="n">particle_velocity_fields</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;vx&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">vx</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;vz&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">vz</span>
+            <span class="k">if</span> <span class="n">vy</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;vy&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">vy</span>
+
         <span class="c1"># Pick m from model unless explicitly provided</span>
         <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">physical_params</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="n">m</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="n">epsilon</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">,</span>
                                                  <span class="n">theta</span><span class="o">=</span><span class="n">theta</span><span class="p">,</span> <span class="n">phi</span><span class="o">=</span><span class="n">phi</span><span class="p">))</span>

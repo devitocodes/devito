@@ -157,9 +157,10 @@
 
 <span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">FlowGraph</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_leaf</span><span class="p">,</span> <span class="n">xreplace_constrained</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_mapper</span><span class="p">,</span> <span class="n">flatten</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;collect_nested&#39;</span><span class="p">,</span> <span class="s1">&#39;common_subexprs_elimination&#39;</span><span class="p">,</span> <span class="s1">&#39;compact_temporaries&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;collect_nested&#39;</span><span class="p">,</span> <span class="s1">&#39;common_subexprs_elimination&#39;</span><span class="p">,</span> <span class="s1">&#39;compact_temporaries&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;cross_cluster_cse&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="collect_nested"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.collect_nested">[docs]</a><span class="k">def</span> <span class="nf">collect_nested</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">aggressive</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -277,6 +278,32 @@
             <span class="n">processed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">processed</span></div>
+
+
+<div class="viewcode-block" id="cross_cluster_cse"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.cross_cluster_cse">[docs]</a><span class="k">def</span> <span class="nf">cross_cluster_cse</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Perform common sub-expressions elimination across an iterable of Clusters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusters</span><span class="o">.</span><span class="n">unfreeze</span><span class="p">()</span>
+
+    <span class="c1"># Detect redundancies</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_unbound_temporary</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">as_mapper</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">mapper</span><span class="p">:</span>
+        <span class="c1"># Do not waste time reconstructing identical expressions</span>
+        <span class="k">return</span> <span class="n">clusters</span>
+
+    <span class="c1"># Apply substitutions</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+                   <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">clusters</span></div>
 </pre></div>
 
            </div>

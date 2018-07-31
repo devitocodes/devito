@@ -21,6 +21,7 @@
 ./_build/doctrees/examples.misc.doctree
 ./_build/doctrees/examples.seismic.acoustic.doctree
 ./_build/doctrees/examples.seismic.doctree
+./_build/doctrees/examples.seismic.elastic.doctree
 ./_build/doctrees/examples.seismic.tti.doctree
 ./_build/doctrees/index.doctree
 ./_build/doctrees/modules.doctree
@@ -98,6 +99,9 @@
 ./_build/html/_modules/examples/seismic/acoustic/operators.html
 ./_build/html/_modules/examples/seismic/acoustic/wavesolver.html
 ./_build/html/_modules/examples/seismic/benchmark.html
+./_build/html/_modules/examples/seismic/elastic/elastic_example.html
+./_build/html/_modules/examples/seismic/elastic/operators.html
+./_build/html/_modules/examples/seismic/elastic/wavesolver.html
 ./_build/html/_modules/examples/seismic/model.html
 ./_build/html/_modules/examples/seismic/plotting.html
 ./_build/html/_modules/examples/seismic/source.html
@@ -126,6 +130,7 @@
 ./_build/html/_sources/examples.misc.rst.txt
 ./_build/html/_sources/examples.rst.txt
 ./_build/html/_sources/examples.seismic.acoustic.rst.txt
+./_build/html/_sources/examples.seismic.elastic.rst.txt
 ./_build/html/_sources/examples.seismic.rst.txt
 ./_build/html/_sources/examples.seismic.tti.rst.txt
 ./_build/html/_sources/index.rst.txt
@@ -205,6 +210,7 @@
 ./_build/html/examples.html
 ./_build/html/examples.misc.html
 ./_build/html/examples.seismic.acoustic.html
+./_build/html/examples.seismic.elastic.html
 ./_build/html/examples.seismic.html
 ./_build/html/examples.seismic.tti.html
 ./_build/html/genindex.html
@@ -236,6 +242,7 @@
 ./examples.misc.rst
 ./examples.rst
 ./examples.seismic.acoustic.rst
+./examples.seismic.elastic.rst
 ./examples.seismic.rst
 ./examples.seismic.tti.rst
 ./figures/data_structures.pdf

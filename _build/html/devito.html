@@ -2280,6 +2280,31 @@ the width of the resulting stencil expression.</li>
 </table>
 </dd></dl>
 
+<dl class="function">
+<dt id="devito.finite_difference.staggered_diff">
+<code class="descclassname">devito.finite_difference.</code><code class="descname">staggered_diff</code><span class="sig-paren">(</span><em>f</em>, <em>dim</em>, <em>order</em>, <em>stagger=centered</em>, <em>theta=0</em>, <em>phi=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#staggered_diff"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.staggered_diff" title="Permalink to this definition">¶</a></dt>
+<dd><p>Utility function to generate staggered derivatives
+:param f: function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.
+:param dims: symbol defining the dimension wrt. which</p>
+<blockquote>
+<div>to differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</cite>.</div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>order</strong> – Order of the coefficient discretization and thus
+the width of the resulting stencil expression.</li>
+<li><strong>stagger</strong> – Shift for the FD, <cite>left</cite>, <cite>right</cite> or <cite>centered</cite></li>
+<li><strong>theta</strong> – Dip (or polar) angle for rotated FD</li>
+<li><strong>phi</strong> – Azimuth angle for rotated FD</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.function">
 <span id="devito-function-module"></span><h2>devito.function module<a class="headerlink" href="#module-devito.function" title="Permalink to this headline">¶</a></h2>

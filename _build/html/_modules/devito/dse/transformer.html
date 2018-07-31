@@ -156,6 +156,7 @@
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="k">import</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">groupby</span>
 <span class="kn">from</span> <span class="nn">devito.dse.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">AdvancedRewriter</span><span class="p">,</span> <span class="n">SpeculativeRewriter</span><span class="p">,</span>
                                  <span class="n">AggressiveRewriter</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="n">cross_cluster_cse</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dse_warning</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
@@ -195,8 +196,14 @@
 <span class="sd">                          pressure.</span>
 <span class="sd">         * &#39;aggressive&#39;: Like &#39;speculative&#39;, but apply CIRE to any non-trivial</span>
 <span class="sd">                         sub-expression (i.e., anything that is at least in a</span>
-<span class="sd">                         sum-of-products form). This may substantially increase</span>
-<span class="sd">                         the memory pressure.</span>
+<span class="sd">                         sum-of-product form).</span>
+<span class="sd">                         Further, seek and drop cross-cluster redundancies (this</span>
+<span class="sd">                         is the only pass that attempts to optimize *across*</span>
+<span class="sd">                         clusters, rather than within a cluster).</span>
+<span class="sd">                         The &#39;aggressive&#39; mode may substantially increase the</span>
+<span class="sd">                         symbolic processing time; it may or may not reduce the</span>
+<span class="sd">                         JIT-compilation time; it may or may not improve the</span>
+<span class="sd">                         overall runtime performance.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="nb">str</span><span class="p">)):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Parameter &#39;mode&#39; should be a string, not </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>
@@ -207,7 +214,9 @@
         <span class="n">dse_warning</span><span class="p">(</span><span class="s2">&quot;Unknown rewrite mode(s) </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">mode</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">clusters</span>
 
-    <span class="c1"># Separate rewriters for dense and sparse clusters; sparse clusters have</span>
+    <span class="c1"># 1) Local optimization</span>
+    <span class="c1"># ---------------------</span>
+    <span class="c1"># We use separate rewriters for dense and sparse clusters; sparse clusters have</span>
     <span class="c1"># non-affine index functions, thus making it basically impossible, in general,</span>
     <span class="c1"># to apply the more advanced DSE passes.</span>
     <span class="c1"># Note: the sparse rewriter uses the same template for temporaries as</span>
@@ -218,7 +227,20 @@
     <span class="n">processed</span> <span class="o">=</span> <span class="n">ClusterGroup</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">rewriter</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">is_dense</span> <span class="k">else</span> <span class="n">fallback</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
                                      <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">))</span>
 
-    <span class="k">return</span> <span class="n">groupby</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span><span class="o">.</span><span class="n">finalize</span><span class="p">()</span></div>
+    <span class="c1"># 2) Cluster grouping</span>
+    <span class="c1"># -------------------</span>
+    <span class="c1"># Different clusters may have created new (smaller) clusters which are</span>
+    <span class="c1"># potentially groupable within a single cluster</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="n">groupby</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
+
+    <span class="c1"># 3)Global optimization</span>
+    <span class="c1"># ---------------------</span>
+    <span class="c1"># After grouping, there may be redundancies in one or more clusters. This final</span>
+    <span class="c1"># pass searches and drops such redundancies</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="n">cross_cluster_cse</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">processed</span><span class="o">.</span><span class="n">finalize</span><span class="p">()</span></div>
 </pre></div>
 
            </div>

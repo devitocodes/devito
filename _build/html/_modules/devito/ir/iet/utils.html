@@ -152,10 +152,10 @@
             
   <h1>Source code for devito.ir.iet.utils</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">IterationTree</span><span class="p">,</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">FindSymbols</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Array</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;filter_iterations&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_iteration_tree&#39;</span><span class="p">,</span> <span class="s1">&#39;is_foldable&#39;</span><span class="p">,</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;filter_iterations&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_iteration_tree&#39;</span><span class="p">,</span>
            <span class="s1">&#39;compose_nodes&#39;</span><span class="p">,</span> <span class="s1">&#39;derive_parameters&#39;</span><span class="p">]</span>
 
 
@@ -235,19 +235,6 @@
             <span class="k">break</span>
 
     <span class="k">return</span> <span class="n">filtered</span></div>
-
-
-<div class="viewcode-block" id="is_foldable"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.is_foldable">[docs]</a><span class="k">def</span> <span class="nf">is_foldable</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return True if the iterable ``nodes`` consists of foldable :class:`Iteration`</span>
-<span class="sd">    objects, False otherwise.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">nodes</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Iteration</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">):</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="n">main</span> <span class="o">=</span> <span class="n">nodes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">dim</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">limits</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">limits</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">index</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">index</span>
-               <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">properties</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">properties</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="compose_nodes"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.utils.compose_nodes">[docs]</a><span class="k">def</span> <span class="nf">compose_nodes</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">retrieve</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>

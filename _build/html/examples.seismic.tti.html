@@ -29,7 +29,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="devito package" href="devito.html" />
-    <link rel="prev" title="examples.seismic.acoustic package" href="examples.seismic.acoustic.html" /> 
+    <link rel="prev" title="examples.seismic.elastic package" href="examples.seismic.elastic.html" /> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -328,7 +328,7 @@ two non-centered rotated second order derivative in the direction z
 
 <dl class="function">
 <dt id="examples.seismic.tti.operators.kernel_centered_2d">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_centered_2d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_centered_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_centered_2d" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_centered_2d</code><span class="sig-paren">(</span><em>model</em>, <em>u</em>, <em>v</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_centered_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_centered_2d" title="Permalink to this definition">¶</a></dt>
 <dd><p>TTI finite difference kernel. The equation we solve is:</p>
 <p>u.dt2 = (1+2 <a href="#id1"><span class="problematic" id="id2">*</span></a>epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
 v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)</p>
@@ -342,10 +342,6 @@ Hz = Gzz(v)</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>u</strong> – first TTI field</li>
 <li><strong>v</strong> – second TTI field</li>
-<li><strong>costheta</strong> – cosine of the tilt angle</li>
-<li><strong>sintheta</strong> – sine of the tilt angle</li>
-<li><strong>cosphi</strong> – cosine of the azymuth angle, has to be 0 in 2D</li>
-<li><strong>sinphi</strong> – sine of the azymuth angle, has to be 0 in 2D</li>
 <li><strong>space_order</strong> – discretization order</li>
 </ul>
 </td>
@@ -359,7 +355,7 @@ Hz = Gzz(v)</p>
 
 <dl class="function">
 <dt id="examples.seismic.tti.operators.kernel_centered_3d">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_centered_3d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_centered_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_centered_3d" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_centered_3d</code><span class="sig-paren">(</span><em>model</em>, <em>u</em>, <em>v</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_centered_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_centered_3d" title="Permalink to this definition">¶</a></dt>
 <dd><p>TTI finite difference kernel. The equation we solve is:</p>
 <p>u.dt2 = (1+2 <a href="#id3"><span class="problematic" id="id4">*</span></a>epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
 v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)</p>
@@ -373,11 +369,6 @@ Hz = Gzz(v)</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>u</strong> – first TTI field</li>
 <li><strong>v</strong> – second TTI field</li>
-<li><strong>costheta</strong> – cosine of the tilt angle</li>
-<li><strong>sintheta</strong> – sine of the tilt angle</li>
-<li><strong>cosphi</strong> – cosine of the azymuth angle</li>
-<li><strong>sinphi</strong> – sine of the azymuth angle</li>
-<li><strong>space_order</strong> – discretization order</li>
 </ul>
 </td>
 </tr>
@@ -390,7 +381,7 @@ Hz = Gzz(v)</p>
 
 <dl class="function">
 <dt id="examples.seismic.tti.operators.kernel_shifted_2d">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shifted_2d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shifted_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shifted_2d" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shifted_2d</code><span class="sig-paren">(</span><em>model</em>, <em>u</em>, <em>v</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shifted_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shifted_2d" title="Permalink to this definition">¶</a></dt>
 <dd><p>TTI finite difference kernel. The equation we solve is:</p>
 <p>u.dt2 = (1+2 <a href="#id5"><span class="problematic" id="id6">*</span></a>epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
 v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)</p>
@@ -404,10 +395,6 @@ Hz = Gzz(v)</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>u</strong> – first TTI field</li>
 <li><strong>v</strong> – second TTI field</li>
-<li><strong>costheta</strong> – cosine of the tilt angle</li>
-<li><strong>sintheta</strong> – sine of the tilt angle</li>
-<li><strong>cosphi</strong> – cosine of the azymuth angle, has to be 0 in 2D</li>
-<li><strong>sinphi</strong> – sine of the azymuth angle, has to be 0 in 2D</li>
 <li><strong>space_order</strong> – discretization order</li>
 </ul>
 </td>
@@ -421,7 +408,7 @@ Hz = Gzz(v)</p>
 
 <dl class="function">
 <dt id="examples.seismic.tti.operators.kernel_shifted_3d">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shifted_3d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shifted_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shifted_3d" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shifted_3d</code><span class="sig-paren">(</span><em>model</em>, <em>u</em>, <em>v</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shifted_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shifted_3d" title="Permalink to this definition">¶</a></dt>
 <dd><p>TTI finite difference kernel. The equation we solve is:</p>
 <p>u.dt2 = (1+2 <a href="#id7"><span class="problematic" id="id8">*</span></a>epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
 v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)</p>
@@ -435,10 +422,6 @@ Hz = Gzz(v)</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>u</strong> – first TTI field</li>
 <li><strong>v</strong> – second TTI field</li>
-<li><strong>costheta</strong> – cosine of the tilt angle</li>
-<li><strong>sintheta</strong> – sine of the tilt angle</li>
-<li><strong>cosphi</strong> – cosine of the azymuth angle</li>
-<li><strong>sinphi</strong> – sine of the azymuth angle</li>
 <li><strong>space_order</strong> – discretization order</li>
 </ul>
 </td>
@@ -448,6 +431,41 @@ Hz = Gzz(v)</p>
 </tr>
 </tbody>
 </table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.kernel_staggered_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_staggered_2d</code><span class="sig-paren">(</span><em>model</em>, <em>u</em>, <em>v</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_staggered_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_staggered_2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>TTI finite difference. The equation solved is:
+vx.dt = - u.dx
+vz.dt = - v.dx
+m * v.dt = - sqrt(1 + 2 delta) vx.dx - vz.dz + Fh
+m * u.dt = - (1 + 2 epsilon) vx.dx - sqrt(1 + 2 delta) vz.dz + Fv</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.kernel_staggered_3d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_staggered_3d</code><span class="sig-paren">(</span><em>model</em>, <em>u</em>, <em>v</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_staggered_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_staggered_3d" title="Permalink to this definition">¶</a></dt>
+<dd><p>TTI finite difference. The equation solved is:
+vx.dt = - u.dx
+vy.dt = - u.dx
+vz.dt = - v.dx
+m * v.dt = - sqrt(1 + 2 delta) (vx.dx + vy.dy) - vz.dz + Fh
+m * u.dt = - (1 + 2 epsilon) (vx.dx + vy.dy) - sqrt(1 + 2 delta) vz.dz + Fv</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.particle_velocity_fields">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">particle_velocity_fields</code><span class="sig-paren">(</span><em>model</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#particle_velocity_fields"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.particle_velocity_fields" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize partcle vleocity fields for staggered tti</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.second_order_stencil">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">second_order_stencil</code><span class="sig-paren">(</span><em>model</em>, <em>u</em>, <em>v</em>, <em>H0</em>, <em>Hz</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#second_order_stencil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.second_order_stencil" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates the stencil corresponding to the second order TTI wave equation
+u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
+v.dt2 =  (delta * H0 + Hz) - damp * v.dt</p>
 </dd></dl>
 
 </div>
@@ -500,9 +518,14 @@ data objects for running a forward modelling operator.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>src</strong> – Symbol with time series data for the injected source term</li>
-<li><strong>rec</strong> – Symbol to store interpolated receiver data</li>
-<li><strong>u</strong> – (Optional) Symbol to store the computed wavefield</li>
+<li><strong>rec</strong> – Symbol to store interpolated receiver data (u+v)</li>
+<li><strong>u</strong> – (Optional) Symbol to store the computed wavefield first component</li>
+<li><strong>v</strong> – (Optional) Symbol to store the computed wavefield second component</li>
 <li><strong>m</strong> – (Optional) Symbol for the time-constant square slowness</li>
+<li><strong>epsilon</strong> – (Optional) Symbol for the time-constant first Thomsen parameter</li>
+<li><strong>delta</strong> – (Optional) Symbol for the time-constant second Thomsen parameter</li>
+<li><strong>theta</strong> – (Optional) Symbol for the time-constant Dip angle (radians)</li>
+<li><strong>phi</strong> – (Optional) Symbol for the time-constant Azimuth angle (radians)</li>
 <li><strong>save</strong> – Option to store the entire (unrolled) wavefield</li>
 <li><strong>kernel</strong> – type of discretization, centered or shifted</li>
 </ul>
@@ -540,7 +563,7 @@ data objects for running a forward modelling operator.</p>
         <a href="devito.html" class="btn btn-neutral float-right" title="devito package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="examples.seismic.acoustic.html" class="btn btn-neutral" title="examples.seismic.acoustic package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="examples.seismic.elastic.html" class="btn btn-neutral" title="examples.seismic.elastic package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

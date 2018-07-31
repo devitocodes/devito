@@ -185,7 +185,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">function</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -202,6 +202,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">rank</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_unbound_temporary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_Array</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">readby</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -268,7 +272,7 @@
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">reads</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
                 <span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
 
-        <span class="c1"># Make sure read-after-writes are honored for scalar temporaries</span>
+        <span class="c1"># Make sure read-after-writes are honored for scalar nodes</span>
         <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">]</span>
         <span class="n">queue</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
         <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
@@ -282,10 +286,10 @@
                 <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
 
         <span class="c1"># Build up the FlowGraph</span>
-        <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">Node</span><span class="p">(</span><span class="o">*</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">inc</span><span class="o">=</span><span class="n">q_inc</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
-                                <span class="n">reads</span><span class="o">=</span><span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
-                       <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">FlowGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">temporaries</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">Node</span><span class="p">(</span><span class="o">*</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">inc</span><span class="o">=</span><span class="n">q_inc</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span>
+                          <span class="n">reads</span><span class="o">=</span><span class="n">reads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+                 <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FlowGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Determine indices along the space and time dimensions</span>
         <span class="n">terms</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">q_indirect</span><span class="p">(</span><span class="n">k</span><span class="p">)]</span>
@@ -295,7 +299,7 @@
 
 <div class="viewcode-block" id="FlowGraph.trace"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.trace">[docs]</a>    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the sequence of operations required to compute the temporary ``key``.</span>
+<span class="sd">        Return the sequence of operations required to compute the node ``key``.</span>
 <span class="sd">        If ``readby = True``, then return the sequence of operations that will</span>
 <span class="sd">        depend on ``key``, instead. With ``strict = True``, drop ``key`` from the</span>
 <span class="sd">        result.</span>
@@ -304,7 +308,7 @@
             <span class="k">return</span> <span class="p">[]</span>
 
         <span class="c1"># OrderedDicts, besides preserving the scheduling order, also prevent</span>
-        <span class="c1"># scheduling the same temporary more than once</span>
+        <span class="c1"># scheduling the same node more than once</span>
         <span class="n">found</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
         <span class="n">queue</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">key</span><span class="p">,</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">])])</span>
         <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
@@ -317,7 +321,7 @@
                 <span class="c1"># Tensors belong to other traces, so they can be scheduled straight away</span>
                 <span class="n">tensors</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">reads</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">]</span>
                 <span class="n">found</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">items</span><span class="p">())</span> <span class="o">+</span> <span class="p">[(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tensors</span><span class="p">])</span>
-                <span class="c1"># Postpone the rest until all dependening temporaries got scheduled</span>
+                <span class="c1"># Postpone the rest until all dependening nodes got scheduled</span>
                 <span class="n">scalars</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">reads</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">]</span>
                 <span class="n">queue</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">scalars</span><span class="p">]</span> <span class="o">+</span>
                                     <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">queue</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
@@ -342,7 +346,7 @@
         <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
         <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
             <span class="n">item</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-            <span class="n">temporaries</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="n">nodes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
                     <span class="c1"># Already inspected, nothing more can be inferred</span>
@@ -352,7 +356,7 @@
                     <span class="k">return</span> <span class="kc">False</span>
                 <span class="k">elif</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
                     <span class="c1"># Go on with the search</span>
-                    <span class="n">temporaries</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                    <span class="n">nodes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                     <span class="c1"># Go on with the search, as /i/ is not a time dimension</span>
                     <span class="k">pass</span>
@@ -361,7 +365,7 @@
                     <span class="c1"># cannot determine if time-invariant; assume time-varying</span>
                     <span class="k">return</span> <span class="kc">False</span>
                 <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-            <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">temporaries</span><span class="p">])</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">])</span>
         <span class="k">return</span> <span class="kc">True</span></div>
 
 <div class="viewcode-block" id="FlowGraph.is_index"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.is_index">[docs]</a>    <span class="k">def</span> <span class="nf">is_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
@@ -381,7 +385,7 @@
 <div class="viewcode-block" id="FlowGraph.extract"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.extract">[docs]</a>    <span class="k">def</span> <span class="nf">extract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the list of nodes appearing in ``key.reads``, in program order</span>
-<span class="sd">        (ie, based on the order in which the temporaries appear in ``self``). If</span>
+<span class="sd">        (ie, based on the order in which the nodes appear in ``self``). If</span>
 <span class="sd">        ``readby is True``, then return instead the list of nodes appearing</span>
 <span class="sd">        ``key.readby``, in program order.</span>
 
@@ -431,7 +435,7 @@
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">unknown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return all symbols appearing in self for which a temporary is not available.</span>
+<span class="sd">        Return all symbols appearing in self for which a node is not available.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">known</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
         <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>

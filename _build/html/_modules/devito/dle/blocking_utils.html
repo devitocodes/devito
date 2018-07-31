@@ -156,9 +156,9 @@
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">IncrDimension</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">ntags</span><span class="p">,</span> <span class="n">FindAdjacentIterations</span><span class="p">,</span>
                            <span class="n">FindNodes</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
-                           <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">is_foldable</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
+                           <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">xreplace_indices</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;fold_blockable_tree&#39;</span><span class="p">,</span> <span class="s1">&#39;unfold_blocked_tree&#39;</span><span class="p">]</span>
 
@@ -196,6 +196,11 @@
                 <span class="n">pairwise_folds</span> <span class="o">=</span> <span class="n">pairwise_folds</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
             <span class="c1"># Perhaps there&#39;s nothing to fold</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pairwise_folds</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="c1"># TODO: we do not currently support blocking if any of the foldable</span>
+            <span class="c1"># iterations writes to user data (need min/max loop bounds?)</span>
+            <span class="n">exprs</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">root</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">trees</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">is_Input</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">):</span>
                 <span class="k">continue</span>
             <span class="c1"># Perform folding</span>
             <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">pairwise_folds</span><span class="p">:</span>
@@ -259,6 +264,19 @@
     <span class="k">return</span> <span class="n">processed</span></div>
 
 
+<span class="k">def</span> <span class="nf">is_foldable</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if the iterable ``nodes`` consists of foldable :class:`Iteration`s,</span>
+<span class="sd">    False otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Iteration</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">main</span> <span class="o">=</span> <span class="n">nodes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">dim</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">limits</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">limits</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">index</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">index</span>
+               <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">properties</span> <span class="o">==</span> <span class="n">main</span><span class="o">.</span><span class="n">properties</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">)</span>
+
+
 <span class="k">def</span> <span class="nf">optimize_unfolded_tree</span><span class="p">(</span><span class="n">unfolded</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Transform folded trees to reduce the memory footprint.</span>
@@ -295,6 +313,16 @@
     <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">tree</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">unfolded</span><span class="p">):</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+
+        <span class="c1"># We can optimize the folded trees only if they compute temporary</span>
+        <span class="c1"># arrays, but not if they compute input data</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">writes</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span><span class="o">.</span><span class="n">write</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">exprs</span> <span class="k">if</span> <span class="n">j</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">is_Array</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">writes</span><span class="p">):</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">compose_nodes</span><span class="p">(</span><span class="n">tree</span><span class="p">))</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="n">compose_nodes</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+            <span class="k">continue</span>
+
         <span class="n">modified_tree</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">modified_root</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
@@ -312,14 +340,13 @@
             <span class="n">mapper</span><span class="p">[</span><span class="n">t1</span><span class="o">.</span><span class="n">dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">t1_udim</span>
 
         <span class="c1"># Temporary arrays can now be moved onto the stack</span>
-        <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">modified_tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
         <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="ow">not</span> <span class="n">j</span><span class="o">.</span><span class="n">is_Remainder</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">modified_tree</span><span class="p">):</span>
             <span class="n">dimensions</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">modified_root</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">j</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">is_Array</span><span class="p">:</span>
-                    <span class="n">j_dimensions</span> <span class="o">=</span> <span class="n">dimensions</span> <span class="o">+</span> <span class="n">j</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">modified_root</span><span class="p">):]</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">writes</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">j</span><span class="o">.</span><span class="n">is_Array</span><span class="p">:</span>
+                    <span class="n">j_dimensions</span> <span class="o">=</span> <span class="n">dimensions</span> <span class="o">+</span> <span class="n">j</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">modified_root</span><span class="p">):]</span>
                     <span class="n">j_shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">j_dimensions</span><span class="p">)</span>
-                    <span class="n">j</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">j_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">j_dimensions</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">j</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">j_shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">j_dimensions</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
         <span class="c1"># Substitute iteration variables within the folded trees</span>
         <span class="n">modified_tree</span> <span class="o">=</span> <span class="n">compose_nodes</span><span class="p">(</span><span class="n">modified_tree</span><span class="p">)</span>

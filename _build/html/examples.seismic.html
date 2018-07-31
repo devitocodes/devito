@@ -186,6 +186,14 @@
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="examples.seismic.elastic.html">examples.seismic.elastic package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.elastic.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.elastic.html#module-examples.seismic.elastic.elastic_example">examples.seismic.elastic.elastic_example module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.elastic.html#module-examples.seismic.elastic.operators">examples.seismic.elastic.operators module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.elastic.html#module-examples.seismic.elastic.wavesolver">examples.seismic.elastic.wavesolver module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.elastic.html#module-examples.seismic.elastic">Module contents</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="examples.seismic.tti.html">examples.seismic.tti package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#submodules">Submodules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.operators">examples.seismic.tti.operators module</a></li>
@@ -260,7 +268,7 @@
 <dl class="class">
 <dt id="examples.seismic.model.Model">
 <em class="property">class </em><code class="descclassname">examples.seismic.model.</code><code class="descname">Model</code><span class="sig-paren">(</span><em>origin</em>, <em>spacing</em>, <em>shape</em>, <em>space_order</em>, <em>vp</em>, <em>nbpml=20</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.model.Pysical_Model</span></code></p>
 <p>The physical model used in seismic inversion processes.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -273,7 +281,6 @@
 <li><strong>space_order</strong> – Order of the spatial stencil discretisation</li>
 <li><strong>vp</strong> – Velocity in km/s</li>
 <li><strong>nbpml</strong> – The number of PML layers for boundary damping</li>
-<li><strong>rho</strong> – Density in kg/cm^3 (rho=1 for water)</li>
 <li><strong>epsilon</strong> – Thomsen epsilon parameter (0&lt;epsilon&lt;1)</li>
 <li><strong>delta</strong> – Thomsen delta parameter (0&lt;delta&lt;1), delta&lt;epsilon</li>
 <li><strong>theta</strong> – Tilt angle in radian</li>
@@ -304,54 +311,37 @@ creation of seismic wave propagation operators:</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="examples.seismic.model.Model.dim">
-<code class="descname">dim</code><a class="headerlink" href="#examples.seismic.model.Model.dim" title="Permalink to this definition">¶</a></dt>
-<dd><p>Spatial dimension of the problem and model domain.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="examples.seismic.model.Model.domain_size">
-<code class="descname">domain_size</code><a class="headerlink" href="#examples.seismic.model.Model.domain_size" title="Permalink to this definition">¶</a></dt>
-<dd><p>Physical size of the domain as determined by shape and spacing</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="examples.seismic.model.Model.dtype">
-<code class="descname">dtype</code><a class="headerlink" href="#examples.seismic.model.Model.dtype" title="Permalink to this definition">¶</a></dt>
-<dd><p>Data type for all assocaited data objects.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="examples.seismic.model.Model.physical_params">
-<code class="descname">physical_params</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.physical_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.physical_params" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return all set physical parameters and update to input values if provided</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="examples.seismic.model.Model.shape_domain">
-<code class="descname">shape_domain</code><a class="headerlink" href="#examples.seismic.model.Model.shape_domain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Computational shape of the model domain, with PML layers</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="examples.seismic.model.Model.spacing">
-<code class="descname">spacing</code><a class="headerlink" href="#examples.seismic.model.Model.spacing" title="Permalink to this definition">¶</a></dt>
-<dd><p>Grid spacing for all fields in the physical model.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="examples.seismic.model.Model.spacing_map">
-<code class="descname">spacing_map</code><a class="headerlink" href="#examples.seismic.model.Model.spacing_map" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map between spacing symbols and their values for each <code class="xref py py-class docutils literal notranslate"><span class="pre">SpaceDimension</span></code></p>
-</dd></dl>
-
-<dl class="attribute">
 <dt id="examples.seismic.model.Model.vp">
 <code class="descname">vp</code><a class="headerlink" href="#examples.seismic.model.Model.vp" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> holding the model velocity in km/s.</p>
-<p>Updating the velocity field also updates the square slowness
+<dd><p><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> holding the model velocity in km/s.
+.. note::
+Updating the velocity field also updates the square slowness
 <code class="docutils literal notranslate"><span class="pre">self.m</span></code>. However, only <code class="docutils literal notranslate"><span class="pre">self.m</span></code> should be used in seismic
 operators, since it is of type <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="examples.seismic.model.ModelElastic">
+<em class="property">class </em><code class="descclassname">examples.seismic.model.</code><code class="descname">ModelElastic</code><span class="sig-paren">(</span><em>origin</em>, <em>spacing</em>, <em>shape</em>, <em>space_order</em>, <em>vp</em>, <em>vs</em>, <em>rho</em>, <em>nbpml=20</em>, <em>dtype=&lt;class 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#ModelElastic"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.ModelElastic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">examples.seismic.model.Pysical_Model</span></code></p>
+<p>The physical model used in seismic inversion processes.
+:param origin: Origin of the model in m as a tuple in (x,y,z) order
+:param spacing: Grid size in m as a Tuple in (x,y,z) order
+:param shape: Number of grid points size in (x,y,z) order
+:param space_order: Order of the spatial stencil discretisation
+:param vp: P-wave velocity in km/s
+:param vs: S-wave velocity in km/s
+:param nbpml: The number of PML layers for boundary damping
+:param rho: Density in kg/cm^3 (rho=1 for water)
+The <a class="reference internal" href="#examples.seismic.model.ModelElastic" title="examples.seismic.model.ModelElastic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelElastic</span></code></a> provides a symbolic data objects for the
+creation of seismic wave propagation operators:
+:param damp: The damping field for absorbing boundarycondition</p>
+<dl class="attribute">
+<dt id="examples.seismic.model.ModelElastic.critical_dt">
+<code class="descname">critical_dt</code><a class="headerlink" href="#examples.seismic.model.ModelElastic.critical_dt" title="Permalink to this definition">¶</a></dt>
+<dd><p>Critical computational time step value from the CFL condition.</p>
 </dd></dl>
 
 </dd></dl>

@@ -347,7 +347,7 @@ of the indexed objects represent either “space” or “time” dimensions.</p
 <dt id="devito.ir.clusters.graph.FlowGraph.extract">
 <code class="descname">extract</code><span class="sig-paren">(</span><em>key</em>, <em>readby=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/graph.html#FlowGraph.extract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph.extract" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the list of nodes appearing in <code class="docutils literal notranslate"><span class="pre">key.reads</span></code>, in program order
-(ie, based on the order in which the temporaries appear in <code class="docutils literal notranslate"><span class="pre">self</span></code>). If
+(ie, based on the order in which the nodes appear in <code class="docutils literal notranslate"><span class="pre">self</span></code>). If
 <code class="docutils literal notranslate"><span class="pre">readby</span> <span class="pre">is</span> <span class="pre">True</span></code>, then return instead the list of nodes appearing
 <code class="docutils literal notranslate"><span class="pre">key.readby</span></code>, in program order.</p>
 <p>Given the following sequence of operations:</p>
@@ -395,7 +395,7 @@ FlowGraph is assessed.</p>
 <dl class="method">
 <dt id="devito.ir.clusters.graph.FlowGraph.trace">
 <code class="descname">trace</code><span class="sig-paren">(</span><em>key</em>, <em>readby=False</em>, <em>strict=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/clusters/graph.html#FlowGraph.trace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph.trace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the sequence of operations required to compute the temporary <code class="docutils literal notranslate"><span class="pre">key</span></code>.
+<dd><p>Return the sequence of operations required to compute the node <code class="docutils literal notranslate"><span class="pre">key</span></code>.
 If <code class="docutils literal notranslate"><span class="pre">readby</span> <span class="pre">=</span> <span class="pre">True</span></code>, then return the sequence of operations that will
 depend on <code class="docutils literal notranslate"><span class="pre">key</span></code>, instead. With <code class="docutils literal notranslate"><span class="pre">strict</span> <span class="pre">=</span> <span class="pre">True</span></code>, drop <code class="docutils literal notranslate"><span class="pre">key</span></code> from the
 result.</p>
@@ -404,7 +404,7 @@ result.</p>
 <dl class="attribute">
 <dt id="devito.ir.clusters.graph.FlowGraph.unknown">
 <code class="descname">unknown</code><a class="headerlink" href="#devito.ir.clusters.graph.FlowGraph.unknown" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return all symbols appearing in self for which a temporary is not available.</p>
+<dd><p>Return all symbols appearing in self for which a node is not available.</p>
 </dd></dl>
 
 </dd></dl>
