@@ -1,8 +1,8 @@
 from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
-from devito.tools import as_tuple, flatten
+from devito.tools import flatten
 from devito.types import Array
 
-__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'is_foldable',
+__all__ = ['filter_iterations', 'retrieve_iteration_tree',
            'compose_nodes', 'derive_parameters']
 
 
@@ -82,19 +82,6 @@ def filter_iterations(tree, key=lambda i: i, stop=lambda: False):
             break
 
     return filtered
-
-
-def is_foldable(nodes):
-    """
-    Return True if the iterable ``nodes`` consists of foldable :class:`Iteration`
-    objects, False otherwise.
-    """
-    nodes = as_tuple(nodes)
-    if len(nodes) <= 1 or any(not i.is_Iteration for i in nodes):
-        return False
-    main = nodes[0]
-    return all(i.dim == main.dim and i.limits == main.limits and i.index == main.index
-               and i.properties == main.properties for i in nodes)
 
 
 def compose_nodes(nodes, retrieve=False):
