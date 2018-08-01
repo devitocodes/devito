@@ -628,8 +628,6 @@ class NestedTransformer(Transformer):
     def visit_Node(self, o, **kwargs):
         rebuilt = [self.visit(i, **kwargs) for i in o.children]
         handle = self.mapper.get(o, o)
-        if self.mapper and list(self.mapper)[0].is_HaloSpot:
-            from IPython import embed; embed()
         if handle is None:
             # None -> drop /o/
             return None

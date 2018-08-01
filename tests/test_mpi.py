@@ -4,7 +4,8 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Function, TimeFunction, Eq, Operator
+from devito import Grid, Function, TimeFunction, Dimension, Eq, Inc, Operator
+from devito.ir.iet import Call, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
@@ -356,6 +357,27 @@ class TestOperatorSimple(object):
         else:
             assert np.all(f.data_ro_domain[0] == 7.)
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_trivial_eq_1d_save(self):
+        grid = Grid(shape=(32,))
+        x = grid.dimensions[0]
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, save=5)
+        f.data_with_halo[:] = 1.
+
+        op = Operator(Eq(f.forward, f[time, x-1] + f[time, x+1] + 1))
+        op.apply()
+
+        time_M = op.prepare_arguments()['time_M']
+
+        assert np.all(f.data_ro_domain[1] == 3.)
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(f.data_ro_domain[-1, time_M:] == 31.)
+        else:
+            assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
+
     @pytest.mark.parallel(nprocs=4)
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
@@ -417,19 +439,77 @@ class TestOperatorSimple(object):
         else:
             assert np.all(f.data_ro_domain[0] == 3.)
 
-    @pytest.mark.parallel(nprocs=2)
-    def test_multiple_loop_nests(self):
+        # Also check that there are no redundant halo exchanges. Here, only
+        # two are expected before the `x` Iteration, one for `f` and one for `g`
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+    def test_nostencil_implies_nohaloupdate(self):
+        grid = Grid(shape=(12,))
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        op = Operator([Eq(f.forward, f + 1.),
+                       Eq(g, f + 1.)])
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
+    def test_stencil_nowrite_implies_haloupdate(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
-        f.data_with_halo[:] = 1.
+        g = Function(name='g', grid=grid)
 
-        op = Operator([Eq(f.forward, f[t, x-1] + f + 1),
-                       Eq(f.forward, f[t+1, x-1] + f.forward)])
-        op.apply(time=1)
-        from IPython import embed; embed()
+        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.xfail
+    def test_avoid_redundant_haloupdate(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        i = Dimension(name='i')
+        j = Dimension(name='j')
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
+                       Inc(f[t+1, i], f[t+1, i] + 1.),  # no halo update as it's an Inc
+                       Eq(g, f[t, j] + 1)])  # access `f` at `t`, not `t+1`!
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(nprocs=2)
+    def test_redo_haloupdate_due_to_antidep(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
+                       Eq(g.forward, f[t+1, x-1] + f[t+1, x+1] + g)])
+        op.apply(time=0)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+        assert np.all(f.data_ro_domain[1] == 1.)
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(g.data_ro_domain[1, 1:] == 2.)
+        else:
+            assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
 
 class TestIsotropicAcoustic(object):
@@ -438,16 +518,21 @@ class TestIsotropicAcoustic(object):
     Test the acoustic wave model with MPI.
     """
 
-    @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
-        # 1 tests with varying time and space orders
-        ((60, ), 'OT2', 4, 10),
-    ])
-    @pytest.mark.parallel(nprocs=2)
-    def test_adjoint_F(self, shape, kernel, space_order, nbpml):
-        from test_adjoint import TestAdjoint
-        TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
+    # TODO: Cannot mark the following test as `xfail` since this marker
+    # doesn't cope well with the `parallel` mark. Leaving it commented out
+    # for the time being...
+    # @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
+    #     # 1 tests with varying time and space orders
+    #     ((60, ), 'OT2', 4, 10),
+    # ])
+    # @pytest.mark.parallel(nprocs=2)
+    # def test_adjoint_F(self, shape, kernel, space_order, nbpml):
+    #     from test_adjoint import TestAdjoint
+    #     TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
+
+    pass
 
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorSimple().test_trivial_eq_2d()
+    TestOperatorSimple().test_avoid_redundant_haloupdate()

@@ -3,7 +3,7 @@ from collections import OrderedDict
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.ir.iet import (Call, List, HaloSpot, MetaCall, FindNodes, Transformer,
-                           NestedTransformer, filter_iterations, retrieve_iteration_tree)
+                           filter_iterations, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.mpi import copy, sendrecv, update_halo
@@ -25,17 +25,23 @@ class OperatorCore(OperatorRunnable):
         if configuration['mpi'] is False:
             return iet
 
-        # For each function, generate all necessary C-level routines to perform
-        # a halo exchange
-        mapper = {}
-        callables = []
-        cstructs = set()
-        for hs in FindNodes(HaloSpot).visit(iet):
-            for f, v in hs.fmapper.items():
-                callables.append(update_halo(f, v.loc_indices))
-                callables.append(sendrecv(f, v.loc_indices))
-                callables.extend([copy(f, v.loc_indices), copy(f, v.loc_indices, True)])
+        halo_spots = FindNodes(HaloSpot).visit(iet)
 
+        # For each MPI-distributed TensorFunction, generate all necessary
+        # C-level routines to perform a halo update
+        callables = OrderedDict()
+        for hs in halo_spots:
+            for f, v in hs.fmapper.items():
+                callables[f] = [update_halo(f, v.loc_indices)]
+                callables[f].append(sendrecv(f, v.loc_indices))
+                callables[f].append(copy(f, v.loc_indices))
+                callables[f].append(copy(f, v.loc_indices, True))
+        callables = flatten(callables.values())
+
+        # Replace HaloSpots with suitable calls performing the halo update
+        mapper = {}
+        for hs in halo_spots:
+            for f, v in hs.fmapper.items():
                 stencil = [int(i) for i in hs.mask[f].values()]
                 comm = f.grid.distributor._C_comm
                 nb = f.grid.distributor._C_neighbours.obj
@@ -45,22 +51,22 @@ class OperatorCore(OperatorRunnable):
                 call = Call('halo_exchange_%s' % f.name, parameters)
                 mapper.setdefault(hs, []).append(call)
 
-                cstructs.add(f.grid.distributor._C_neighbours.cdef)
-
-        self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                             for i in callables]))
-
         # Sorting is for deterministic code generation. However, in practice,
         # we don't expect `cstructs` to contain more than one element because
         # there should always be one grid per Operator (though we're not really
-        # enforcing this)
+        # enforcing it)
+        cstructs = {f.grid.distributor._C_neighbours.cdef
+                    for f in flatten(i.fmapper for i in halo_spots)}
         self._globals.extend(sorted(cstructs, key=lambda i: i.tpname))
 
         self._includes.append('mpi.h')
 
+        self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
+                                             for i in callables]))
+
         # Add in the halo update calls
         mapper = {k: List(body=v + list(k.body)) for k, v in mapper.items()}
-        iet = NestedTransformer(mapper).visit(iet)
+        iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet
 

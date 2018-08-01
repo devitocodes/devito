@@ -2,8 +2,9 @@ from collections import OrderedDict, namedtuple
 from itertools import product
 
 from cached_property import cached_property
+from frozendict import frozendict
 
-from devito.ir.support import Forward, Scope
+from devito.ir.support import Scope
 from devito.logger import warning
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
@@ -40,7 +41,7 @@ class HaloScheme(object):
 
     Where ``HaloSchemeEntry`` is a (named) 2-tuple: ::
 
-        ({loc_indicesr, ((Dimension, DataSide, amount), ...))
+        ({loc_indices}, ((Dimension, DataSide, amount), ...))
 
     The tuples (Dimension, DataSide, amount) tell the amount of data that
     a :class:`TensorFunction` should communicate along (a subset of) its
@@ -61,15 +62,21 @@ class HaloScheme(object):
                    directions and the sub-iterators used by the ``exprs``.
     :param dspace: A :class:`DataSpace` describing the ``exprs`` data
                    access pattern.
+    :param fmapper: (Optional) Alternatively, a HaloScheme can be built from a
+                   set of known HaloSchemeEntry. If ``fmapper`` is provided,
+                   then ``exprs``, ``ispace``, and ``dspace`` are ignored.
+                   ``fmapper`` is a dictionary having same format as ``M``, the
+                   HaloScheme mapper defined at the top of this docstring.
     """
 
-    def __init__(self, exprs, ispace, dspace):
+    def __init__(self, exprs=None, ispace=None, dspace=None, fmapper=None):
+        if fmapper is not None:
+            self._mapper = fmapper.copy()
+            return
+
         self._mapper = {}
 
         scope = Scope(exprs)
-
-        # Can a HaloScheme be built?
-        hs_preprocess(scope)
 
         # *What* halo exchanges do we need?
         classification = hs_classify(scope)
@@ -84,11 +91,14 @@ class HaloScheme(object):
                                              ispace, dspace, scope)
 
             if halos:
-                self._mapper[f] = HaloSchemeEntry(loc_indices, tuple(halos))
+                self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
 
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
         return "HaloScheme<%s>" % fnames
+
+    def __eq__(self, other):
+        return isinstance(other, HaloScheme) and self.fmapper == other.fmapper
 
     @property
     def fmapper(self):
@@ -106,36 +116,18 @@ class HaloScheme(object):
         return mapper
 
 
-def hs_preprocess(scope):
-    """
-    Perform some sanity checks to verify that it's actually possible/meaningful
-    to derive a halo scheme for the given :class:`Scope`.
-    """
-    for i in scope.d_all:
-        f = i.function
-        if not f.is_TensorFunction:
-            continue
-        elif f.grid is None:
-            raise HaloSchemeException("`%s` requires a `Grid`" % f.name)
-        elif i.is_regular and any(f.grid.is_distributed(d) for d in i.cause):
-            raise HaloSchemeException("`%s` is distributed, but is also used "
-                                      "in a sequential iteration space" % i.cause)
-
-
 def hs_classify(scope):
     """
     Return a mapper ``Function -> (Dimension -> [HaloLabel]`` describing what
     type of halo exchange is expected by the various :class:`TensorFunction`s
     in a :class:`Scope`.
-
-    .. note::
-
-        This function assumes as invariants all of the properties checked by
-        :func:`hs_preprocess`.
     """
     mapper = {}
     for f, r in scope.reads.items():
-        if not f.is_TensorFunction or f.grid is None:
+        if not f.is_TensorFunction:
+            continue
+        elif f.grid is None:
+            # TODO: improve me
             continue
         v = mapper.setdefault(f, {})
         for i in r:
@@ -185,7 +177,8 @@ def hs_comp_halos(f, dims, dspace=None):
         else:
             # We can limit the amount of halo exchanged based on the stencil
             # radius, which is dictated by `dspace`
-            lower, upper = dspace[f][d.root].limits
+            v = dspace[f][d.root]
+            lower, upper = v.limits if not v.is_Null else (0, 0)
             lsize = f._offset_domain[d].left - lower
             rsize = upper - f._offset_domain[d].right
         if lsize > 0:
@@ -210,17 +203,17 @@ def hs_comp_locindices(f, dims, ispace, dspace, scope):
     """
     loc_indices = {}
     for d in dims:
-        lower, upper = dspace[f][d.root].limits
-        shift = int(any(d in i.cause for i in scope.d_all.project(f)))
-        if ispace.directions[d.root] is Forward:
-            last = upper - shift
-        else:
-            last = lower + shift
+        func = max if ispace.is_forward(d.root) else min
+        loc_index = func([i[d] for i in scope.getreads(f)], key=lambda i: i-d)
         if d.is_Stepping:
             subiters = ispace.sub_iterators.get(d.root, [])
             submap = as_mapper(subiters, lambda md: md.modulo)
             submap = {i.origin: i for i in submap[f._time_size]}
-            loc_indices[d] = submap[d + last]
+            try:
+                loc_indices[d] = submap[loc_index]
+            except KeyError:
+                raise HaloSchemeException("Don't know how to build a HaloScheme as the "
+                                          "stepping index `%s` is undefined" % loc_index)
         else:
-            loc_indices[d] = d.root + last
+            loc_indices[d] = loc_index
     return loc_indices

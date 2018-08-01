@@ -82,10 +82,16 @@ def st_make_halo(stree):
     these are described by means of a :class:`HaloScheme`.
     """
     # Build a HaloScheme for each expression bundle
-    halo_schemes = {n: HaloScheme(n.exprs, n.ispace, n.dspace)
-                    for n in findall(stree, lambda i: i.is_Exprs)}
+    halo_schemes = {}
+    for n in findall(stree, lambda i: i.is_Exprs):
+        try:
+            halo_schemes[n] = HaloScheme(n.exprs, n.ispace, n.dspace)
+        except HaloSchemeException as e:
+            if configuration['mpi']:
+                raise RuntimeError(str(e))
 
     # Insert the HaloScheme at a suitable level in the ScheduleTree
+    mapper = {}
     for k, hs in halo_schemes.items():
         for f, v in hs.fmapper.items():
             spot = k
@@ -96,7 +102,9 @@ def st_make_halo(stree):
                 if test0 or test1:
                     spot = n
                     break
-            insert(NodeHalo(hs), spot.parent, [spot])
+            mapper.setdefault(spot, []).append((f, v))
+    for spot, entries in mapper.items():
+        insert(NodeHalo(HaloScheme(fmapper=dict(entries))), spot.parent, [spot])
 
     return stree
 
