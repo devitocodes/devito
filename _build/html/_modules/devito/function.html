@@ -174,7 +174,7 @@
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_indexed</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">AbstractCachedFunction</span><span class="p">,</span> <span class="n">AbstractCachedSymbol</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">powerset</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">powerset</span><span class="p">,</span> <span class="n">is_integer</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Constant&#39;</span><span class="p">,</span> <span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;SparseFunction&#39;</span><span class="p">,</span>
            <span class="s1">&#39;SparseTimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;PrecomputedSparseFunction&#39;</span><span class="p">,</span>
@@ -256,7 +256,10 @@
                 <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Data type </span><span class="si">%s</span><span class="s2"> of runtime value `</span><span class="si">%s</span><span class="s2">` does not match the &quot;</span>
                         <span class="s2">&quot;Constant data type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="k">pass</span></div>
+            <span class="k">pass</span>
+
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">(</span><span class="n">AbstractCachedSymbol</span><span class="o">.</span><span class="n">_pickle_kwargs</span>
+                      <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="s1">&#39;_value&#39;</span><span class="p">])</span></div>
 
 
 <span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">):</span>
@@ -933,7 +936,7 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`time_order` must be int&quot;</span><span class="p">)</span>
 
-            <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -1019,11 +1022,11 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_time_buffering</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">int</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="n">is_integer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_time_buffering_default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_buffering</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="o">!=</span> <span class="n">Buffer</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_buffering</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">,</span> <span class="n">Buffer</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">intervals</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">TimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_check</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">intervals</span><span class="p">)</span>
@@ -1034,7 +1037,7 @@
                                   <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">key_time_size</span><span class="p">))</span>
 
     <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;time_order&#39;</span><span class="p">]</span></div>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="s1">&#39;save&#39;</span><span class="p">]</span></div>
 
 
 <span class="k">class</span> <span class="nc">AbstractSparseFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
