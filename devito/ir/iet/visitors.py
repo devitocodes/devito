@@ -573,10 +573,11 @@ class Transformer(Visitor):
     "extended" by pre-pending to its body the nodes in ``M[n]``.
     """
 
-    def __init__(self, mapper={}):
+    def __init__(self, mapper={}, nested=False):
         super(Transformer, self).__init__()
         self.mapper = mapper.copy()
         self.rebuilt = {}
+        self.nested = nested
 
     def visit_object(self, o, **kwargs):
         return o
@@ -598,6 +599,9 @@ class Transformer(Visitor):
                     raise VisitorException
                 extended = (tuple(handle) + o.children[0],) + o.children[1:]
                 return o._rebuild(*extended, **o.args_frozen)
+            elif self.nested:
+                rebuilt = [self.visit(i, **kwargs) for i in handle.children]
+                return handle._rebuild(*rebuilt, **handle.args_frozen)
             else:
                 return handle._rebuild(**handle.args)
         else:
