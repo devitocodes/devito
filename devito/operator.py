@@ -104,7 +104,7 @@ class Operator(Callable):
         # Insert code for MPI support
         iet = self._generate_mpi(iet, **kwargs)
 
-        # Insert data and pointer casts for array parameters and profiling structs
+        # Insert data and pointer casts for array parameters
         iet = self._build_casts(iet)
 
         # Derive parameters as symbols not defined in the kernel itself
