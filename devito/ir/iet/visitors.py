@@ -604,6 +604,9 @@ class Transformer(Visitor):
             rebuilt = [self.visit(i, **kwargs) for i in o.children]
             return o._rebuild(*rebuilt, **o.args_frozen)
 
+    def visit_Operator(self, o, **kwargs):
+        raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
+
     def visit(self, o, *args, **kwargs):
         obj = super(Transformer, self).visit(o, *args, **kwargs)
         if isinstance(o, Node) and obj is not o:
