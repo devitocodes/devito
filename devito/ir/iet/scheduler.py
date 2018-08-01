@@ -3,8 +3,8 @@ from collections import OrderedDict
 from devito.cgen_utils import Allocator
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
                            Conditional, Section, HaloSpot, ExpressionBundle, MetaCall,
-                           MapExpressions, Transformer, NestedTransformer, FindNodes,
-                           ReplaceStepIndices, iet_analyze, filter_iterations)
+                           MapExpressions, Transformer, FindNodes, ReplaceStepIndices,
+                           iet_analyze, filter_iterations)
 from devito.tools import as_mapper
 
 __all__ = ['iet_build', 'iet_insert_C_decls']
@@ -151,7 +151,7 @@ def iet_insert_C_decls(iet, func_table=None):
     # Introduce declarations on the stack
     for k, v in allocator.onstack:
         mapper[k] = tuple(Element(i) for i in v)
-    iet = NestedTransformer(mapper).visit(iet)
+    iet = Transformer(mapper, nested=True).visit(iet)
     for k, v in list(func_table.items()):
         if v.local:
             func_table[k] = MetaCall(Transformer(mapper).visit(v.root), v.local)

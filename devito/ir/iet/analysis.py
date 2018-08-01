@@ -9,8 +9,8 @@ from collections import OrderedDict
 from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, MapIteration, NestedTransformer,
-                           retrieve_iteration_tree)
+                           VECTOR, WRAPPABLE, AFFINE, MapIteration,
+                           Transformer, retrieve_iteration_tree)
 from devito.ir.support import Scope
 from devito.tools import as_tuple, filter_ordered, flatten
 
@@ -57,7 +57,7 @@ def iet_analyze(iet):
         args = k.args
         properties = as_tuple(args.pop('properties')) + as_tuple(v)
         mapper[k] = Iteration(properties=properties, **args)
-    processed = NestedTransformer(mapper).visit(iet)
+    processed = Transformer(mapper, nested=True).visit(iet)
 
     return processed
 

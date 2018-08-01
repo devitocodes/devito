@@ -22,8 +22,7 @@ from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
            'IsPerfectIteration', 'ReplaceStepIndices', 'printAST', 'CGen',
-           'Transformer', 'NestedTransformer', 'FindAdjacentIterations',
-           'MapIteration']
+           'Transformer', 'FindAdjacentIterations', 'MapIteration']
 
 
 class Visitor(GenericVisitor):
@@ -616,28 +615,6 @@ class Transformer(Visitor):
         if isinstance(o, Node) and obj is not o:
             self.rebuilt[o] = obj
         return obj
-
-
-class NestedTransformer(Transformer):
-
-    """
-    Unlike a :class:`Transformer`, a :class:`NestedTransforer` applies
-    replacements in a depth-first fashion.
-    """
-
-    def visit_Node(self, o, **kwargs):
-        rebuilt = [self.visit(i, **kwargs) for i in o.children]
-        handle = self.mapper.get(o, o)
-        if handle is None:
-            # None -> drop /o/
-            return None
-        elif isinstance(handle, Iterable):
-            if not o.children:
-                raise VisitorException
-            extended = [tuple(handle) + rebuilt[0]] + rebuilt[1:]
-            return o._rebuild(*extended, **o.args_frozen)
-        else:
-            return handle._rebuild(*rebuilt, **handle.args_frozen)
 
 
 class ReplaceStepIndices(Transformer):

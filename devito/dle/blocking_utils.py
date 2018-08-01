@@ -2,8 +2,8 @@ import cgen as c
 
 from devito.dimension import IncrDimension
 from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacentIterations,
-                           FindNodes, IsPerfectIteration, NestedTransformer, Transformer,
-                           compose_nodes, retrieve_iteration_tree)
+                           FindNodes, IsPerfectIteration, Transformer, compose_nodes,
+                           is_foldable, retrieve_iteration_tree)
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
 
@@ -59,7 +59,7 @@ def fold_blockable_tree(node, exclude_innermost=False):
                     mapper[k] = None
 
     # Insert the IterationFolds in the Iteration/Expression tree
-    processed = NestedTransformer(mapper).visit(node)
+    processed = Transformer(mapper, nested=True).visit(node)
 
     return processed
 
