@@ -643,10 +643,6 @@ class TimedList(List):
                                "/1000000") % {'gn': timer.name, 'ln': lname})]
         super(TimedList, self).__init__(header, body, footer)
 
-    def __repr__(self):
-        body = "\n\t".join([str(s) for s in self.body])
-        return "%s::\n\t%s" % (self.__class__.__name__, body)
-
     @property
     def name(self):
         return self._name

@@ -101,7 +101,7 @@ class PrintAST(Visitor):
         else:
             body = [self.visit(o.body)]
         self._depth -= 1
-        return self.indent + "<%s>\n%s" % (o.__class__.__name__, '\n'.join(body))
+        return self.indent + "%s\n%s" % (o.__repr__(), '\n'.join(body))
 
     def visit_Iteration(self, o):
         self._depth += 1
