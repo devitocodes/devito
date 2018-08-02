@@ -1,13 +1,14 @@
 from __future__ import absolute_import
 
 from collections import OrderedDict, namedtuple
+from ctypes import Structure, c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
 import os
 
-from ctypes import Structure, byref, c_double
 from cgen import Struct, Value
+from cached_property import cached_property
 
 from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
                            FindNodes, Transformer)
@@ -16,7 +17,7 @@ from devito.logger import warning
 from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
-from devito.types import Object
+from devito.types import CompositeObject
 
 __all__ = ['Timer', 'create_profile']
 
@@ -32,13 +33,6 @@ class Profiler(object):
         self._sections = OrderedDict()
 
         self.initialized = True
-
-    def new(self):
-        """
-        Allocate and return a pointer to a new C-level Struct capable of storing
-        all timers inserted by :meth:`instrument`.
-        """
-        return byref(self.dtype())
 
     def instrument(self, iet):
         """
@@ -78,7 +72,7 @@ class Profiler(object):
             self._sections[section] = SectionData(ops, sops, points, traffic, itershapes)
 
         # Transform the Iteration/Expression tree introducing the C-level timers
-        mapper = {i: TimedList(gname=self.name, lname=i.name, body=i) for i in sections}
+        mapper = {i: TimedList(timer=self.timer, lname=i.name, body=i) for i in sections}
         iet = Transformer(mapper).visit(iet)
 
         return iet
@@ -127,22 +121,17 @@ class Profiler(object):
 
         return summary
 
-    @property
-    def dtype(self):
-        """
-        Return the profiler C type in ctypes format.
-        """
-        return type(Profiler.__name__, (Structure,),
-                    {"_fields_": [(i.name, c_double) for i in self._sections]})
+    @cached_property
+    def timer(self):
+        return Timer(self.name, [i.name for i in self._sections])
 
-    @property
+    @cached_property
     def cdef(self):
         """
         Return a :class:`cgen.Struct` representing the profiler data structure in C
         (a ``struct``).
         """
-        return Struct(Profiler.__name__,
-                      [Value('double', i.name) for i in self._sections])
+        return Struct('profiler', [Value('double', i.name) for i in self._sections])
 
 
 class AdvisorProfiler(Profiler):
@@ -184,22 +173,20 @@ class AdvisorProfiler(Profiler):
         return iet
 
 
-class Timer(Object):
+class Timer(CompositeObject):
 
-    def __init__(self, profiler):
-        self.profiler = profiler
+    def __init__(self, name, sections):
+        super(Timer, self).__init__(name, 'profiler', Structure,
+                                    [(i, c_double) for i in sections])
 
-    @property
-    def name(self):
-        return self.profiler.name
+    def reset(self):
+        for i in self.pfields:
+            setattr(self.value._obj, i, 0.0)
+        return self.value
 
-    @property
-    def dtype(self):
-        return self.profiler.dtype
-
-    @property
-    def value(self):
-        return self.profiler.new
+    # Pickling support
+    _pickle_args = ['name', 'pfields']
+    _pickle_kwargs = []
 
 
 class PerformanceSummary(OrderedDict):

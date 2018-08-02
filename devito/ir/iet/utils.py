@@ -1,6 +1,7 @@
 from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
+from devito.symbolics import Macro
 from devito.tools import flatten
-from devito.types import Array
+from devito.types import Array, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree',
            'compose_nodes', 'derive_parameters']
@@ -126,9 +127,13 @@ def derive_parameters(nodes, drop_locals=False):
     defines = [s.name for s in FindSymbols('defines').visit(nodes)]
     parameters = tuple(s for s in symbols if s.name not in defines)
 
-    # Filter out internally-allocated temporary `Array` types
+    # Drop globally-visible objects
+    parameters = [p for p in parameters if not isinstance(p, Macro)]
+
+    # Filter out locally-allocated Arrays and Objects
     if drop_locals:
         parameters = [p for p in parameters
                       if not (isinstance(p, Array) and (p._mem_heap or p._mem_stack))]
+        parameters = [p for p in parameters if not isinstance(p, LocalObject)]
 
     return parameters

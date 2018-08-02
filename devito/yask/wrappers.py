@@ -1,3 +1,4 @@
+import ctypes
 import os
 import warnings
 from importlib import import_module, invalidate_caches
@@ -12,7 +13,7 @@ from devito.logger import debug, yask as log, yask_warning as warning
 from devito.tools import Signer, powerset, filter_sorted
 
 from devito.yask import cfac, ofac, exit, configuration
-from devito.yask.utils import namespace, rawpointer
+from devito.yask.utils import namespace
 from devito.yask.transformer import make_yask_ast
 
 
@@ -227,7 +228,7 @@ class YaskKernel(object):
 
     @property
     def rawpointer(self):
-        return rawpointer(self.soln)
+        return ctypes.cast(int(self.soln), namespace['type-solution'])
 
     def __repr__(self):
         return "YaskKernel [%s]" % self.name

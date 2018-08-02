@@ -1,9 +1,12 @@
-from __future__ import absolute_import
+from collections import OrderedDict
 
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
-from devito.ir.iet import List, Transformer, filter_iterations, retrieve_iteration_tree
+from devito.ir.iet import (Call, List, HaloSpot, MetaCall, FindNodes, Transformer,
+                           filter_iterations, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
+from devito.parameters import configuration
+from devito.mpi import copy, sendrecv, update_halo
 from devito.operator import OperatorRunnable
 from devito.tools import flatten
 
@@ -18,11 +21,50 @@ class OperatorCore(OperatorRunnable):
         expressions = [align_accesses(e, key=key) for e in expressions]
         return super(OperatorCore, self)._specialize_exprs(expressions)
 
+    def _generate_mpi(self, iet, **kwargs):
+        if configuration['mpi'] is False:
+            return iet
+
+        # For each function, generate all necessary C-level routines to perform
+        # a halo exchange
+        mapper = {}
+        callables = []
+        cstructs = set()
+        for hs in FindNodes(HaloSpot).visit(iet):
+            for f, v in hs.fmapper.items():
+                callables.append(update_halo(f, hs.fixed[f]))
+                callables.append(sendrecv(f, hs.fixed[f]))
+                callables.extend([copy(f, hs.fixed[f]), copy(f, hs.fixed[f], True)])
+
+                stencil = [int(i) for i in hs.mask[f].values()]
+                comm = f.grid.distributor._C_comm
+                nb = f.grid.distributor._C_neighbours.obj
+                fixed = list(hs.fixed[f].values())
+                dsizes = [d.symbolic_size for d in f.dimensions]
+                parameters = [f] + stencil + [comm, nb] + fixed + dsizes
+                call = Call('halo_exchange_%s' % f.name, parameters)
+                mapper.setdefault(hs, []).append(call)
+
+                cstructs.add(f.grid.distributor._C_neighbours.cdef)
+
+        self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
+                                             for i in callables]))
+
+        # Sorting is for deterministic code generation. However, in practice,
+        # we don't expect `cstructs` to contain more than one element because
+        # there should always be one grid per Operator (though we're not really
+        # enforcing this)
+        self._globals.extend(sorted(cstructs, key=lambda i: i.tpname))
+
+        self._includes.append('mpi.h')
+
+        # Add in the halo update calls
+        mapper = {k: List(body=v + list(k.body)) for k, v in mapper.items()}
+        iet = Transformer(mapper).visit(iet)
+
+        return iet
+
     def _autotune(self, args):
-        """
-        Use auto-tuning on this Operator to determine empirically the
-        best block sizes when loop blocking is in use.
-        """
         if self._dle_flags.get('blocking', False):
             return autotune(self, args, self.parameters, self._dle_args)
         else:

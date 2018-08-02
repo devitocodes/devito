@@ -1,15 +1,12 @@
-from __future__ import absolute_import
-
+import ctypes
 from collections import OrderedDict
 from pathlib import Path
 
-import cgen as c
 import numpy as np
 
-from devito.cgen_utils import ccode
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
-from devito.ir.iet import (Iteration, Element, Expression, List, PointerCast, Section,
+from devito.ir.iet import (Iteration, Expression, ForeignExpression, Section,
                            MetaCall, FindNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
@@ -17,8 +14,7 @@ from devito.tools import ReducerMap, Signer, filter_ordered, flatten
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
-from devito.yask.utils import (make_grid_accesses, make_sharedptr_funcall, rawpointer,
-                               namespace)
+from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, namespace
 from devito.yask.wrappers import contexts
 from devito.yask.transformer import yaskizer
 from devito.yask.types import YaskGridObject, YaskSolnObject
@@ -82,20 +78,20 @@ class Operator(OperatorRunnable):
                 local_grids = [i for i in mapper if i.is_Array]
 
                 # Transform the IET
-                cname = namespace['code-soln-name'](n)
+                yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'],
-                                                 ['time'], cname)
-                funcall = Element(c.Statement(ccode(funcall)))
+                                                 ['time'], yk_soln_obj)
+                funcall = ForeignExpression(funcall, self._dtype)
                 mapper = {trees[0].root: funcall}
                 mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
                 iet = Transformer(mapper).visit(iet)
 
                 # Mark `funcall` as an external function call
-                self.func_table[namespace['code-soln-run']] = MetaCall(None, False)
+                self._func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
                 yk_soln = context.make_yk_solution(name, yc_soln, local_grids)
-                self.yk_solns[(dimensions, cname)] = yk_soln
+                self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln
 
                 # Print some useful information about the newly constructed solution
                 log("Solution '%s' contains %d grid(s) and %d equation(s)." %
@@ -110,7 +106,9 @@ class Operator(OperatorRunnable):
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
-        iet = make_grid_accesses(iet)
+        yk_grid_objs = {i.name: YaskGridObject(i.name) for i in self.input if i.from_YASK}
+        yk_grid_objs.update({i: YaskGridObject(i) for i in self._local_grids})
+        iet = make_grid_accesses(iet, yk_grid_objs)
 
         # Finally optimize all non-yaskized loops
         iet = super(Operator, self)._specialize_iet(iet, **kwargs)
@@ -123,21 +121,6 @@ class Operator(OperatorRunnable):
         parameters += tuple(i for i in self.input if i not in parameters)
         return parameters
 
-    def _build_casts(self, iet):
-        iet = super(Operator, self)._build_casts(iet)
-
-        # Add YASK solution pointer for use in C-land
-        soln_objs = [YaskSolnObject(cname) for _, cname in self.yk_solns]
-
-        # Add YASK user and local grids pointers for use in C-land
-        grid_objs = [YaskGridObject(i.name) for i in self.input if i.from_YASK]
-        grid_objs.extend([YaskGridObject(i) for i in self._local_grids])
-
-        # Build pointer casts
-        casts = [PointerCast(i) for i in soln_objs] + [PointerCast(i) for i in grid_objs]
-
-        return List(body=casts + [iet])
-
     @property
     def _local_grids(self):
         ret = {}
@@ -148,10 +131,11 @@ class Operator(OperatorRunnable):
     def arguments(self, **kwargs):
         args = {}
         # Add in solution pointers
-        args.update({cname: v.rawpointer for (_, cname), v in self.yk_solns.items()})
+        args.update({i.name: v.rawpointer for (_, i), v in self.yk_solns.items()})
         # Add in local grids pointers
         for k, v in self._local_grids.items():
-            args[namespace['code-grid-name'](k)] = rawpointer(v)
+            args[namespace['code-grid-name'](k)] = ctypes.cast(int(v),
+                                                               namespace['type-grid'])
         return super(Operator, self).arguments(backend=args, **kwargs)
 
     def apply(self, **kwargs):
@@ -185,7 +169,7 @@ class Operator(OperatorRunnable):
         # 1) upon pickling: serialise all files generated by this Operator via YASK
         # 2) upon unpickling: deserialise and explicitly recreate the YASK solution
         state['yk_solns'] = []
-        for (dimensions, cname), yk_soln in self.yk_solns.items():
+        for (dimensions, yk_soln_obj), yk_soln in self.yk_solns.items():
             path = Path(namespace['yask-lib'], 'lib%s.so' % yk_soln.soname)
             with open(path, 'rb') as f:
                 libfile = f.read()
@@ -195,7 +179,7 @@ class Operator(OperatorRunnable):
             path = Path(namespace['yask-pylib'], '_%s.so' % yk_soln.name)
             with open(path, 'rb') as f:
                 pysofile = f.read()
-            state['yk_solns'].append((dimensions, cname, yk_soln.name,
+            state['yk_solns'].append((dimensions, yk_soln_obj, yk_soln.name,
                                       yk_soln.soname, libfile, pyfile,
                                       pysofile, list(yk_soln.local_grids)))
         return state
@@ -205,7 +189,7 @@ class Operator(OperatorRunnable):
         super(Operator, self).__setstate__(state)
         # Restore the YASK solutions (see __getstate__ for more info)
         self.yk_solns = OrderedDict()
-        for (dimensions, cname, name, soname,
+        for (dimensions, yk_soln_obj, name, soname,
              libfile, pyfile, pysofile, local_grids) in yk_solns:
             path = Path(namespace['yask-lib'], 'lib%s.so' % soname)
             if not path.is_file():
@@ -224,7 +208,7 @@ class Operator(OperatorRunnable):
             context = contexts.fetch(dimensions, self._dtype)
             local_grids = [i for i in self.parameters if i.name in local_grids]
             yk_soln = context.make_yk_solution(name, None, local_grids)
-            self.yk_solns[(dimensions, cname)] = yk_soln
+            self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln
 
 
 def find_offloadable_trees(iet):
