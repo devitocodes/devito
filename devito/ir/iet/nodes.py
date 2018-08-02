@@ -13,7 +13,8 @@ import cgen as c
 from devito.cgen_utils import ccode
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags)
+                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
+                           REDUNDANT)
 from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -795,9 +796,10 @@ class HaloSpot(List):
 
     is_HaloSpot = True
 
-    def __init__(self, halo_scheme, body=None):
+    def __init__(self, halo_scheme, body=None, properties=None):
         super(HaloSpot, self).__init__(body=body)
         self.halo_scheme = halo_scheme
+        self.properties = as_tuple(properties)
 
     @property
     def fmapper(self):
@@ -807,8 +809,13 @@ class HaloSpot(List):
     def mask(self):
         return self.halo_scheme.mask
 
+    @property
+    def is_Redundant(self):
+        return REDUNDANT in self.properties
+
     def __repr__(self):
-        return "<HaloSpot>"
+        redundant = "[redundant]" if self.is_Redundant else ""
+        return "<HaloSpot%s>" % redundant
 
 
 class ExpressionBundle(List):

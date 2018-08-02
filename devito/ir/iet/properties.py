@@ -51,3 +51,17 @@ def tagger(i):
 def ntags():
     return len(IterationProperty._KNOWN) - ntags.n_original_properties
 ntags.n_original_properties = len(IterationProperty._KNOWN)  # noqa
+
+
+class HaloSpotProperty(Tag):
+
+    """
+    A :class:`HaloSpot` decorator.
+    """
+
+    pass
+
+
+REDUNDANT = HaloSpotProperty('redundant')
+"""The HaloSpot is redundant given that some other HaloSpots already take care
+of updating the data accessed in the sub-tree."""
