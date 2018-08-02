@@ -79,6 +79,11 @@ def st_make_halo(stree):
     Add :class:`NodeHalo` to a :class:`ScheduleTree`. A halo node describes
     what halo exchanges should take place before executing the sub-tree.
     """
+    if not configuration['mpi']:
+        # TODO: This will be dropped as soon as stronger analysis will have
+        # been implemented
+        return stree
+
     processed = {}
     for n in LevelOrderIter(stree, stop=lambda i: i.parent in processed):
         if not n.is_Iteration:
