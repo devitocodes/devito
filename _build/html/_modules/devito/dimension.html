@@ -159,13 +159,13 @@
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">Scalar</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Pickable</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">Pickable</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;DefaultDimension&#39;</span><span class="p">,</span>
            <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ConditionalDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
+<div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
 
     <span class="n">is_Dimension</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">False</span>
@@ -410,6 +410,10 @@
         <span class="n">newobj</span> <span class="o">=</span> <span class="n">Dimension</span><span class="o">.</span><span class="n">__xnew__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_default_value</span> <span class="o">=</span> <span class="n">default_value</span> <span class="ow">or</span> <span class="mi">0</span>
         <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Number</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_default_value</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">dim</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
@@ -670,45 +674,29 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The symbol defining the iteration start for this dimension.</span>
-
-<span class="sd">        note ::</span>
-
-<span class="sd">        Internally we always define symbolic iteration ranges in terms</span>
-<span class="sd">        of the parent variable.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_end</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The symbol defining the iteration end for this dimension.</span>
-
-<span class="sd">        note ::</span>
-
-<span class="sd">        Internally we always define symbolic iteration ranges in terms</span>
-<span class="sd">        of the parent variable.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
 
-    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a map of default argument values defined by this dimension.</span>
 
-<span class="sd">        :param start: Optional, known starting point as provided by</span>
+<span class="sd">        :param start: (Optional) known starting point as provided by</span>
 <span class="sd">                      data-carrying symbols.</span>
+<span class="sd">        :param size: (Optional) known size as provided by data-carrying symbols.</span>
 
-<span class="sd">        note ::</span>
+<span class="sd">        .. note ::</span>
 
-<span class="sd">        A :class:`SteppingDimension` neither knows its size nor its</span>
-<span class="sd">        iteration end point. So all we can provide is a starting point.</span>
+<span class="sd">            A :class:`SteppingDimension` does not know its end point.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">start</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>

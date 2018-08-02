@@ -12,6 +12,7 @@
 ./_build/doctrees/devito.ir.iet.doctree
 ./_build/doctrees/devito.ir.stree.doctree
 ./_build/doctrees/devito.ir.support.doctree
+./_build/doctrees/devito.mpi.doctree
 ./_build/doctrees/devito.symbolics.doctree
 ./_build/doctrees/devito.tools.doctree
 ./_build/doctrees/download.doctree
@@ -37,7 +38,6 @@
 ./_build/html/_modules/devito/core/autotuning.html
 ./_build/html/_modules/devito/core/operator.html
 ./_build/html/_modules/devito/dimension.html
-./_build/html/_modules/devito/distributed.html
 ./_build/html/_modules/devito/dle/backends/advanced.html
 ./_build/html/_modules/devito/dle/backends/basic.html
 ./_build/html/_modules/devito/dle/backends/common.html
@@ -75,6 +75,9 @@
 ./_build/html/_modules/devito/ir/support/stencil.html
 ./_build/html/_modules/devito/ir/support/utils.html
 ./_build/html/_modules/devito/logger.html
+./_build/html/_modules/devito/mpi/distributed.html
+./_build/html/_modules/devito/mpi/routines.html
+./_build/html/_modules/devito/mpi/utils.html
 ./_build/html/_modules/devito/operator.html
 ./_build/html/_modules/devito/parameters.html
 ./_build/html/_modules/devito/profiling.html
@@ -122,6 +125,7 @@
 ./_build/html/_sources/devito.ir.rst.txt
 ./_build/html/_sources/devito.ir.stree.rst.txt
 ./_build/html/_sources/devito.ir.support.rst.txt
+./_build/html/_sources/devito.mpi.rst.txt
 ./_build/html/_sources/devito.rst.txt
 ./_build/html/_sources/devito.symbolics.rst.txt
 ./_build/html/_sources/devito.tools.rst.txt
@@ -203,6 +207,7 @@
 ./_build/html/devito.ir.iet.html
 ./_build/html/devito.ir.stree.html
 ./_build/html/devito.ir.support.html
+./_build/html/devito.mpi.html
 ./_build/html/devito.symbolics.html
 ./_build/html/devito.tools.html
 ./_build/html/download.html
@@ -234,6 +239,7 @@
 ./devito.ir.rst
 ./devito.ir.stree.rst
 ./devito.ir.support.rst
+./devito.mpi.rst
 ./devito.rst
 ./devito.symbolics.rst
 ./devito.tools.rst

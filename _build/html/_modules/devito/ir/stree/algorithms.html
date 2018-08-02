@@ -153,16 +153,35 @@
   <h1>Source code for devito.ir.stree.algorithms</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">anytree</span> <span class="k">import</span> <span class="n">findall</span>
+<span class="kn">from</span> <span class="nn">anytree</span> <span class="k">import</span> <span class="n">LevelOrderIter</span><span class="p">,</span> <span class="n">findall</span>
 
 <span class="kn">from</span> <span class="nn">devito.ir.stree.tree</span> <span class="k">import</span> <span class="p">(</span><span class="n">ScheduleTree</span><span class="p">,</span> <span class="n">NodeIteration</span><span class="p">,</span> <span class="n">NodeConditional</span><span class="p">,</span>
-                                  <span class="n">NodeExprs</span><span class="p">,</span> <span class="n">NodeSection</span><span class="p">)</span>
+                                  <span class="n">NodeExprs</span><span class="p">,</span> <span class="n">NodeSection</span><span class="p">,</span> <span class="n">NodeHalo</span><span class="p">,</span> <span class="n">insert</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support.space</span> <span class="k">import</span> <span class="n">IterationSpace</span>
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">HaloScheme</span><span class="p">,</span> <span class="n">HaloSchemeException</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">,</span> <span class="s1">&#39;section&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;st_build&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="schedule"><a class="viewcode-back" href="../../../../devito.ir.stree.html#devito.ir.stree.algorithms.schedule">[docs]</a><span class="k">def</span> <span class="nf">schedule</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
+<div class="viewcode-block" id="st_build"><a class="viewcode-back" href="../../../../devito.ir.stree.html#devito.ir.stree.algorithms.st_build">[docs]</a><span class="k">def</span> <span class="nf">st_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a :class:`ScheduleTree` from a :class:`ClusterGroup`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># ClusterGroup -&gt; Schedule tree</span>
+    <span class="n">stree</span> <span class="o">=</span> <span class="n">st_schedule</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
+
+    <span class="c1"># Add in section nodes</span>
+    <span class="n">stree</span> <span class="o">=</span> <span class="n">st_section</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
+
+    <span class="c1"># Add in halo update nodes</span>
+    <span class="n">stree</span> <span class="o">=</span> <span class="n">st_make_halo</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">stree</span></div>
+
+
+<span class="k">def</span> <span class="nf">st_schedule</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Arrange an iterable of :class:`Cluster`s into a :class:`ScheduleTree`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -185,7 +204,7 @@
 
         <span class="c1"># The reused sub-trees might acquire some new sub-iterators</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pointers</span><span class="p">[:</span><span class="n">index</span><span class="p">]:</span>
-            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
         <span class="c1"># Later sub-trees, instead, will not be used anymore</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pointers</span><span class="p">[</span><span class="n">index</span><span class="p">:]:</span>
             <span class="n">mapper</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
@@ -205,13 +224,51 @@
                 <span class="n">v</span><span class="o">.</span><span class="n">last</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">node</span>
                 <span class="n">node</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">v</span>
 
-    <span class="k">return</span> <span class="n">stree</span></div>
+    <span class="k">return</span> <span class="n">stree</span>
 
 
-<div class="viewcode-block" id="section"><a class="viewcode-back" href="../../../../devito.ir.stree.html#devito.ir.stree.algorithms.section">[docs]</a><span class="k">def</span> <span class="nf">section</span><span class="p">(</span><span class="n">stree</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">st_make_halo</span><span class="p">(</span><span class="n">stree</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Create sections in a :class:`ScheduleTree`. A section is a sub-tree with</span>
-<span class="sd">    the following properties: ::</span>
+<span class="sd">    Add :class:`NodeHalo` to a :class:`ScheduleTree`. A halo node describes</span>
+<span class="sd">    what halo exchanges should take place before executing the sub-tree.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
+        <span class="c1"># TODO: This will be dropped as soon as stronger analysis will have</span>
+        <span class="c1"># been implemented</span>
+        <span class="k">return</span> <span class="n">stree</span>
+
+    <span class="n">processed</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">LevelOrderIter</span><span class="p">(</span><span class="n">stree</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Iteration</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exprs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">findall</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Exprs</span><span class="p">))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">halo_scheme</span> <span class="o">=</span> <span class="n">HaloScheme</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="n">halo_scheme</span><span class="o">.</span><span class="n">dmapper</span><span class="p">:</span>
+                <span class="n">processed</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">NodeHalo</span><span class="p">(</span><span class="n">halo_scheme</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">HaloSchemeException</span><span class="p">:</span>
+            <span class="c1"># We should get here only when trying to compute a halo</span>
+            <span class="c1"># scheme for a group of expressions that belong to different</span>
+            <span class="c1"># iteration spaces. We expect proper halo schemes to be built</span>
+            <span class="c1"># as the `stree` visit proceeds.</span>
+            <span class="c1"># TODO: However, at the end, we should check that a halo scheme,</span>
+            <span class="c1"># possibly even a &quot;void&quot; one, has been built for *all* of the</span>
+            <span class="c1"># expressions, and error out otherwise.</span>
+            <span class="k">continue</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">processed</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">insert</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">[</span><span class="n">k</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">stree</span>
+
+
+<span class="k">def</span> <span class="nf">st_section</span><span class="p">(</span><span class="n">stree</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add :class:`NodeSection` to a :class:`ScheduleTree`. A section defines a</span>
+<span class="sd">    sub-tree with the following properties: ::</span>
 
 <span class="sd">        * The root is a node of type :class:`NodeSection`;</span>
 <span class="sd">        * The immediate children of the root are nodes of type :class:`NodeIteration`</span>
@@ -252,18 +309,9 @@
 
     <span class="c1"># Transform the schedule tree by adding in sections</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">:</span>
-        <span class="n">node</span> <span class="o">=</span> <span class="n">NodeSection</span><span class="p">()</span>
-        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">children</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
-                <span class="n">n</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">node</span>
-                <span class="k">if</span> <span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">:</span>
-                    <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
-        <span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="n">processed</span>
+        <span class="n">insert</span><span class="p">(</span><span class="n">NodeSection</span><span class="p">(),</span> <span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">stree</span></div>
+    <span class="k">return</span> <span class="n">stree</span>
 </pre></div>
 
            </div>

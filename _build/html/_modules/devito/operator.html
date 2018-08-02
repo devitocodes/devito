@@ -169,10 +169,10 @@
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">LoweredEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="k">import</span> <span class="n">clusterize</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">,</span> <span class="n">iet_insert_C_decls</span><span class="p">,</span>
-                           <span class="n">ArrayCast</span><span class="p">,</span> <span class="n">PointerCast</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="k">import</span> <span class="n">schedule</span><span class="p">,</span> <span class="n">section</span>
+                           <span class="n">ArrayCast</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="k">import</span> <span class="n">st_build</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">Timer</span><span class="p">,</span> <span class="n">create_profile</span>
+<span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span>
                           <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">numpy_to_ctypes</span><span class="p">,</span> <span class="n">split</span><span class="p">)</span>
@@ -221,7 +221,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="c1"># References to local or external routines</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
 
         <span class="c1"># Expression lowering: indexification, substitution rules, specialization</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">indexify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
@@ -240,8 +240,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">clusters</span><span class="o">.</span><span class="n">meta</span>
 
         <span class="c1"># Lower Clusters to a Schedule tree</span>
-        <span class="n">stree</span> <span class="o">=</span> <span class="n">schedule</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
-        <span class="n">stree</span> <span class="o">=</span> <span class="n">section</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
+        <span class="n">stree</span> <span class="o">=</span> <span class="n">st_build</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 
         <span class="c1"># Lower Schedule tree to an Iteration/Expression tree (IET)</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
@@ -253,7 +252,10 @@
         <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_specialize_iet</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Insert the required symbol declarations</span>
-        <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_insert_C_decls</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="p">)</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_insert_C_decls</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span><span class="p">)</span>
+
+        <span class="c1"># Insert code for MPI support</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_mpi</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Insert data and pointer casts for array parameters and profiling structs</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_casts</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
@@ -302,7 +304,7 @@
                 <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">osize</span><span class="p">)</span>
 
         <span class="c1"># Add in the profiler argument</span>
-        <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">new</span><span class="p">()</span>
+        <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">timer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
 
         <span class="c1"># Add in any backend-specific argument</span>
         <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="p">{}))</span>
@@ -335,7 +337,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">elemental_functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_soname</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -371,7 +373,7 @@
             <span class="n">argtypes</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Object</span><span class="p">:</span>
-                    <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">)</span>
+                    <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Scalar</span><span class="p">:</span>
                     <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">numpy_to_ctypes</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
                 <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Tensor</span><span class="p">:</span>
@@ -406,13 +408,19 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_dle_args</span> <span class="o">=</span> <span class="n">dle_state</span><span class="o">.</span><span class="n">arguments</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dle_flags</span> <span class="o">=</span> <span class="n">dle_state</span><span class="o">.</span><span class="n">flags</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
-                                            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dle_state</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+                                             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dle_state</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">]))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_args</span>
                                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">dle_state</span><span class="o">.</span><span class="n">includes</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">dle_state</span><span class="o">.</span><span class="n">nodes</span>
+
+    <span class="k">def</span> <span class="nf">_generate_mpi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Transform the Iteration/Expression tree adding nodes performing halo</span>
+<span class="sd">        exchanges right before :class:`Iteration`s accessing distributed</span>
+<span class="sd">        :class:`TensorFunction`s.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">iet</span>
 
     <span class="k">def</span> <span class="nf">_build_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Determine the Operator parameters based on the Iteration/Expression</span>
@@ -423,7 +431,6 @@
         <span class="sd">&quot;&quot;&quot;Introduce array and pointer casts at the top of the Iteration/Expression</span>
 <span class="sd">        tree ``iet``.&quot;&quot;&quot;</span>
         <span class="n">casts</span> <span class="o">=</span> <span class="p">[</span><span class="n">ArrayCast</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Tensor</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">]</span>
-        <span class="n">casts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PointerCast</span><span class="p">(</span><span class="n">Timer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="p">)))</span>
         <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">casts</span> <span class="o">+</span> <span class="p">[</span><span class="n">iet</span><span class="p">])</span>
 
     <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -556,7 +563,7 @@
         <span class="n">iet</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">instrument</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_globals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">cdef</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">profiler</span><span class="o">.</span><span class="n">_default_includes</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="n">MetaCall</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">profiler</span><span class="o">.</span><span class="n">_ext_calls</span><span class="p">})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="n">MetaCall</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">profiler</span><span class="o">.</span><span class="n">_ext_calls</span><span class="p">})</span>
         <span class="k">return</span> <span class="n">iet</span><span class="p">,</span> <span class="n">profiler</span></div>
 
 

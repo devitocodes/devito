@@ -153,8 +153,10 @@
   <h1>Source code for devito.grid</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">SpaceDimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">,</span> <span class="n">SteppingDimension</span>
-<span class="kn">from</span> <span class="nn">devito.distributed</span> <span class="k">import</span> <span class="n">Distributor</span>
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">Distributor</span>
 <span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Constant</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">ReducerMap</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">prod</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
@@ -162,7 +164,7 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Grid&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../devito.html#devito.grid.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../devito.html#devito.grid.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A cartesian grid that encapsulates a physical domain over which</span>
@@ -312,6 +314,19 @@
         <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_s&#39;</span> <span class="o">%</span> <span class="n">time_dim</span><span class="o">.</span><span class="n">name</span>
         <span class="k">return</span> <span class="n">SteppingDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">time_dim</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a map of default argument values defined by this Grid.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">ReducerMap</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
+            <span class="n">distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span>
+            <span class="n">args</span><span class="p">[</span><span class="n">distributor</span><span class="o">.</span><span class="n">_C_comm</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">_C_comm</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">args</span><span class="p">[</span><span class="n">distributor</span><span class="o">.</span><span class="n">_C_neighbours</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">_C_neighbours</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="k">return</span> <span class="n">args</span>
 
     <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>

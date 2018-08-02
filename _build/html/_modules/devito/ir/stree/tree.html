@@ -153,7 +153,8 @@
   <h1>Source code for devito.ir.stree.tree</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">anytree</span> <span class="k">import</span> <span class="n">NodeMixin</span><span class="p">,</span> <span class="n">PostOrderIter</span><span class="p">,</span> <span class="n">RenderTree</span><span class="p">,</span> <span class="n">ContStyle</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;ScheduleTree&quot;</span><span class="p">,</span> <span class="s2">&quot;NodeSection&quot;</span><span class="p">,</span> <span class="s2">&quot;NodeIteration&quot;</span><span class="p">,</span> <span class="s2">&quot;NodeConditional&quot;</span><span class="p">,</span> <span class="s2">&quot;NodeExprs&quot;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;ScheduleTree&quot;</span><span class="p">,</span> <span class="s2">&quot;NodeSection&quot;</span><span class="p">,</span> <span class="s2">&quot;NodeIteration&quot;</span><span class="p">,</span> <span class="s2">&quot;NodeConditional&quot;</span><span class="p">,</span>
+           <span class="s2">&quot;NodeExprs&quot;</span><span class="p">,</span> <span class="s2">&quot;NodeHalo&quot;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="ScheduleTree"><a class="viewcode-back" href="../../../../devito.ir.stree.html#devito.ir.stree.tree.ScheduleTree">[docs]</a><span class="k">class</span> <span class="nc">ScheduleTree</span><span class="p">(</span><span class="n">NodeMixin</span><span class="p">):</span>
@@ -162,6 +163,7 @@
     <span class="n">is_Iteration</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Conditional</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Exprs</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Halo</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">parent</span>
@@ -251,6 +253,34 @@
         <span class="n">ret</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;Eq&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">ths</span><span class="p">)))</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">,...&quot;</span> <span class="o">%</span> <span class="n">ret</span><span class="p">)</span> <span class="k">if</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="n">ths</span> <span class="k">else</span> <span class="n">ret</span>
         <span class="k">return</span> <span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">ret</span></div>
+
+
+<div class="viewcode-block" id="NodeHalo"><a class="viewcode-back" href="../../../../devito.ir.stree.html#devito.ir.stree.tree.NodeHalo">[docs]</a><span class="k">class</span> <span class="nc">NodeHalo</span><span class="p">(</span><span class="n">ScheduleTree</span><span class="p">):</span>
+
+    <span class="n">is_Halo</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">halo_scheme</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">halo_scheme</span> <span class="o">=</span> <span class="n">halo_scheme</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">__repr_render__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;Halo&gt;&quot;</span></div>
+
+
+<span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">children</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Insert ``node`` between ``parent`` and ``children``, where ``children``</span>
+<span class="sd">    are a subset of nodes in ``parent.children``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">parent</span><span class="o">.</span><span class="n">children</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
+            <span class="n">n</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">node</span>
+            <span class="k">if</span> <span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">:</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">parent</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="n">processed</span>
 
 
 <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="n">stree</span><span class="p">):</span>

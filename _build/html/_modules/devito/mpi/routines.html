@@ -1,0 +1,370 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.mpi.routines &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.mpi.routines</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.mpi.routines</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
+<span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">c_void_p</span>
+
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
+<span class="kn">from</span> <span class="nn">devito.mpi.utils</span> <span class="k">import</span> <span class="n">get_views</span>
+<span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">DummyEq</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">ArrayCast</span><span class="p">,</span> <span class="n">Call</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Conditional</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span>
+                           <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">iet_insert_C_decls</span><span class="p">,</span>
+                           <span class="n">derive_parameters</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">CondNe</span><span class="p">,</span> <span class="n">FieldFromPointer</span><span class="p">,</span> <span class="n">Macro</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Array</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">LocalObject</span><span class="p">,</span> <span class="n">OWNED</span><span class="p">,</span> <span class="n">HALO</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">numpy_to_mpitypes</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;copy&#39;</span><span class="p">,</span> <span class="s1">&#39;sendrecv&#39;</span><span class="p">,</span> <span class="s1">&#39;update_halo&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="copy"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.routines.copy">[docs]</a><span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fixed</span><span class="p">,</span> <span class="n">swap</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Construct a :class:`Callable` capable of copying: ::</span>
+
+<span class="sd">        * an arbitrary convex region of ``f`` into a contiguous :class:`Array`, OR</span>
+<span class="sd">        * if ``swap=True``, a contiguous :class:`Array` into an arbitrary convex</span>
+<span class="sd">          region of ``f``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">buf_dims</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">buf_indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fixed</span><span class="p">:</span>
+            <span class="n">buf_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;buf_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">))</span>
+            <span class="n">buf_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">)</span>
+    <span class="n">buf</span> <span class="o">=</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;buf&#39;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">buf_dims</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+    <span class="n">dat_dims</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">dat_offsets</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">dat_indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+        <span class="n">dat_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;dat_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">))</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;o</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">)</span>
+        <span class="n">dat_offsets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">offset</span><span class="p">)</span>
+        <span class="n">dat_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">offset</span> <span class="o">+</span> <span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">root</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fixed</span> <span class="k">else</span> <span class="mi">0</span><span class="p">))</span>
+    <span class="n">dat</span> <span class="o">=</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;dat&#39;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">dat_dims</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">swap</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="n">DummyEq</span><span class="p">(</span><span class="n">buf</span><span class="p">[</span><span class="n">buf_indices</span><span class="p">],</span> <span class="n">dat</span><span class="p">[</span><span class="n">dat_indices</span><span class="p">])</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;gather_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="n">DummyEq</span><span class="p">(</span><span class="n">dat</span><span class="p">[</span><span class="n">dat_indices</span><span class="p">],</span> <span class="n">buf</span><span class="p">[</span><span class="n">buf_indices</span><span class="p">])</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;scatter_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">Expression</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">buf_indices</span><span class="p">,</span> <span class="n">buf_dims</span><span class="p">))):</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">Iteration</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># -1 as Iteration generates &lt;=</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="p">[</span><span class="n">ArrayCast</span><span class="p">(</span><span class="n">dat</span><span class="p">),</span> <span class="n">ArrayCast</span><span class="p">(</span><span class="n">buf</span><span class="p">),</span> <span class="n">iet</span><span class="p">])</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">[</span><span class="n">buf</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">buf</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">dat</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">dat</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="n">dat_offsets</span>
+    <span class="k">return</span> <span class="n">Callable</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;void&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;static&#39;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="sendrecv"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.routines.sendrecv">[docs]</a><span class="k">def</span> <span class="nf">sendrecv</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fixed</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Construct an IET performing a halo exchange along arbitrary</span>
+<span class="sd">    dimension and side.&quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Function</span>
+    <span class="k">assert</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+    <span class="n">comm</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">_C_comm</span>
+
+    <span class="n">buf_dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;buf_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fixed</span><span class="p">]</span>
+    <span class="n">bufg</span> <span class="o">=</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;bufg&#39;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">buf_dims</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;stack&#39;</span><span class="p">)</span>
+    <span class="n">bufs</span> <span class="o">=</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;bufs&#39;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">buf_dims</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;stack&#39;</span><span class="p">)</span>
+
+    <span class="n">dat_dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;dat_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+    <span class="n">dat</span> <span class="o">=</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;dat&#39;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">dat_dims</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;external&#39;</span><span class="p">)</span>
+
+    <span class="n">ofsg</span> <span class="o">=</span> <span class="p">[</span><span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;og</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+    <span class="n">ofss</span> <span class="o">=</span> <span class="p">[</span><span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;os</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+
+    <span class="n">fromrank</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;fromrank&#39;</span><span class="p">)</span>
+    <span class="n">torank</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;torank&#39;</span><span class="p">)</span>
+
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">[</span><span class="n">bufg</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">bufg</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">dat</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">dat</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="n">ofsg</span>
+    <span class="n">gather</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;gather_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">[</span><span class="n">bufs</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">bufs</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">dat</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">dat</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="n">ofss</span>
+    <span class="n">scatter</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;scatter_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
+
+    <span class="c1"># The scatter must be guarded as we must not alter the halo values along</span>
+    <span class="c1"># the domain boundary, where the sender is actually MPI.PROC_NULL</span>
+    <span class="n">scatter</span> <span class="o">=</span> <span class="n">Conditional</span><span class="p">(</span><span class="n">CondNe</span><span class="p">(</span><span class="n">fromrank</span><span class="p">,</span> <span class="n">Macro</span><span class="p">(</span><span class="s1">&#39;MPI_PROC_NULL&#39;</span><span class="p">)),</span> <span class="n">scatter</span><span class="p">)</span>
+
+    <span class="n">MPI_Status</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Status&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
+    <span class="n">srecv</span> <span class="o">=</span> <span class="n">LocalObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;srecv&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">MPI_Status</span><span class="p">)</span>
+
+    <span class="n">MPI_Request</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Request&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
+    <span class="n">rrecv</span> <span class="o">=</span> <span class="n">LocalObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rrecv&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">MPI_Request</span><span class="p">)</span>
+    <span class="n">rsend</span> <span class="o">=</span> <span class="n">LocalObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rsend&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">MPI_Request</span><span class="p">)</span>
+
+    <span class="n">count</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">bufs</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">recv</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;MPI_Irecv&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">bufs</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">Macro</span><span class="p">(</span><span class="n">numpy_to_mpitypes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dtype</span><span class="p">)),</span>
+                              <span class="n">fromrank</span><span class="p">,</span> <span class="s1">&#39;13&#39;</span><span class="p">,</span> <span class="n">comm</span><span class="p">,</span> <span class="n">rrecv</span><span class="p">])</span>
+    <span class="n">send</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;MPI_Isend&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">bufg</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">Macro</span><span class="p">(</span><span class="n">numpy_to_mpitypes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dtype</span><span class="p">)),</span>
+                              <span class="n">torank</span><span class="p">,</span> <span class="s1">&#39;13&#39;</span><span class="p">,</span> <span class="n">comm</span><span class="p">,</span> <span class="n">rsend</span><span class="p">])</span>
+
+    <span class="n">waitrecv</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;MPI_Wait&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">rrecv</span><span class="p">,</span> <span class="n">srecv</span><span class="p">])</span>
+    <span class="n">waitsend</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;MPI_Wait&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">rsend</span><span class="p">,</span> <span class="n">Macro</span><span class="p">(</span><span class="s1">&#39;MPI_STATUS_IGNORE&#39;</span><span class="p">)])</span>
+
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="p">[</span><span class="n">recv</span><span class="p">,</span> <span class="n">gather</span><span class="p">,</span> <span class="n">send</span><span class="p">,</span> <span class="n">waitsend</span><span class="p">,</span> <span class="n">waitrecv</span><span class="p">,</span> <span class="n">scatter</span><span class="p">])</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="p">[</span><span class="n">ArrayCast</span><span class="p">(</span><span class="n">dat</span><span class="p">),</span> <span class="n">iet_insert_C_decls</span><span class="p">(</span><span class="n">iet</span><span class="p">)])</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">([</span><span class="n">dat</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">dat</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">bufs</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span>
+                  <span class="n">ofsg</span> <span class="o">+</span> <span class="n">ofss</span> <span class="o">+</span> <span class="p">[</span><span class="n">fromrank</span><span class="p">,</span> <span class="n">torank</span><span class="p">,</span> <span class="n">comm</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">Callable</span><span class="p">(</span><span class="s1">&#39;sendrecv_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;void&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;static&#39;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="update_halo"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.routines.update_halo">[docs]</a><span class="k">def</span> <span class="nf">update_halo</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fixed</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Construct an IET performing a halo exchange for a :class:`TensorFunction`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Requirements</span>
+    <span class="k">assert</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Function</span>
+    <span class="k">assert</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+    <span class="n">distributor</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span>
+    <span class="n">nb</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">_C_neighbours</span><span class="o">.</span><span class="n">obj</span>
+    <span class="n">comm</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">_C_comm</span>
+
+    <span class="n">fixed</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;o</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">fixed</span><span class="p">}</span>
+
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">get_views</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fixed</span><span class="p">)</span>
+
+    <span class="n">body</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">fixed</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">rpeer</span> <span class="o">=</span> <span class="n">FieldFromPointer</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">right&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="p">,</span> <span class="n">nb</span><span class="p">)</span>
+        <span class="n">lpeer</span> <span class="o">=</span> <span class="n">FieldFromPointer</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">left&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="p">,</span> <span class="n">nb</span><span class="p">)</span>
+
+        <span class="c1"># Sending to left, receiving from right</span>
+        <span class="n">lsizes</span><span class="p">,</span> <span class="n">loffsets</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[(</span><span class="n">d</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">OWNED</span><span class="p">)]</span>
+        <span class="n">rsizes</span><span class="p">,</span> <span class="n">roffsets</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[(</span><span class="n">d</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">,</span> <span class="n">HALO</span><span class="p">)]</span>
+        <span class="k">assert</span> <span class="n">lsizes</span> <span class="o">==</span> <span class="n">rsizes</span>
+        <span class="n">sizes</span> <span class="o">=</span> <span class="n">lsizes</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="p">([</span><span class="n">f</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">)</span> <span class="o">+</span> <span class="n">sizes</span> <span class="o">+</span> <span class="n">loffsets</span> <span class="o">+</span>
+                      <span class="n">roffsets</span> <span class="o">+</span> <span class="p">[</span><span class="n">rpeer</span><span class="p">,</span> <span class="n">lpeer</span><span class="p">,</span> <span class="n">comm</span><span class="p">])</span>
+        <span class="n">call</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;sendrecv_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
+        <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Conditional</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;m</span><span class="si">%s</span><span class="s1">l&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">),</span> <span class="n">call</span><span class="p">))</span>
+
+        <span class="c1"># Sending to right, receiving from left</span>
+        <span class="n">rsizes</span><span class="p">,</span> <span class="n">roffsets</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[(</span><span class="n">d</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">,</span> <span class="n">OWNED</span><span class="p">)]</span>
+        <span class="n">lsizes</span><span class="p">,</span> <span class="n">loffsets</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[(</span><span class="n">d</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">HALO</span><span class="p">)]</span>
+        <span class="k">assert</span> <span class="n">rsizes</span> <span class="o">==</span> <span class="n">lsizes</span>
+        <span class="n">sizes</span> <span class="o">=</span> <span class="n">rsizes</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="p">([</span><span class="n">f</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">)</span> <span class="o">+</span> <span class="n">sizes</span> <span class="o">+</span> <span class="n">roffsets</span> <span class="o">+</span>
+                      <span class="n">loffsets</span> <span class="o">+</span> <span class="p">[</span><span class="n">lpeer</span><span class="p">,</span> <span class="n">rpeer</span><span class="p">,</span> <span class="n">comm</span><span class="p">])</span>
+        <span class="n">call</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;sendrecv_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
+        <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Conditional</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;m</span><span class="si">%s</span><span class="s1">r&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">),</span> <span class="n">call</span><span class="p">))</span>
+
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="n">derive_parameters</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="n">drop_locals</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Callable</span><span class="p">(</span><span class="s1">&#39;halo_exchange_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;void&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;static&#39;</span><span class="p">,))</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            LANGUAGE:'en',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

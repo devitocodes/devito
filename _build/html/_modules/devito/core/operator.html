@@ -151,12 +151,15 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.core.operator</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
 <span class="kn">from</span> <span class="nn">devito.core.autotuning</span> <span class="k">import</span> <span class="n">autotune</span>
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">printmark</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Call</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">HaloSpot</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
+                           <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">align_accesses</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">copy</span><span class="p">,</span> <span class="n">sendrecv</span><span class="p">,</span> <span class="n">update_halo</span>
 <span class="kn">from</span> <span class="nn">devito.operator</span> <span class="k">import</span> <span class="n">OperatorRunnable</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
@@ -171,11 +174,50 @@
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">align_accesses</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">OperatorCore</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">_generate_mpi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">iet</span>
+
+        <span class="c1"># For each function, generate all necessary C-level routines to perform</span>
+        <span class="c1"># a halo exchange</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">callables</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">cstructs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">hs</span> <span class="ow">in</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">HaloSpot</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">hs</span><span class="o">.</span><span class="n">fmapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">callables</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">update_halo</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">hs</span><span class="o">.</span><span class="n">fixed</span><span class="p">[</span><span class="n">f</span><span class="p">]))</span>
+                <span class="n">callables</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sendrecv</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">hs</span><span class="o">.</span><span class="n">fixed</span><span class="p">[</span><span class="n">f</span><span class="p">]))</span>
+                <span class="n">callables</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">copy</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">hs</span><span class="o">.</span><span class="n">fixed</span><span class="p">[</span><span class="n">f</span><span class="p">]),</span> <span class="n">copy</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">hs</span><span class="o">.</span><span class="n">fixed</span><span class="p">[</span><span class="n">f</span><span class="p">],</span> <span class="kc">True</span><span class="p">)])</span>
+
+                <span class="n">stencil</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">hs</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">f</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+                <span class="n">comm</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">_C_comm</span>
+                <span class="n">nb</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">_C_neighbours</span><span class="o">.</span><span class="n">obj</span>
+                <span class="n">fixed</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">hs</span><span class="o">.</span><span class="n">fixed</span><span class="p">[</span><span class="n">f</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+                <span class="n">dsizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+                <span class="n">parameters</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="p">]</span> <span class="o">+</span> <span class="n">stencil</span> <span class="o">+</span> <span class="p">[</span><span class="n">comm</span><span class="p">,</span> <span class="n">nb</span><span class="p">]</span> <span class="o">+</span> <span class="n">fixed</span> <span class="o">+</span> <span class="n">dsizes</span>
+                <span class="n">call</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;halo_exchange_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
+                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">hs</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">call</span><span class="p">)</span>
+
+                <span class="n">cstructs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">_C_neighbours</span><span class="o">.</span><span class="n">cdef</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+                                             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">callables</span><span class="p">]))</span>
+
+        <span class="c1"># Sorting is for deterministic code generation. However, in practice,</span>
+        <span class="c1"># we don&#39;t expect `cstructs` to contain more than one element because</span>
+        <span class="c1"># there should always be one grid per Operator (though we&#39;re not really</span>
+        <span class="c1"># enforcing this)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_globals</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">cstructs</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">tpname</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;mpi.h&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Add in the halo update calls</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">v</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">body</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">iet</span>
+
     <span class="k">def</span> <span class="nf">_autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Use auto-tuning on this Operator to determine empirically the</span>
-<span class="sd">        best block sizes when loop blocking is in use.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_flags</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;blocking&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_args</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>

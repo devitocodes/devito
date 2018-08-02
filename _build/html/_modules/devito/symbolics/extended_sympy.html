@@ -163,7 +163,8 @@
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">as_tuple</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FrozenExpr&#39;</span><span class="p">,</span> <span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;CondEq&#39;</span><span class="p">,</span> <span class="s1">&#39;CondNe&#39;</span><span class="p">,</span> <span class="s1">&#39;Mul&#39;</span><span class="p">,</span> <span class="s1">&#39;Add&#39;</span><span class="p">,</span> <span class="s1">&#39;IntDiv&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;FunctionFromPointer&#39;</span><span class="p">,</span> <span class="s1">&#39;ListInitializer&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_cos&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;FunctionFromPointer&#39;</span><span class="p">,</span> <span class="s1">&#39;FieldFromPointer&#39;</span><span class="p">,</span> <span class="s1">&#39;FieldFromComposite&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ListInitializer&#39;</span><span class="p">,</span> <span class="s1">&#39;Byref&#39;</span><span class="p">,</span> <span class="s1">&#39;Macro&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_cos&#39;</span><span class="p">,</span>
            <span class="s1">&#39;bhaskara_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;bhaskara_cos&#39;</span><span class="p">]</span>
 
 
@@ -209,7 +210,11 @@
 <span class="sd">    equality. It suppresses evaluation.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
 
 
 <div class="viewcode-block" id="CondNe"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.CondNe">[docs]</a><span class="k">class</span> <span class="nc">CondNe</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Ne</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
@@ -217,7 +222,11 @@
 <span class="sd">    inequality. It suppresses evaluation.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Ne</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Ne</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">canonical</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
 
 
 <div class="viewcode-block" id="Mul"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Mul">[docs]</a><span class="k">class</span> <span class="nc">Mul</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Mul</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
@@ -263,8 +272,6 @@
         <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pointer</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">pointer</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">pointer</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pointer</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`pointer` must be Expr or str&quot;</span><span class="p">)</span>
         <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pointer</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">FunctionFromPointer</span><span class="p">):</span>
             <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
@@ -309,6 +316,49 @@
     <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span></div>
 
 
+<div class="viewcode-block" id="FieldFromPointer"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.FieldFromPointer">[docs]</a><span class="k">class</span> <span class="nc">FieldFromPointer</span><span class="p">(</span><span class="n">FunctionFromPointer</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic representation of the C notation ``pointer-&gt;field``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">pointer</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">FunctionFromPointer</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">pointer</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">-&gt;</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pointer</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+
+
+<div class="viewcode-block" id="FieldFromComposite"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.FieldFromComposite">[docs]</a><span class="k">class</span> <span class="nc">FieldFromComposite</span><span class="p">(</span><span class="n">FunctionFromPointer</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic representation of the C notation ``composite.field``,</span>
+<span class="sd">    where ``composite`` is a struct/union/...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">composite</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">FunctionFromPointer</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">composite</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">composite</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">composite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pointer</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+
+
 <div class="viewcode-block" id="ListInitializer"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.ListInitializer">[docs]</a><span class="k">class</span> <span class="nc">ListInitializer</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Expr</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
@@ -336,6 +386,32 @@
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]</span>
     <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span></div>
+
+
+<div class="viewcode-block" id="Byref"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Byref">[docs]</a><span class="k">class</span> <span class="nc">Byref</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic representation of the C++ notation ``&amp;symbol``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&amp;</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+    <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span></div>
+
+
+<div class="viewcode-block" id="Macro"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Macro">[docs]</a><span class="k">class</span> <span class="nc">Macro</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic representation of a C++ macro.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
 
 
 <div class="viewcode-block" id="taylor_sin"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.taylor_sin">[docs]</a><span class="k">class</span> <span class="nc">taylor_sin</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>

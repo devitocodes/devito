@@ -10,6 +10,7 @@ Subpackages
     devito.dle
     devito.dse
     devito.ir
+    devito.mpi
     devito.symbolics
     devito.tools
 
@@ -60,14 +61,6 @@ devito.dimension module
 -----------------------
 
 .. automodule:: devito.dimension
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito.distributed module
--------------------------
-
-.. automodule:: devito.distributed
     :members:
     :undoc-members:
     :show-inheritance:

@@ -654,6 +654,10 @@
         <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_defines</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">))</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">distance_mapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">)}</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">cause</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the findex causing the dependence.&quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">):</span>
@@ -690,7 +694,7 @@
         <span class="k">return</span> <span class="n">test0</span> <span class="ow">and</span> <span class="n">test1</span> <span class="ow">and</span> <span class="n">test2</span>
 
     <span class="k">def</span> <span class="nf">is_reduce_atmost</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;More flexible than :meth:`is_reduce`. Return True  if ``dim`` may</span>
+        <span class="sd">&quot;&quot;&quot;More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may</span>
 <span class="sd">        represent a reduction dimension for ``self`` or if `self`` is definitely</span>
 <span class="sd">        independent of ``dim``, False otherwise.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reduce</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_indep</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span>

@@ -155,17 +155,16 @@
 <span class="kn">import</span> <span class="nn">weakref</span>
 <span class="kn">import</span> <span class="nn">abc</span>
 <span class="kn">import</span> <span class="nn">gc</span>
-
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">POINTER</span><span class="p">,</span> <span class="n">byref</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
 
-<span class="kn">from</span> <span class="nn">devito.distributed</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">single_or</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">ctypes_to_C</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">]</span>
 
@@ -187,14 +186,14 @@
 <span class="sd">                          to build equations.</span>
 <span class="sd">        * AbstractFunction: represents a discrete function as a tensor; may</span>
 <span class="sd">                            carry data; may be used to build equations.</span>
-<span class="sd">        * Object: represents a generic object, for example a (pointer to) data</span>
-<span class="sd">                  structure.</span>
+<span class="sd">        * AbstractObject: represents a generic object, for example a (pointer</span>
+<span class="sd">                          to) data structure.</span>
 
 <span class="sd">                                        Basic</span>
 <span class="sd">                                          |</span>
 <span class="sd">                    ------------------------------------------</span>
 <span class="sd">                    |                     |                  |</span>
-<span class="sd">             AbstractSymbol       AbstractFunction        Object</span>
+<span class="sd">             AbstractSymbol       AbstractFunction     AbstractObject</span>
 
 <span class="sd">    .. note::</span>
 
@@ -205,11 +204,13 @@
     <span class="c1"># Top hierarchy</span>
     <span class="n">is_AbstractFunction</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_AbstractSymbol</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_Object</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_AbstractObject</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="c1"># Symbolic objects created internally by Devito</span>
     <span class="n">is_Symbol</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Array</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Object</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_LocalObject</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="c1"># Created by the user</span>
     <span class="n">is_Input</span> <span class="o">=</span> <span class="kc">False</span>
@@ -232,24 +233,6 @@
     <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span>
-
-    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
-    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> does not provide any default arguments&#39;</span> <span class="o">%</span>
-                                  <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span>
-
-    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of argument values after evaluating user input.</span>
-
-<span class="sd">        :param kwargs: Dictionary of user-provided argument overrides.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> does not provide argument value derivation&#39;</span> <span class="o">%</span>
-                                  <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span>
 
 
 <span class="k">class</span> <span class="nc">Cached</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -548,10 +531,10 @@
         <span class="k">return</span> <span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">__halo_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)))</span>
 
     <span class="k">def</span> <span class="nf">__padding_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;padding&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)))</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -698,43 +681,63 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">j</span><span class="p">)</span> <span class="k">if</span> <span class="n">j</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_get_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">direction</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A view of the halo region along given :class:`Dimension`</span>
-<span class="sd">        and ``direction`` (an object of type :class:`RankRelativePosition`).&quot;&quot;&quot;</span>
-        <span class="n">index_array</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">dimension</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">direction</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
-                    <span class="n">start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
-                    <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
-                    <span class="n">end</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">extent</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">assert</span> <span class="n">direction</span> <span class="ow">is</span> <span class="n">RIGHT</span>
-                    <span class="n">start</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
-                    <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
-                    <span class="n">end</span> <span class="o">=</span> <span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="n">extent</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>  <span class="c1"># The end point won&#39;t be 0</span>
-                <span class="n">index_array</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">index_array</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">))</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">index_array</span><span class="p">]</span>
+    <span class="k">def</span> <span class="nf">_get_region</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">symbolic</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the offset and the extent of a given region in ``self.data``.</span>
 
-    <span class="k">def</span> <span class="nf">_get_owned</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">direction</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A view of the owned region along given :class:`Dimension`</span>
-<span class="sd">        and ``direction`` (an object of type :class:`RankRelativePosition`).&quot;&quot;&quot;</span>
+<span class="sd">        :param region: The :class:`DataRegion` whose offset and extent are retrieved.</span>
+<span class="sd">        :param dimension: The region :class:`Dimension`.</span>
+<span class="sd">        :param side: The region side.</span>
+<span class="sd">        :param symbolic: (Optional) if True, a symbolic offset is returned in place</span>
+<span class="sd">                         of negative values representing the distance from the end.</span>
+<span class="sd">                         Defaults to False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">side</span> <span class="ow">in</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">]</span>
+        <span class="k">assert</span> <span class="n">region</span> <span class="ow">in</span> <span class="p">[</span><span class="n">OWNED</span><span class="p">,</span> <span class="n">HALO</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="n">OWNED</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
+                <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">symbolic</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+                    <span class="n">offset</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span> <span class="o">-</span>\
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">+</span>\
+                        <span class="n">dimension</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
+                <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
+                <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">symbolic</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+                    <span class="n">offset</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">+</span> <span class="n">dimension</span><span class="o">.</span><span class="n">symbolic_size</span>
+                <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
+
+        <span class="k">return</span> <span class="n">offset</span><span class="p">,</span> <span class="n">extent</span>
+
+    <span class="k">def</span> <span class="nf">_get_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">side</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a special view of ``self.data``.</span>
+
+<span class="sd">        :param region: A :class:`DataRegion` representing the region of ``self.data``</span>
+<span class="sd">                       for which a view is produced.</span>
+<span class="sd">        :param dimension: The region :class:`Dimension`.</span>
+<span class="sd">        :param side: The region side.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">index_array</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">dimension</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">direction</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
-                    <span class="n">start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
-                    <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
-                    <span class="n">end</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">extent</span>
+                <span class="n">offset</span><span class="p">,</span> <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_region</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">side</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
+                    <span class="n">end</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">+</span> <span class="n">extent</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="k">assert</span> <span class="n">direction</span> <span class="ow">is</span> <span class="n">RIGHT</span>
-                    <span class="n">start</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span> <span class="o">-</span>\
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
-                    <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
-                    <span class="n">end</span> <span class="o">=</span> <span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="n">extent</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>  <span class="c1"># The end point won&#39;t be 0</span>
-                <span class="n">index_array</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
+                    <span class="n">end</span> <span class="o">=</span> <span class="p">(</span><span class="n">offset</span> <span class="o">+</span> <span class="n">extent</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>  <span class="c1"># The end point won&#39;t be 0</span>
+                <span class="n">index_array</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">index_array</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">))</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">index_array</span><span class="p">]</span>
@@ -747,6 +750,10 @@
         <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">])</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">Indexed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Shortcut for ``self.indexed[index]``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="s1">&#39;padding&#39;</span><span class="p">]</span>
@@ -762,15 +769,15 @@
 
 <span class="sd">    :param name: Name of the object.</span>
 <span class="sd">    :param dtype: Data type of the object.</span>
-<span class="sd">    :param shape: The shape of the object.</span>
 <span class="sd">    :param dimensions: The symbolic dimensions of the object.</span>
 <span class="sd">    :param halo: The halo region of the object, expressed as an iterable</span>
 <span class="sd">                 ``[(dim1_left_halo, dim1_right_halo), (dim2_left_halo, ...)]``</span>
 <span class="sd">    :param padding: The padding region of the object, expressed as an iterable</span>
 <span class="sd">                    ``[(dim1_left_pad, dim1_right_pad), (dim2_left_pad, ...)]``</span>
-<span class="sd">    :param external: Pass True if there is no need to allocate storage</span>
-<span class="sd">    :param onstack: Pass True to enforce allocation on the stack</span>
-<span class="sd">    :param onheap: Pass True to enforce allocation on the heap</span>
+<span class="sd">    :param scope: (Optional) Control memory allocation. Allowed values are</span>
+<span class="sd">                  [&#39;heap&#39;, &#39;stack&#39;, &#39;external&#39;]. Defaults to &#39;heap&#39;.</span>
+<span class="sd">                  &#39;external&#39; implies that no storage needs to be allocated</span>
+<span class="sd">                  for the Array.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Array</span> <span class="o">=</span> <span class="kc">True</span>
@@ -782,72 +789,96 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">Array</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
             <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
-            <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;padding&#39;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)))</span>
-
-            <span class="bp">self</span><span class="o">.</span><span class="n">_external</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;external&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onstack&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onheap&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
-
-            <span class="c1"># The memory scope of an Array must be well-defined</span>
-            <span class="k">assert</span> <span class="n">single_or</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_external</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;scope&#39;</span><span class="p">,</span> <span class="s1">&#39;heap&#39;</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;heap&#39;</span><span class="p">,</span> <span class="s1">&#39;stack&#39;</span><span class="p">,</span> <span class="s1">&#39;external&#39;</span><span class="p">]</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">))</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;dimensions&#39;</span><span class="p">])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_external</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_external</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="o">==</span> <span class="s1">&#39;external&#39;</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="o">==</span> <span class="s1">&#39;stack&#39;</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_heap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="o">==</span> <span class="s1">&#39;heap&#39;</span>
 
-    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">halo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-               <span class="n">onstack</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">onheap</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">external</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="n">shape</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span> <span class="o">=</span> <span class="n">dimensions</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="n">halo</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="n">padding</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_shape</span>
 
-        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">external</span><span class="p">,</span> <span class="n">onstack</span><span class="p">,</span> <span class="n">onheap</span><span class="p">]):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_external</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">external</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">onstack</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">onheap</span><span class="p">)</span>
-            <span class="k">assert</span> <span class="n">single_or</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_external</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span><span class="p">])</span>
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;padding&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;scope&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;heap&#39;</span><span class="p">,</span> <span class="s1">&#39;stack&#39;</span><span class="p">,</span> <span class="s1">&#39;external&#39;</span><span class="p">]</span>
 
 
 <span class="c1"># Objects belonging to the Devito API not involving data, such as data structures</span>
 <span class="c1"># that need to be passed to external libraries</span>
 
 
-<span class="k">class</span> <span class="nc">Object</span><span class="p">(</span><span class="n">Basic</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">AbstractObject</span><span class="p">(</span><span class="n">Basic</span><span class="p">,</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Basic</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Represent a generic pointer object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">is_Object</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_AbstractObject</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Basic</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="fm">__str__</span> <span class="o">=</span> <span class="fm">__repr__</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ctype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ctypes_to_C</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;dtype&#39;</span><span class="p">]</span>
+    <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span>
+
+
+<span class="k">class</span> <span class="nc">Object</span><span class="p">(</span><span class="n">AbstractObject</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represent a generic pointer object, provided by the outside world.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Object</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Object</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
 
     <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">):</span>
@@ -860,6 +891,55 @@
             <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)}</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">{}</span>
+
+
+<span class="k">class</span> <span class="nc">CompositeObject</span><span class="p">(</span><span class="n">Object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represent a pointer object to a composite type (e.g., struct, union),</span>
+<span class="sd">    provided by the outside world.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_dtype_cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_generate_unique_dtype</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">pname</span><span class="p">,</span> <span class="n">ptype</span><span class="p">,</span> <span class="n">pfields</span><span class="p">):</span>
+        <span class="n">dtype</span> <span class="o">=</span> <span class="n">POINTER</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">pname</span><span class="p">,</span> <span class="p">(</span><span class="n">ptype</span><span class="p">,),</span> <span class="p">{</span><span class="s1">&#39;_fields_&#39;</span><span class="p">:</span> <span class="n">pfields</span><span class="p">}))</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">pname</span><span class="p">,</span> <span class="n">ptype</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">pfields</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_dtype_cache</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">pname</span><span class="p">,</span> <span class="n">ptype</span><span class="p">,</span> <span class="n">pfields</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">dtype</span> <span class="o">=</span> <span class="n">CompositeObject</span><span class="o">.</span><span class="n">_generate_unique_dtype</span><span class="p">(</span><span class="n">pname</span><span class="p">,</span> <span class="n">ptype</span><span class="p">,</span> <span class="n">pfields</span><span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">value</span> <span class="ow">or</span> <span class="n">byref</span><span class="p">(</span><span class="n">dtype</span><span class="o">.</span><span class="n">_type_</span><span class="p">())</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CompositeObject</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">pfields</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">_type_</span><span class="o">.</span><span class="n">_fields_</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ptype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">_type_</span><span class="o">.</span><span class="n">__base__</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">pname</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">_type_</span><span class="o">.</span><span class="vm">__name__</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pfields</span><span class="p">)</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;pname&#39;</span><span class="p">,</span> <span class="s1">&#39;ptype&#39;</span><span class="p">,</span> <span class="s1">&#39;pfields&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<span class="k">class</span> <span class="nc">LocalObject</span><span class="p">(</span><span class="n">AbstractObject</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represent a generic, yet locally defined, pointer object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_LocalObject</span> <span class="o">=</span> <span class="kc">True</span>
 
 
 <span class="c1"># Extended SymPy hierarchy follows, for essentially two reasons:</span>
@@ -931,6 +1011,24 @@
         <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">_SymbolCache</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
             <span class="k">if</span> <span class="n">val</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">del</span> <span class="n">_SymbolCache</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">DataRegion</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<span class="n">DOMAIN</span> <span class="o">=</span> <span class="n">DataRegion</span><span class="p">(</span><span class="s1">&#39;domain&#39;</span><span class="p">)</span>
+<span class="n">OWNED</span> <span class="o">=</span> <span class="n">DataRegion</span><span class="p">(</span><span class="s1">&#39;owned&#39;</span><span class="p">)</span>
+<span class="n">HALO</span> <span class="o">=</span> <span class="n">DataRegion</span><span class="p">(</span><span class="s1">&#39;halo&#39;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">DataSide</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<span class="n">LEFT</span> <span class="o">=</span> <span class="n">DataSide</span><span class="p">(</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+<span class="n">RIGHT</span> <span class="o">=</span> <span class="n">DataSide</span><span class="p">(</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+<span class="n">CENTER</span> <span class="o">=</span> <span class="n">DataSide</span><span class="p">(</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 </pre></div>
 
            </div>

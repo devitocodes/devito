@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.distributed &mdash; Devito 1 documentation</title>
+  <title>devito.mpi.distributed &mdash; Devito 1 documentation</title>
   
 
   
@@ -24,13 +24,13 @@
 
   
 
-  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-    <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" /> 
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
 
   
-  <script src="../../_static/js/modernizr.min.js"></script>
+  <script src="../../../_static/js/modernizr.min.js"></script>
 
 </head>
 
@@ -46,7 +46,7 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> Devito
+            <a href="../../../index.html" class="icon icon-home"> Devito
           
 
           
@@ -63,7 +63,7 @@
 
           
 <div role="search">
-  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
@@ -81,11 +81,11 @@
             
             
               <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
 </ul>
 
             
@@ -100,7 +100,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../index.html">Devito</a>
+          <a href="../../../index.html">Devito</a>
         
       </nav>
 
@@ -129,13 +129,13 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="../../index.html">Docs</a> &raquo;</li>
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="../index.html">Module code</a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
         
-          <li><a href="../devito.html">devito</a> &raquo;</li>
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
         
-      <li>devito.distributed</li>
+      <li>devito.mpi.distributed</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -150,16 +150,23 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for devito.distributed</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+  <h1>Source code for devito.mpi.distributed</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
+<span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">c_int</span><span class="p">,</span> <span class="n">c_void_p</span><span class="p">,</span> <span class="n">sizeof</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
+
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+<span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">Value</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">mpi4py</span> <span class="k">import</span> <span class="n">MPI</span>
 
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Distributor&#39;</span><span class="p">,</span> <span class="s1">&#39;LEFT&#39;</span><span class="p">,</span> <span class="s1">&#39;RIGHT&#39;</span><span class="p">,</span> <span class="s1">&#39;CENTER&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Distributor&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Distributor"><a class="viewcode-back" href="../../devito.html#devito.distributed.Distributor">[docs]</a><span class="k">class</span> <span class="nc">Distributor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="Distributor"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.distributed.Distributor">[docs]</a><span class="k">class</span> <span class="nc">Distributor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A class to perform domain decomposition for a set of MPI processes.</span>
@@ -243,29 +250,50 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">neighbours</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the mapper ``proc -&gt; direction``; ``proc`` is the rank of a</span>
-<span class="sd">        neighboring process, while ``direction`` tells whether ``proc`` is</span>
+<span class="sd">        Return the mapper ``proc -&gt; side``; ``proc`` is the rank of a</span>
+<span class="sd">        neighboring process, while ``side`` tells whether ``proc`` is</span>
 <span class="sd">        logically at right (value=1) or left (value=-1) of ``self``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">shifts</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="o">.</span><span class="n">Shift</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)}</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span> <span class="ow">in</span> <span class="n">shifts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-            <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">LEFT</span><span class="p">]</span> <span class="o">=</span> <span class="n">src</span> <span class="k">if</span> <span class="n">src</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span> <span class="k">else</span> <span class="kc">None</span>
-            <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">RIGHT</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest</span> <span class="k">if</span> <span class="n">dest</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">LEFT</span><span class="p">]</span> <span class="o">=</span> <span class="n">src</span>
+            <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">RIGHT</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest</span>
         <span class="k">return</span> <span class="n">ret</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_C_comm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A :class:`Object` wrapping an MPI communicator.</span>
+
+<span class="sd">        Extracted from: ::</span>
+
+<span class="sd">            https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">CompositeObject</span>
+        <span class="n">ptype</span> <span class="o">=</span> <span class="n">c_int</span> <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_sizeof</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="p">)</span> <span class="o">==</span> <span class="n">sizeof</span><span class="p">(</span><span class="n">c_int</span><span class="p">)</span> <span class="k">else</span> <span class="n">c_void_p</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">CompositeObject</span><span class="p">(</span><span class="s1">&#39;comm&#39;</span><span class="p">,</span> <span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="n">ptype</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">comm_ptr</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_addressof</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="p">)</span>
+        <span class="n">comm_val</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">from_address</span><span class="p">(</span><span class="n">comm_ptr</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">comm_val</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_C_neighbours</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A ctypes Struct to access the neighborhood of a given rank.&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">CompositeObject</span>
+        <span class="n">entries</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">product</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">]))</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">),</span> <span class="n">c_int</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">]</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">CompositeObject</span><span class="p">(</span><span class="s1">&#39;nb&#39;</span><span class="p">,</span> <span class="s1">&#39;neighbours&#39;</span><span class="p">,</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">fields</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">neighbours</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">cdef</span> <span class="o">=</span> <span class="n">Struct</span><span class="p">(</span><span class="s1">&#39;neighbours&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">])</span>
+        <span class="n">CNeighbours</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;CNeighbours&#39;</span><span class="p">,</span> <span class="s1">&#39;ctype cdef obj&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">CNeighbours</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">cdef</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;Distributor(nprocs=</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">nprocs</span></div>
-
-
-<span class="k">class</span> <span class="nc">RankRelativePosition</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
-    <span class="k">pass</span>
-
-
-<span class="n">LEFT</span> <span class="o">=</span> <span class="n">RankRelativePosition</span><span class="p">(</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
-<span class="n">RIGHT</span> <span class="o">=</span> <span class="n">RankRelativePosition</span><span class="p">(</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
-<span class="n">CENTER</span> <span class="o">=</span> <span class="n">RankRelativePosition</span><span class="p">(</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
 </pre></div>
 
            </div>
@@ -299,7 +327,7 @@
 
     <script type="text/javascript">
         var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'../../',
+            URL_ROOT:'../../../',
             VERSION:'1',
             LANGUAGE:'en',
             COLLAPSE_INDEX:false,
@@ -308,14 +336,14 @@
             SOURCELINK_SUFFIX: '.txt'
         };
     </script>
-      <script type="text/javascript" src="../../_static/jquery.js"></script>
-      <script type="text/javascript" src="../../_static/underscore.js"></script>
-      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
       <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 
   
 
-  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
 
   <script type="text/javascript">
       jQuery(function () {

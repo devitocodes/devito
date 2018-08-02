@@ -97,6 +97,7 @@
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.html#module-devito.ir">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="devito.mpi.html">devito.mpi package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.tools.html">devito.tools package</a></li>
 </ul>
@@ -108,7 +109,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.distributed">devito.distributed module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
@@ -380,8 +380,7 @@ ClusterizedEq:</p>
 <em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">DummyEq</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#DummyEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.DummyEq" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.ir.equations.equation.ClusterizedEq" title="devito.ir.equations.equation.ClusterizedEq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.ClusterizedEq</span></code></a></p>
 <p>DummyEq(lhs, rhs)</p>
-<p>A special <a class="reference internal" href="#devito.ir.equations.equation.ClusterizedEq" title="devito.ir.equations.equation.ClusterizedEq"><code class="xref py py-class docutils literal notranslate"><span class="pre">ClusterizedEq</span></code></a> that should never be used except for
-writing tests, when there is no need to know the iteration/data spaces.</p>
+<p>A special <a class="reference internal" href="#devito.ir.equations.equation.ClusterizedEq" title="devito.ir.equations.equation.ClusterizedEq"><code class="xref py py-class docutils literal notranslate"><span class="pre">ClusterizedEq</span></code></a> that tracks no iteration or data spaces.</p>
 <dl class="attribute">
 <dt id="devito.ir.equations.equation.DummyEq.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.ir.equations.equation.DummyEq.default_assumptions" title="Permalink to this definition">¶</a></dt>

@@ -29,7 +29,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="devito.tools package" href="devito.tools.html" />
-    <link rel="prev" title="devito.ir.support package" href="devito.ir.support.html" /> 
+    <link rel="prev" title="devito.mpi package" href="devito.mpi.html" /> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -93,6 +93,7 @@
 <li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.mpi.html">devito.mpi package</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">devito.symbolics package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.symbolics.extended_sympy">devito.symbolics.extended_sympy module</a></li>
@@ -113,7 +114,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.distributed">devito.distributed module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
@@ -298,6 +298,23 @@ but xreplace does:</p>
 <p>A customized version of <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> representing a conditional
 equality. It suppresses evaluation.</p>
 <dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.CondEq.canonical">
+<code class="descname">canonical</code><a class="headerlink" href="#devito.symbolics.extended_sympy.CondEq.canonical" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a canonical form of the relational.</p>
+<dl class="docutils">
+<dt>The rules for the canonical form, in order of decreasing priority are:</dt>
+<dd><ol class="first last arabic simple">
+<li>Number on right if left is not a Number;</li>
+<li>Symbol on the left;</li>
+<li>Gt/Ge changed to Lt/Le;</li>
+<li>Lt/Le are unchanged;</li>
+<li>Eq and Ne get ordered args.</li>
+</ol>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.CondEq.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.CondEq.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -310,6 +327,23 @@ equality. It suppresses evaluation.</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Unequality</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
 <p>A customized version of <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Ne</span></code> representing a conditional
 inequality. It suppresses evaluation.</p>
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.CondNe.canonical">
+<code class="descname">canonical</code><a class="headerlink" href="#devito.symbolics.extended_sympy.CondNe.canonical" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a canonical form of the relational.</p>
+<dl class="docutils">
+<dt>The rules for the canonical form, in order of decreasing priority are:</dt>
+<dd><ol class="first last arabic simple">
+<li>Number on right if left is not a Number;</li>
+<li>Symbol on the left;</li>
+<li>Gt/Ge changed to Lt/Le;</li>
+<li>Lt/Le are unchanged;</li>
+<li>Eq and Ne get ordered args.</li>
+</ol>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.CondNe.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.CondNe.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -379,6 +413,46 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 </dd></dl>
 
 <dl class="class">
+<dt id="devito.symbolics.extended_sympy.FieldFromPointer">
+<em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">FieldFromPointer</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#FieldFromPointer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.FieldFromPointer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.symbolics.extended_sympy.FunctionFromPointer" title="devito.symbolics.extended_sympy.FunctionFromPointer"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FunctionFromPointer</span></code></a>, <a class="reference internal" href="devito.tools.html#devito.tools.abc.Pickable" title="devito.tools.abc.Pickable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Pickable</span></code></a></p>
+<p>Symbolic representation of the C notation <code class="docutils literal notranslate"><span class="pre">pointer-&gt;field</span></code>.</p>
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.FieldFromPointer.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.FieldFromPointer.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.FieldFromPointer.field">
+<code class="descname">field</code><a class="headerlink" href="#devito.symbolics.extended_sympy.FieldFromPointer.field" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.symbolics.extended_sympy.FieldFromComposite">
+<em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">FieldFromComposite</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#FieldFromComposite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.FieldFromComposite" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.symbolics.extended_sympy.FunctionFromPointer" title="devito.symbolics.extended_sympy.FunctionFromPointer"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FunctionFromPointer</span></code></a>, <a class="reference internal" href="devito.tools.html#devito.tools.abc.Pickable" title="devito.tools.abc.Pickable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Pickable</span></code></a></p>
+<p>Symbolic representation of the C notation <code class="docutils literal notranslate"><span class="pre">composite.field</span></code>,
+where <code class="docutils literal notranslate"><span class="pre">composite</span></code> is a struct/union/…</p>
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.FieldFromComposite.composite">
+<code class="descname">composite</code><a class="headerlink" href="#devito.symbolics.extended_sympy.FieldFromComposite.composite" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.FieldFromComposite.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.FieldFromComposite.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.FieldFromComposite.field">
+<code class="descname">field</code><a class="headerlink" href="#devito.symbolics.extended_sympy.FieldFromComposite.field" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
 <dt id="devito.symbolics.extended_sympy.ListInitializer">
 <em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">ListInitializer</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#ListInitializer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.ListInitializer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.expr.Expr</span></code>, <a class="reference internal" href="devito.tools.html#devito.tools.abc.Pickable" title="devito.tools.abc.Pickable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Pickable</span></code></a></p>
@@ -386,6 +460,30 @@ denominator (e.g., <a href="#id1"><span class="problematic" id="id2">``</span></
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.ListInitializer.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.ListInitializer.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.symbolics.extended_sympy.Byref">
+<em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">Byref</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#Byref"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.Byref" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.symbol.Symbol</span></code>, <a class="reference internal" href="devito.tools.html#devito.tools.abc.Pickable" title="devito.tools.abc.Pickable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Pickable</span></code></a></p>
+<p>Symbolic representation of the C++ notation <code class="docutils literal notranslate"><span class="pre">&amp;symbol</span></code>.</p>
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.Byref.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Byref.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.symbolics.extended_sympy.Macro">
+<em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">Macro</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#Macro"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.Macro" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.symbol.Symbol</span></code></p>
+<p>Symbolic representation of a C++ macro.</p>
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.Macro.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Macro.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -851,7 +949,7 @@ x + 2 -&gt; True</p>
         <a href="devito.tools.html" class="btn btn-neutral float-right" title="devito.tools package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="devito.ir.support.html" class="btn btn-neutral" title="devito.ir.support package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="devito.mpi.html" class="btn btn-neutral" title="devito.mpi package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

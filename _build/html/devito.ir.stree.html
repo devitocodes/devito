@@ -97,6 +97,7 @@
 <li class="toctree-l4"><a class="reference internal" href="devito.ir.html#module-devito.ir">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="devito.mpi.html">devito.mpi package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.tools.html">devito.tools package</a></li>
 </ul>
@@ -108,7 +109,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.distributed">devito.distributed module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
@@ -198,26 +198,9 @@
 <div class="section" id="module-devito.ir.stree.algorithms">
 <span id="devito-ir-stree-algorithms-module"></span><h2>devito.ir.stree.algorithms module<a class="headerlink" href="#module-devito.ir.stree.algorithms" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
-<dt id="devito.ir.stree.algorithms.schedule">
-<code class="descclassname">devito.ir.stree.algorithms.</code><code class="descname">schedule</code><span class="sig-paren">(</span><em>clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/algorithms.html#schedule"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.algorithms.schedule" title="Permalink to this definition">¶</a></dt>
-<dd><p>Arrange an iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">Cluster`s</span> <span class="pre">into</span> <span class="pre">a</span> <span class="pre">:class:`ScheduleTree</span></code>.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.ir.stree.algorithms.section">
-<code class="descclassname">devito.ir.stree.algorithms.</code><code class="descname">section</code><span class="sig-paren">(</span><em>stree</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/algorithms.html#section"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.algorithms.section" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create sections in a <code class="xref py py-class docutils literal notranslate"><span class="pre">ScheduleTree</span></code>. A section is a sub-tree with
-the following properties:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* The root is a node of type :class:`NodeSection`;
-* The immediate children of the root are nodes of type :class:`NodeIteration`
-  and have same parent.
-* The :class:`Dimension` of the immediate children are either: ::
-    * identical, OR
-    * different, but all of type :class:`SubDimension`;
-* The :class:`Dimension` of the immediate children cannot be a
-  :class:`TimeDimension`.
-</pre></div>
-</div>
+<dt id="devito.ir.stree.algorithms.st_build">
+<code class="descclassname">devito.ir.stree.algorithms.</code><code class="descname">st_build</code><span class="sig-paren">(</span><em>clusters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/algorithms.html#st_build"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.algorithms.st_build" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a <code class="xref py py-class docutils literal notranslate"><span class="pre">ScheduleTree</span></code> from a <code class="xref py py-class docutils literal notranslate"><span class="pre">ClusterGroup</span></code>.</p>
 </dd></dl>
 
 </div>
@@ -235,6 +218,11 @@ the following properties:</p>
 <dl class="attribute">
 <dt id="devito.ir.stree.tree.ScheduleTree.is_Exprs">
 <code class="descname">is_Exprs</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree.is_Exprs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.ScheduleTree.is_Halo">
+<code class="descname">is_Halo</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.stree.tree.ScheduleTree.is_Halo" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -324,6 +312,17 @@ the following properties:</p>
 <dl class="attribute">
 <dt id="devito.ir.stree.tree.NodeExprs.is_Exprs">
 <code class="descname">is_Exprs</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.stree.tree.NodeExprs.is_Exprs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.stree.tree.NodeHalo">
+<em class="property">class </em><code class="descclassname">devito.ir.stree.tree.</code><code class="descname">NodeHalo</code><span class="sig-paren">(</span><em>halo_scheme</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/stree/tree.html#NodeHalo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.stree.tree.NodeHalo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.stree.tree.ScheduleTree" title="devito.ir.stree.tree.ScheduleTree"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.stree.tree.ScheduleTree</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.ir.stree.tree.NodeHalo.is_Halo">
+<code class="descname">is_Halo</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.stree.tree.NodeHalo.is_Halo" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

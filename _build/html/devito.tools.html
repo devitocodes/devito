@@ -92,6 +92,7 @@
 <li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.mpi.html">devito.mpi package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">devito.tools package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
@@ -115,7 +116,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.distributed">devito.distributed module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.finite_difference">devito.finite_difference module</a></li>
@@ -211,6 +211,14 @@
 <p class="first admonition-title">Note</p>
 <p class="last">This class must be subclassed for each new category.</p>
 </div>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.tools.abc.ArgProvider">
+<em class="property">class </em><code class="descclassname">devito.tools.abc.</code><code class="descname">ArgProvider</code><a class="reference internal" href="_modules/devito/tools/abc.html#ArgProvider"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.abc.ArgProvider" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A base class for types that can provide runtime values for dynamically
+executed (JIT-compiled) code.</p>
 </dd></dl>
 
 <dl class="class">
@@ -528,6 +536,12 @@ boolean function with n &gt; 2 inputs. Hence the name <code class="docutils lite
 <dt id="devito.tools.utils.numpy_to_ctypes">
 <code class="descclassname">devito.tools.utils.</code><code class="descname">numpy_to_ctypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#numpy_to_ctypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.numpy_to_ctypes" title="Permalink to this definition">¶</a></dt>
 <dd><p>Map numpy types to ctypes types.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.numpy_to_mpitypes">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">numpy_to_mpitypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#numpy_to_mpitypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.numpy_to_mpitypes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map numpy types to MPI datatypes.</p>
 </dd></dl>
 
 <dl class="function">

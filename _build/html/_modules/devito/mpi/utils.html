@@ -1,0 +1,359 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.mpi.utils &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.mpi.utils</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.mpi.utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
+
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Scope</span><span class="p">,</span> <span class="n">Forward</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">OWNED</span><span class="p">,</span> <span class="n">HALO</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_mapper</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_views&#39;</span><span class="p">,</span> <span class="s1">&#39;HaloScheme&#39;</span><span class="p">,</span> <span class="s1">&#39;HaloSchemeException&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="get_views"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.utils.get_views">[docs]</a><span class="k">def</span> <span class="nf">get_views</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fixed</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a mapper ``(dimension, side, region) -&gt; (size, offset)`` for a</span>
+<span class="sd">    :class:`TensorFunction`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">region</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">],</span> <span class="p">[</span><span class="n">OWNED</span><span class="p">,</span> <span class="n">HALO</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="n">dimension</span> <span class="ow">in</span> <span class="n">fixed</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">sizes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">offsets</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">fixed</span><span class="p">:</span>
+                <span class="n">offsets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fixed</span><span class="p">[</span><span class="n">d</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="n">dimension</span> <span class="ow">is</span> <span class="n">d</span><span class="p">:</span>
+                <span class="n">offset</span><span class="p">,</span> <span class="n">extent</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">_get_region</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+                <span class="n">sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">extent</span><span class="p">)</span>
+                <span class="n">offsets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">offset</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="n">offsets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="p">[(</span><span class="n">dimension</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">region</span><span class="p">)]</span> <span class="o">=</span> <span class="p">(</span><span class="n">sizes</span><span class="p">,</span> <span class="n">offsets</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mapper</span></div>
+
+
+<div class="viewcode-block" id="HaloScheme"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.utils.HaloScheme">[docs]</a><span class="k">class</span> <span class="nc">HaloScheme</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A HaloScheme consists of several mappers describing a halo exchange pattern.</span>
+
+<span class="sd">        * ``dmapper``: ``dimension -&gt; [(function, side, amount), ...]``</span>
+<span class="sd">        * ``fmapper``: ``function -&gt; [(dimension, side, amount), ...]``</span>
+
+<span class="sd">    For the :class:`Dimension`s that need no halo exchange but appear in one</span>
+<span class="sd">    or more of the tracked :class:`TensorFunction`s, a further mapper</span>
+
+<span class="sd">        * ``fixed``: ``dimension -&gt; dimension``</span>
+
+<span class="sd">    is provided telling at which index in these dimensions should the halo</span>
+<span class="sd">    be inserted.</span>
+<span class="sd">    For example, consider the :class:`Function` ``u(t, x, y)``. Assume ``x`` and</span>
+<span class="sd">    ``y`` require a halo exchange. A question is: once the halo exchange is</span>
+<span class="sd">    performed, at what offset in ``t`` should it be placed? should it be at</span>
+<span class="sd">    ``u(0, ...)`` or ``u(1, ...)`` or even ``u(t-1, ...)``? The ``fixed`` mapper</span>
+<span class="sd">    provides this information.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mapper</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fixed</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># What Functions actually need a halo exchange?</span>
+        <span class="n">need_halo</span> <span class="o">=</span> <span class="n">as_mapper</span><span class="p">(</span><span class="n">Scope</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span><span class="o">.</span><span class="n">d_all</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="p">)</span>
+        <span class="n">need_halo</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">need_halo</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">}</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">dspace</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">f</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">need_halo</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` needs a `Grid` for a HaloScheme&quot;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+                    <span class="n">r</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">root</span>
+                    <span class="k">if</span> <span class="n">v</span><span class="p">[</span><span class="n">r</span><span class="p">]</span><span class="o">.</span><span class="n">is_Null</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="k">elif</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+                        <span class="c1"># Found a distributed dimension, calculate what and how</span>
+                        <span class="c1"># much halo is needed</span>
+                        <span class="n">lsize</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">-</span> <span class="n">v</span><span class="p">[</span><span class="n">r</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span>
+                        <span class="k">if</span> <span class="n">lsize</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">_mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">lsize</span><span class="p">))</span>
+                        <span class="n">rsize</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="n">r</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span> <span class="o">-</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
+                        <span class="k">if</span> <span class="n">rsize</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">_mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">,</span> <span class="n">rsize</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># Found a serial dimension, we need to determine where,</span>
+                        <span class="c1"># along this dimension, the halo will have to be placed</span>
+                        <span class="n">fixed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fixed</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())</span>
+                        <span class="n">shift</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">any</span><span class="p">(</span><span class="n">d</span> <span class="ow">in</span> <span class="n">dep</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">need_halo</span><span class="p">[</span><span class="n">f</span><span class="p">]))</span>
+                        <span class="c1"># Examples:</span>
+                        <span class="c1"># u[t+1, x] = f(u[t, x])   =&gt; shift == 1</span>
+                        <span class="c1"># u[t-1, x] = f(u[t, x])   =&gt; shift == 1</span>
+                        <span class="c1"># u[t+1, x] = f(u[t+1, x]) =&gt; shift == 0</span>
+                        <span class="c1"># In the first and second cases, the x-halo should be inserted</span>
+                        <span class="c1"># at `t`, while in the last case it should be inserted at `t+1`</span>
+                        <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">directions</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="ow">is</span> <span class="n">Forward</span><span class="p">:</span>
+                            <span class="n">last</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="n">r</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span> <span class="o">-</span> <span class="n">shift</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">last</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="n">r</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span> <span class="o">+</span> <span class="n">shift</span>
+                        <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+                            <span class="c1"># TimeFunctions using modulo-buffered iteration require</span>
+                            <span class="c1"># special handling</span>
+                            <span class="n">subiters</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">sub_iterators</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="p">[])</span>
+                            <span class="n">submap</span> <span class="o">=</span> <span class="n">as_mapper</span><span class="p">(</span><span class="n">subiters</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">md</span><span class="p">:</span> <span class="n">md</span><span class="o">.</span><span class="n">modulo</span><span class="p">)</span>
+                            <span class="n">submap</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">origin</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">submap</span><span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="n">_time_size</span><span class="p">]}</span>
+                            <span class="k">try</span><span class="p">:</span>
+                                <span class="n">handle</span> <span class="o">=</span> <span class="n">submap</span><span class="p">[</span><span class="n">d</span> <span class="o">+</span> <span class="n">last</span><span class="p">]</span>
+                            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                                <span class="k">raise</span> <span class="n">HaloSchemeException</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">handle</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">last</span>
+                        <span class="k">if</span> <span class="n">handle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">handle</span> <span class="o">!=</span> <span class="n">fixed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">handle</span><span class="p">):</span>
+                            <span class="k">raise</span> <span class="n">HaloSchemeException</span>
+                        <span class="n">fixed</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">handle</span> <span class="ow">or</span> <span class="n">fixed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">fixed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fixed</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">fmapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mapper</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">dmapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fmapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">size</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">mapper</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fmapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">needed</span> <span class="o">=</span> <span class="p">[(</span><span class="n">d</span><span class="p">,</span> <span class="n">side</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">]):</span>
+                <span class="k">if</span> <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed</span><span class="p">[</span><span class="n">f</span><span class="p">]:</span>
+                    <span class="k">continue</span>
+                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">needed</span>
+        <span class="k">return</span> <span class="n">mapper</span></div>
+
+
+<div class="viewcode-block" id="HaloSchemeException"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.utils.HaloSchemeException">[docs]</a><span class="k">class</span> <span class="nc">HaloSchemeException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            LANGUAGE:'en',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
