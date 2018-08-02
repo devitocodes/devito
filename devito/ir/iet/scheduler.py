@@ -127,7 +127,7 @@ def iet_insert_C_decls(iet, func_table=None):
             # On the heap, as a tensor that must be globally accessible
             allocator.push_heap(k.write)
 
-    # Then, schedule declarations callables arguments passed by reference/pointer
+    # Then, schedule declarations for Callable arguments passed by reference/pointer
     # (as modified internally by the callable)
     scopes = [(k, v) for k, v in me.visit(iet).items() if k.is_Call]
     for k, v in scopes:

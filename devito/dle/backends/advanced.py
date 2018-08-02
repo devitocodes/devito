@@ -14,9 +14,10 @@ from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL,
+from devito.ir.iet import (Expression, Iteration, List, HaloSpot, PARALLEL, ELEMENTAL,
                            REMAINDER, tagger, FindSymbols, FindNodes, Transformer,
-                           IsPerfectIteration, compose_nodes, retrieve_iteration_tree)
+                           FindAdjacent, IsPerfectIteration, compose_nodes,
+                           retrieve_iteration_tree)
 from devito.logger import dle_warning, perf_adv
 from devito.tools import as_tuple
 
@@ -27,6 +28,7 @@ class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
+        self._optimize_halo_updates(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
@@ -46,6 +48,40 @@ class AdvancedRewriter(BasicRewriter):
             perf_adv("Functions using modulo iteration along Dimension `%s` "
                      "may safely allocate a one slot smaller buffer" % i.dim)
         return iet, {}
+
+    @dle_pass
+    def _optimize_halo_updates(self, iet, state):
+        """
+        Drop unnecessary halo exchanges, or shuffle them around to improve
+        computation-communication overlap.
+        """
+        # First, seek adjacent redundant HaloSpots, since by dropping any of
+        # these we may be able to change the IET nesting, thus affecting
+        # later manipulation passes
+        # Example (assume halo1 is redundant and has same HaloScheme as halo0):
+        # root -> halo0 -> iteration0        root -> halo0 -> iteration0
+        #      |                        ==>                |
+        #      -> halo1 -> iteration1                      -> iteration1
+        mapper = {}
+        for k, v in FindAdjacent(HaloSpot).visit(iet).items():
+            for adjacents in v:
+                # Note: at this point `adjacents` has at least two items
+                crt = adjacents[0]
+                for i in adjacents[1:]:
+                    if i.is_Redundant and i.halo_scheme == crt.halo_scheme:
+                        mapper[crt] = crt._rebuild(body=mapper.get(crt, crt).body + (i,),
+                                                   **crt.args_frozen)
+                        mapper[i] = None
+                    else:
+                        crt = i
+        processed = Transformer(mapper).visit(iet)
+
+        # Then, drop any leftover redundant HaloSpot
+        hss = FindNodes(HaloSpot).visit(processed)
+        mapper = {i: i.body[0] for i in hss if i.is_Redundant}
+        processed = Transformer(mapper, nested=True).visit(processed)
+
+        return processed, {}
 
     @dle_pass
     def _loop_blocking(self, nodes, state):
@@ -301,6 +337,7 @@ class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
+        self._optimize_halo_updates(state)
         self._loop_wrapping(state)
         self._loop_blocking(state)
         self._simdize(state)

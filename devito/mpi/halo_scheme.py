@@ -71,7 +71,7 @@ class HaloScheme(object):
 
     def __init__(self, exprs=None, ispace=None, dspace=None, fmapper=None):
         if fmapper is not None:
-            self._mapper = fmapper.copy()
+            self._mapper = frozendict(fmapper.copy())
             return
 
         self._mapper = {}
@@ -93,12 +93,17 @@ class HaloScheme(object):
             if halos:
                 self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
 
+        self._mapper = frozendict(self._mapper)
+
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
         return "HaloScheme<%s>" % fnames
 
     def __eq__(self, other):
         return isinstance(other, HaloScheme) and self.fmapper == other.fmapper
+
+    def __hash__(self):
+        return self.fmapper.__hash__()
 
     @property
     def fmapper(self):
