@@ -69,12 +69,13 @@ def mark_parallel(analysis):
     properties = OrderedDict()
     for tree in analysis.trees:
         for depth, i in enumerate(tree):
-            if i in properties:
+            if properties.get(i) is SEQUENTIAL:
+                # Speed-up analysis
                 continue
 
             if i.uindices:
                 # Only ++/-- increments of iteration variables are supported
-                properties[i] = SEQUENTIAL
+                properties.setdefault(i, []).append(SEQUENTIAL)
                 continue
 
             # Get all dimensions up to and including Iteration /i/, grouped by Iteration
@@ -104,11 +105,16 @@ def mark_parallel(analysis):
                         break
 
             if is_parallel:
-                properties[i] = PARALLEL
+                properties.setdefault(i, []).append(PARALLEL)
             elif is_atomic_parallel:
-                properties[i] = PARALLEL_IF_ATOMIC
+                properties.setdefault(i, []).append(PARALLEL_IF_ATOMIC)
             else:
-                properties[i] = SEQUENTIAL
+                properties.setdefault(i, []).append(SEQUENTIAL)
+
+    # Reduction (e.g, SEQUENTIAL takes priority over PARALLEL)
+    priorities = {PARALLEL: 0, PARALLEL_IF_ATOMIC: 1, SEQUENTIAL: 2}
+    properties = OrderedDict([(k, max(v, key=lambda i: priorities[i]))
+                              for k, v in properties.items()])
 
     analysis.update(properties)
 
