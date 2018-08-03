@@ -22,7 +22,7 @@ from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
            'IsPerfectIteration', 'ReplaceStepIndices', 'printAST', 'CGen',
-           'Transformer', 'FindAdjacentIterations', 'MapIteration']
+           'Transformer', 'FindAdjacent', 'MapIteration']
 
 
 class Visitor(GenericVisitor):
@@ -481,17 +481,21 @@ class FindNodes(Visitor):
         return ret
 
 
-class FindAdjacentIterations(Visitor):
+class FindAdjacent(Visitor):
 
     @classmethod
     def default_retval(cls):
-        return OrderedDict([('seen_iteration', False)])
+        return OrderedDict([('seen_type', False)])
 
     """
     Return a mapper from nodes N in an Expression/Iteration tree to sequences of
-    :class:`Iteration` objects I = [I_0, I_1, ...], where N is the direct ancestor of
+    objects I = [I_0, I_1, ...] of type T, where N is the direct ancestor of
     the items in I and all items in I are adjacent nodes in the tree.
     """
+
+    def __init__(self, match):
+        super(FindAdjacent, self).__init__()
+        self.match = match
 
     def handler(self, o, parent=None, ret=None):
         if ret is None:
@@ -501,7 +505,7 @@ class FindAdjacentIterations(Visitor):
         group = []
         for i in o:
             ret = self._visit(i, parent=parent, ret=ret)
-            if i and ret['seen_iteration'] is True:
+            if i and ret['seen_type'] is True:
                 group.append(i)
             else:
                 if len(group) > 1:
@@ -513,6 +517,10 @@ class FindAdjacentIterations(Visitor):
             ret.setdefault(parent, []).append(tuple(group))
         return ret
 
+    def _post_visit(self, ret):
+        ret.pop('seen_type', None)
+        return ret
+
     def visit_object(self, o, parent=None, ret=None):
         return ret
 
@@ -521,12 +529,7 @@ class FindAdjacentIterations(Visitor):
 
     def visit_Node(self, o, parent=None, ret=None):
         ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_iteration'] = False
-        return ret
-
-    def visit_Iteration(self, o, parent=None, ret=None):
-        ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_iteration'] = True
+        ret['seen_type'] = type(o) is self.match
         return ret
 
 

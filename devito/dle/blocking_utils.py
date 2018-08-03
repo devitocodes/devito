@@ -1,9 +1,9 @@
 import cgen as c
 
 from devito.dimension import IncrDimension
-from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacentIterations,
-                           FindNodes, IsPerfectIteration, Transformer, compose_nodes,
-                           is_foldable, retrieve_iteration_tree)
+from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacent,
+                           FindNodes, IsPerfectIteration, Transformer,
+                           compose_nodes, is_foldable, retrieve_iteration_tree)
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
 
@@ -14,8 +14,7 @@ def fold_blockable_tree(node, exclude_innermost=False):
     """
     Create :class:`IterationFold`s from sequences of nested :class:`Iteration`.
     """
-    found = FindAdjacentIterations().visit(node)
-    found.pop('seen_iteration')
+    found = FindAdjacent(Iteration).visit(node)
 
     mapper = {}
     for k, v in found.items():
