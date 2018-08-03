@@ -14,7 +14,6 @@ import cgen as c
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.function import TimeFunction
-from devito.ir.iet.nodes import Node
 from devito.ir.support.space import Backward
 from devito.symbolics import xreplace_indices
 from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
@@ -593,21 +592,28 @@ class Transformer(Visitor):
         if o in self.mapper:
             handle = self.mapper[o]
             if handle is None:
-                # None -> drop /o/
+                # None -> drop `o`
                 return None
             elif isinstance(handle, Iterable):
+                # Iterable -> inject `handle` into `o`'s children
                 if not o.children:
                     raise VisitorException
-                extended = (tuple(handle) + o.children[0],) + o.children[1:]
-                return o._rebuild(*extended, **o.args_frozen)
-            elif self.nested:
-                rebuilt = [self._visit(i, **kwargs) for i in handle.children]
-                return handle._rebuild(*rebuilt, **handle.args_frozen)
+                if self.nested:
+                    children = [self._visit(i, **kwargs) for i in o.children]
+                else:
+                    children = o.children
+                children = (tuple(handle) + children[0],) + tuple(children[1:])
+                return o._rebuild(*children, **o.args_frozen)
             else:
-                return handle._rebuild(**handle.args)
+                # Replace `o` with `handle`
+                if self.nested:
+                    children = [self._visit(i, **kwargs) for i in handle.children]
+                    return handle._rebuild(*children, **handle.args_frozen)
+                else:
+                    return handle._rebuild(**handle.args)
         else:
-            rebuilt = [self._visit(i, **kwargs) for i in o.children]
-            return o._rebuild(*rebuilt, **o.args_frozen)
+            children = [self._visit(i, **kwargs) for i in o.children]
+            return o._rebuild(*children, **o.args_frozen)
 
     def visit_Operator(self, o, **kwargs):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
