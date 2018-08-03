@@ -575,7 +575,6 @@ class Transformer(Visitor):
     def __init__(self, mapper={}, nested=False):
         super(Transformer, self).__init__()
         self.mapper = mapper.copy()
-        self.rebuilt = {}
         self.nested = nested
 
     def visit_object(self, o, **kwargs):
@@ -609,12 +608,6 @@ class Transformer(Visitor):
 
     def visit_Operator(self, o, **kwargs):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
-
-    def visit(self, o, *args, **kwargs):
-        obj = super(Transformer, self).visit(o, *args, **kwargs)
-        if isinstance(o, Node) and obj is not o:
-            self.rebuilt[o] = obj
-        return obj
 
 
 class ReplaceStepIndices(Transformer):
