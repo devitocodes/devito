@@ -70,10 +70,10 @@ class ElasticWaveSolver(object):
         vz = TimeFunction(name='vz', grid=self.model.grid, staggered=(0, 0, 1),
                           save=src.nt if save else None,
                           time_order=2, space_order=self.space_order)
-        txx = TimeFunction(name='txx', grid=self.model.grid,
+        txx = TimeFunction(name='txx', grid=self.model.grid, staggered=(0, 0, 0),
                            save=src.nt if save else None,
                            time_order=2, space_order=self.space_order)
-        tzz = TimeFunction(name='tzz', grid=self.model.grid,
+        tzz = TimeFunction(name='tzz', grid=self.model.grid, staggered=(0, 0, 0),
                            save=src.nt if save else None,
                            time_order=2, space_order=self.space_order)
         txz = TimeFunction(name='txz', grid=self.model.grid, staggered=(0, 1, 1),

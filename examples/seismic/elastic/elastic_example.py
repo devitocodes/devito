@@ -43,6 +43,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
+    from IPython import embed; embed()
     return rec1, rec2, vx, vz, txx, tzz, txz, summary
 
 
@@ -68,8 +69,8 @@ if __name__ == "__main__":
 
     # 2D preset parameters
     shape = (150, 150)
-    spacing = (15.0, 15.0)
-    tn = 1500.0
+    spacing = (10.0, 10.0)
+    tn = 500.0
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn, dle=args.dle,
         space_order=args.space_order, autotune=args.autotune, constant=args.constant,

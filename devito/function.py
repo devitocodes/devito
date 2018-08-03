@@ -124,7 +124,7 @@ class TensorFunction(AbstractCachedFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             # Staggered mask
-            self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
+            self._staggered = kwargs.get('staggered', tuple(None for _ in self.indices))
             if len(self.staggered) != len(self.indices):
                 raise ValueError("'staggered' needs %s entries for indices %s"
                                  % (len(self.indices), self.indices))
@@ -204,7 +204,8 @@ class TensorFunction(AbstractCachedFunction):
 
             Alias to ``self.shape``.
         """
-        return tuple(i - j for i, j in zip(self._shape, self.staggered))
+        staggered = tuple([s if s is not None else 0 for s in self.staggered])
+        return tuple(i - j for i, j in zip(self._shape, staggered))
 
     @property
     def shape_with_halo(self):
@@ -293,8 +294,9 @@ class TensorFunction(AbstractCachedFunction):
             * the shifting induced by the ``staggered`` mask
         """
         symbolic_shape = super(TensorFunction, self).symbolic_shape
+        staggered = tuple([s if s is not None else 0 for s in self.staggered])
         return tuple(sympy.Add(i, -j, evaluate=False)
-                     for i, j in zip(symbolic_shape, self.staggered))
+                     for i, j in zip(symbolic_shape, staggered))
 
     @property
     def _arg_names(self):
@@ -311,7 +313,8 @@ class TensorFunction(AbstractCachedFunction):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
+        staggered = tuple([s if s is not None else 0 for s in self.staggered])
+        for i, s, o, k in zip(self.indices, self.shape, staggered, key.indices):
             args.update(i._arg_defaults(start=0, size=s+o, alias=k))
         return args
 

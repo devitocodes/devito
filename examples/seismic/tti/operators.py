@@ -5,6 +5,16 @@ from examples.seismic import PointSource, Receiver
 from devito.finite_difference import (centered, first_derivative, right, transpose, left,
                                       staggered_diff)
 
+        # if dim == x:
+        #     return cos(theta) * cos(phi) * dx + sin(phi) * cos(theta) * dy -\
+        #         sin(theta) * dz
+        # elif dim == z:
+        #     return sin(theta) * cos(phi) * dx + sin(phi) * sin(theta) * dy +\
+        #         cos(theta) * dz
+        # elif is_y:
+        #     return -sin(phi) * dx + cos(phi) * dy
+        # else:
+        #     return 0
 
 def second_order_stencil(model, u, v, H0, Hz):
     """
