@@ -98,6 +98,7 @@ class Parameters(OrderedDict, Signer):
                        if it[0] not in ['log_level', 'first_touch'])
         return tuple(str(items)) + tuple(str(sorted(self.backend.items())))
 
+
 env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
     'DEVITO_ISA': 'isa',
