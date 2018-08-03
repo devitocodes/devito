@@ -166,7 +166,7 @@ def pow_to_mul(expr):
             # Cannot handle powers containing non-integer non-positive exponents
             return expr
         else:
-            return sympy.Mul(*[base]*exp, evaluate=False)
+            return devito.finite_differences.operations.Mul(*[base]*exp, evaluate=False)
     else:
         return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
 

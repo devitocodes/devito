@@ -709,6 +709,7 @@ class TimeFunction(Function):
 
         return self.subs(_t, _t - i * _t.spacing)
 
+    @property
     def _time_size(self):
         return self.shape_allocated[self._time_position]
 
@@ -1031,7 +1032,7 @@ class SparseFunction(AbstractSparseFunction):
 
         # Substitute coordinate base symbols into the coefficients
         return [Inc(field.subs(vsub),
-                    field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
+                    Add(field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs)))
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
 
