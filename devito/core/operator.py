@@ -3,7 +3,7 @@ from collections import OrderedDict
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.ir.iet import (Call, List, HaloSpot, MetaCall, FindNodes, Transformer,
-                           filter_iterations, retrieve_iteration_tree)
+                           NestedTransformer, filter_iterations, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.mpi import copy, sendrecv, update_halo
@@ -32,17 +32,16 @@ class OperatorCore(OperatorRunnable):
         cstructs = set()
         for hs in FindNodes(HaloSpot).visit(iet):
             for f, v in hs.fmapper.items():
-                fixed = hs.fixed.get(f, {})
-                callables.append(update_halo(f, fixed))
-                callables.append(sendrecv(f, fixed))
-                callables.extend([copy(f, fixed), copy(f, fixed, True)])
+                callables.append(update_halo(f, v.loc_indices))
+                callables.append(sendrecv(f, v.loc_indices))
+                callables.extend([copy(f, v.loc_indices), copy(f, v.loc_indices, True)])
 
                 stencil = [int(i) for i in hs.mask[f].values()]
                 comm = f.grid.distributor._C_comm
                 nb = f.grid.distributor._C_neighbours.obj
-                fixed = list(fixed.values())
+                loc_indices = list(v.loc_indices.values())
                 dsizes = [d.symbolic_size for d in f.dimensions]
-                parameters = [f] + stencil + [comm, nb] + fixed + dsizes
+                parameters = [f] + stencil + [comm, nb] + loc_indices + dsizes
                 call = Call('halo_exchange_%s' % f.name, parameters)
                 mapper.setdefault(hs, []).append(call)
 
@@ -61,7 +60,7 @@ class OperatorCore(OperatorRunnable):
 
         # Add in the halo update calls
         mapper = {k: List(body=v + list(k.body)) for k, v in mapper.items()}
-        iet = Transformer(mapper).visit(iet)
+        iet = NestedTransformer(mapper).visit(iet)
 
         return iet
 

@@ -807,10 +807,6 @@ class HaloSpot(List):
     def mask(self):
         return self.halo_scheme.mask
 
-    @property
-    def fixed(self):
-        return self.halo_scheme.fixed
-
     def __repr__(self):
         return "<HaloSpot>"
 

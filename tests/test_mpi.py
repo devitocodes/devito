@@ -417,6 +417,20 @@ class TestOperatorSimple(object):
         else:
             assert np.all(f.data_ro_domain[0] == 3.)
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_multiple_loop_nests(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+
+        op = Operator([Eq(f.forward, f[t, x-1] + f + 1),
+                       Eq(f.forward, f[t+1, x-1] + f.forward)])
+        op.apply(time=1)
+        from IPython import embed; embed()
+
 
 class TestIsotropicAcoustic(object):
 
@@ -436,4 +450,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestIsotropicAcoustic().test_adjoint_F((60, ), 'OT2', 4, 10)
+    TestOperatorSimple().test_trivial_eq_2d()
