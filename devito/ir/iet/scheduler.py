@@ -101,7 +101,7 @@ def iet_insert_C_decls(iet, func_table=None):
     allocator = Allocator()
     mapper = OrderedDict()
 
-    # First, schedule declarations for Expressions
+    # Detect all IET nodes accessing symbols that need to be declared
     scopes = []
     me = MapExpressions()
     for k, v in me.visit(iet).items():
@@ -109,40 +109,38 @@ def iet_insert_C_decls(iet, func_table=None):
             func = func_table.get(k.name)
             if func is not None and func.local:
                 scopes.extend(me.visit(func.root, queue=list(v)).items())
-        else:
-            scopes.append((k, v))
-    for k, v in scopes:
-        if k.is_scalar:
-            # Inline declaration
-            mapper[k] = LocalExpression(**k.args)
-        elif k.write is None or k.write._mem_external:
-            # Nothing to do, e.g., variable passed as kernel argument
-            continue
-        elif k.write._mem_stack:
-            # On the stack
-            key = lambda i: not i.is_Parallel
-            site = filter_iterations(v, key=key, stop='asap') or [iet]
-            allocator.push_stack(site[-1], k.write)
-        else:
-            # On the heap, as a tensor that must be globally accessible
-            allocator.push_heap(k.write)
+        scopes.append((k, v))
 
-    # Then, schedule declarations for Callable arguments passed by reference/pointer
-    # (as modified internally by the callable)
-    scopes = [(k, v) for k, v in me.visit(iet).items() if k.is_Call]
+    # Classify, and then schedule declarations to stack/heap
     for k, v in scopes:
-        site = v[-1] if v else iet
-        for i in k.params:
+        if k.is_Expression:
+            if k.is_scalar:
+                # Inline declaration
+                mapper[k] = LocalExpression(**k.args)
+                continue
+            objs = [k.write]
+        elif k.is_Call:
+            objs = k.params
+        else:
+            raise NotImplementedError("Cannot schedule declarations for IET "
+                                      "node of type `%s`" % type(k))
+        for i in objs:
             try:
                 if i.is_LocalObject:
                     # On the stack
+                    site = v[-1] if v else iet
                     allocator.push_stack(site, i)
                 elif i.is_Array:
-                    if i._mem_stack:
+                    if i._mem_external:
+                        # Nothing to do; e.g., a user-provided Function
+                        continue
+                    elif i._mem_stack:
                         # On the stack
-                        allocator.push_stack(site, i)
-                    elif i._mem_heap:
-                        # On the heap
+                        key = lambda i: not i.is_Parallel
+                        site = filter_iterations(v, key=key, stop='asap') or [iet]
+                        allocator.push_stack(site[-1], i)
+                    else:
+                        # On the heap, as a tensor that must be globally accessible
                         allocator.push_heap(i)
             except AttributeError:
                 # E.g., a generic SymPy expression
