@@ -133,7 +133,7 @@ class Dimension(AbstractSymbol, ArgProvider):
         dim = alias or self
         return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
 
-    def _arg_values(self, args, interval, **kwargs):
+    def _arg_values(self, args, interval, grid, **kwargs):
         """
         Returns a map of argument values after evaluating user input. If no
         user input is provided, get a known value in ``args`` and adjust it
@@ -144,40 +144,53 @@ class Dimension(AbstractSymbol, ArgProvider):
 
         :param args: Dictionary of known argument values.
         :param interval: A :class:`Interval` for ``self``.
+        :param grid: A :class:`Grid`; if ``self`` is a distributed Dimension in
+                     ``grid``, then the user input is translated into rank-local
+                     indices.
         :param kwargs: Dictionary of user-provided argument overrides.
         """
+        # Fetch user input: min value
+        if self.min_name in kwargs:
+            min_value = kwargs.pop(self.min_name)
+        else:
+            min_value = None
+        # Fetch user input: max value
+        if self.max_name in kwargs:
+            # User-override
+            max_value = kwargs.pop(self.max_name)
+        elif self.name in kwargs:
+            # Let `dim.name` be an alias for `dim.max_name`
+            max_value = kwargs.pop(self.name)
+        elif self.ext_name in kwargs:
+            # Extent is used to derive max value
+            max_value = values[self.min_name] + kwargs[self.ext_name] - 1
+        else:
+            max_value = None
+
+        # Convert global to local indices, if necessary
+        if grid is not None and grid.is_distributed(self):
+            min_value, max_value = grid.distributor.glb_to_loc(self, min_value, max_value)
+
+        # If not user-provided, use min/max default value, but adjust it
+        # so as to avoid OOB accesses
         defaults = self._arg_defaults()
         values = {}
-
-        # Min value
-        if self.min_name in kwargs:
-            # User-override
-            values[self.min_name] = kwargs.pop(self.min_name)
-        else:
-            # Adjust known/default value to avoid OOB accesses
+        if min_value is None:
             values[self.min_name] = args.get(self.min_name, defaults[self.min_name])
             try:
                 values[self.min_name] -= min(interval.lower, 0)
             except (AttributeError, TypeError):
                 pass
-
-        # Max value
-        if self.max_name in kwargs:
-            # User-override
-            values[self.max_name] = kwargs.pop(self.max_name)
-        elif self.name in kwargs:
-            # Let `dim.name` to be an alias for `dim.max_name`
-            values[self.max_name] = kwargs.pop(self.name)
-        elif self.ext_name in kwargs:
-            # Extent is used to derive max value
-            values[self.max_name] = values[self.min_name] + kwargs[self.ext_name] - 1
         else:
-            # Adjust known/default value to avoid OOB accesses
+            values[self.min_name] = min_value
+        if max_value is None:
             values[self.max_name] = args.get(self.max_name, defaults[self.max_name])
             try:
                 values[self.max_name] -= (1 + max(interval.upper, 0))
             except (AttributeError, TypeError):
                 pass
+        else:
+            values[self.max_name] = max_value
 
         return values
 

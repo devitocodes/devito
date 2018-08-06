@@ -9,6 +9,7 @@ import numpy as np
 from mpi4py import MPI
 
 from devito.types import LEFT, RIGHT
+from devito.tools import EnrichedTuple
 
 __all__ = ['Distributor']
 
@@ -83,7 +84,8 @@ class Distributor(object):
     def glb_numb(self):
         """Return the global numbering of this process' domain."""
         assert len(self._comm.coords) == len(self._glb_numbs)
-        return tuple(i[j] for i, j in zip(self._glb_numbs, self._comm.coords))
+        glb_numbs = [i[j] for i, j in zip(self._glb_numbs, self._comm.coords)]
+        return EnrichedTuple(*glb_numbs, getters=self.dimensions)
 
     @property
     def glb_pos_map(self):
@@ -98,6 +100,51 @@ class Distributor(object):
                 v.append(RIGHT)
             ret[d] = tuple(v)
         return ret
+
+    def glb_to_loc(self, dim, *args):
+        """
+        glb_to_loc(index)
+        glb_to_loc(min, max)
+
+        Translate global indices into local indices.
+
+        :param dim: The :class:`Dimension` of the provided global indices.
+        :param args: If a single index ``I``, return the corresponding local
+                     index if ``I`` is owned by ``self``, None otherwise.
+                     If a 2-tuple ``(min, max)``, return a 2-tuple ``(min',
+                     max')``, where ``min'`` and ``max'`` can be either
+                     ``None`` or an ``int``:
+                        * ``min'=None`` means that ``min`` is not owned by
+                          ``self``, but it precedes ``self``'s minimum. Likewise,
+                          ``max'=None`` means that ``max`` is not owned by
+                          ``self``, but it comes after ``self``'s maximum.
+                        * If ``min/max=int``, then the integer can represent
+                          either the local index corresponding to the
+                          ``min/max``, or it could be any random number such that
+                          ``max=min-1``, meaning that the input argument does not
+                          represent a valid range for ``self``.
+        """
+        assert dim in self.dimensions
+        glb_numb = self.glb_numb[dim]
+        glb_offset = min(glb_numb)
+        if len(args) == 1:
+            glb_index, = args
+            return (glb_index - glb_offset) if glb_index in glb_numb else None
+        else:
+            glb_min, glb_max = args
+            if glb_min is None or glb_min <= min(glb_numb):
+                loc_min = None
+            elif glb_min > max(glb_numb):
+                return (-2, -1)
+            else:
+                loc_min = glb_min - glb_offset
+            if glb_max is None or glb_max >= max(glb_numb):
+                loc_max = None
+            elif glb_max < min(glb_numb):
+                return (-2, -1)
+            else:
+                loc_max = glb_max - glb_offset
+            return (loc_min, loc_max)
 
     @property
     def shape(self):
