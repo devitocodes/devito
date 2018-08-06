@@ -5,7 +5,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito import (Grid, Function, TimeFunction, Dimension, ConditionalDimension,
-                    Eq, Inc, Operator)
+                    SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
@@ -552,6 +552,45 @@ class TestOperatorAdvanced(object):
         assert len(conditional) == 1
         assert len(FindNodes(Call).visit(conditional[0])) == 0
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_bcs_basic(self):
+        """
+        Test MPI in presence of boundary condition loops. Here, no halo exchange
+        is expected (as there is no stencil in the computed expression) but we
+        check that:
+
+            * the left BC loop is computed by the leftmost rank only
+            * the right BC loop is computed by the rightmost rank only
+        """
+        grid = Grid(shape=(20,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        thickness = 4
+
+        u = TimeFunction(name='u', grid=grid, time_order=1)
+
+        xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=thickness, thickness_right=thickness)
+        xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
+
+        t_in_centre = Eq(u[t+1, xi], 1)
+        leftbc = Eq(u[t+1, xleft], u[t+1, xleft+1] + 1)
+        rightbc = Eq(u[t+1, xright], u[t+1, xright-1] + 1)
+
+        op = Operator([t_in_centre, leftbc, rightbc])
+
+        op.apply(time_m=1, time_M=1)
+
+        glb_pos_map = u.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(u.data_ro_domain[0, thickness:] == 1.)
+            assert np.all(u.data_ro_domain[0, :thickness] == range(thickness+1, 1, -1))
+        else:
+            assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
+            assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
+
 
 class TestIsotropicAcoustic(object):
 
@@ -576,4 +615,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_subsampling()
+    TestOperatorAdvanced().test_bcs_basic()
