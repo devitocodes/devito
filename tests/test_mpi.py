@@ -4,8 +4,9 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Function, TimeFunction, Dimension, Eq, Inc, Operator
-from devito.ir.iet import Call, FindNodes
+from devito import (Grid, Function, TimeFunction, Dimension, ConditionalDimension,
+                    Eq, Inc, Operator)
+from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
@@ -511,6 +512,47 @@ class TestOperatorSimple(object):
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
 
+@skipif_yask
+class TestOperatorAdvanced(object):
+
+    @pytest.mark.parallel(nprocs=2)
+    def test_subsampling(self):
+        grid = Grid(shape=(40,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+        time = grid.time_dim
+
+        nt = 9
+
+        f = TimeFunction(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+
+        # Setup subsampled function
+        factor = 4
+        nsamples = (nt+factor-1)//factor
+        times = ConditionalDimension('t_sub', parent=time, factor=factor)
+        fsave = TimeFunction(name='fsave', grid=grid, save=nsamples, time_dim=times)
+
+        eqns = [Eq(f.forward, f[t, x-1] + f[t, x+1]), Eq(fsave, f)]
+        op = Operator(eqns)
+        op.apply(time=nt-1)
+
+        assert np.all(f.data_ro_domain[0] == fsave.data_ro_domain[nsamples-1])
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(fsave.data_ro_domain[nsamples-1, nt-1:] == 256.)
+        else:
+            assert np.all(fsave.data_ro_domain[nsamples-1, :-(nt-1)] == 256.)
+
+        # Also check there are no redundant halo exchanges
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+        # In particular, there is no need for a halo exchange within the conditional
+        conditional = FindNodes(Conditional).visit(op)
+        assert len(conditional) == 1
+        assert len(FindNodes(Call).visit(conditional[0])) == 0
+
+
 class TestIsotropicAcoustic(object):
 
     """
@@ -534,4 +576,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorSimple().test_avoid_redundant_haloupdate()
+    TestOperatorAdvanced().test_subsampling()
