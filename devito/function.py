@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from functools import partial
 from itertools import product
 import sympy
 import numpy as np
@@ -10,7 +9,8 @@ from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.finite_differences import initialize_derivatives, Add, Mul, Pow
+from devito.finite_differences import (initialize_derivatives, Add, Mul, Pow,
+                                       second_derivative)
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
@@ -387,6 +387,7 @@ class TensorFunction(AbstractCachedFunction):
     def __pow__(self, other):
         return Pow(self, other)
 
+
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express
     finite-difference approximation. A ``Function`` encapsulates
@@ -477,7 +478,6 @@ class Function(TensorFunction):
             # Dynamically add derivative short-cuts
             initialize_derivatives(self)
 
-
     @classmethod
     def __indices_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
@@ -546,7 +546,7 @@ class Function(TensorFunction):
         first = sum([second_derivative(self, dim=d, order=order)
                      for d in self.space_dimensions])
         return Add(sum([second_derivative(first * weight, dim=d, order=order)
-                    for d in self.space_dimensions]))
+                        for d in self.space_dimensions]))
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\

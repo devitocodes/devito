@@ -11,7 +11,7 @@ from devito.finite_differences.operations import Add
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative',
            'left', 'right', 'centered', 'staggered_diff',
-           'initialize_derivatives']
+           'initialize_derivatives', 'transpose']
 
 
 class Transpose(object):
@@ -285,7 +285,7 @@ def initialize_derivatives(self):
         name = dim.parent.name if dim.is_Derived else dim.name
         # First derivative, centred
         dx = partial(deriv_function, deriv_order=1, dim=dim,
-                      fd_order=self.space_order, stagger=side)
+                     fd_order=self.space_order, stagger=side)
         setattr(self.__class__, 'd%s' % name,
                 property(dx, 'Return the symbolic expression for '
                          'the centered first derivative wrt. '
