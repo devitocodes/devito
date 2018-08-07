@@ -82,10 +82,6 @@ class Dimension(AbstractSymbol, ArgProvider):
         return "%s_size" % self.name
 
     @property
-    def ext_name(self):
-        return "%s_n" % self.name
-
-    @property
     def min_name(self):
         return "%s_m" % self.name
 
@@ -119,7 +115,7 @@ class Dimension(AbstractSymbol, ArgProvider):
     @property
     def _arg_names(self):
         """Return a tuple of argument names introduced by this dimension."""
-        return (self.name, self.size_name, self.ext_name, self.max_name, self.min_name)
+        return (self.name, self.size_name, self.max_name, self.min_name)
 
     def _arg_defaults(self, start=None, size=None, alias=None):
         """
@@ -161,9 +157,6 @@ class Dimension(AbstractSymbol, ArgProvider):
         elif self.name in kwargs:
             # Let `dim.name` be an alias for `dim.max_name`
             max_value = kwargs.pop(self.name)
-        elif self.ext_name in kwargs:
-            # Extent is used to derive max value
-            max_value = values[self.min_name] + kwargs[self.ext_name] - 1
         else:
             max_value = None
 
