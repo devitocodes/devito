@@ -1,11 +1,12 @@
+from collections import namedtuple
+
 import sympy
 from sympy.core.cache import cacheit
 import numpy as np
 from cached_property import cached_property
-from frozendict import frozendict
 
 from devito.exceptions import InvalidArgument
-from devito.types import AbstractSymbol, Scalar
+from devito.types import LEFT, RIGHT, CENTER, AbstractSymbol, Scalar
 from devito.logger import debug
 from devito.tools import ArgProvider, Pickable
 
@@ -357,8 +358,9 @@ class SubDimension(DerivedDimension):
     :param parent: Parent dimension from which the SubDimension is created.
     :param lower: Symbolic expression to provide the lower bound.
     :param upper: Symbolic expression to provide the upper bound.
-    :param thickness: A dictionary mapping lower/upper symbolic thickness to
-                      an actual value (i.e., an integer)
+    :param thickness: A 2-tuple of 2-tuples, ``((symbol, int), (symbol, int))``,
+                      representing the thickness of the lower and upper extremes,
+                      respectively.
     """
 
     def __new__(cls, name, parent, lower, upper, thickness):
@@ -367,36 +369,41 @@ class SubDimension(DerivedDimension):
     def __new_stage2__(cls, name, parent, lower, upper, thickness):
         newobj = DerivedDimension.__xnew__(cls, name, parent)
         newobj._interval = sympy.Interval(lower, upper)
-        newobj._thickness = frozendict(thickness)
+        newobj._thickness = cls.Thickness(*thickness)
         return newobj
 
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
+    Thickness = namedtuple('Thickness', 'left right')
+
     @classmethod
     def left(cls, name, parent, thickness):
-        symbolic_thickness = Scalar(name="%s_ofs" % name, dtype=np.int32)
+        lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
                    lower=parent.symbolic_start,
-                   upper=parent.symbolic_start+symbolic_thickness-1,
-                   thickness={symbolic_thickness: thickness})
+                   upper=parent.symbolic_start+lst-1,
+                   thickness=((lst, thickness), (rst, 0)))
 
     @classmethod
     def right(cls, name, parent, thickness):
-        symbolic_thickness = Scalar(name="%s_ofs" % name, dtype=np.int32)
+        lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
-                   lower=parent.symbolic_end-symbolic_thickness+1,
+                   lower=parent.symbolic_end-rst+1,
                    upper=parent.symbolic_end,
-                   thickness={symbolic_thickness: thickness})
+                   thickness=((lst, 0), (rst, thickness)))
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right):
-        symbolic_thickness_left = Scalar(name="%s_lofs" % name, dtype=np.int32)
-        symbolic_thickness_right = Scalar(name="%s_rofs" % name, dtype=np.int32)
+        lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
-                   lower=parent.symbolic_start+symbolic_thickness_left,
-                   upper=parent.symbolic_end-symbolic_thickness_right,
-                   thickness={symbolic_thickness_left: thickness_left,
-                              symbolic_thickness_right: thickness_right})
+                   lower=parent.symbolic_start+lst,
+                   upper=parent.symbolic_end-rst,
+                   thickness=((lst, thickness_left), (rst, thickness_right)))
+
+    @classmethod
+    def symbolic_thickness(cls, name):
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32))
 
     @property
     def symbolic_start(self):
@@ -405,6 +412,19 @@ class SubDimension(DerivedDimension):
     @property
     def symbolic_end(self):
         return self._interval.right
+
+    @cached_property
+    def thickness_map(self):
+        return dict(self._thickness)
+
+    @cached_property
+    def side(self):
+        if self.thickness.left[1] == 0:
+            return RIGHT
+        elif self.thickness.right[1] == 0:
+            return LEFT
+        else:
+            return CENTER
 
     @property
     def thickness(self):
@@ -415,11 +435,11 @@ class SubDimension(DerivedDimension):
         # start or end of the parent dimension
         try:
             symbolic_thickness = self.symbolic_start - self.parent.symbolic_start
-            val = symbolic_thickness.subs(self.thickness)
+            val = symbolic_thickness.subs(self.thickness_map)
             return int(val), self.parent.symbolic_start
         except TypeError:
             symbolic_thickness = self.symbolic_start - self.parent.symbolic_end
-            val = symbolic_thickness.subs(self.thickness)
+            val = symbolic_thickness.subs(self.thickness_map)
             return int(val), self.parent.symbolic_end
 
     def offset_upper(self):
@@ -427,11 +447,11 @@ class SubDimension(DerivedDimension):
         # start or end of the parent dimension
         try:
             symbolic_thickness = self.symbolic_end - self.parent.symbolic_start
-            val = symbolic_thickness.subs(self.thickness)
+            val = symbolic_thickness.subs(self.thickness_map)
             return int(val), self.parent.symbolic_start
         except TypeError:
             symbolic_thickness = self.symbolic_end - self.parent.symbolic_end
-            val = symbolic_thickness.subs(self.thickness)
+            val = symbolic_thickness.subs(self.thickness_map)
             return int(val), self.parent.symbolic_end
 
     @property
@@ -439,7 +459,7 @@ class SubDimension(DerivedDimension):
         return (self._interval, self._thickness)
 
     def _arg_defaults(self, **kwargs):
-        return {k.name: v for k, v in self.thickness.items()}
+        return {k.name: v for k, v in self.thickness}
 
     def _arg_values(self, *args, **kwargs):
         return self._arg_defaults(**kwargs)
