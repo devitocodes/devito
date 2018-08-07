@@ -18,7 +18,7 @@ def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.015, time_range=time_range)
+    src = RickerSource(name='src', grid=model.grid, f0=0.010, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
@@ -77,9 +77,9 @@ if __name__ == "__main__":
         spacing = (10.0, 10.0)
         tn = 750.0
     else:
-        shape = (50, 50, 50)
+        shape = (150, 150, 150)
         spacing = (10.0, 10.0, 10.0)
-        tn = 250.0
+        tn = 1250.0
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, autotune=args.autotune, dse=args.dse,

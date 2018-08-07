@@ -1,6 +1,7 @@
-from devito import TimeFunction, memoized_meth, error
+from devito import TimeFunction, memoized_meth
 from examples.seismic import Receiver
-from examples.seismic.elastic.operators import ForwardOperator
+from examples.seismic.elastic.operators import (ForwardOperator, stress_fields,
+                                                particle_velocity_fields)
 
 
 class ElasticWaveSolver(object):
@@ -27,10 +28,6 @@ class ElasticWaveSolver(object):
         self.dt = self.model.critical_dt
         # Cache compiler options
         self._kwargs = kwargs
-        if model.grid.dim != 2:
-            error("This is an experimental staggered grid elastic modeling kernel." +
-                  "Only 2D supported")
-            raise NotImplementedError("Elastic solver only supports 2D at the moment")
 
     @memoized_meth
     def op_fwd(self, save=None):
@@ -64,31 +61,26 @@ class ElasticWaveSolver(object):
                         coordinates=self.receiver.coordinates.data)
 
         # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
-        vx = TimeFunction(name='vx', grid=self.model.grid, staggered=(0, 1, 0),
-                          save=src.nt if save else None,
-                          time_order=2, space_order=self.space_order)
-        vz = TimeFunction(name='vz', grid=self.model.grid, staggered=(0, 0, 1),
-                          save=src.nt if save else None,
-                          time_order=2, space_order=self.space_order)
-        txx = TimeFunction(name='txx', grid=self.model.grid, staggered=(0, 0, 0),
-                           save=src.nt if save else None,
-                           time_order=2, space_order=self.space_order)
-        tzz = TimeFunction(name='tzz', grid=self.model.grid, staggered=(0, 0, 0),
-                           save=src.nt if save else None,
-                           time_order=2, space_order=self.space_order)
-        txz = TimeFunction(name='txz', grid=self.model.grid, staggered=(0, 1, 1),
-                           save=src.nt if save else None,
-                           time_order=2, space_order=self.space_order)
+        save_t = src.nt if save else None
+        vx, vy, vz = particle_velocity_fields(self.model, save_t, self.space_order)
+        txx, tyy, tzz, txy, txz, tyz  = stress_fields(self.model, save_t, self.space_order)
+        kwargs['vx'] = vx
+        kwargs['vz'] = vz
+        kwargs['txx'] = txx
+        kwargs['tzz'] = tzz
+        kwargs['txz'] = txz
+        if self.model.grid.dim == 3:
+            kwargs['vy'] = vy
+            kwargs['tyy'] = tyy
+            kwargs['txy'] = txy
+            kwargs['tyz'] = tyz
         # Pick m from model unless explicitly provided
-        if vp is None:
-            vp = vp or self.model.vp
-        if vs is None:
-            vs = vs or self.model.vs
-        if rho is None:
-            rho = rho or self.model.rho
+        vp = vp or self.model.vp
+        vs = vs or self.model.vs
+        rho = rho or self.model.rho
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, vx=vx, vz=vz, txx=txx,
-                                          tzz=tzz, txz=txz, vp=vp, vs=vs, rho=rho,
+        self.op_fwd(save)._compile()
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, vs=vs, rho=rho,
                                           rec2=rec2, dt=kwargs.pop('dt', self.dt),
                                           **kwargs)
         return rec1, rec2, vx, vz, txx, tzz, txz, summary
