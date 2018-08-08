@@ -6,7 +6,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.exceptions import InvalidArgument
-from devito.types import LEFT, RIGHT, CENTER, AbstractSymbol, Scalar
+from devito.types import LEFT, RIGHT, AbstractSymbol, Scalar
 from devito.logger import debug
 from devito.tools import ArgProvider, Pickable
 
@@ -145,45 +145,32 @@ class Dimension(AbstractSymbol, ArgProvider):
                      indices.
         :param kwargs: Dictionary of user-provided argument overrides.
         """
-        # Fetch user input: min value
-        if self.min_name in kwargs:
-            min_value = kwargs.pop(self.min_name)
-        else:
-            min_value = None
-        # Fetch user input: max value
-        if self.max_name in kwargs:
-            # User-override
-            max_value = kwargs.pop(self.max_name)
-        elif self.name in kwargs:
-            # Let `dim.name` be an alias for `dim.max_name`
-            max_value = kwargs.pop(self.name)
-        else:
-            max_value = None
-
-        # Convert global to local indices, if necessary
+        # Fetch user input, and convert it into local values if necessary
+        minv = kwargs.pop(self.min_name, None)
+        maxv = kwargs.pop(self.max_name, kwargs.pop(self.name, None))
         if grid is not None and grid.is_distributed(self):
-            min_value, max_value = grid.distributor.glb_to_loc(self, min_value, max_value)
+            minv, maxv = grid.distributor.glb_to_loc(self, (minv, maxv))
 
         # If not user-provided, use min/max default value, but adjust it
         # so as to avoid OOB accesses
         defaults = self._arg_defaults()
         values = {}
-        if min_value is None:
+        if minv is None:
             values[self.min_name] = args.get(self.min_name, defaults[self.min_name])
             try:
                 values[self.min_name] -= min(interval.lower, 0)
             except (AttributeError, TypeError):
                 pass
         else:
-            values[self.min_name] = min_value
-        if max_value is None:
+            values[self.min_name] = minv
+        if maxv is None:
             values[self.max_name] = args.get(self.max_name, defaults[self.max_name])
             try:
                 values[self.max_name] -= (1 + max(interval.upper, 0))
             except (AttributeError, TypeError):
                 pass
         else:
-            values[self.max_name] = max_value
+            values[self.max_name] = maxv
 
         return values
 
@@ -362,19 +349,19 @@ class SubDimension(DerivedDimension):
 
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension from which the SubDimension is created.
-    :param lower: Symbolic expression to provide the lower bound.
-    :param upper: Symbolic expression to provide the upper bound.
+    :param left: Symbolic expression to provide the left bound.
+    :param right: Symbolic expression to provide the right bound.
     :param thickness: A 2-tuple of 2-tuples, ``((symbol, int), (symbol, int))``,
-                      representing the thickness of the lower and upper extremes,
+                      representing the thickness of the left and right regions,
                       respectively.
     """
 
-    def __new__(cls, name, parent, lower, upper, thickness):
-        return SubDimension.__xnew_cached_(cls, name, parent, lower, upper, thickness)
+    def __new__(cls, name, parent, left, right, thickness):
+        return SubDimension.__xnew_cached_(cls, name, parent, left, right, thickness)
 
-    def __new_stage2__(cls, name, parent, lower, upper, thickness):
+    def __new_stage2__(cls, name, parent, left, right, thickness):
         newobj = DerivedDimension.__xnew__(cls, name, parent)
-        newobj._interval = sympy.Interval(lower, upper)
+        newobj._interval = sympy.Interval(left, right)
         newobj._thickness = cls.Thickness(*thickness)
         return newobj
 
@@ -386,24 +373,24 @@ class SubDimension(DerivedDimension):
     def left(cls, name, parent, thickness):
         lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
-                   lower=parent.symbolic_start,
-                   upper=parent.symbolic_start+lst-1,
+                   left=parent.symbolic_start,
+                   right=parent.symbolic_start+lst-1,
                    thickness=((lst, thickness), (rst, 0)))
 
     @classmethod
     def right(cls, name, parent, thickness):
         lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
-                   lower=parent.symbolic_end-rst+1,
-                   upper=parent.symbolic_end,
+                   left=parent.symbolic_end-rst+1,
+                   right=parent.symbolic_end,
                    thickness=((lst, 0), (rst, thickness)))
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right):
         lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
-                   lower=parent.symbolic_start+lst,
-                   upper=parent.symbolic_end-rst,
+                   left=parent.symbolic_start+lst,
+                   right=parent.symbolic_end-rst,
                    thickness=((lst, thickness_left), (rst, thickness_right)))
 
     @classmethod
@@ -423,21 +410,12 @@ class SubDimension(DerivedDimension):
     def thickness_map(self):
         return dict(self._thickness)
 
-    @cached_property
-    def side(self):
-        if self.thickness.left[1] == 0:
-            return RIGHT
-        elif self.thickness.right[1] == 0:
-            return LEFT
-        else:
-            return CENTER
-
     @property
     def thickness(self):
         return self._thickness
 
-    def offset_lower(self):
-        # The lower extreme of the SubDimension can be related to either the
+    def offset_left(self):
+        # The left extreme of the SubDimension can be related to either the
         # start or end of the parent dimension
         try:
             symbolic_thickness = self.symbolic_start - self.parent.symbolic_start
@@ -448,8 +426,8 @@ class SubDimension(DerivedDimension):
             val = symbolic_thickness.subs(self.thickness_map)
             return int(val), self.parent.symbolic_end
 
-    def offset_upper(self):
-        # The upper extreme of the SubDimension can be related to either the
+    def offset_right(self):
+        # The right extreme of the SubDimension can be related to either the
         # start or end of the parent dimension
         try:
             symbolic_thickness = self.symbolic_end - self.parent.symbolic_start
@@ -464,11 +442,17 @@ class SubDimension(DerivedDimension):
     def _properties(self):
         return (self._interval, self._thickness)
 
-    def _arg_defaults(self, **kwargs):
-        return {k.name: v for k, v in self.thickness}
+    def _arg_defaults(self, grid=None, **kwargs):
+        if grid is not None and grid.is_distributed(self.root):
+            # Get local thickness
+            ltkn = grid.distributor.glb_to_loc(self.root, self.thickness.left[1], LEFT)
+            rtkn = grid.distributor.glb_to_loc(self.root, self.thickness.right[1], RIGHT)
+            return {i.name: v for i, v in zip(self.thickness_map, (ltkn, rtkn))}
+        else:
+            return {k.name: v for k, v in self.thickness}
 
-    def _arg_values(self, *args, **kwargs):
-        return self._arg_defaults(**kwargs)
+    def _arg_values(self, args, interval, grid, **kwargs):
+        return self._arg_defaults(grid=grid, **kwargs)
 
     # Pickling support
     _pickle_args = DerivedDimension._pickle_args +\

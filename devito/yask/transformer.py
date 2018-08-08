@@ -38,8 +38,8 @@ def yaskizer(trees, yc_soln):
             # Can we express both Iteration extremes as
             # `FIRST(i.dim) + integer` OR `LAST(i.dim) + integer` ?
             # If not, one of the following lines will throw a TypeError exception
-            lower_ofs, lower_sym = i.dim.offset_lower()
-            upper_ofs, upper_sym = i.dim.offset_upper()
+            lower_ofs, lower_sym = i.dim.offset_left()
+            upper_ofs, upper_sym = i.dim.offset_right()
 
             if i.is_Parallel:
                 # At this point, no issues are expected -- we should just be able to
