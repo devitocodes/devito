@@ -55,7 +55,7 @@ class Pow(sympy.Mul, FrozenExpr):
     """A customized version of :class:`sympy.Add` representing a sum of
     symbolic object."""
     def __new__(cls, *args, **kwargs):
-        return sympy.Pow.__new__(cls, *args, evaluate=False)
+        return sympy.Pow.__new__(cls, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         fd_parameters(self)
@@ -95,7 +95,7 @@ class Mul(sympy.Mul, FrozenExpr):
     is_Mul = True
 
     def __new__(cls, *args, **kwargs):
-        return sympy.Mul.__new__(cls, *args, evaluate=False)
+        return sympy.Mul.__new__(cls, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         fd_parameters(self)
@@ -135,7 +135,7 @@ class Add(sympy.Add, FrozenExpr):
     is_Add = True
 
     def __new__(cls, *args, **kwargs):
-        return sympy.Add.__new__(cls, *args, evaluate=False)
+        return sympy.Add.__new__(cls, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         fd_parameters(self)

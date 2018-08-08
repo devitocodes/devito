@@ -187,7 +187,6 @@ def first_derivative(*args, **kwargs):
     else:
         ind = [(dim + i * diff) for i in range(-int(order / 2),
                                                int((order + 1) / 2) + 1)]
-
     # Finite difference weights from Taylor approximation with this positions
     c = finite_diff_weights(1, ind, dim)
     c = c[-1][-1]
@@ -195,6 +194,7 @@ def first_derivative(*args, **kwargs):
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
             deriv += c[i] * reduce(mul, var, 1)
+
     return matvec._transpose*deriv.evalf(_PRECISION)
 
 
@@ -312,16 +312,16 @@ def initialize_derivatives(self):
 
         # First derivative, left, only for cartesian grid
         if s is None:
-            dxl = partial(deriv_function, fd_order=self.space_order,
-                          dim=dim, side=left, deriv_order=1)
+            dxl = partial(first_derivative, order=self.space_order,
+                          dim=dim, side=left)
             setattr(self.__class__, 'd%sl' % name,
                     property(dxl, 'Return the symbolic expression for '
                              'the left-sided first derivative wrt. '
                              'the %s dimension' % name))
 
             # First derivative, right
-            dxr = partial(deriv_function, fd_order=self.space_order,
-                          dim=dim, side=right, deriv_order=1)
+            dxr = partial(first_derivative, order=self.space_order,
+                          dim=dim, side=right)
             setattr(self.__class__, 'd%sr' % name,
                     property(dxr, 'Return the symbolic expression for '
                              'the right-sided first derivative wrt. '
