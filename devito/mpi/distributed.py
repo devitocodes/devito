@@ -50,8 +50,8 @@ class Distributor(object):
             self._comm = input_comm
 
         # Perform domain decomposition
-        self._glb_numbs = [np.array_split(range(i), j)
-                           for i, j in zip(shape, self._topology)]
+        glb_numbs = [np.array_split(range(i), j) for i, j in zip(shape, self._topology)]
+        self._glb_numbs = EnrichedTuple(*glb_numbs, getters=self.dimensions)
 
     def __del__(self):
         self._input_comm.Free()
@@ -84,8 +84,8 @@ class Distributor(object):
     def glb_numb(self):
         """Return the global numbering of this process' domain."""
         assert len(self._comm.coords) == len(self._glb_numbs)
-        glb_numbs = [i[j] for i, j in zip(self._glb_numbs, self._comm.coords)]
-        return EnrichedTuple(*glb_numbs, getters=self.dimensions)
+        glb_numb = [i[j] for i, j in zip(self._glb_numbs, self._comm.coords)]
+        return EnrichedTuple(*glb_numb, getters=self.dimensions)
 
     @property
     def glb_pos_map(self):
@@ -103,48 +103,72 @@ class Distributor(object):
 
     def glb_to_loc(self, dim, *args):
         """
-        glb_to_loc(index)
-        glb_to_loc(min, max)
+        glb_to_loc(dim, index)
+        glb_to_loc(dim, offset, side)
+        glb_to_loc(dim, (min, max))
 
         Translate global indices into local indices.
 
         :param dim: The :class:`Dimension` of the provided global indices.
-        :param args: If a single index ``I``, return the corresponding local
-                     index if ``I`` is owned by ``self``, None otherwise.
-                     If a 2-tuple ``(min, max)``, return a 2-tuple ``(min',
-                     max')``, where ``min'`` and ``max'`` can be either
-                     ``None`` or an ``int``:
-                        * ``min'=None`` means that ``min`` is not owned by
-                          ``self``, but it precedes ``self``'s minimum. Likewise,
-                          ``max'=None`` means that ``max`` is not owned by
-                          ``self``, but it comes after ``self``'s maximum.
-                        * If ``min/max=int``, then the integer can represent
-                          either the local index corresponding to the
-                          ``min/max``, or it could be any random number such that
-                          ``max=min-1``, meaning that the input argument does not
-                          represent a valid range for ``self``.
+        :param args: There are three possible cases:
+                       * ``args`` is a single integer I representing a global index.
+                         Then, the corresponding local index is returned if I is
+                         owned by ``self``, otherwise None.
+                       * ``args`` consists of two items, O and S -- O is the offset
+                         the side S along ``dim``. O is therefore an integer, while S
+                         is an object of type :class:`DataSide`. Return the offset in
+                         the local domain, possibly 0 if the local range does not
+                         intersect with the region defined by the global offset.
+                       * ``args`` is a tuple (min, max); return a 2-tuple (min',
+                         max'), where ``min'`` and ``max'`` can be either None or
+                         an integer:
+                           - ``min'=None`` means that ``min`` is not owned by
+                             ``self``, but it precedes ``self``'s minimum. Likewise,
+                             ``max'=None`` means that ``max`` is not owned by
+                             ``self``, but it comes after ``self``'s maximum.
+                           - If ``min/max=int``, then the integer can represent
+                             either the local index corresponding to the
+                             ``min/max``, or it could be any random number such that
+                             ``max=min-1``, meaning that the input argument does not
+                             represent a valid range for ``self``.
         """
         assert dim in self.dimensions
         glb_numb = self.glb_numb[dim]
-        glb_offset = min(glb_numb)
         if len(args) == 1:
-            glb_index, = args
-            return (glb_index - glb_offset) if glb_index in glb_numb else None
+            base = min(glb_numb)
+            if isinstance(args[0], int):
+                # glb_to_loc(dim, index)
+                glb_index = args[0]
+                return (glb_index - base) if glb_index in glb_numb else None
+            else:
+                # glb_to_loc(dim, (min, max))
+                glb_min, glb_max = args[0]
+                if glb_min is None or glb_min <= base:
+                    loc_min = None
+                elif glb_min > max(glb_numb):
+                    return (-2, -1)
+                else:
+                    loc_min = glb_min - base
+                if glb_max is None or glb_max >= max(glb_numb):
+                    loc_max = None
+                elif glb_max < base:
+                    return (-2, -1)
+                else:
+                    loc_max = glb_max - base
+                return (loc_min, loc_max)
         else:
-            glb_min, glb_max = args
-            if glb_min is None or glb_min <= min(glb_numb):
-                loc_min = None
-            elif glb_min > max(glb_numb):
-                return (-2, -1)
+            # glb_to_loc(dim, offset, side)
+            rel_ofs, side = args
+            if side is LEFT:
+                abs_ofs = min(min(i) for i in self._glb_numbs[dim]) + rel_ofs
+                base = min(glb_numb)
+                extent = max(glb_numb) - base
+                return min(abs_ofs - base, extent) if abs_ofs > base else 0
             else:
-                loc_min = glb_min - glb_offset
-            if glb_max is None or glb_max >= max(glb_numb):
-                loc_max = None
-            elif glb_max < min(glb_numb):
-                return (-2, -1)
-            else:
-                loc_max = glb_max - glb_offset
-            return (loc_min, loc_max)
+                abs_ofs = max(max(i) for i in self._glb_numbs[dim]) - rel_ofs
+                base = max(glb_numb)
+                extent = base - min(glb_numb)
+                return min(base - abs_ofs, extent) if abs_ofs < base else 0
 
     @property
     def shape(self):
