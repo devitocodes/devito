@@ -1,6 +1,7 @@
 numpy==1.14
 sympy==1.1
 scipy
+mpi4py
 matplotlib
 pytest-runner
 flake8>=2.1.0

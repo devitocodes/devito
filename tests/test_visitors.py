@@ -245,7 +245,8 @@ def test_transformer_replace_function_body(block1, block2):
     """Create a Function and replace its body with another."""
     args = FindSymbols().visit(block1)
     f = Callable('foo', block1, 'void', args)
-    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
+    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec, \
+const int i_size)
 {
   for (int i = 0; i <= 3; i += 1)
   {
@@ -260,7 +261,8 @@ def test_transformer_replace_function_body(block1, block2):
 }"""
 
     f = Transformer({block1: block2}).visit(f)
-    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
+    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec, \
+const int i_size)
 {
   for (int i = 0; i <= 3; i += 1)
   {

@@ -24,7 +24,6 @@ class Grid(grid.Grid):
         return time_dim
 
     def __setstate__(self, state):
-        for k, v in state.items():
-            setattr(self, k, v)
+        super(Grid, self).__setstate__(state)
         # A new context is created, as the unpickled Dimensions are new objects
         contexts.putdefault(self)

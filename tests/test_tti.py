@@ -15,6 +15,11 @@ from examples.seismic.tti import AnisotropicWaveSolver
 @pytest.mark.parametrize('space_order', [4, 8])
 @pytest.mark.parametrize('kernel', ['centered', 'shifted'])
 def test_tti(shape, space_order, kernel):
+    """
+    This first test compare the solution of the acoustic wave-equation and the
+    TTI wave-eqatuon with all anisotropy parametrs to 0. The two solutions should
+    be the same.
+    """
     if kernel == 'shifted':
         space_order *= 2
     to = 2

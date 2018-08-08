@@ -36,29 +36,37 @@ class ElasticWaveSolver(object):
                                receiver=self.receiver,
                                space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, vp=None, vs=None, rho=None, save=None, **kwargs):
+    def forward(self, src=None, rec1=None, rec2=None, vp=None, vs=None, rho=None,
+                vx=None, vz=None, txx=None, tzz=None, txz=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
         :param src: (Optional) Symbol with time series data for the injected source term
-        :param rec: (Optional) Symbol to store interpolated receiver data
-        :param u: (Optional) Symbol to store the computed wavefield
-        :param m: (Optional) Symbol for the time-constant square slowness
+        :param rec1: (Optional) Symbol to store interpolated (txx) receiver data
+        :param rec2: (Optional) Symbol to store interpolated (tzz) receiver data
+        :param vx: (Optional) Symbol to store the computed horizontal particle velocity
+        :param vz: (Optional) Symbol to store the computed vertical particle velocity
+        :param txx: (Optional) Symbol to store the computed horizontal stress
+        :param tzz: (Optional) Symbol to store the computed vertical stress
+        :param txz: (Optional) Symbol to store the computed diagonal stresss
+        :param vp: (Optional) Symbol for the time-constant P-wave velocity (km/s)
+        :param vs: (Optional) Symbol for the time-constant S-wave velocity (km/s)
+        :param vs: (Optional) Symbol for the time-constant density (rho=1 for water)
         :param save: Option to store the entire (unrolled) wavefield
 
-        :returns: Receiver, wavefield and performance summary
+        :returns: Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
+                  tzz and txz and performance summary
         """
         # Source term is read-only, so re-use the default
-        if src is None:
-            src = self.source
+        src = src or self.source
         # Create a new receiver object to store the result
-        rec1 = Receiver(name='rec1', grid=self.model.grid,
-                        time_range=self.receiver.time_range,
-                        coordinates=self.receiver.coordinates.data)
-        rec2 = Receiver(name='rec2', grid=self.model.grid,
-                        time_range=self.receiver.time_range,
-                        coordinates=self.receiver.coordinates.data)
+        rec1 = rec1 or Receiver(name='rec1', grid=self.model.grid,
+                                time_range=self.receiver.time_range,
+                                coordinates=self.receiver.coordinates.data)
+        rec2 = rec2 or Receiver(name='rec2', grid=self.model.grid,
+                                time_range=self.receiver.time_range,
+                                coordinates=self.receiver.coordinates.data)
 
         # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
         save_t = src.nt if save else None

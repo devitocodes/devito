@@ -15,6 +15,10 @@ __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
 
 _PRECISION = 9
 
+# Number of digits for FD coefficients to avoid roundup errors and non-deeterministic
+# code generation
+_PRECISION = 9
+
 
 class Transpose(object):
     """Class that defines if the derivative is itself or adjoint (transpose).
@@ -94,7 +98,7 @@ def second_derivative(*args, **kwargs):
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
             deriv += coeffs[i] * reduce(mul, var, 1)
-    return deriv
+    return deriv.evalf(_PRECISION)
 
 
 def cross_derivative(*args, **kwargs):
@@ -150,7 +154,7 @@ def cross_derivative(*args, **kwargs):
             deriv += (.5 * c11[i] * c12[j] * reduce(mul, var1, 1) +
                       .5 * c21[-(j+1)] * c22[-(i+1)] * reduce(mul, var2, 1))
 
-    return -deriv
+    return -deriv.evalf(_PRECISION)
 
 
 def first_derivative(*args, **kwargs):
@@ -191,8 +195,8 @@ def first_derivative(*args, **kwargs):
     # Loop through positions
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
-            deriv += reduce(mul, var, 1) * c[i]
-    return deriv * matvec._transpose
+            deriv += c[i] * reduce(mul, var, 1)
+    return (matvec._transpose*deriv).evalf(_PRECISION)
 
 
 def generic_derivative(function, deriv_order, dim, fd_order, **kwargs):
@@ -214,7 +218,7 @@ def generic_derivative(function, deriv_order, dim, fd_order, **kwargs):
     for i in range(0, len(indices)):
             var = [function.subs({dim: indices[i]})]
             deriv += reduce(mul, var, 1) * c[i]
-    return deriv
+    return deriv.evalf(_PRECISION)
 
 
 def second_cross_derivative(function, dims, order):
@@ -226,7 +230,7 @@ def second_cross_derivative(function, dims, order):
     :param order: Discretisation order of the stencil to create.
     """
     first = second_derivative(function, dim=dims[0], width=order)
-    return Add(second_derivative(first, dim=dims[1], order=order))
+    return Add(second_derivative(first, dim=dims[1], order=order).evalf(_PRECISION))
 
 
 def staggered_diff(f, deriv_order, dim, fd_order, stagger=centered):

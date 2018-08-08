@@ -2,16 +2,16 @@ from __future__ import absolute_import
 import weakref
 import abc
 import gc
-
 from collections import namedtuple
 from operator import mul
 from functools import reduce
+from ctypes import POINTER, byref
 
 import numpy as np
 import sympy
 
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, Pickable, single_or
+from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -33,14 +33,14 @@ class Basic(object):
                           to build equations.
         * AbstractFunction: represents a discrete function as a tensor; may
                             carry data; may be used to build equations.
-        * Object: represents a generic object, for example a (pointer to) data
-                  structure.
+        * AbstractObject: represents a generic object, for example a (pointer
+                          to) data structure.
 
                                         Basic
                                           |
                     ------------------------------------------
                     |                     |                  |
-             AbstractSymbol       AbstractFunction        Object
+             AbstractSymbol       AbstractFunction     AbstractObject
 
     .. note::
 
@@ -51,11 +51,13 @@ class Basic(object):
     # Top hierarchy
     is_AbstractFunction = False
     is_AbstractSymbol = False
-    is_Object = False
+    is_AbstractObject = False
 
     # Symbolic objects created internally by Devito
     is_Symbol = False
     is_Array = False
+    is_Object = False
+    is_LocalObject = False
 
     # Created by the user
     is_Input = False
@@ -78,24 +80,6 @@ class Basic(object):
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         return
-
-    @abc.abstractmethod
-    def _arg_defaults(self):
-        """
-        Returns a map of default argument values defined by this symbol.
-        """
-        raise NotImplementedError('%s does not provide any default arguments' %
-                                  self.__class__)
-
-    @abc.abstractmethod
-    def _arg_values(self, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        """
-        raise NotImplementedError('%s does not provide argument value derivation' %
-                                  self.__class__)
 
 
 class Cached(object):
@@ -373,6 +357,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             newcls._cache_put(newobj)
         return newobj
 
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            # Setup halo and padding regions
+            self._is_halo_dirty = False
+            self._in_flight = []
+            self._halo = self.__halo_setup__(**kwargs)
+            self._padding = self.__padding_setup__(**kwargs)
+
     __hash__ = Cached.__hash__
 
     @classmethod
@@ -384,6 +376,12 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     def __shape_setup__(cls, **kwargs):
         """Extract the function shape from ``kwargs``."""
         return ()
+
+    def __halo_setup__(self, **kwargs):
+        return kwargs.get('halo', tuple((0, 0) for i in range(self.ndim)))
+
+    def __padding_setup__(self, **kwargs):
+        return kwargs.get('padding', tuple((0, 0) for i in range(self.ndim)))
 
     @property
     def name(self):
@@ -423,15 +421,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return tuple(sympy.Add(i, j, k, evaluate=False)
                      for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
 
-    def indexify(self, indices=None):
-        """Create a :class:`sympy.Indexed` object from the current object."""
-        if indices is not None:
-            return Indexed(self.indexed, *indices)
-
-        subs = dict([(i.spacing, 1) for i in self.indices])
-        indices = [a.subs(subs) for a in self.args]
-        return Indexed(self.indexed, *indices)
-
     @property
     def indexed(self):
         """Extract a :class:`IndexedData` object from the current object."""
@@ -462,6 +451,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
            size in bytes
         """
         return reduce(mul, self.shape)
+
+    @property
+    def halo(self):
+        return self._halo
+
+    @property
+    def padding(self):
+        return self._padding
 
     @property
     def _offset_domain(self):
@@ -531,8 +528,82 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return tuple(slice(i, -j) if j != 0 else slice(i, None)
                      for i, j in self._offset_halo)
 
+    def _get_region(self, region, dimension, side, symbolic=False):
+        """
+        Return the offset and the extent of a given region in ``self.data``.
+
+        :param region: The :class:`DataRegion` whose offset and extent are retrieved.
+        :param dimension: The region :class:`Dimension`.
+        :param side: The region side.
+        :param symbolic: (Optional) if True, a symbolic offset is returned in place
+                         of negative values representing the distance from the end.
+                         Defaults to False.
+        """
+        assert side in [LEFT, RIGHT]
+        assert region in [OWNED, HALO]
+
+        if region is OWNED:
+            if side is LEFT:
+                offset = self._offset_domain[dimension].left
+                extent = self._extent_halo[dimension].right
+            else:
+                if symbolic is False:
+                    offset = -self._offset_domain[dimension].right -\
+                        self._extent_halo[dimension].left
+                else:
+                    offset = self._offset_domain[dimension].left +\
+                        dimension.symbolic_size - self._extent_halo[dimension].left
+                extent = self._extent_halo[dimension].left
+        else:
+            if side is LEFT:
+                offset = self._offset_halo[dimension].left
+                extent = self._extent_halo[dimension].left
+            else:
+                if symbolic is False:
+                    offset = -self._offset_domain[dimension].right
+                else:
+                    offset = self._offset_domain[dimension].left + dimension.symbolic_size
+                extent = self._extent_halo[dimension].right
+
+        return offset, extent
+
+    def _get_view(self, region, dimension, side):
+        """
+        Return a special view of ``self.data``.
+
+        :param region: A :class:`DataRegion` representing the region of ``self.data``
+                       for which a view is produced.
+        :param dimension: The region :class:`Dimension`.
+        :param side: The region side.
+        """
+        index_array = []
+        for i in self.dimensions:
+            if i == dimension:
+                offset, extent = self._get_region(region, dimension, side)
+                if side is LEFT:
+                    end = offset + extent
+                else:
+                    end = (offset + extent) or None  # The end point won't be 0
+                index_array.append(slice(offset, end))
+            else:
+                index_array.append(slice(None))
+        return self._data[index_array]
+
+    def indexify(self, indices=None):
+        """Create a :class:`sympy.Indexed` object from the current object."""
+        if indices is not None:
+            return Indexed(self.indexed, *indices)
+
+        subs = dict([(i.spacing, 1) for i in self.indices])
+        indices = [a.subs(subs) for a in self.args]
+        return Indexed(self.indexed, *indices)
+
+    def __getitem__(self, index):
+        """Shortcut for ``self.indexed[index]``."""
+        return self.indexed[index]
+
     # Pickling support
-    _pickle_kwargs = ['name']
+    _pickle_kwargs = ['name', 'halo', 'padding']
     __reduce_ex__ = Pickable.__reduce_ex__
 
     @property
@@ -545,15 +616,15 @@ class Array(AbstractCachedFunction):
 
     :param name: Name of the object.
     :param dtype: Data type of the object.
-    :param shape: The shape of the object.
     :param dimensions: The symbolic dimensions of the object.
     :param halo: The halo region of the object, expressed as an iterable
                  ``[(dim1_left_halo, dim1_right_halo), (dim2_left_halo, ...)]``
     :param padding: The padding region of the object, expressed as an iterable
                     ``[(dim1_left_pad, dim1_right_pad), (dim2_left_pad, ...)]``
-    :param external: Pass True if there is no need to allocate storage
-    :param onstack: Pass True to enforce allocation on the stack
-    :param onheap: Pass True to enforce allocation on the heap
+    :param scope: (Optional) Control memory allocation. Allowed values are
+                  ['heap', 'stack', 'external']. Defaults to 'heap'.
+                  'external' implies that no storage needs to be allocated
+                  for the Array.
     """
 
     is_Array = True
@@ -565,72 +636,96 @@ class Array(AbstractCachedFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            super(Array, self).__init__(*args, **kwargs)
+
             self.dtype = kwargs.get('dtype', np.float32)
 
-            self._halo = kwargs.get('halo', tuple((0, 0) for i in range(self.ndim)))
-            self._padding = kwargs.get('padding', tuple((0, 0) for i in range(self.ndim)))
-
-            self._external = bool(kwargs.get('external', False))
-            self._onstack = bool(kwargs.get('onstack', False))
-            self._onheap = bool(kwargs.get('onheap', True))
-
-            # The memory scope of an Array must be well-defined
-            assert single_or([self._external, self._onstack, self._onheap])
+            self._scope = kwargs.get('scope', 'heap')
+            assert self._scope in ['heap', 'stack', 'external']
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        return tuple(kwargs.get('dimensions'))
-
-    @classmethod
-    def __shape_setup__(cls, **kwargs):
-        return tuple(kwargs.get('shape'))
+        return tuple(kwargs['dimensions'])
 
     @property
     def _mem_external(self):
-        return self._external
+        return self._scope == 'external'
 
     @property
     def _mem_stack(self):
-        return self._onstack
+        return self._scope == 'stack'
 
     @property
     def _mem_heap(self):
-        return self._onheap
+        return self._scope == 'heap'
 
-    def update(self, dtype=None, shape=None, dimensions=None, halo=None, padding=None,
-               onstack=None, onheap=None, external=None):
-        self.dtype = dtype or self.dtype
-        self._shape = shape or self.shape
-        self._indices = dimensions or self.indices
-        self._halo = halo or self._halo
-        self._padding = padding or self._padding
+    @property
+    def shape(self):
+        return self.symbolic_shape
 
-        if any(i is not None for i in [external, onstack, onheap]):
-            self._external = bool(external)
-            self._onstack = bool(onstack)
-            self._onheap = bool(onheap)
-            assert single_or([self._external, self._onstack, self._onheap])
+    def update(self, **kwargs):
+        self.dtype = kwargs.get('dtype', self.dtype)
+        self._shape = kwargs.get('shape', self.shape)
+        self._indices = kwargs.get('dimensions', self.indices)
+        self._halo = kwargs.get('halo', self._halo)
+        self._padding = kwargs.get('padding', self._padding)
+        self._scope = kwargs.get('scope', self._scope)
+        assert self._scope in ['heap', 'stack', 'external']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures
 # that need to be passed to external libraries
 
 
-class Object(Basic):
+class AbstractObject(Basic, sympy.Basic, Pickable):
 
     """
     Represent a generic pointer object.
     """
 
-    is_Object = True
+    is_AbstractObject = True
 
-    def __init__(self, name, dtype, value=None):
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Basic.__new__(cls)
+        obj.__init__(*args, **kwargs)
+        return obj
+
+    def __init__(self, name, dtype):
         self.name = name
         self.dtype = dtype
-        self.value = value
 
     def __repr__(self):
         return self.name
+
+    __str__ = __repr__
+
+    def _hashable_content(self):
+        return (self.name, self.dtype)
+
+    @property
+    def free_symbols(self):
+        return {self}
+
+    @property
+    def ctype(self):
+        return ctypes_to_C(self.dtype)
+
+    # Pickling support
+    _pickle_args = ['name', 'dtype']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Object(AbstractObject, ArgProvider):
+
+    """
+    Represent a generic pointer object, provided by the outside world.
+    """
+
+    is_Object = True
+
+    def __init__(self, name, dtype, value=None):
+        super(Object, self).__init__(name, dtype)
+        self.value = value
 
     def _arg_defaults(self):
         if callable(self.value):
@@ -643,6 +738,55 @@ class Object(Basic):
             return {self.name: kwargs.pop(self.name)}
         else:
             return {}
+
+
+class CompositeObject(Object):
+
+    """
+    Represent a pointer object to a composite type (e.g., struct, union),
+    provided by the outside world.
+    """
+
+    _dtype_cache = {}
+
+    @classmethod
+    def _generate_unique_dtype(cls, pname, ptype, pfields):
+        dtype = POINTER(type(pname, (ptype,), {'_fields_': pfields}))
+        key = (pname, ptype, tuple(pfields))
+        return cls._dtype_cache.setdefault(key, dtype)
+
+    def __init__(self, name, pname, ptype, pfields, value=None):
+        dtype = CompositeObject._generate_unique_dtype(pname, ptype, pfields)
+        value = value or byref(dtype._type_())
+        super(CompositeObject, self).__init__(name, dtype, value)
+
+    @property
+    def pfields(self):
+        return tuple(i for i, _ in self.dtype._type_._fields_)
+
+    @property
+    def ptype(self):
+        return self.dtype._type_.__base__
+
+    @property
+    def pname(self):
+        return self.dtype._type_.__name__
+
+    def _hashable_content(self):
+        return (self.name, self.pfields)
+
+    # Pickling support
+    _pickle_args = ['name', 'pname', 'ptype', 'pfields']
+    _pickle_kwargs = []
+
+
+class LocalObject(AbstractObject):
+
+    """
+    Represent a generic, yet locally defined, pointer object.
+    """
+
+    is_LocalObject = True
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:
@@ -714,3 +858,21 @@ class CacheManager(object):
         for key, val in list(_SymbolCache.items()):
             if val() is None:
                 del _SymbolCache[key]
+
+
+class DataRegion(Tag):
+    pass
+
+
+DOMAIN = DataRegion('domain')
+OWNED = DataRegion('owned')
+HALO = DataRegion('halo')
+
+
+class DataSide(Tag):
+    pass
+
+
+LEFT = DataSide('left')
+RIGHT = DataSide('right')
+CENTER = DataSide('center')

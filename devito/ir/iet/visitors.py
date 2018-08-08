@@ -17,7 +17,7 @@ from devito.function import TimeFunction
 from devito.ir.iet.nodes import Node
 from devito.ir.support.space import Backward
 from devito.symbolics import xreplace_indices
-from devito.tools import as_tuple, filter_sorted, flatten, ctypes_to_C, GenericVisitor
+from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
@@ -145,9 +145,9 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_Object:
-                ret.append(c.Value('void', '*_%s' % i.name))
-            elif i.is_Scalar:
+            if i.is_AbstractObject:
+                ret.append(c.Value(i.ctype, i.name))
+            elif i.is_Symbol:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             elif i.is_Tensor:
                 ret.append(c.Value(c.dtype_to_ctype(i.dtype),
@@ -165,7 +165,9 @@ class CGen(Visitor):
         for i in args:
             try:
                 if i.is_Object:
-                    ret.append('*_%s' % i.name)
+                    ret.append(i.name)
+                elif i.is_LocalObject:
+                    ret.append('&%s' % i.name)
                 elif i.is_Array:
                     ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
                 elif i.is_Symbol:
@@ -185,15 +187,6 @@ class CGen(Visitor):
         shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
         lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
         rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(f.dtype), shape, '%s_vec' % f.name)
-        return c.Initializer(lvalue, rvalue)
-
-    def visit_PointerCast(self, o):
-        """
-        Build cgen pointer casts for an :class:`Object`.
-        """
-        ctype = ctypes_to_C(o.object.dtype)
-        lvalue = c.Pointer(c.Value(ctype, o.object.name))
-        rvalue = '(%s*) %s' % (ctype, '_%s' % o.object.name)
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
@@ -293,14 +286,19 @@ class CGen(Visitor):
     def visit_Operator(self, o):
         # Kernel signature and body
         body = flatten(self.visit(i) for i in o.children)
-        params = o.parameters
-        decls = self._args_decl(params)
+        decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         retval = [c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
         # Elemental functions
-        efuncs = [i.root.ccode for i in o.func_table.values() if i.local] + [blankline]
+        esigns = []
+        efuncs = [blankline]
+        for i in o._func_table.values():
+            if i.local:
+                esigns.append(c.FunctionDeclaration(c.Value(i.root.retval, i.root.name),
+                                                    self._args_decl(i.root.parameters)))
+                efuncs.extend([i.root.ccode, blankline])
 
         # Header files, extra definitions, ...
         header = [c.Line(i) for i in o._headers]
@@ -311,7 +309,8 @@ class CGen(Visitor):
             cglobals += [c.Extern('C', signature)]
         cglobals = [i for j in cglobals for i in (j, blankline)]
 
-        return c.Module(header + includes + cglobals + efuncs + [kernel])
+        return c.Module(header + includes + cglobals +
+                        esigns + [blankline, kernel] + efuncs)
 
 
 class FindSections(Visitor):
@@ -429,11 +428,13 @@ class FindSymbols(Visitor):
         symbols += self.rule(o)
         return filter_sorted(symbols, key=attrgetter('name'))
 
+    visit_Block = visit_Iteration
+    visit_Conditional = visit_Iteration
+
     def visit_Expression(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
     visit_ArrayCast = visit_Expression
-    visit_PointerCast = visit_Expression
     visit_Call = visit_Expression
 
 

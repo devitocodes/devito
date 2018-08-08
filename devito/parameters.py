@@ -94,7 +94,9 @@ class Parameters(OrderedDict, Signer):
         return self._name
 
     def _signature_items(self):
-        return tuple(str(sorted(self.items()))) + tuple(str(sorted(self.backend.items())))
+        items = sorted(it for it in self.items()
+                       if it[0] not in ['log_level', 'first_touch'])
+        return tuple(str(items)) + tuple(str(sorted(self.backend.items())))
 
 
 env_vars_mapper = {
@@ -108,6 +110,7 @@ env_vars_mapper = {
     'DEVITO_DLE': 'dle',
     'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
+    'DEVITO_MPI': 'mpi',
     'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_LOGGING': 'log_level',
     'DEVITO_FIRST_TOUCH': 'first_touch',

@@ -231,9 +231,8 @@ def demo_model(preset, **kwargs):
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
-            error("Path to opesci/data not found! Please specify with "
-                  "'data_path=<path/to/opesci/data>'")
-            raise ValueError("Path to model data unspecified")
+            raise ValueError("Path to opesci/data not found! Please specify with "
+                             "'data_path=<path/to/opesci/data>'")
         path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
         v = np.fromfile(path, dtype='float32', sep="")
         v = v.reshape(shape)
@@ -252,9 +251,8 @@ def demo_model(preset, **kwargs):
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
-            error("Path to opesci/data not found! Please specify with "
-                  "'data_path=<path/to/opesci/data>'")
-            raise ValueError("Path to model data unspecified")
+            raise ValueError("Path to opesci/data not found! Please specify with "
+                             "'data_path=<path/to/opesci/data>'")
         path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
         v = np.fromfile(path, dtype='float32', sep="")
         v = v.reshape(shape)
@@ -279,9 +277,8 @@ def demo_model(preset, **kwargs):
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
-            error("Path to opesci/data not found! Please specify with "
-                  "'data_path=<path/to/opesci/data>'")
-            raise ValueError("Path to model data unspecified")
+            raise ValueError("Path to opesci/data not found! Please specify with "
+                             "'data_path=<path/to/opesci/data>'")
         path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
 
         # velocity
@@ -318,9 +315,8 @@ def demo_model(preset, **kwargs):
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
-            error("Path to opesci/data not found! Please specify with "
-                  "'data_path=<path/to/opesci/data>'")
-            raise ValueError("Path to model data unspecified")
+            raise ValueError("Path to opesci/data not found! Please specify with "
+                             "'data_path=<path/to/opesci/data>'")
         path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
 
         # Velcoity
@@ -349,7 +345,7 @@ def demo_model(preset, **kwargs):
                      delta=delta, theta=theta, phi=phi, **kwargs)
 
     else:
-        error('Unknown model preset name %s' % preset)
+        raise ValueError("Unknown model preset name")
 
 
 def damp_boundary(damp, nbpml, spacing, mask=False):

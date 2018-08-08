@@ -134,7 +134,7 @@ def test_operator_function():
 
 def test_operator_timefunction():
     grid = Grid(shape=(3, 3, 3))
-    f = TimeFunction(name='f', grid=grid)
+    f = TimeFunction(name='f', grid=grid, save=3)
 
     op = Operator(Eq(f.forward, f + 1))
     op.apply(time=0)
@@ -143,4 +143,4 @@ def test_operator_timefunction():
     new_op = pickle.loads(pkl_op)
 
     new_op.apply(time_m=1, time_M=1, f=f)
-    assert np.all(f.data[0] == 2)
+    assert np.all(f.data[2] == 2)

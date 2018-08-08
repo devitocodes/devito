@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import abc
 import inspect
+import numbers
 from cached_property import cached_property
 from collections import Iterable, OrderedDict, namedtuple
 
@@ -21,9 +22,9 @@ from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatt
 from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
-           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'TimedList',
-           'MetaCall', 'ArrayCast', 'PointerCast', 'ForeignExpression', 'Section',
-           'IterationTree', 'ExpressionBundle']
+           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression',
+           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression',
+           'Section', 'HaloSpot', 'IterationTree', 'ExpressionBundle']
 
 # First-class IET nodes
 
@@ -37,11 +38,13 @@ class Node(Signer):
     is_Iteration = False
     is_IterationFold = False
     is_Expression = False
+    is_ForeignExpression = False
     is_Callable = False
     is_Call = False
     is_List = False
     is_Element = False
     is_Section = False
+    is_HaloSpot = False
     is_ExpressionBundle = False
 
     """
@@ -149,6 +152,18 @@ class Block(Node):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
                                       len(self.body), len(self.footer))
 
+    @property
+    def functions(self):
+        return ()
+
+    @property
+    def free_symbols(self):
+        return ()
+
+    @property
+    def defines(self):
+        return ()
+
 
 class List(Block):
 
@@ -194,7 +209,11 @@ class Call(Node):
     @cached_property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Call`."""
-        free = tuple(set(flatten(p.free_symbols for p in self.params)))
+        free = set()
+        for p in self.params:
+            if isinstance(p, numbers.Number):
+                continue
+            free.update(p.free_symbols)
         # HACK: Filter dimensions to avoid them on popping onto outer parameters
         free = tuple(s for s in free if not isinstance(s, Dimension))
         return free
@@ -580,12 +599,22 @@ class Conditional(Node):
             return "<[%s] ? [%s]" % (ccode(self.condition), repr(self.then_body))
 
     @property
+    def functions(self):
+        ret = []
+        for i in self.condition.free_symbols:
+            try:
+                ret.append(i.function)
+            except AttributeError:
+                pass
+        return tuple(ret)
+
+    @property
     def free_symbols(self):
-        """
-        Return all :class:`Symbol` objects used in the condition of this
-        :class:`Conditional`.
-        """
         return tuple(self.condition.free_symbols)
+
+    @property
+    def defines(self):
+        return ()
 
 
 # Second level IET nodes
@@ -594,23 +623,23 @@ class TimedList(List):
 
     """Wrap a Node with C-level timers."""
 
-    def __init__(self, lname, gname, body):
+    def __init__(self, timer, lname, body):
         """
-        Initialize a TimedList object.
+        Initialize a TimedList.
 
-        :param lname: Timer name in the local scope.
-        :param gname: Name of the global struct tracking all timers.
-        :param body: Timed block of code.
+        :param timer: A :class:`Timer` object.
+        :param lname: Name of the timed code block.
+        :param body: Timed code block.
         """
         self._name = lname
-        # TODO: need omp master pragma to be thread safe
+        self._timer = timer
         header = [c.Statement("struct timeval start_%s, end_%s" % (lname, lname)),
                   c.Statement("gettimeofday(&start_%s, NULL)" % lname)]
         footer = [c.Statement("gettimeofday(&end_%s, NULL)" % lname),
                   c.Statement(("%(gn)s->%(ln)s += " +
                                "(double)(end_%(ln)s.tv_sec-start_%(ln)s.tv_sec)+" +
                                "(double)(end_%(ln)s.tv_usec-start_%(ln)s.tv_usec)" +
-                               "/1000000") % {'gn': gname, 'ln': lname})]
+                               "/1000000") % {'gn': timer.name, 'ln': lname})]
         super(TimedList, self).__init__(header, body, footer)
 
     def __repr__(self):
@@ -620,6 +649,14 @@ class TimedList(List):
     @property
     def name(self):
         return self._name
+
+    @property
+    def timer(self):
+        return self._timer
+
+    @property
+    def free_symbols(self):
+        return (self.timer,)
 
 
 class Denormals(List):
@@ -672,41 +709,6 @@ class ArrayCast(Node):
         return (self.function, ) + as_tuple(sizes)
 
 
-class PointerCast(Node):
-
-    """
-    A node encapsulating a cast of a raw C pointer to a
-    struct or object.
-    """
-
-    def __init__(self, object):
-        self.object = object
-
-    @property
-    def functions(self):
-        """
-        Return all :class:`Function` objects used by this :class:`PointerCast`
-        """
-        return ()
-
-    @property
-    def defines(self):
-        """
-        Return the base symbol an :class:`PointerCast` defines.
-        """
-        return ()
-
-    @property
-    def free_symbols(self):
-        """
-        Return the symbols required to perform an :class:`PointerCast`.
-
-        This includes the :class:`AbstractFunction` object that
-        defines the data, as well as the dimension sizes.
-        """
-        return (self.object, )
-
-
 class LocalExpression(Expression):
 
     """
@@ -724,6 +726,8 @@ class LocalExpression(Expression):
 class ForeignExpression(Expression):
 
     """A node representing a SymPy :class:`FunctionFromPointer` expression."""
+
+    is_ForeignExpression = True
 
     @validate_type(('expr', FunctionFromPointer),
                    ('dtype', type))
@@ -785,6 +789,30 @@ class Section(List):
     @property
     def roots(self):
         return self.body
+
+
+class HaloSpot(List):
+
+    is_HaloSpot = True
+
+    def __init__(self, halo_scheme, body=None):
+        super(HaloSpot, self).__init__(body=body)
+        self.halo_scheme = halo_scheme
+
+    @property
+    def fmapper(self):
+        return self.halo_scheme.fmapper
+
+    @property
+    def mask(self):
+        return self.halo_scheme.mask
+
+    @property
+    def fixed(self):
+        return self.halo_scheme.fixed
+
+    def __repr__(self):
+        return "<HaloSpot>"
 
 
 class ExpressionBundle(List):
