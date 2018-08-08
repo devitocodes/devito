@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
 from devito.mpi import Distributor
@@ -145,6 +147,15 @@ class Grid(ArgProvider):
     def shape_domain(self):
         """Shape of the local (per-process) physical domain."""
         return self._distributor.shape
+
+    @property
+    def dimension_map(self):
+        """
+        Map between ``self``'s :class:`SpaceDimension` and their global and
+        local size.
+        """
+        return {d: namedtuple('Size', 'glb loc')(g, l)
+                for d, g, l in zip(self.dimensions, self.shape, self.shape_domain)}
 
     @property
     def distributor(self):
