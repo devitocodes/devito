@@ -41,7 +41,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
 
     rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
-    from IPython import embed; embed()
+
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
 
@@ -77,9 +77,9 @@ if __name__ == "__main__":
         spacing = (10.0, 10.0)
         tn = 750.0
     else:
-        shape = (150, 150, 150)
+        shape = (50, 50, 50)
         spacing = (10.0, 10.0, 10.0)
-        tn = 1250.0
+        tn = 250.0
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, autotune=args.autotune, dse=args.dse,

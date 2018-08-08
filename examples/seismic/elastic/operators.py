@@ -1,5 +1,5 @@
 
-from devito import Eq, Operator, TimeFunction, left, right, staggered_diff
+from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
 
 
@@ -11,14 +11,11 @@ def stress_fields(model, save, space_order):
         stagg_xx = stagg_zz = (0, 0, 0)
         stagg_xz = (0, 1, 1)
         # Create symbols for forward wavefield, source and receivers
-        txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx,
-                           save=source.nt if save else None,
+        txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx, save=save,
                            time_order=1, space_order=space_order)
-        tzz = TimeFunction(name='tzz', grid=model.grid, staggered=stagg_zz,
-                           save=source.nt if save else None,
+        tzz = TimeFunction(name='tzz', grid=model.grid, staggered=stagg_zz, save=save,
                            time_order=1, space_order=space_order)
-        txz = TimeFunction(name='txz', grid=model.grid, staggered=stagg_xz,
-                           save=source.nt if save else None,
+        txz = TimeFunction(name='txz', grid=model.grid, staggered=stagg_xz, save=save,
                            time_order=1, space_order=space_order)
         tyy = txy = tyz = None
     elif model.grid.dim == 3:
@@ -27,26 +24,21 @@ def stress_fields(model, save, space_order):
         stagg_yz = (0, 0, 1, 1)
         stagg_xy = (0, 1, 1, 0)
         # Create symbols for forward wavefield, source and receivers
-        txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx,
-                           save=source.nt if save else None,
+        txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx, save=save,
                            time_order=1, space_order=space_order)
-        tzz = TimeFunction(name='tzz', grid=model.grid, staggered=stagg_zz,
-                           save=source.nt if save else None,
+        tzz = TimeFunction(name='tzz', grid=model.grid, staggered=stagg_zz, save=save,
                            time_order=1, space_order=space_order)
-        tyy = TimeFunction(name='tyy', grid=model.grid, staggered=stagg_yy,
-                           save=source.nt if save else None,
+        tyy = TimeFunction(name='tyy', grid=model.grid, staggered=stagg_yy, save=save,
                            time_order=1, space_order=space_order)
-        txz = TimeFunction(name='txz', grid=model.grid, staggered=stagg_xz,
-                           save=source.nt if save else None,
+        txz = TimeFunction(name='txz', grid=model.grid, staggered=stagg_xz, save=save,
                            time_order=1, space_order=space_order)
-        txy = TimeFunction(name='txy', grid=model.grid, staggered=stagg_xy,
-                           save=source.nt if save else None,
+        txy = TimeFunction(name='txy', grid=model.grid, staggered=stagg_xy, save=save,
                            time_order=1, space_order=space_order)
-        tyz = TimeFunction(name='tyz', grid=model.grid, staggered=stagg_yz,
-                           save=source.nt if save else None,
+        tyz = TimeFunction(name='tyz', grid=model.grid, staggered=stagg_yz, save=save,
                            time_order=1, space_order=space_order)
 
     return txx, tyy, tzz, txy, txz, tyz
+
 
 def particle_velocity_fields(model, save, space_order):
     """
@@ -74,6 +66,7 @@ def particle_velocity_fields(model, save, space_order):
                           time_order=1, space_order=space_order)
 
     return vx, vy, vz
+
 
 def elastic_2d(model, space_order, save, source, receiver):
     """
@@ -105,6 +98,7 @@ def elastic_2d(model, space_order, save, source, receiver):
 
     src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver)
     return [u_vx, u_vz, u_txx, u_tzz, u_txz] + src_rec_expr
+
 
 def elastic_3d(model, space_order, save, source, receiver):
     """
@@ -142,6 +136,7 @@ def elastic_3d(model, space_order, save, source, receiver):
     src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver)
     return [u_vx, u_vy, u_vz, u_txx, u_tyy, u_tzz, u_txz, u_txy, u_tyz] + src_rec_expr
 
+
 def src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver):
     """
     Source injection and receiver interpolation
@@ -173,6 +168,7 @@ def src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver):
 
     return src_expr + rec_term1 + rec_term2
 
+
 def ForwardOperator(model, source, receiver, space_order=4,
                     save=False, **kwargs):
     """
@@ -186,14 +182,12 @@ def ForwardOperator(model, source, receiver, space_order=4,
                  indices (last three time steps)
     """
 
-
     pde = kernels[model.grid.dim](model, space_order, source.nt if save else None,
                                   source, receiver)
 
     # Substitute spacing terms to reduce flops
     return Operator(pde, subs=model.spacing_map,
                     name='Forward', **kwargs)
-
 
 
 kernels = {3: elastic_3d, 2: elastic_2d}

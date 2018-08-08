@@ -1,10 +1,7 @@
 from collections import Iterable, OrderedDict, namedtuple
 
-import sympy
 from sympy import Number, Indexed, Symbol, LM, LC
 
-# from devito.finite_differences.operations import Add, Mul
-import devito
 from devito.symbolics.extended_sympy import FrozenExpr, Eq
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
@@ -20,14 +17,15 @@ def freeze_expression(expr):
     Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
     into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
     """
+    from devito.finite_differences import Mul, Add
     if expr.is_Atom or expr.is_Indexed:
         return expr
     elif expr.is_Add:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
-        return devito.finite_differences.operations.Add(*rebuilt_args, evaluate=False)
+        return Add(*rebuilt_args, evaluate=False)
     elif expr.is_Mul:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
-        return devito.finite_differences.operations.Mul(*rebuilt_args, evaluate=False)
+        return Mul(*rebuilt_args, evaluate=False)
     elif expr.is_Equality:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
         if isinstance(expr, FrozenExpr):
@@ -158,6 +156,7 @@ def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
 
 
 def pow_to_mul(expr):
+    from devito.finite_differences import Mul
     if expr.is_Atom or expr.is_Indexed:
         return expr
     elif expr.is_Pow:
@@ -166,7 +165,7 @@ def pow_to_mul(expr):
             # Cannot handle powers containing non-integer non-positive exponents
             return expr
         else:
-            return devito.finite_differences.operations.Mul(*[base]*exp, evaluate=False)
+            return Mul(*[base]*exp, evaluate=False)
     else:
         return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
 

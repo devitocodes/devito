@@ -61,8 +61,8 @@ class AnisotropicWaveSolver(object):
 
         time_order = 1 if kernel == 'staggered' else 2
         if kernel == 'staggered':
-            stagg_u = (0, 1, 1, 0) if self.model.grid.dim == 3 else (0, 0, -1)
-            stagg_v = (0, 0, 0, 1) if self.model.grid.dim == 3 else (0, -1, 0)
+            stagg_u = (0, 0, 0, -1) if self.model.grid.dim == 3 else (0, 0, -1)
+            stagg_v = (0, -1, -1, 0) if self.model.grid.dim == 3 else (0, -1, 0)
         else:
             stagg_u = stagg_v = tuple([None]*(self.model.grid.dim+1))
         # Source term is read-only, so re-use the default

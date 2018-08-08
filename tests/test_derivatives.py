@@ -163,9 +163,10 @@ def test_fd_space(derivative, space_order):
 
 @skipif_yask
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+@pytest.mark.parametrize('deriv_order', [1, 2])
 @pytest.mark.parametrize('stagger', [centered, right, left])
 # Only test x and t as y and z are the same as x
-def test_fd_space_staggered(space_order, stagger):
+def test_fd_space_staggered(space_order, stagger, deriv_order):
     """
     This test compares the discrete finite-difference scheme against polynomials
     For a given order p, the finite difference scheme should
@@ -173,6 +174,8 @@ def test_fd_space_staggered(space_order, stagger):
     :param derivative: name of the derivative to be tested
     :param space_order: space order of the finite difference stencil
     """
+    if space_order == 2 and deriv_order == 2:
+        return True
     clear_cache()
     if stagger == left:
         off = -.5
@@ -199,9 +202,12 @@ def test_fd_space_staggered(space_order, stagger):
     u.data[:] = polyvalues
     # True derivative of the polynome
     Dpolynome = diff(polynome)
+    if deriv_order == 2:
+        Dpolynome = diff(Dpolynome)
     Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx2], np.float32)
     # FD derivative, symbolic
-    u_deriv = staggered_diff(u, order=space_order, dim=x, stagger=stagger)
+    u_deriv = staggered_diff(u, fd_order=space_order, dim=x, deriv_order=deriv_order,
+                             stagger=stagger)
     # Compute numerical FD
     stencil = Eq(du, u_deriv)
     op = Operator(stencil, subs={x.spacing: dx})

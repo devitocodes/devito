@@ -3,15 +3,17 @@ from __future__ import absolute_import
 from functools import reduce, partial
 from operator import mul
 
-from sympy import finite_diff_weights, cos, sin
+from sympy import finite_diff_weights
 
-from devito.logger import error
+from devito.logger import error, debug
 from devito.finite_differences.operations import Add
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative',
            'left', 'right', 'centered', 'staggered_diff',
            'initialize_derivatives', 'transpose']
+
+_PRECISION = 9
 
 
 class Transpose(object):
@@ -245,14 +247,14 @@ def staggered_diff(f, deriv_order, dim, fd_order, stagger=centered):
         off = .5
     else:
         off = 0
-
     diff = dim.spacing
     idx = list(set([(dim + int(i+.5+off)*diff)
                     for i in range(-int(fd_order / 2), int(fd_order / 2))]))
     if int(fd_order / 2) == 1:
         idx = [dim - diff, dim]
     deriv = f.diff(*(tuple(dim for _ in range(deriv_order))))
-    return deriv.as_finite_difference(idx, x0=dim + off*dim.spacing)
+    return deriv.as_finite_difference(idx, x0=dim + off*dim.spacing).evalf(_PRECISION)
+
 
 def initialize_derivatives(self):
     """
@@ -283,13 +285,22 @@ def initialize_derivatives(self):
         else:
             side = centered
         name = dim.parent.name if dim.is_Derived else dim.name
-        # First derivative, centred
+        # First derivative, default
         dx = partial(deriv_function, deriv_order=1, dim=dim,
                      fd_order=self.space_order, stagger=side)
         setattr(self.__class__, 'd%s' % name,
                 property(dx, 'Return the symbolic expression for '
                          'the centered first derivative wrt. '
                          'the %s dimension' % name))
+
+        if s is not None:
+            # First derivative, centred staggered
+            dx = partial(deriv_function, deriv_order=1, dim=dim,
+                         fd_order=self.space_order, stagger=centered)
+            setattr(self.__class__, 'd%sc' % name,
+                    property(dx, 'Return the symbolic expression for '
+                             'the centered first derivative wrt. '
+                             'the %s dimension' % name))
 
         # First derivative, left, only for cartesian grid
         if s is None:

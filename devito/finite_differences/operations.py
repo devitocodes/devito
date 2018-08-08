@@ -20,7 +20,7 @@ def fd_parameters(obj):
     so = 100
     to = 100
     is_time = False
-    stagg = (0, 0 ,0, 0)
+    stagg = (0, 0, 0, 0)
     # Filter expressions to get space and time Order
     # The space order is the minimum space order
     # The time order is the minimum time_order
@@ -44,6 +44,7 @@ def fd_parameters(obj):
     if is_time:
         obj.time_dim = tuple(set(time_dims))[0]
     obj.is_TimeFunction = is_time
+
 
 class Pow(sympy.Mul, FrozenExpr):
     """A customized version of :class:`sympy.Add` representing a sum of
@@ -75,17 +76,19 @@ class Pow(sympy.Mul, FrozenExpr):
 
     @property
     def _time_size(self):
-        func = list(retrieve_functions(obj))
+        func = list(retrieve_functions(self))
         for i in func:
             if isinstance(i, devito.TimeFunction):
                 return i._time_size
-        
+
         return None
-            
+
+
 class Mul(sympy.Mul, FrozenExpr):
     """A customized version of :class:`sympy.Add` representing a sum of
     symbolic object."""
     is_Mul = True
+
     def __new__(cls, *args, **kwargs):
         return sympy.Mul.__new__(cls, *args)
 
@@ -113,11 +116,11 @@ class Mul(sympy.Mul, FrozenExpr):
 
     @property
     def _time_size(self):
-        func = list(retrieve_functions(obj))
+        func = list(retrieve_functions(self))
         for i in func:
             if isinstance(i, devito.TimeFunction):
                 return i._time_size
-        
+
         return None
 
 
@@ -125,6 +128,7 @@ class Add(sympy.Add, FrozenExpr):
     """A customized version of :class:`sympy.Add` representing a sum of
     symbolic object."""
     is_Add = True
+
     def __new__(cls, *args, **kwargs):
         return sympy.Add.__new__(cls, *args)
 
@@ -152,10 +156,9 @@ class Add(sympy.Add, FrozenExpr):
 
     @property
     def _time_size(self):
-        func = list(retrieve_functions(obj))
+        func = list(retrieve_functions(self))
         for i in func:
             if isinstance(i, devito.TimeFunction):
                 return i._time_size
-        
+
         return None
-        

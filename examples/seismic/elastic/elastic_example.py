@@ -43,7 +43,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
-    from IPython import embed; embed()
+
     return rec1, rec2, vx, vz, txx, tzz, txz, summary
 
 

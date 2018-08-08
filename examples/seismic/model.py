@@ -163,7 +163,7 @@ def demo_model(preset, **kwargs):
         theta = smooth10(.5*(v - 1.5), shape)
         phi = None
         if len(shape) > 2:
-            phi = smooth10(.15*(v - 1.5), shape)
+            phi = smooth10(.25*(v - 1.5), shape)
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
