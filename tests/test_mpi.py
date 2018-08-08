@@ -24,7 +24,7 @@ def teardown_module(module):
 class TestPythonMPI(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
-    def test_basic_partitioning(self):
+    def test_partitioning(self):
         grid = Grid(shape=(15, 15))
         f = Function(name='f', grid=grid)
 
@@ -32,6 +32,24 @@ class TestPythonMPI(object):
         expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
             2: [(15, 8), (15, 7)],
             4: [(8, 8), (8, 7), (7, 8), (7, 7)]
+        }
+        assert f.shape == expected[distributor.nprocs][distributor.myrank]
+
+    @pytest.mark.parallel(nprocs=[2, 4])
+    def test_partitioning_fewer_dims(self):
+        """Test domain decomposition for Functions defined over a strict subset
+        of grid-decomposed dimensions."""
+        size_x, size_y = 16, 16
+        grid = Grid(shape=(size_x, size_y))
+        x, y = grid.dimensions
+
+        # A function with fewer dimensions that in `grid`
+        f = Function(name='f', grid=grid, dimensions=(y,), shape=(size_y,))
+
+        distributor = grid.distributor
+        expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
+            2: [(8,), (8,)],
+            4: [(8,), (8,), (8,), (8,)]
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
@@ -636,4 +654,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_bcs_basic()
+    TestPythonMPI().test_partitioning_fewer_dims()
