@@ -95,8 +95,8 @@ def second_derivative(*args, **kwargs):
 
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
-            deriv += coeffs[i] * reduce(mul, var, 1)
-    return deriv.evalf(_PRECISION)
+            deriv += coeffs[i].evalf(_PRECISION) * reduce(mul, var, 1)
+    return deriv
 
 
 def cross_derivative(*args, **kwargs):
@@ -150,9 +150,9 @@ def cross_derivative(*args, **kwargs):
             var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
             var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
             deriv += (.5 * c11[i] * c12[j] * reduce(mul, var1, 1) +
-                      .5 * c21[-(j+1)] * c22[-(i+1)] * reduce(mul, var2, 1))
+                      .5 * c21[-(j+1)] * c22[-(i+1)] * reduce(mul, var2, 1)).evalf(_PRECISION)
 
-    return -deriv.evalf(_PRECISION)
+    return -deriv
 
 
 def first_derivative(*args, **kwargs):
@@ -193,8 +193,8 @@ def first_derivative(*args, **kwargs):
     # Loop through positions
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
-            deriv += c[i] * reduce(mul, var, 1)
-    return (matvec._transpose*deriv).evalf(_PRECISION)
+            deriv += c[i].evalf(_PRECISION) * reduce(mul, var, 1)
+    return (matvec._transpose*deriv)
 
 
 def generic_derivative(function, deriv_order, dim, fd_order, **kwargs):
@@ -215,9 +215,9 @@ def generic_derivative(function, deriv_order, dim, fd_order, **kwargs):
     deriv = Add(0)
     for i in range(0, len(indices)):
             var = [function.subs({dim: indices[i]})]
-            deriv += reduce(mul, var, 1) * c[i]
+            deriv += reduce(mul, var, 1) * c[i].evalf(_PRECISION)
 
-    return deriv.evalf(_PRECISION)
+    return deriv
 
 
 def second_cross_derivative(function, dims, order):
