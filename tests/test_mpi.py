@@ -553,6 +553,27 @@ class TestOperatorAdvanced(object):
         assert len(FindNodes(Call).visit(conditional[0])) == 0
 
     @pytest.mark.parallel(nprocs=2)
+    def test_arguments_subrange(self):
+        """
+        Test op.apply when a subrange is specified for a distributed dimension.
+        """
+        grid = Grid(shape=(16,))
+        x = grid.dimensions[0]
+
+        f = TimeFunction(name='f', grid=grid)
+
+        op = Operator(Eq(f.forward, f + 1.))
+        op.apply(time=0, x_m=4, x_M=11)
+
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(f.data_ro_domain[1, :4] == 0.)
+            assert np.all(f.data_ro_domain[1, 4:] == 1.)
+        else:
+            assert np.all(f.data_ro_domain[1, :-4] == 1.)
+            assert np.all(f.data_ro_domain[1, -4:] == 0.)
+
+    @pytest.mark.parallel(nprocs=2)
     def test_bcs_basic(self):
         """
         Test MPI in presence of boundary condition loops. Here, no halo exchange
