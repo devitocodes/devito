@@ -1,4 +1,5 @@
 import sympy
+import numpy as np
 
 import devito
 from devito.symbolics.search import retrieve_functions
@@ -21,15 +22,18 @@ def fd_parameters(obj):
     to = 100
     is_time = False
     stagg = (0, 0, 0, 0)
+    dtype = None
     # Filter expressions to get space and time Order
     # The space order is the minimum space order
     # The time order is the minimum time_order
     for i in func:
         if isinstance(i, devito.Function):
+            dtype = i.grid
             sp_dims += i.space_dimensions
             so = min(so, i.space_order)
             stagg = i.staggered
         if isinstance(i, devito.TimeFunction):
+            dtype = i.grid
             sp_dims += i.space_dimensions
             time_dims += (i.time_dim,)
             so = min(so, i.space_order)
@@ -37,6 +41,7 @@ def fd_parameters(obj):
             to = min(to, i.time_order)
             stagg = i.staggered
 
+    obj.dtype = dtype or np.float32
     obj.space_order = so
     obj.time_order = to
     obj.space_dimensions = tuple(set(sp_dims))
@@ -50,7 +55,7 @@ class Pow(sympy.Mul, FrozenExpr):
     """A customized version of :class:`sympy.Add` representing a sum of
     symbolic object."""
     def __new__(cls, *args, **kwargs):
-        return sympy.Pow.__new__(cls, *args)
+        return sympy.Pow.__new__(cls, *args, evaluate=False)
 
     def __init__(self, *args, **kwargs):
         fd_parameters(self)
@@ -90,7 +95,7 @@ class Mul(sympy.Mul, FrozenExpr):
     is_Mul = True
 
     def __new__(cls, *args, **kwargs):
-        return sympy.Mul.__new__(cls, *args)
+        return sympy.Mul.__new__(cls, *args, evaluate=False)
 
     def __init__(self, *args, **kwargs):
         fd_parameters(self)
@@ -130,7 +135,7 @@ class Add(sympy.Add, FrozenExpr):
     is_Add = True
 
     def __new__(cls, *args, **kwargs):
-        return sympy.Add.__new__(cls, *args)
+        return sympy.Add.__new__(cls, *args, evaluate=False)
 
     def __init__(self, *args, **kwargs):
         fd_parameters(self)
@@ -162,3 +167,7 @@ class Add(sympy.Add, FrozenExpr):
                 return i._time_size
 
         return None
+
+    def evalf(self, N=None):
+        N = N or sympy.N(sympy.Float(1.0))
+        return Add(sum([a.evalf(N) for a in self.args]))

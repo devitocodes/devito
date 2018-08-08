@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 from devito import Grid, Function, Constant
-from devito.logger import error, warning
+from devito.logger import warning
 from examples.seismic.utils import smooth10
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']

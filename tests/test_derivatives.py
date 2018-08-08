@@ -97,7 +97,7 @@ def test_derivatives_space(grid, derivative, dim, order):
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
     s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-    assert(expr == s_expr)  # Exact equailty
+    assert(e == s_e for e, s_e in zip(expr.args, s_expr.args))  # Exact equality
 
 
 @skipif_yask
@@ -115,7 +115,7 @@ def test_second_derivatives_space(grid, derivative, dim, order):
     indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
     s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-    assert(expr == s_expr)  # Exact equailty
+    assert(e == s_e for e, s_e in zip(expr.args, s_expr.args))  # Exact equality
 
 
 @skipif_yask
@@ -160,6 +160,7 @@ def test_fd_space(derivative, space_order):
     space_border = space_order
     error = abs(du.data[space_border:-space_border] -
                 Dpolyvalues[space_border:-space_border])
+
     assert np.isclose(np.mean(error), 0., atol=1e-3)
 
 

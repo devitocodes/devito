@@ -424,7 +424,8 @@ class TensorFunction(AbstractCachedFunction):
                 # We've been provided a pure-data replacement (array)
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
-                for i, s, o in zip(self.indices, new.shape, self.staggered):
+                staggered = tuple([s if s is not None else 0 for s in self.staggered])
+                for i, s, o in zip(self.indices, new.shape, staggered):
                     values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
                 # Add MPI-related data structures
                 if self.grid is not None:
