@@ -13,11 +13,9 @@ __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'left', 'right', 'centered', 'staggered_diff',
            'initialize_derivatives', 'transpose']
 
-_PRECISION = 9
-
 # Number of digits for FD coefficients to avoid roundup errors and non-deeterministic
 # code generation
-_PRECISION = 9
+_PRECISION = 15
 
 
 class Transpose(object):
@@ -218,6 +216,7 @@ def generic_derivative(function, deriv_order, dim, fd_order, **kwargs):
     for i in range(0, len(indices)):
             var = [function.subs({dim: indices[i]})]
             deriv += reduce(mul, var, 1) * c[i]
+
     return deriv.evalf(_PRECISION)
 
 

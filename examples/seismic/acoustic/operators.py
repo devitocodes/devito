@@ -1,6 +1,6 @@
 from sympy import Symbol
 
-from devito import Eq, Operator, Function, TimeFunction, Inc
+from devito import Eq, Operator, Function, TimeFunction, Inc, solve
 from examples.seismic import PointSource, Receiver
 
 

@@ -624,7 +624,6 @@ class Function(TensorFunction):
         derivative wrt. all spatial dimensions.
         """
         derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-
         return Add(sum([getattr(self, d) for d in derivs[:self.ndim]]))
 
     def laplace2(self, weight=1):

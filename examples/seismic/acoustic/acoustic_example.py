@@ -5,7 +5,7 @@ from devito.logger import info
 from devito import Constant
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-from devito.seismic.utils import smooth10
+from examples.seismic.utils import smooth10
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
@@ -55,7 +55,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     save = full_run and not checkpointing
     # Define receiver geometry (spread across x, just below surface)
     rec, u, summary = solver.forward(save=save, autotune=autotune)
-
+    from IPython import embed; embed()
     if constant:
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
