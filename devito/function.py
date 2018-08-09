@@ -861,19 +861,21 @@ class TimeFunction(Function):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        save = kwargs.get('save')
-        grid = kwargs.get('grid')
-        time_dim = kwargs.get('time_dim')
+        dimensions = kwargs.get('dimensions')
+        if dimensions is None:
+            save = kwargs.get('save')
+            grid = kwargs.get('grid')
+            time_dim = kwargs.get('time_dim')
 
-        if time_dim is None:
-            time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
-        elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
-            raise TypeError("`time_dim` must be a time dimension")
+            if time_dim is None:
+                time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
+            elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
+                raise TypeError("`time_dim` must be a time dimension")
 
-        indices = list(Function.__indices_setup__(**kwargs))
-        indices.insert(cls._time_position, time_dim)
+            dimensions = list(Function.__indices_setup__(**kwargs))
+            dimensions.insert(cls._time_position, time_dim)
 
-        return tuple(indices)
+        return tuple(dimensions)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -888,16 +890,17 @@ class TimeFunction(Function):
             if save is not None:
                 raise TypeError("Ambiguity detected: provide either `grid` and `save` "
                                 "or just `shape` ")
-        else:
+        elif shape is None:
+            shape = list(grid.shape_domain)
             if save is None:
-                shape = (time_order + 1,) + grid.shape_domain
+                shape.insert(cls._time_position, time_order + 1)
             elif isinstance(save, Buffer):
-                shape = (save.val,) + grid.shape_domain
+                shape.insert(cls._time_position, save.val)
             elif isinstance(save, int):
-                shape = (save,) + grid.shape_domain
+                shape.insert(cls._time_position, save)
             else:
                 raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
-        return shape
+        return tuple(shape)
 
     @property
     def forward(self):
