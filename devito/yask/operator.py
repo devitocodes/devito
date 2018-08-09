@@ -67,7 +67,8 @@ class Operator(OperatorRunnable):
             context = contexts.fetch(dimensions, self._dtype)
 
             # A unique name for the 'real' compiler and kernel solutions
-            name = namespace['jit-soln'](Signer._digest(iet, configuration))
+            name = namespace['jit-soln'](Signer._digest(configuration,
+                                                        *[i.root for i in trees]))
 
             # Create a YASK compiler solution for this Operator
             yc_soln = context.make_yc_solution(name)
