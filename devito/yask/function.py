@@ -178,7 +178,8 @@ class TimeFunction(function.TimeFunction, Function):
         # Never use a SteppingDimension in the yask backend: it is simply
         # unnecessary and would only complicate things when creating dummy
         # grids
-        indices[cls._time_position] = kwargs['grid'].time_dim
+        if indices[cls._time_position].is_Stepping:
+            indices[cls._time_position] = indices[cls._time_position].root
         return tuple(indices)
 
     def _arg_defaults(self, alias=None):
