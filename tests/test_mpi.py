@@ -630,6 +630,87 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
             assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
 
+    @pytest.mark.parallel(nprocs=9)
+    def test_nontrivial_operator(self):
+        """
+        Test MPI in a non-trivial scenario: ::
+
+            * 9 processes logically organised in a 3x3 cartesian grid (as opposed to
+              most tests in this module, which only use 2 or 4 processed);
+            * star-like stencil expression;
+            * non-trivial Higdon-like BCs;
+            * simultaneous presence of TimeFunction(grid), Function(grid), and
+              Function(dimensions)
+        """
+        size_x, size_y = 9, 9
+        tkn = 2
+
+        # Grid and Dimensions
+        grid = Grid(shape=(size_x, size_y,))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        # SubDimensions to implement BCs
+        xl, yl = [SubDimension.left('%sl' % d.name, d, tkn) for d in [x, y]]
+        xi, yi = [SubDimension.middle('%si' % d.name, d, tkn, tkn) for d in [x, y]]
+        xr, yr = [SubDimension.right('%sr' % d.name, d, tkn) for d in [x, y]]
+
+        # Functions
+        u = TimeFunction(name='f', grid=grid)
+        m = Function(name='m', grid=grid)
+        c = Function(name='c', grid=grid, dimensions=(x,), shape=(size_x,))
+
+        # Data initialization
+        u.data_with_halo[:] = 0.
+        m.data_with_halo[:] = 1.
+        c.data_with_halo[:] = 0.
+
+        # Equations
+        c_init = Eq(c, 1.)
+        eqn = Eq(u[t+1, xi, yi], u[t, xi, yi] + m[xi, yi] + c[xi] + 1.)
+        bc_left = Eq(u[t+1, xl, yi], u[t+1, xl+1, yi] + 1.)
+        bc_right = Eq(u[t+1, xr, yi], u[t+1, xr-1, yi] + 1.)
+        bc_top = Eq(u[t+1, xi, yl], u[t+1, xi, yl+1] + 1.)
+        bc_bottom = Eq(u[t+1, xi, yr], u[t+1, xi, yr-1] + 1.)
+
+        op = Operator([c_init, eqn, bc_left, bc_right, bc_top, bc_bottom])
+        op.apply(time=0)
+
+        # Expected (global view):
+        # 0 0 5 5 5 5 5 0 0
+        # 0 0 4 4 4 4 4 0 0
+        # 5 4 3 3 3 3 3 4 5
+        # 5 4 3 3 3 3 3 4 5
+        # 5 4 3 3 3 3 3 4 5
+        # 5 4 3 3 3 3 3 4 5
+        # 0 0 4 4 4 4 4 0 0
+        # 0 0 5 5 5 5 5 0 0
+
+        assert np.all(u.data_ro_domain[0] == 0)  # The write occures at t=1
+
+        glb_pos_map = u.grid.distributor.glb_pos_map
+        # Check cornes
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[0, 0, 5], [0, 0, 4], [5, 4, 3]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[5, 0, 0], [4, 0, 0], [3, 4, 5]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[5, 4, 3], [0, 0, 4], [0, 0, 5]])
+        elif RIGHT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[3, 4, 5], [4, 0, 0], [5, 0, 0]])
+        # Check sides
+        if not glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[5, 4, 3], [5, 4, 3], [5, 4, 3]])
+        elif not glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[3, 4, 5], [3, 4, 5], [3, 4, 5]])
+        elif LEFT in glb_pos_map[x] and not glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[5, 5, 5], [4, 4, 4], [3, 3, 3]])
+        elif RIGHT in glb_pos_map[x] and not glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[3, 3, 3], [4, 4, 4], [5, 5, 5]])
+        # Check center
+        if not glb_pos_map[x] and not glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == 3)
+
 
 class TestIsotropicAcoustic(object):
 
@@ -654,4 +735,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestPythonMPI().test_partitioning_fewer_dims()
+    TestOperatorAdvanced().test_nontrivial_operator()
