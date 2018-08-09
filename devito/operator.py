@@ -129,7 +129,7 @@ class Operator(Callable):
         mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
         try:
             grid = mapper.unique('grid')
-        except ValueError:
+        except (KeyError, ValueError):
             if mapper and configuration['mpi']:
                 raise RuntimeError("Multiple `Grid`s found before `apply`")
             grid = None
