@@ -16,10 +16,10 @@ from devito.logger import bar, info
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
-                           ArrayCast, PointerCast, derive_parameters)
-from devito.ir.stree import schedule, section
+                           ArrayCast, derive_parameters)
+from devito.ir.stree import st_build
 from devito.parameters import configuration
-from devito.profiling import Timer, create_profile
+from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, numpy_to_ctypes, split)
@@ -68,7 +68,7 @@ class Operator(Callable):
         self._cfunction = None
 
         # References to local or external routines
-        self.func_table = OrderedDict()
+        self._func_table = OrderedDict()
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
@@ -87,8 +87,7 @@ class Operator(Callable):
         self._dtype, self._dspace = clusters.meta
 
         # Lower Clusters to a Schedule tree
-        stree = schedule(clusters)
-        stree = section(stree)
+        stree = st_build(clusters)
 
         # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
@@ -100,7 +99,10 @@ class Operator(Callable):
         iet = self._specialize_iet(iet, **kwargs)
 
         # Insert the required symbol declarations
-        iet = iet_insert_C_decls(iet, self.func_table)
+        iet = iet_insert_C_decls(iet, self._func_table)
+
+        # Insert code for MPI support
+        iet = self._generate_mpi(iet, **kwargs)
 
         # Insert data and pointer casts for array parameters and profiling structs
         iet = self._build_casts(iet)
@@ -149,7 +151,7 @@ class Operator(Callable):
                 args[dim.symbolic_size.name] = arg.value(osize)
 
         # Add in the profiler argument
-        args[self.profiler.name] = self.profiler.new()
+        args[self.profiler.name] = self.profiler.timer.reset()
 
         # Add in any backend-specific argument
         args.update(kwargs.pop('backend', {}))
@@ -182,7 +184,7 @@ class Operator(Callable):
 
     @property
     def elemental_functions(self):
-        return tuple(i.root for i in self.func_table.values())
+        return tuple(i.root for i in self._func_table.values())
 
     @cached_property
     def _soname(self):
@@ -218,7 +220,7 @@ class Operator(Callable):
             argtypes = []
             for i in self.parameters:
                 if i.is_Object:
-                    argtypes.append(ctypes.c_void_p)
+                    argtypes.append(i.dtype)
                 elif i.is_Scalar:
                     argtypes.append(numpy_to_ctypes(i.dtype))
                 elif i.is_Tensor:
@@ -253,13 +255,19 @@ class Operator(Callable):
 
         self._dle_args = dle_state.arguments
         self._dle_flags = dle_state.flags
-        self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                            for i in dle_state.elemental_functions]))
+        self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
+                                             for i in dle_state.elemental_functions]))
         self.dimensions.extend([i.argument for i in self._dle_args
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
 
         return dle_state.nodes
+
+    def _generate_mpi(self, iet, **kwargs):
+        """Transform the Iteration/Expression tree adding nodes performing halo
+        exchanges right before :class:`Iteration`s accessing distributed
+        :class:`TensorFunction`s."""
+        return iet
 
     def _build_parameters(self, iet):
         """Determine the Operator parameters based on the Iteration/Expression
@@ -270,7 +278,6 @@ class Operator(Callable):
         """Introduce array and pointer casts at the top of the Iteration/Expression
         tree ``iet``."""
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
-        casts.append(PointerCast(Timer(self.profiler)))
         return List(body=casts + [iet])
 
     def __getstate__(self):
@@ -403,7 +410,7 @@ class OperatorRunnable(Operator):
         iet = profiler.instrument(iet)
         self._globals.append(profiler.cdef)
         self._includes.extend(profiler._default_includes)
-        self.func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
+        self._func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
         return iet, profiler
 
 

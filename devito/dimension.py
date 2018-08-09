@@ -6,13 +6,13 @@ from cached_property import cached_property
 from devito.exceptions import InvalidArgument
 from devito.types import AbstractSymbol, Scalar
 from devito.logger import debug
-from devito.tools import Pickable
+from devito.tools import ArgProvider, Pickable
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
 
 
-class Dimension(AbstractSymbol):
+class Dimension(AbstractSymbol, ArgProvider):
 
     is_Dimension = True
     is_Space = False
@@ -257,6 +257,10 @@ class DefaultDimension(Dimension):
         newobj = Dimension.__xnew__(cls, name)
         newobj._default_value = default_value or 0
         return newobj
+
+    @cached_property
+    def symbolic_size(self):
+        return sympy.Number(self._default_value)
 
     def _arg_defaults(self, start=None, size=None, alias=None):
         dim = alias or self
@@ -517,45 +521,29 @@ class SteppingDimension(DerivedDimension):
 
     @property
     def symbolic_start(self):
-        """
-        The symbol defining the iteration start for this dimension.
-
-        note ::
-
-        Internally we always define symbolic iteration ranges in terms
-        of the parent variable.
-        """
         return self.parent.symbolic_start
 
     @property
     def symbolic_end(self):
-        """
-        The symbol defining the iteration end for this dimension.
-
-        note ::
-
-        Internally we always define symbolic iteration ranges in terms
-        of the parent variable.
-        """
         return self.parent.symbolic_end
 
     @property
     def _arg_names(self):
         return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
-    def _arg_defaults(self, start=None, **kwargs):
+    def _arg_defaults(self, start=None, size=None, **kwargs):
         """
         Returns a map of default argument values defined by this dimension.
 
-        :param start: Optional, known starting point as provided by
+        :param start: (Optional) known starting point as provided by
                       data-carrying symbols.
+        :param size: (Optional) known size as provided by data-carrying symbols.
 
-        note ::
+        .. note ::
 
-        A :class:`SteppingDimension` neither knows its size nor its
-        iteration end point. So all we can provide is a starting point.
+            A :class:`SteppingDimension` does not know its end point.
         """
-        return {self.parent.min_name: start}
+        return {self.parent.min_name: start, self.size_name: size}
 
     def _arg_values(self, *args, **kwargs):
         """

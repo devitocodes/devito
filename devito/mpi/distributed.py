@@ -1,9 +1,16 @@
+from collections import namedtuple
+from ctypes import Structure, c_int, c_void_p, sizeof
+from itertools import product
+
+from cached_property import cached_property
+from cgen import Struct, Value
+
 import numpy as np
 from mpi4py import MPI
 
-from devito.tools import Tag
+from devito.types import LEFT, RIGHT
 
-__all__ = ['Distributor', 'LEFT', 'RIGHT', 'CENTER']
+__all__ = ['Distributor']
 
 
 class Distributor(object):
@@ -90,26 +97,47 @@ class Distributor(object):
     @property
     def neighbours(self):
         """
-        Return the mapper ``proc -> direction``; ``proc`` is the rank of a
-        neighboring process, while ``direction`` tells whether ``proc`` is
+        Return the mapper ``proc -> side``; ``proc`` is the rank of a
+        neighboring process, while ``side`` tells whether ``proc`` is
         logically at right (value=1) or left (value=-1) of ``self``.
         """
         shifts = {d: self._comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
         ret = {}
         for d, (src, dest) in shifts.items():
             ret[d] = {}
-            ret[d][LEFT] = src if src != -1 else None
-            ret[d][RIGHT] = dest if dest != -1 else None
+            ret[d][LEFT] = src
+            ret[d][RIGHT] = dest
         return ret
+
+    @cached_property
+    def _C_comm(self):
+        """
+        A :class:`Object` wrapping an MPI communicator.
+
+        Extracted from: ::
+
+            https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
+        """
+        from devito.types import CompositeObject
+        ptype = c_int if MPI._sizeof(self._comm) == sizeof(c_int) else c_void_p
+        obj = CompositeObject('comm', 'MPI_Comm', ptype, [])
+        comm_ptr = MPI._addressof(self._comm)
+        comm_val = obj.dtype.from_address(comm_ptr)
+        obj.value = comm_val
+        return obj
+
+    @cached_property
+    def _C_neighbours(self):
+        """A ctypes Struct to access the neighborhood of a given rank."""
+        from devito.types import CompositeObject
+        entries = list(product(self.dimensions, [LEFT, RIGHT]))
+        fields = [('%s%s' % (d, i), c_int) for d, i in entries]
+        obj = CompositeObject('nb', 'neighbours', Structure, fields)
+        for d, i in entries:
+            setattr(obj.value._obj, '%s%s' % (d, i), self.neighbours[d][i])
+        cdef = Struct('neighbours', [Value('int', i) for i, _ in fields])
+        CNeighbours = namedtuple('CNeighbours', 'ctype cdef obj')
+        return CNeighbours(obj.dtype, cdef, obj)
 
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
-
-
-class RankRelativePosition(Tag):
-    pass
-
-
-LEFT = RankRelativePosition('left')
-RIGHT = RankRelativePosition('right')
-CENTER = RankRelativePosition('center')

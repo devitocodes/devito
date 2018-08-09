@@ -10,7 +10,6 @@ from mpi4py import MPI
 from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
-from devito.distributed import LEFT, RIGHT
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.finite_difference import (centered, cross_derivative,
@@ -20,7 +19,8 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import AbstractCachedFunction, AbstractCachedSymbol
+from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
+                          OWNED, HALO, LEFT, RIGHT)
 from devito.tools import Tag, ReducerMap, prod, powerset, is_integer
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
@@ -147,10 +147,6 @@ class TensorFunction(AbstractCachedFunction):
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data = None
             self._allocator = kwargs.get('allocator', default_allocator())
-
-    def __getitem__(self, index):
-        """Shortcut for ``self.indexed[index]``."""
-        return self.indexed[index]
 
     def _allocate_memory(func):
         """Allocate memory as a :class:`Data`."""
@@ -367,21 +363,23 @@ class TensorFunction(AbstractCachedFunction):
         comm = distributor.comm
         for i in [LEFT, RIGHT]:
             neighbour = neighbours[dim][i]
-            if neighbour is not None:
-                sendbuf = np.ascontiguousarray(self._get_owned(dim, i))
-                recvbuf = np.ndarray(shape=sendbuf.shape, dtype=sendbuf.dtype)
-                self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
-                self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
+            owned_region = self._get_view(OWNED, dim, i)
+            halo_region = self._get_view(HALO, dim, i)
+            sendbuf = np.ascontiguousarray(owned_region)
+            recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
+            self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
+            self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
 
     def __halo_end_exchange(self, dim):
         """End a halo exchange along a given :class:`Dimension`."""
         for d, i, payload, req in list(self._in_flight):
             if d == dim:
-                req.Wait()
-                if payload is not None:
+                status = MPI.Status()
+                req.Wait(status=status)
+                if payload is not None and status.source != MPI.PROC_NULL:
                     # The MPI.Request `req` originated from a `comm.Irecv`
                     # Now need to scatter the data to the right place
-                    self._get_halo(d, i)[:] = payload
+                    self._get_view(HALO, d, i)[:] = payload
             self._in_flight.remove((d, i, payload, req))
 
     @property
@@ -401,6 +399,11 @@ class TensorFunction(AbstractCachedFunction):
         # Collect default dimension arguments from all indices
         for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
             args.update(i._arg_defaults(start=0, size=s+o, alias=k))
+
+        # Add MPI-related data structures
+        if self.grid is not None:
+            args.update(self.grid._arg_defaults())
+
         return args
 
     def _arg_values(self, **kwargs):
@@ -423,6 +426,9 @@ class TensorFunction(AbstractCachedFunction):
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
                     values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
+                # Add MPI-related data structures
+                if self.grid is not None:
+                    values.update(self.grid._arg_defaults())
         else:
             values = self._arg_defaults(alias=self).reduce_all()
 

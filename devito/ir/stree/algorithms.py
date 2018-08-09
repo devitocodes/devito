@@ -1,15 +1,34 @@
 from collections import OrderedDict
 
-from anytree import findall
+from anytree import LevelOrderIter, findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeExprs, NodeSection)
+                                  NodeExprs, NodeSection, NodeHalo, insert)
+from devito.ir.support.space import IterationSpace
+from devito.mpi import HaloScheme, HaloSchemeException
+from devito.parameters import configuration
 from devito.tools import flatten
 
-__all__ = ['schedule', 'section']
+__all__ = ['st_build']
 
 
-def schedule(clusters):
+def st_build(clusters):
+    """
+    Create a :class:`ScheduleTree` from a :class:`ClusterGroup`.
+    """
+    # ClusterGroup -> Schedule tree
+    stree = st_schedule(clusters)
+
+    # Add in section nodes
+    stree = st_section(stree)
+
+    # Add in halo update nodes
+    stree = st_make_halo(stree)
+
+    return stree
+
+
+def st_schedule(clusters):
     """
     Arrange an iterable of :class:`Cluster`s into a :class:`ScheduleTree`.
     """
@@ -32,7 +51,7 @@ def schedule(clusters):
 
         # The reused sub-trees might acquire some new sub-iterators
         for i in pointers[:index]:
-            mapper[i].ispace.merge(c.ispace)
+            mapper[i].ispace = IterationSpace.merge(mapper[i].ispace, c.ispace)
         # Later sub-trees, instead, will not be used anymore
         for i in pointers[index:]:
             mapper.pop(i)
@@ -55,10 +74,48 @@ def schedule(clusters):
     return stree
 
 
-def section(stree):
+def st_make_halo(stree):
     """
-    Create sections in a :class:`ScheduleTree`. A section is a sub-tree with
-    the following properties: ::
+    Add :class:`NodeHalo` to a :class:`ScheduleTree`. A halo node describes
+    what halo exchanges should take place before executing the sub-tree.
+    """
+    if not configuration['mpi']:
+        # TODO: This will be dropped as soon as stronger analysis will have
+        # been implemented
+        return stree
+
+    processed = {}
+    for n in LevelOrderIter(stree, stop=lambda i: i.parent in processed):
+        if not n.is_Iteration:
+            continue
+        exprs = flatten(i.exprs for i in findall(n, lambda i: i.is_Exprs))
+        try:
+            halo_scheme = HaloScheme(exprs)
+            if n.dim in halo_scheme.dmapper:
+                processed[n] = NodeHalo(halo_scheme)
+        except HaloSchemeException:
+            # We should get here only when trying to compute a halo
+            # scheme for a group of expressions that belong to different
+            # iteration spaces. We expect proper halo schemes to be built
+            # as the `stree` visit proceeds.
+            # TODO: However, at the end, we should check that a halo scheme,
+            # possibly even a "void" one, has been built for *all* of the
+            # expressions, and error out otherwise.
+            continue
+        except RuntimeError as e:
+            if configuration['mpi'] is True:
+                raise RuntimeError(str(e))
+
+    for k, v in processed.items():
+        insert(v, k.parent, [k])
+
+    return stree
+
+
+def st_section(stree):
+    """
+    Add :class:`NodeSection` to a :class:`ScheduleTree`. A section defines a
+    sub-tree with the following properties: ::
 
         * The root is a node of type :class:`NodeSection`;
         * The immediate children of the root are nodes of type :class:`NodeIteration`
@@ -99,15 +156,6 @@ def section(stree):
 
     # Transform the schedule tree by adding in sections
     for i in sections:
-        node = NodeSection()
-        processed = []
-        for n in list(i.parent.children):
-            if n in i.nodes:
-                n.parent = node
-                if node not in processed:
-                    processed.append(node)
-            else:
-                processed.append(n)
-        i.parent.children = processed
+        insert(NodeSection(), i.parent, i.nodes)
 
     return stree

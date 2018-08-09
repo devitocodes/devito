@@ -1,7 +1,9 @@
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.distributed import Distributor
+from devito.mpi import Distributor
 from devito.function import Constant
+from devito.parameters import configuration
+from devito.tools import ArgProvider, ReducerMap
 
 from sympy import prod
 import numpy as np
@@ -9,7 +11,7 @@ import numpy as np
 __all__ = ['Grid']
 
 
-class Grid(object):
+class Grid(ArgProvider):
 
     """
     A cartesian grid that encapsulates a physical domain over which
@@ -159,6 +161,19 @@ class Grid(object):
         if name is None:
             name = '%s_s' % time_dim.name
         return SteppingDimension(name=name, parent=time_dim)
+
+    def _arg_defaults(self):
+        """
+        Returns a map of default argument values defined by this Grid.
+        """
+        args = ReducerMap()
+
+        if configuration['mpi']:
+            distributor = self.distributor
+            args[distributor._C_comm.name] = distributor._C_comm.value
+            args[distributor._C_neighbours.obj.name] = distributor._C_neighbours.obj.value
+
+        return args
 
     def __getstate__(self):
         state = self.__dict__.copy()

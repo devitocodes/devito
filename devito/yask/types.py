@@ -23,6 +23,10 @@ class YaskGridObject(types.Object):
         self.mapped_function_name = mapped_function_name
         self.name = namespace['code-grid-name'](mapped_function_name)
 
+    # Pickling support
+    _pickle_args = ['mapped_function_name']
+    _pickle_kwargs = []
+
 
 class YaskSolnObject(types.Object):
 
@@ -31,6 +35,10 @@ class YaskSolnObject(types.Object):
 
     def __init__(self, name):
         self.name = name
+
+    # Pickling support
+    _pickle_args = ['name']
+    _pickle_kwargs = []
 
 
 class CacheManager(types.CacheManager):

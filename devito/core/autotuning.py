@@ -111,7 +111,7 @@ def autotune(operator, arguments, parameters, tunable):
             continue
 
         # Use AT-specific profiler structs
-        timer = operator.profiler.new()
+        timer = operator.profiler.timer.reset()
         at_arguments[operator.profiler.name] = timer
 
         operator.cfunction(*list(at_arguments.values()))
@@ -134,7 +134,7 @@ def autotune(operator, arguments, parameters, tunable):
 
     # Reset the profiling struct
     assert operator.profiler.name in tuned
-    tuned[operator.profiler.name] = operator.profiler.new()
+    tuned[operator.profiler.name] = operator.profiler.timer.reset()
 
     return tuned
 
