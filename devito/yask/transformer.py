@@ -1,7 +1,7 @@
 from devito.ir.iet import FindNodes, Expression
 from devito.ir.support import Backward
 from devito.logger import yask_warning as warning
-from devito.symbolics import split_affine
+from devito.symbolics import IntDiv, split_affine
 
 from devito.yask import nfac
 
@@ -151,7 +151,8 @@ def make_yask_ast(expr, yc_soln, mapper):
         # Create a YASK compiler grid if it's the first time we encounter a Function
         function = expr.function
         if function not in mapper:
-            dimensions = [make_yask_ast(i, yc_soln, mapper) for i in function.indices]
+            dimensions = [make_yask_ast(i.root, yc_soln, mapper)
+                          for i in function.indices]
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
         # Convert the Indexed into a YASK grid access
         indices = []
@@ -162,9 +163,13 @@ def make_yask_ast(expr, yc_soln, mapper):
             else:
                 # We must always use the parent ("main") dimension when creating
                 # YASK expressions
-                af = split_affine(i)
-                dim = af.var.parent if af.var.is_Derived else af.var
-                indices.append(make_yask_ast(dim + af.shift, yc_soln, mapper))
+                try:
+                    af = split_affine(i)
+                    dim = af.var.parent if af.var.is_Derived else af.var
+                    indices.append(make_yask_ast(dim + af.shift, yc_soln, mapper))
+                except ValueError:
+                    # Fallback to whatever index is used
+                    indices.append(make_yask_ast(i, yc_soln, mapper))
         return mapper[function].new_grid_point(indices)
     elif expr.is_Add:
         return nary2binary(expr.args, nfac.new_add_node)
@@ -185,6 +190,9 @@ def make_yask_ast(expr, yc_soln, mapper):
         else:
             warning("0-power found in Devito-YASK translation? setting to 1")
             return nfac.new_const_number_node(1)
+    elif isinstance(expr, IntDiv):
+        return nfac.new_divide_node(make_yask_ast(expr.lhs, yc_soln, mapper),
+                                    make_yask_ast(expr.rhs, yc_soln, mapper))
     elif expr.is_Equality:
         if expr.lhs.is_Symbol:
             function = expr.lhs.base.function
