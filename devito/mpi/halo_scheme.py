@@ -1,5 +1,6 @@
 from collections import OrderedDict, namedtuple
 from itertools import product
+from operator import attrgetter
 
 from cached_property import cached_property
 from frozendict import frozendict
@@ -103,11 +104,12 @@ class HaloScheme(object):
         return isinstance(other, HaloScheme) and self.fmapper == other.fmapper
 
     def __hash__(self):
-        return self.fmapper.__hash__()
+        return self._mapper.__hash__()
 
-    @property
+    @cached_property
     def fmapper(self):
-        return self._mapper
+        return OrderedDict([(i, self._mapper[i]) for i in
+                            sorted(self._mapper, key=attrgetter('name'))])
 
     @cached_property
     def mask(self):
