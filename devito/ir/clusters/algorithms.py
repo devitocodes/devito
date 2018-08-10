@@ -3,7 +3,7 @@ from collections import OrderedDict
 from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
                                force_directions, group_expressions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
-from devito.symbolics import CondEq, IntDiv, xreplace_indices
+from devito.symbolics import CondEq, xreplace_indices
 from devito.types import Scalar
 from devito.tools import filter_sorted, flatten
 
@@ -95,9 +95,8 @@ def guard(clusters):
 
         # Then we add in all guarded clusters
         for k, v in mapper.items():
-            exprs = [e.xreplace({d: IntDiv(d.parent, d.factor) for d in k}) for e in v]
             guards = {d.parent: CondEq(d.parent % d.factor, 0) for d in k}
-            processed.append(PartialCluster(exprs, c.ispace, c.dspace, c.atomics, guards))
+            processed.append(PartialCluster(v, c.ispace, c.dspace, c.atomics, guards))
 
     return ClusterGroup(processed)
 
