@@ -1,7 +1,7 @@
 from devito.ir.iet import FindNodes, Expression
 from devito.ir.support import Backward
 from devito.logger import yask_warning as warning
-from devito.symbolics import IntDiv, split_affine
+from devito.symbolics import IntDiv
 
 from devito.yask import nfac
 
@@ -132,6 +132,7 @@ def make_yask_ast(expr, yc_soln, mapper):
     elif expr.is_Symbol:
         function = expr.function
         if function.is_Constant:
+            # Create a YASK grid if it's the first time we encounter the embedded Function
             if function not in mapper:
                 mapper[function] = yc_soln.new_grid(function.name, [])
             return mapper[function].new_grid_point([])
@@ -139,7 +140,10 @@ def make_yask_ast(expr, yc_soln, mapper):
             if expr.is_Time:
                 return nfac.new_step_index(expr.name)
             elif expr.is_Space:
-                return nfac.new_domain_index(expr.name)
+                # `expr.root` instead of `expr` because YASK wants the SubDimension
+                # information to be provided as if-conditions, and this is handled
+                # a-posteriori directly by `yaskit`
+                return nfac.new_domain_index(expr.root.name)
             else:
                 return nfac.new_misc_index(expr.name)
         else:
@@ -148,28 +152,13 @@ def make_yask_ast(expr, yc_soln, mapper):
             assert function in mapper
             return mapper[function]
     elif expr.is_Indexed:
-        # Create a YASK compiler grid if it's the first time we encounter a Function
         function = expr.function
+        # Create a YASK grid if it's the first time we encounter the embedded Function
         if function not in mapper:
             dimensions = [make_yask_ast(i.root, yc_soln, mapper)
                           for i in function.indices]
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
-        # Convert the Indexed into a YASK grid access
-        indices = []
-        for i in expr.indices:
-            if i.is_integer:
-                # Typically, if we end up here it's because we have a misc dimension
-                indices.append(make_yask_ast(i, yc_soln, mapper))
-            else:
-                # We must always use the parent ("main") dimension when creating
-                # YASK expressions
-                try:
-                    af = split_affine(i)
-                    dim = af.var.parent if af.var.is_Derived else af.var
-                    indices.append(make_yask_ast(dim + af.shift, yc_soln, mapper))
-                except ValueError:
-                    # Fallback to whatever index is used
-                    indices.append(make_yask_ast(i, yc_soln, mapper))
+        indices = [make_yask_ast(i, yc_soln, mapper) for i in expr.indices]
         return mapper[function].new_grid_point(indices)
     elif expr.is_Add:
         return nary2binary(expr.args, nfac.new_add_node)
