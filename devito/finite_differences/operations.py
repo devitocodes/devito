@@ -5,8 +5,86 @@ import devito
 from devito.symbolics.search import retrieve_functions
 from devito.symbolics.extended_sympy import FrozenExpr
 
-__all__ = ['Mul', 'Add', 'Pow']
+__all__ = ['Mul', 'Add', 'Pow', 'One', 'Zero']
 
+
+class Differentiable(object):
+    """
+    This class represents Devito differentiable objects such as
+    sum of functions, product of function or FD approximation and
+    provides FD shortcuts for such expressions
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.space_order = kwargs.get('space_order', self.get_space_order)
+        self.time_order = kwargs.get('time_order', self.get_time_order)
+        self.dtype = kwargs.get('dtype', selg.get_dtype)
+        fd_parameters(self)
+        # Retrieve functions used in expression
+        func = list(retrieve_functions(self))
+        # Get FD parameters from the functions
+        devito.finite_differences.finite_difference.initialize_derivatives(self)
+
+    def __add__(self, other):
+        return Add(self, other)
+
+    def __iadd__(self, other):
+        return Add(self, other)
+
+    def __radd__(self, other):
+        return Add(other, self)
+
+    def __mul__(self, other):
+        return Mul(self, other)
+
+    def __imul__(self, other):
+        return Mul(self, other)
+
+    def __rmul__(self, other):
+        return Mul(other, self)
+
+    @property
+    def get_space_order(self):
+        """
+        Infer space_order from expression
+        """
+        func = list(retrieve_functions(obj))
+        order = 100
+        for i in func:
+            order = min(order, i.space_order)
+
+        return order
+
+    @property
+    def get_time_order(self):
+        """
+        Infer space_order from expression
+        """
+        func = list(retrieve_functions(obj))
+        order = 100
+        if i.is_TimeFunction for i in func:
+            order = min(order, i.time_order)
+
+        return order
+
+    @property
+    def get_dtype(self):
+        """
+        Infer dtype for expression
+        """
+        func = list(retrieve_functions(obj))
+        dtype = np.float32
+        for i in func:
+            dtype = i.dtype if i.dtype == np.float64 else dtype
+
+        return order
+
+    def evalf(self, N=None):
+        N = N or sympy.N(sympy.Float(1.0))
+        return self.func(*[i.evalf(N) for i in self.args], evaluate=False)
+
+One = Differentiable(1)
+Zero = Differentiable(0)
 
 def fd_parameters(obj):
     """
@@ -51,45 +129,14 @@ def fd_parameters(obj):
     obj.is_TimeFunction = is_time
 
 
-class Pow(sympy.Mul, FrozenExpr):
+class Pow(sympy.Mul, Differentiable):
     """A customized version of :class:`sympy.Add` representing a sum of
     symbolic object."""
     def __new__(cls, *args, **kwargs):
         return sympy.Pow.__new__(cls, *args, **kwargs)
 
-    def __init__(self, *args, **kwargs):
-        fd_parameters(self)
-        devito.finite_differences.finite_difference.initialize_derivatives(self)
 
-    def __add__(self, other):
-        return Add(self, other)
-
-    def __iadd__(self, other):
-        return Add(self, other)
-
-    def __radd__(self, other):
-        return Add(self, other)
-
-    def __mul__(self, other):
-        return Mul(self, other)
-
-    def __imul__(self, other):
-        return Mul(self, other)
-
-    def __rmul__(self, other):
-        return Mul(self, other)
-
-    @property
-    def _time_size(self):
-        func = list(retrieve_functions(self))
-        for i in func:
-            if isinstance(i, devito.TimeFunction):
-                return i._time_size
-
-        return None
-
-
-class Mul(sympy.Mul, FrozenExpr):
+class Mul(sympy.Mul, Differentiable):
     """A customized version of :class:`sympy.Add` representing a sum of
     symbolic object."""
     is_Mul = True
@@ -97,77 +144,11 @@ class Mul(sympy.Mul, FrozenExpr):
     def __new__(cls, *args, **kwargs):
         return sympy.Mul.__new__(cls, *args, **kwargs)
 
-    def __init__(self, *args, **kwargs):
-        fd_parameters(self)
-        devito.finite_differences.finite_difference.initialize_derivatives(self)
 
-    def __add__(self, other):
-        return Add(self, other)
-
-    def __iadd__(self, other):
-        return Add(self, other)
-
-    def __radd__(self, other):
-        return Add(self, other)
-
-    def __mul__(self, other):
-        return Mul(self, other)
-
-    def __imul__(self, other):
-        return Mul(self, other)
-
-    def __rmul__(self, other):
-        return Mul(self, other)
-
-    @property
-    def _time_size(self):
-        func = list(retrieve_functions(self))
-        for i in func:
-            if isinstance(i, devito.TimeFunction):
-                return i._time_size
-
-        return None
-
-
-class Add(sympy.Add, FrozenExpr):
+class Add(sympy.Add, Differentiable):
     """A customized version of :class:`sympy.Add` representing a sum of
     symbolic object."""
     is_Add = True
 
     def __new__(cls, *args, **kwargs):
         return sympy.Add.__new__(cls, *args, **kwargs)
-
-    def __init__(self, *args, **kwargs):
-        fd_parameters(self)
-        devito.finite_differences.finite_difference.initialize_derivatives(self)
-
-    def __add__(self, other):
-        return Add(self, other)
-
-    def __iadd__(self, other):
-        return Add(self, other)
-
-    def __radd__(self, other):
-        return Add(self, other)
-
-    def __mul__(self, other):
-        return Mul(self, other)
-
-    def __imul__(self, other):
-        return Mul(self, other)
-
-    def __rmul__(self, other):
-        return Mul(self, other)
-
-    @property
-    def _time_size(self):
-        func = list(retrieve_functions(self))
-        for i in func:
-            if isinstance(i, devito.TimeFunction):
-                return i._time_size
-
-        return None
-
-    def evalf(self, N=None):
-        N = N or sympy.N(sympy.Float(1.0))
-        return Add(sum([a.evalf(N) for a in self.args]))
