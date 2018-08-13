@@ -56,9 +56,11 @@ inversion problems.
   <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/02_rtm.ipynb>`_
 * `03 - Full-Waveform Inversion (FWI)
   <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/03_fwi.ipynb>`_
-* `04 - FWI with scipy.optimize
-  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/04_scipy_optimise.ipynb>`_
-* `05 - Distributed FWI with Dask
-  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/05_dask.ipynb>`_
-* `06 - FWI with total variation (TV)) minimisation
-  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/06_skimage_tv.ipynb>`_
+* `04 - Distributed FWI with Dask
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/04_dask.ipynb>`_
+* `05 - FWI with total variation (TV)) minimisation
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/05_skimage_tv.ipynb>`_
+* `06 - Acoustic modeling (2D) on a staggerd grid with the first-order wave equation
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/06_staggered_acoustic.ipynb>`_
+* `07 - Elastic modeling (2D) on a staggerd grid with the first-order wave equation
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/07_elastic.ipynb>`_
