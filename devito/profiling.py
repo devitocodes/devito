@@ -100,7 +100,7 @@ class Profiler(object):
 
             # Compulsory traffic
             traffic = float(data.traffic.subs(arguments)*dtype().itemsize)
-
+            print(ops, traffic)
             # Runtime itershapes
             itershapes = [tuple(i.subs(arguments) for i in j) for j in data.itershapes]
 

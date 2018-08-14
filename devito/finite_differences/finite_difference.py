@@ -82,6 +82,7 @@ def second_derivative(*args, **kwargs):
        results in ``(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y) +
        1.0*f(h + x, y)*g(h + x, y)) / h**2``.
     """
+
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim')
     diff = kwargs.get('diff', dim.spacing)

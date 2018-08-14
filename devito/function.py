@@ -11,8 +11,7 @@ from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.finite_differences import (initialize_derivatives, Add, Mul,
-                                       second_derivative)
+from devito.finite_differences import initialize_derivatives, Add, Mul
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
@@ -629,11 +628,9 @@ class Function(TensorFunction):
         Generates a symbolic expression for the double Laplacian
         wrt. all spatial dimensions.
         """
-        order = self.space_order/2
-        first = Add(*[second_derivative(self, dim=d, order=order)
-                    for d in self.space_dimensions])
-        return Add(*[second_derivative(first * weight, dim=d, order=order)
-                   for d in self.space_dimensions])
+        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
+        return Add(*[getattr(self.laplace * weight, d) for d in derivs[:self.ndim]])
+
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
