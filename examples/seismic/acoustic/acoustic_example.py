@@ -69,7 +69,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Adjoint")
     solver.adjoint(rec, autotune=autotune)
     info("Applying Born")
-    solver.born(dm, autotune=autotune)
+    solver.born(dm, autotune=autotune, save=save)
     info("Applying Gradient")
     solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
 

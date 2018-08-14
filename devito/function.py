@@ -6,12 +6,12 @@ import numpy as np
 from psutil import virtual_memory
 from mpi4py import MPI
 
-from devito.cgen_utils import INT, cast_mapper
+from devito.cgen_utils import INT, cast_mapper, FLOOR
 from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.finite_differences import (initialize_derivatives, Add, Mul, Pow,
+from devito.finite_differences import (initialize_derivatives, Add, Mul,
                                        second_derivative)
 from devito.logger import debug, warning
 from devito.parameters import configuration
@@ -458,25 +458,22 @@ class TensorFunction(AbstractCachedFunction):
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
 
     def __add__(self, other):
-        return Add(self, other)
+        return Add(*[self, other])
 
     def __iadd__(self, other):
-        return Add(self, other)
+        return Add(*[self, other])
 
     def __radd__(self, other):
-        return Add(self, other)
+        return Add(*[self, other])
 
     def __mul__(self, other):
-        return Mul(self, other)
+        return Mul(*[self, other])
 
     def __imul__(self, other):
-        return Mul(self, other)
+        return Mul(*[self, other])
 
     def __rmul__(self, other):
-        return Mul(self, other)
-
-    def __pow__(self, other):
-        return Pow(self, other)
+        return Mul(*[self, other])
 
 
 class Function(TensorFunction):
@@ -625,7 +622,7 @@ class Function(TensorFunction):
         derivative wrt. all spatial dimensions.
         """
         derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-        return Add(sum([getattr(self, d) for d in derivs[:self.ndim]]))
+        return Add(*[getattr(self, d) for d in derivs[:self.ndim]])
 
     def laplace2(self, weight=1):
         """
@@ -633,10 +630,10 @@ class Function(TensorFunction):
         wrt. all spatial dimensions.
         """
         order = self.space_order/2
-        first = sum([second_derivative(self, dim=d, order=order)
-                     for d in self.space_dimensions])
-        return Add(sum([second_derivative(first * weight, dim=d, order=order)
-                        for d in self.space_dimensions]))
+        first = Add(*[second_derivative(self, dim=d, order=order)
+                    for d in self.space_dimensions])
+        return Add(*[second_derivative(first * weight, dim=d, order=order)
+                   for d in self.space_dimensions])
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
@@ -1043,7 +1040,7 @@ class SparseFunction(AbstractSparseFunction):
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
         indices = self.grid.dimensions
-        return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
+        return tuple([INT(FLOOR((c - o) / i.spacing))
                       for c, o, i in zip(self.coordinate_symbols, self.grid.origin,
                                          indices[:self.grid.dim])])
 

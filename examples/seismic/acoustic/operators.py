@@ -34,7 +34,6 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     as well as the updated time-step (u.forwad or u.backward)
     :return: Stencil for the wave-equation
     """
-
     # Creat a temporary symbol for H to avoid expensive sympy solve
     H = Symbol('H')
     # Define time sep to be updated
@@ -163,7 +162,7 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
 
 
 def BornOperator(model, source, receiver, space_order=4,
-                 kernel='OT2', **kwargs):
+                 kernel='OT2', save=False, **kwargs):
     """
     Constructor method for the Linearized Born operator in an acoustic media
 
@@ -182,12 +181,14 @@ def BornOperator(model, source, receiver, space_order=4,
                    npoint=receiver.npoint)
 
     # Create wavefields and a dm field
-    u = TimeFunction(name="u", grid=model.grid, save=None,
+    u = TimeFunction(name='u', grid=model.grid,
+                     save=source.nt if save else None,
                      time_order=2, space_order=space_order)
     U = TimeFunction(name="U", grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
     dm = Function(name="dm", grid=model.grid, space_order=0)
 
+    print((u+U).dt)
     s = model.grid.stepping_dim.spacing
     eqn1 = iso_stencil(u, m, s, damp, kernel)
     eqn2 = iso_stencil(U, m, s, damp, kernel, q=-dm*u.dt2)

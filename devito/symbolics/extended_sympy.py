@@ -8,6 +8,7 @@ from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
 from devito.tools import Pickable, as_tuple
+from devito.finite_differences import Mul
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
@@ -304,7 +305,6 @@ def eval_bhaskara_sin(expr):
 
 
 def eval_taylor_sin(expr):
-    from devito.finite_differences import Mul
     v = expr + Mul(-1/6.0,
                    Mul(expr, expr, expr, evaluate=False),
                    1.0 + Mul(Mul(expr, expr, evaluate=False), -0.05, evaluate=False),
@@ -317,7 +317,6 @@ def eval_taylor_sin(expr):
 
 
 def eval_taylor_cos(expr):
-    from devito.finite_differences import Mul
     v = 1.0 + Mul(-0.5,
                   Mul(expr, expr, evaluate=False),
                   1.0 + Mul(expr, expr, -1/12.0, evaluate=False),

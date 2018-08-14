@@ -191,5 +191,6 @@ printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i
 INT = Function('INT')
 FLOAT = Function('FLOAT')
 DOUBLE = Function('DOUBLE')
+FLOOR = Function('floor')
 
 cast_mapper = {np.float32: FLOAT, float: DOUBLE, np.float64: DOUBLE}

@@ -87,7 +87,6 @@ class ElasticWaveSolver(object):
         vs = vs or self.model.vs
         rho = rho or self.model.rho
         # Execute operator and return wavefield and receiver data
-        self.op_fwd(save)._compile()
         summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, vs=vs, rho=rho,
                                           rec2=rec2, dt=kwargs.pop('dt', self.dt),
                                           **kwargs)
