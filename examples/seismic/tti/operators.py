@@ -1,8 +1,6 @@
-from sympy import cos, sin
-
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
-from devito.finite_differences import centered, first_derivative, right, transpose
+from devito.finite_differences import centered, first_derivative, right, transpose, cos, sin
 
 
 def second_order_stencil(model, u, v, H0, Hz):
@@ -207,6 +205,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
                                                 side=centered, order=order1) +
            costheta * first_derivative(field, dim=z,
                                        side=centered, order=order1))
+
     Gzz = (first_derivative(Gz * sintheta * cosphi,
                             dim=x, side=centered, order=order1,
                             matvec=transpose) +
@@ -230,8 +229,10 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
     """
     order1 = space_order / 2
     x, y = field.space_dimensions[:2]
+    from IPython import embed; embed()
     Gz = -(sintheta * first_derivative(field, dim=x, side=centered, order=order1) +
            costheta * first_derivative(field, dim=y, side=centered, order=order1))
+
     Gzz = (first_derivative(Gz * sintheta, dim=x,
                             side=centered, order=order1,
                             matvec=transpose) +

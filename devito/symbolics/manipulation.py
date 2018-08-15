@@ -1,6 +1,6 @@
 from collections import Iterable, OrderedDict, namedtuple
 
-from sympy import Number, Indexed, Symbol, LM, LC, Add, Mul
+from sympy import Number, Indexed, Symbol, LM, LC
 
 from devito.symbolics.extended_sympy import FrozenExpr, Eq
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
@@ -17,6 +17,7 @@ def freeze_expression(expr):
     Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
     into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
     """
+    from devito.finite_differences.differentiable import Mul, Add
     if expr.is_Atom or expr.is_Indexed:
         return expr
     elif expr.is_Add:
@@ -113,7 +114,6 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
     for expr in as_tuple(exprs):
         assert expr.is_Equality
         root = expr.rhs
-
         while True:
             ret, flag = run(root)
             if isinstance(make, dict) and root.is_Atom and flag:
@@ -127,7 +127,6 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
 
     # Post-process the output
     found = [Eq(v, k) for k, v in found.items()]
-
     return found + rebuilt, found
 
 
@@ -155,6 +154,7 @@ def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
 
 
 def pow_to_mul(expr):
+    from devito.finite_differences.differentiable import Mul
     if expr.is_Atom or expr.is_Indexed:
         return expr
     elif expr.is_Pow:

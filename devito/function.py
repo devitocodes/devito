@@ -631,7 +631,6 @@ class Function(TensorFunction):
         derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
         return Add(*[getattr(self.laplace * weight, d) for d in derivs[:self.ndim]])
 
-
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
         ['dtype', 'grid', 'space_order', 'shape', 'dimensions']

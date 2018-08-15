@@ -5,7 +5,7 @@ from functools import partial
 from sympy import finite_diff_weights
 
 from devito.logger import error
-from devito.finite_differences.operations import Mul
+from devito.finite_differences.differentiable import Mul
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative',
@@ -201,12 +201,12 @@ def first_derivative(*args, **kwargs):
     c = finite_diff_weights(1, ind, dim)
     c = c[-1][-1]
     all_dims = tuple(set((dim, ) +
-                     tuple([i for i in args.indices if i.root == dim])))
+                     tuple([i for a in args for i in a.indices if i.root == dim])))
     # Loop through positions
     for i in range(0, len(ind)):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
             var = [a.subs(subs) for a in args]
-            deriv += c[i] * Mul(*var)
+            deriv += Mul(*var) * c[i]
 
     return matvec._transpose*deriv.evalf(_PRECISION)
 
@@ -295,9 +295,8 @@ def initialize_derivatives(self):
             side = right
         else:
             side = centered
-        name = dim.root.name if dim.is_Derived else dim.name
-        name = 't' if name == 'time' else name
-        order = self.time_order if name == 't' else self.space_order
+        name = 't' if dim.is_Time else dim.root.name
+        order = self.time_order if dim.is_Time else self.space_order
         # First derivative, default
         dx = partial(deriv_function, deriv_order=1, dim=dim,
                      fd_order=order, stagger=side)
@@ -351,9 +350,8 @@ def initialize_derivatives(self):
         # Cross derivatives, not supported in staggered grid
         if any(self.staggered) is None:
             for dim2 in self.space_dimensions:
-                name2 = dim2.parent.name if dim2.is_Derived else dim2.name
-                name2 = 't' if name2 == 'time' else 't'
-                order2 = self.time_order if name2 == 't' else self.space_order
+                name2 = 't' if dim2.is_Time else dim2.root.name
+                order2 = self.time_order if dim2.is_Time else self.space_order
                 # First cross derivative
                 dxy = partial(cross_derivative, order=(order, order2),
                               dims=(dim, dim2))

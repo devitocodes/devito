@@ -1,8 +1,8 @@
-from sympy import Eq, diff, cos, sin, nan
+from sympy import diff, nan, Eq
 
 from devito.dimension import Dimension
 from devito.tools import as_tuple
-from devito.cgen_utils import INT, FLOAT, FLOOR
+
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
@@ -17,8 +17,6 @@ The iq_* functions return functions to be applied to expressions objects.
 Function names are usually self-explanatory of what the queries achieves,
 otherwise a docstring is provided.
 """
-
-_ignores = [sin, cos, INT, FLOAT, FLOOR]
 
 
 def q_leaf(expr):
@@ -37,7 +35,7 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    return expr.is_Function and expr.func not in _ignores
+    return expr.is_Function
 
 
 def q_terminal(expr):
@@ -45,6 +43,7 @@ def q_terminal(expr):
 
 
 def q_trigonometry(expr):
+    from devito.finite_differences.differentiable import cos, sin
     return expr.is_Function and expr.func in [sin, cos]
 
 
