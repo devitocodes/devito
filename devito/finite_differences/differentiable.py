@@ -14,6 +14,7 @@ class Differentiable(FrozenExpr):
     sum of functions, product of function or FD approximation and
     provides FD shortcuts for such expressions
     """
+    is_Differentiable = True
 
     def __new__(cls, *args, **kwargs):
         return sympy.Expr.__new__(cls, *args)
@@ -135,8 +136,21 @@ class Add(Differentiable, sympy.Add):
 
 
 def cos(function):
-    return Differentiable(*[sympy.cos(function)])
+    return sympy.cos(function)
 
 
 def sin(function):
-    return Differentiable(*[sympy.sin(function)])
+    return sympy.sin(function)
+
+
+def to_differentiable(expr):
+    if getattr(expr, 'is_Differentiable', False):
+        return expr
+    elif expr.is_Add:
+        return Add(*expr.args)
+    elif expr.is_Mul:
+        return Mul(*expr.args)
+    elif expr.is_Pow:
+        return Pow(*expr.args)
+    else:
+        return expr

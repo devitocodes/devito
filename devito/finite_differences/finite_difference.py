@@ -5,7 +5,7 @@ from functools import partial
 from sympy import finite_diff_weights
 
 from devito.logger import error
-from devito.finite_differences.differentiable import Mul
+from devito.finite_differences.differentiable import Mul, to_differentiable
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative',
@@ -82,7 +82,7 @@ def second_derivative(*args, **kwargs):
        results in ``(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y) +
        1.0*f(h + x, y)*g(h + x, y)) / h**2``.
     """
-
+    expr = to_differentiable(expr)
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim')
     diff = kwargs.get('diff', dim.spacing)
@@ -93,15 +93,14 @@ def second_derivative(*args, **kwargs):
     coeffs = finite_diff_weights(2, ind, dim)[-1][-1]
     deriv = 0
     all_dims = tuple(set((dim, ) +
-                     tuple([i for i in args.indices if i.root == dim])))
+                     tuple([i for i in expr.indices if i.root == dim])))
     for i in range(0, len(ind)):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
-            var = [a.subs(subs) for a in args]
-            deriv += coeffs[i] * Mul(*var)
+            deriv += coeffs[i] * expr.subs(subs)
     return deriv.evalf(_PRECISION)
 
 
-def cross_derivative(*args, **kwargs):
+def cross_derivative(expr, **kwargs):
     """Derives cross derivative for a product of given functions.
 
     :param \*args: All positional arguments must be fully qualified
@@ -119,6 +118,7 @@ def cross_derivative(*args, **kwargs):
        ``f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y) -``
        ``f(h + x, -h + y)*g(h + x, -h + y)) / h**2``
     """
+    expr = to_differentiable(expr)
     dims = kwargs.get('dims')
     diff = kwargs.get('diff', (dims[0].spacing, dims[1].spacing))
     order = kwargs.get('order', (1, 1))
@@ -146,9 +146,9 @@ def cross_derivative(*args, **kwargs):
     c12 = finite_diff_weights(1, ind2r, dims[1])[-1][-1]
     c22 = finite_diff_weights(1, ind2l, dims[1])[-1][-1]
     all_dims1 = tuple(set((dims[0], ) +
-                      tuple([i for i in args.indices if i.root == dims[0]])))
+                      tuple([i for i in expr.indices if i.root == dims[0]])))
     all_dims2 = tuple(set((dims[1], ) +
-                      tuple([i for i in args.indices if i.root == dims[1]])))
+                      tuple([i for i in expr.indices if i.root == dims[1]])))
     # Diagonal elements
     for i in range(0, len(ind1r)):
         for j in range(0, len(ind2r)):
@@ -158,14 +158,14 @@ def cross_derivative(*args, **kwargs):
             subs2 = dict([(d1, ind1l[i].subs({dims[0]: d1})) +
                           (d2, ind2l[i].subs({dims[1]: d2}))
                           for (d1, d2) in zip(all_dims1, all_dims2)])
-            var1 = [a.subs(subs1) for a in args]
-            var2 = [a.subs(subs2) for a in args]
+            var1 = expr.subs(subs1)
+            var2 = expr.subs(subs2)
             deriv += (.5 * c11[i] * c12[j] * Mul(*var1) +
                       .5 * c21[-(j+1)] * c22[-(i+1)] * Mul(*var2))
     return -deriv.evalf(_PRECISION)
 
 
-def first_derivative(*args, **kwargs):
+def first_derivative(expr, **kwargs):
     """Derives first derivative for a product of given functions.
 
     :param \*args: All positional arguments must be fully qualified
@@ -181,6 +181,7 @@ def first_derivative(*args, **kwargs):
        results in:
        ``*(-f(x)*g(x) + f(x + h)*g(x + h) ) / h``
     """
+    expr = to_differentiable(expr)
     dim = kwargs.get('dim')
     diff = kwargs.get('diff', dim.spacing)
     order = int(kwargs.get('order', 1))
@@ -201,17 +202,16 @@ def first_derivative(*args, **kwargs):
     c = finite_diff_weights(1, ind, dim)
     c = c[-1][-1]
     all_dims = tuple(set((dim, ) +
-                     tuple([i for a in args for i in a.indices if i.root == dim])))
+                     tuple([i for i in expr.indices if i.root == dim])))
     # Loop through positions
     for i in range(0, len(ind)):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
-            var = [a.subs(subs) for a in args]
-            deriv += Mul(*var) * c[i]
+            deriv += expr.subs(subs) * c[i]
 
-    return matvec._transpose*deriv.evalf(_PRECISION)
+    return deriv.evalf(_PRECISION)
 
 
-def generic_derivative(function, deriv_order, dim, fd_order, **kwargs):
+def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):
     """
     Create generic arbitrary order derivative expression from a
     single :class:`Function` object. This methods is essentially a
@@ -224,22 +224,22 @@ def generic_derivative(function, deriv_order, dim, fd_order, **kwargs):
     :param fd_order: Order of the coefficient discretization and thus
                      the width of the resulting stencil expression.
     """
+    expr = to_differentiable(expr)
     indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
     if fd_order == 1:
         indices = [dim, dim + dim.spacing]
     c = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
     deriv = 0
     all_dims = tuple(set((dim, ) +
-                     tuple([i for i in function.indices if i.root == dim])))
+                     tuple([i for i in expr.indices if i.root == dim])))
     for i in range(0, len(indices)):
             subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
-            var = [function.subs(subs)]
-            deriv += Mul(*var) * c[i]
+            deriv += expr.subs(subs) * c[i]
 
     return deriv.evalf(_PRECISION)
 
 
-def second_cross_derivative(function, dims, order):
+def second_cross_derivative(expr, dims, order):
     """
     Create a second order order cross derivative for a given function.
 
@@ -247,11 +247,11 @@ def second_cross_derivative(function, dims, order):
     :param dims: Dimensions for which to take the derivative.
     :param order: Discretisation order of the stencil to create.
     """
-    first = first_derivative(function, dim=dims[0], width=order)
+    first = first_derivative(expr, dim=dims[0], width=order)
     return first_derivative(first, dim=dims[1], order=order).evalf(_PRECISION)
 
 
-def staggered_diff(function, deriv_order, dim, fd_order, stagger=centered):
+def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     """
     Utility function to generate staggered derivatives
     :param f: function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
@@ -263,6 +263,7 @@ def staggered_diff(function, deriv_order, dim, fd_order, stagger=centered):
     :param theta: Dip (or polar) angle for rotated FD
     :param phi: Azimuth angle for rotated FD
     """
+    expr = to_differentiable(expr)
     if stagger == left:
         off = -.5
     elif stagger == right:
@@ -277,8 +278,7 @@ def staggered_diff(function, deriv_order, dim, fd_order, stagger=centered):
     c = finite_diff_weights(deriv_order, idx, dim + off*dim.spacing)[-1][-1]
     deriv = 0
     for i in range(0, len(idx)):
-            var = [function.subs({dim: idx[i]})]
-            deriv += Mul(*var) * c[i]
+            deriv += expr.subs({dim: idx[i]}) * c[i]
 
     return deriv.evalf(_PRECISION)
 

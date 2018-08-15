@@ -229,7 +229,6 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
     """
     order1 = space_order / 2
     x, y = field.space_dimensions[:2]
-    from IPython import embed; embed()
     Gz = -(sintheta * first_derivative(field, dim=x, side=centered, order=order1) +
            costheta * first_derivative(field, dim=y, side=centered, order=order1))
 
