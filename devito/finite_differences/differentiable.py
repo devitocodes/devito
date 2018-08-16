@@ -2,6 +2,8 @@ import sympy
 import numpy as np
 
 import devito
+from devito.tools.memoization import memoized_meth
+from devito.logger import warning
 from devito.symbolics.search import retrieve_functions
 from devito.symbolics.extended_sympy import FrozenExpr
 
@@ -15,13 +17,16 @@ class Differentiable(FrozenExpr):
     provides FD shortcuts for such expressions
     """
     is_Differentiable = True
+    _op_priority = 100.0
 
     def __new__(cls, *args, **kwargs):
         return sympy.Expr.__new__(cls, *args)
 
     def __init__(self, *args, **kwargs):
-        # # Get FD parameters from the functions
-        devito.finite_differences.finite_difference.initialize_derivatives(self)
+        # Recover the list of possible FD shortcuts
+        if kwargs.get('init', True):
+            devito.finite_differences.finite_difference.initialize_derivatives(self)
+            self.derivs = self.derivatives + (kwargs.get('derivs', ()),)
 
     def __add__(self, other):
         return Add(*[self, other])
@@ -52,6 +57,10 @@ class Differentiable(FrozenExpr):
 
     @property
     def space_order(self):
+        return self._space_order()
+
+    @memoized_meth
+    def _space_order(self):
         """
         Infer space_order from expression
         """
@@ -64,6 +73,10 @@ class Differentiable(FrozenExpr):
 
     @property
     def time_order(self):
+        return self._time_order()
+
+    @memoized_meth
+    def _time_order(self):
         """
         Infer space_order from expression
         """
@@ -76,6 +89,10 @@ class Differentiable(FrozenExpr):
 
     @property
     def dtype(self):
+        return self._dtype()
+
+    @memoized_meth
+    def _dtype(self):
         """
         Infer dtype for expression
         """
@@ -89,6 +106,11 @@ class Differentiable(FrozenExpr):
 
     @property
     def indices(self):
+        return self._indices()
+
+
+    @memoized_meth
+    def _indices(self):
         """
         Indices of the expression setup
         """
@@ -97,6 +119,10 @@ class Differentiable(FrozenExpr):
 
     @property
     def staggered(self):
+        return self._staggered()
+
+    @memoized_meth
+    def _staggered(self):
         """
         Staggered grid setup
         """
@@ -109,16 +135,34 @@ class Differentiable(FrozenExpr):
         else:
             return self.func(*[i.evalf(N) for i in self.args], evaluate=False)
 
+    def __getattr__(self, name):
+        """
+        Overload gettattr for derivatives as FD derivativees are linear
+        Return sum of FD derivatives rather than creating new FD functions
+        """
+        if name == "derivs":
+            raise AttributeError()
+        if name in self.derivs:
+            return self.getdiff(name)
+
+        return self.__getattribute__(name)
+
+    def getdiff(self, name):
+        if name in self.derivs:
+            return self.__getattribute__(name)
+        else:
+            warning("FD shortcut %s not found for Function %s " % (name, self) +
+                    "and dimension %s, returning 0" % name[1])
+            return 0
 
 class Pow(Differentiable, sympy.Mul):
-    """A customized version of :class:`sympy.Add` representing a sum of
+    """A customized version of :class:`sympy.Pow` representing a Power of
     symbolic object."""
     def __new__(cls, *args, **kwargs):
         return sympy.Pow.__new__(cls, *args, **kwargs)
 
-
 class Mul(Differentiable, sympy.Mul):
-    """A customized version of :class:`sympy.Add` representing a sum of
+    """A customized version of :class:`sympy.Mul` representing a product of
     symbolic object."""
     is_Mul = True
 
@@ -133,7 +177,6 @@ class Add(Differentiable, sympy.Add):
 
     def __new__(cls, *args, **kwargs):
         return sympy.Add.__new__(cls, *args, **kwargs)
-
 
 def cos(function):
     return sympy.cos(function)

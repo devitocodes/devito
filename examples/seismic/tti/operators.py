@@ -12,12 +12,15 @@ def second_order_stencil(model, u, v, H0, Hz):
     # Stencils
     m, damp, delta, epsilon = model.m, model.damp, model.delta, model.epsilon
     s = model.grid.stepping_dim.spacing
+    print("hello 5")
     stencilp = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
          u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
+    print("hello 6")
     stencilr = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * v + (s * damp - 2.0 * m) *
          v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
+    print("hello 7")
     first_stencil = Eq(u.forward, stencilp)
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
@@ -323,10 +326,13 @@ def kernel_shifted_3d(model, u, v, space_order):
     sintheta = sin(model.theta)
     cosphi = cos(model.phi)
     sinphi = sin(model.phi)
-
+    print("hello 1")
     Gxx = Gxx_shifted(u, costheta, sintheta, cosphi, sinphi, space_order)
+    print("hello 2")
     Gyy = Gyy_shifted(u, cosphi, sinphi, space_order)
+    print("hello 3")
     Gzz = Gzz_shifted(v, costheta, sintheta, cosphi, sinphi, space_order)
+    print("hello 4")
     return second_order_stencil(model, u, v, Gxx + Gyy, Gzz)
 
 

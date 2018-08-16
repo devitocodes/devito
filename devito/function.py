@@ -474,7 +474,6 @@ class TensorFunction(AbstractCachedFunction):
     def __rmul__(self, other):
         return Mul(*[self, other])
 
-
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express
     finite-difference approximation. A ``Function`` encapsulates
@@ -621,7 +620,7 @@ class Function(TensorFunction):
         derivative wrt. all spatial dimensions.
         """
         derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-        return Add(*[getattr(self, d) for d in derivs[:self.ndim]])
+        return sum([getattr(self, d) for d in derivs[:self.ndim]])
 
     def laplace2(self, weight=1):
         """
@@ -629,7 +628,19 @@ class Function(TensorFunction):
         wrt. all spatial dimensions.
         """
         derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-        return Add(*[getattr(self.laplace * weight, d) for d in derivs[:self.ndim]])
+        return sum([getattr(self.laplace * weight, d) for d in derivs[:self.ndim]])
+
+    def getdiff(self, name):
+        """
+        Returns finite dofference aproximation 'name' if depends on that dimension
+        or 0
+        """
+        if name in self.derivatives:
+            return getattr(self, name)
+        else:
+            warning("FD shortcut %s not found for Function %s " % (name, self) +
+                    "and dimension %s, returning 0" % name[1])
+            return 0
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
