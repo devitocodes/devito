@@ -494,6 +494,7 @@ class TensorFunction(AbstractCachedFunction):
         else:
             return Differentiable(self/other)
 
+
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express
     finite-difference approximation. A ``Function`` encapsulates

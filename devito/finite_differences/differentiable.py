@@ -148,7 +148,7 @@ class Differentiable(FrozenExpr):
         if self.is_Number:
             return self.args[0]
         else:
-            return self.expr.evalf(N)
+            return self.func(*[i.evalf(N) for i in self.args], evaluate=False)
 
     def subs(self, subs):
         return Differentiable(self.expr.subs(subs))

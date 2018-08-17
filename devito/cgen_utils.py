@@ -152,6 +152,9 @@ class CodePrinter(C99CodePrinter):
             rv = rv + 'F'
         return rv
 
+    def _print_Differentiable(self, expr):
+        return self._print(expr.expr)
+
     def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
 
