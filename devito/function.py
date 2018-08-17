@@ -494,6 +494,9 @@ class TensorFunction(AbstractCachedFunction):
         else:
             return Differentiable(self/other)
 
+    def __pow__(self, exponent):
+        return Differentiable(sympy.Pow(self, exponent))
+
 
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express

@@ -154,7 +154,6 @@ def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
 
 
 def pow_to_mul(expr):
-    exprin = expr.expr if isinstance(expr, Differentiable) else expr
     if expr.is_Atom or expr.is_Indexed:
         out = expr
     elif expr.is_Pow:
@@ -171,6 +170,7 @@ def pow_to_mul(expr):
         return Differentiable(out)
     else:
         return out
+
 
 def as_symbol(expr):
     """
