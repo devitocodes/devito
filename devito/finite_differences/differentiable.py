@@ -1,13 +1,10 @@
 import sympy
 import numpy as np
 
-import devito
-from devito.tools.memoization import memoized_meth
-from devito.logger import warning
 from devito.symbolics.search import retrieve_functions
 from devito.symbolics.extended_sympy import FrozenExpr
 
-__all__ = ['Differentiable', 'Mul', 'Add', 'Pow', 'cos', 'sin']
+__all__ = ['Differentiable']
 
 
 class Differentiable(FrozenExpr):
@@ -16,87 +13,107 @@ class Differentiable(FrozenExpr):
     sum of functions, product of function or FD approximation and
     provides FD shortcuts for such expressions
     """
-    is_Differentiable = True
     _op_priority = 100.0
 
     def __new__(cls, *args, **kwargs):
         return sympy.Expr.__new__(cls, *args)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, expr, **kwargs):
+        from devito.finite_differences.finit_difference import generate_fd_functions
+        self.expr = expr.expr if isinstance(expr, Differentiable) else expr
         # Recover the list of possible FD shortcuts
-        if kwargs.get('init', True):
-            devito.finite_differences.finite_difference.initialize_derivatives(self)
-            self.derivs = self.derivatives + (kwargs.get('derivs', ()),)
+        self.dtype = self._dtype()
+        self.space_order = self._space_order()
+        self.time_order = self._space_order()
+        self.indices = self._indices()
+        self.staggered = self._staggered()
+        # Generate FD shortcuts for expression or copy from input
+        if isinstance(expr, Differentiable):
+            self.fd = expr.fd
+        else:
+            self.fd = generate_fd_functions(self)
+
+        for d in self.fd:
+            setattr(self.__class__, d[1], property(d[0], d[1]))
+        self.derivatives = tuple(d[1] for d in self.fd)
 
     def __add__(self, other):
-        return Add(*[self, other])
+        if isinstance(other, Differentiable):
+            return Differentiable(sympy.Add(*[self.expr, other.expr]))
+        else:
+            return Differentiable(sympy.Add(*[self.expr, other]))
 
-    def __iadd__(self, other):
-        return Add(*[self, other])
-
-    def __radd__(self, other):
-        return Add(*[self, other])
+    __iadd__ = __add__
+    __radd__ = __add__
 
     def __sub__(self, other):
-        return Add(*[self, -other])
-
-    def __isub__(self, other):
-        return Add(*[self, -other])
+        if isinstance(other, Differentiable):
+            return Differentiable(sympy.Add(*[self.expr, -other.expr]))
+        else:
+            return Differentiable(sympy.Add(*[self.expr, -other]))
 
     def __rsub__(self, other):
-        return Add(*[-self, other])
+        if isinstance(other, Differentiable):
+            return Differentiable(sympy.Add(*[-self.expr, other.expr]))
+        else:
+            return Differentiable(sympy.Add(*[-self.expr, other]))
+
+    __isub__ = __sub__
 
     def __mul__(self, other):
-        return Mul(*[self, other])
+        if isinstance(other, Differentiable):
+            return Differentiable(sympy.Mul(*[self.expr, other.expr]))
+        else:
+            return Differentiable(sympy.Mul(*[self.expr, other]))
 
-    def __imul__(self, other):
-        return Mul(*[self, other])
+    __imul__ = __mul__
+    __rmul__ = __mul__
 
-    def __rmul__(self, other):
-        return Mul(*[self, other])
+    def __div__(self, other):
+        if isinstance(other, Differentiable):
+            return Differentiable(self.expr/other.expr)
+        else:
+            return Differentiable(self.expr/other)
+
+    def func(self, *args, **kwargs):
+        return Differentiable(self.expr.func(*args), **kwargs)
+
+    def __str__(self):
+        return self.expr.__str__()
+
+    __repr__ = __str__
 
     @property
-    def space_order(self):
-        return self._space_order()
+    def args(self):
+        return self.expr.args
 
-    @memoized_meth
     def _space_order(self):
         """
         Infer space_order from expression
         """
-        func = list(retrieve_functions(self))
+        func = list(retrieve_functions(self.expr))
         order = 100
         for i in func:
             order = min(order, getattr(i, 'space_order', order))
 
         return order
 
-    @property
-    def time_order(self):
-        return self._time_order()
-
-    @memoized_meth
     def _time_order(self):
         """
         Infer space_order from expression
         """
-        func = list(retrieve_functions(self))
+        func = list(retrieve_functions(self.expr))
         order = 100
         for i in func:
             order = min(order, getattr(i, 'time_order', order))
 
         return order
 
-    @property
-    def dtype(self):
-        return self._dtype()
-
-    @memoized_meth
     def _dtype(self):
         """
         Infer dtype for expression
         """
-        func = list(retrieve_functions(self))
+        func = list(retrieve_functions(self.expr))
         is_double = False
         for i in func:
             dtype_i = getattr(i, 'dtype', np.float32)
@@ -104,24 +121,13 @@ class Differentiable(FrozenExpr):
 
         return np.float64 if is_double else np.float32
 
-    @property
-    def indices(self):
-        return self._indices()
-
-
-    @memoized_meth
     def _indices(self):
         """
         Indices of the expression setup
         """
-        func = list(retrieve_functions(self))
+        func = list(retrieve_functions(self.expr))
         return tuple(set([d for i in func for d in getattr(i, 'indices', ())]))
 
-    @property
-    def staggered(self):
-        return self._staggered()
-
-    @memoized_meth
     def _staggered(self):
         """
         Staggered grid setup
@@ -135,65 +141,5 @@ class Differentiable(FrozenExpr):
         else:
             return self.func(*[i.evalf(N) for i in self.args], evaluate=False)
 
-    def __getattr__(self, name):
-        """
-        Overload gettattr for derivatives as FD derivativees are linear
-        Return sum of FD derivatives rather than creating new FD functions
-        """
-        if name == "derivs":
-            raise AttributeError()
-        if name in self.derivs:
-            return self.getdiff(name)
-
-        return self.__getattribute__(name)
-
-    def getdiff(self, name):
-        if name in self.derivs:
-            return self.__getattribute__(name)
-        else:
-            warning("FD shortcut %s not found for Function %s " % (name, self) +
-                    "and dimension %s, returning 0" % name[1])
-            return 0
-
-class Pow(Differentiable, sympy.Mul):
-    """A customized version of :class:`sympy.Pow` representing a Power of
-    symbolic object."""
-    def __new__(cls, *args, **kwargs):
-        return sympy.Pow.__new__(cls, *args, **kwargs)
-
-class Mul(Differentiable, sympy.Mul):
-    """A customized version of :class:`sympy.Mul` representing a product of
-    symbolic object."""
-    is_Mul = True
-
-    def __new__(cls, *args, **kwargs):
-        return sympy.Mul.__new__(cls, *args, **kwargs)
-
-
-class Add(Differentiable, sympy.Add):
-    """A customized version of :class:`sympy.Add` representing a sum of
-    symbolic object."""
-    is_Add = True
-
-    def __new__(cls, *args, **kwargs):
-        return sympy.Add.__new__(cls, *args, **kwargs)
-
-def cos(function):
-    return sympy.cos(function)
-
-
-def sin(function):
-    return sympy.sin(function)
-
-
-def to_differentiable(expr):
-    if getattr(expr, 'is_Differentiable', False):
-        return expr
-    elif expr.is_Add:
-        return Add(*expr.args)
-    elif expr.is_Mul:
-        return Mul(*expr.args)
-    elif expr.is_Pow:
-        return Pow(*expr.args)
-    else:
-        return expr
+    def subs(self, subs):
+        return Differentiable(self.expr.subs(subs))

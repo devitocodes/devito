@@ -8,7 +8,7 @@ from sympy.core.basic import _aresame
 
 from devito.tools import Pickable, as_tuple
 
-__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'IntDiv',
+__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'IntDiv', 'Add', 'Mul',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'Macro']
 
@@ -72,6 +72,14 @@ class CondNe(sympy.Ne, FrozenExpr):
     @property
     def canonical(self):
         return self
+
+
+class Mul(sympy.Mul, FrozenExpr):
+    pass
+
+
+class Add(sympy.Add, FrozenExpr):
+    pass
 
 
 class IntDiv(sympy.Expr):

@@ -1,6 +1,8 @@
+from sympy import cos, sin
+
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
-from devito.finite_differences import centered, first_derivative, right, transpose, cos, sin
+from devito.finite_differences import centered, first_derivative, right, transpose
 
 
 def second_order_stencil(model, u, v, H0, Hz):

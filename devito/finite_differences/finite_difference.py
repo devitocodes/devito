@@ -2,13 +2,13 @@ from __future__ import absolute_import
 
 from functools import partial
 
-from sympy import finite_diff_weights, simplify
+from sympy import finite_diff_weights
 
 from devito.logger import error
-from devito.finite_differences.differentiable import Mul, Add
+from devito.finite_differences.differentiable import Differentiable
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
-           'generic_derivative', 'second_cross_derivative',
+           'generic_derivative', 'second_cross_derivative', 'generate_fd_functions',
            'left', 'right', 'centered', 'staggered_diff',
            'initialize_derivatives', 'transpose']
 
@@ -97,7 +97,7 @@ def second_derivative(expr, **kwargs):
     for i in range(0, len(ind)):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
             deriv += coeffs[i] * expr.subs(subs)
-    return deriv.evalf(_PRECISION)
+    return Differentiable(deriv.evalf(_PRECISION))
 
 
 def cross_derivative(expr, **kwargs):
@@ -161,7 +161,7 @@ def cross_derivative(expr, **kwargs):
             var1 = expr.subs(subs1)
             var2 = expr.subs(subs2)
             deriv += .5 * (c11[i] * c12[j] * var1 + c21[-(j+1)] * c22[-(i+1)] * var2)
-    return -deriv.evalf(_PRECISION)
+    return Differentiable(-deriv.evalf(_PRECISION))
 
 
 def first_derivative(expr, **kwargs):
@@ -204,9 +204,8 @@ def first_derivative(expr, **kwargs):
     # Loop through positions
     for i in range(0, len(ind)):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
-            deriv = Add(*[deriv, Mul(*[expr.subs(subs), c[i]], init=(i==len(ind)))],
-                        init=(i==len(ind)))
-    return deriv.evalf(_PRECISION)
+            deriv += expr.subs(subs) * c[i]
+    return Differentiable(deriv.evalf(_PRECISION))
 
 
 def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):
@@ -230,11 +229,12 @@ def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):
     deriv = 0
     all_dims = tuple(set((dim, ) +
                      tuple([i for i in expr.indices if i.root == dim])))
+
     for i in range(0, len(indices)):
             subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
             deriv += expr.subs(subs) * c[i]
 
-    return simplify(deriv.evalf(_PRECISION))
+    return Differentiable(deriv.evalf(_PRECISION))
 
 
 def second_cross_derivative(expr, dims, order):
@@ -247,6 +247,20 @@ def second_cross_derivative(expr, dims, order):
     """
     first = first_derivative(expr, dim=dims[0], width=order)
     return first_derivative(first, dim=dims[1], order=order).evalf(_PRECISION)
+
+
+def generic_cross_derivative(expr, dims, fd_order, deriv_order):
+    """
+    Create a generic cross derivative for a given function.
+
+    :param function: The symbol representing a function.
+    :param dims: Dimensions for which to take the derivative.
+    :param order: Discretisation order of the stencil to create.
+    """
+    first = generic_derivative(expr, deriv_order=deriv_order[0],
+                               fd_order=fd_order[0], dim=dims[0])
+    return generic_derivative(first, deriv_order=deriv_order[1],
+                              fd_order=fd_order[1], dim=dims[1])
 
 
 def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
@@ -276,98 +290,104 @@ def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     c = finite_diff_weights(deriv_order, idx, dim + off*dim.spacing)[-1][-1]
     deriv = 0
     for i in range(0, len(idx)):
-            deriv += Mul(*[expr.subs({dim: idx[i]}), c[i]])
+            deriv += expr.subs({dim: idx[i]}) * c[i]
 
-    return deriv.evalf(_PRECISION)
+    return Differentiable(deriv.evalf(_PRECISION))
+
+
+def staggered_cross_diff(expr, dims, deriv_order, fd_order, stagger):
+    """
+    Create a generic cross derivative for a given staggered function.
+
+    :param function: The symbol representing a function.
+    :param dims: Dimensions for which to take the derivative.
+    :param order: Discretisation order of the stencil to create.
+    """
+    first = staggered_diff(expr, deriv_order=deriv_order[0],
+                           fd_order=fd_order[0], dim=dims[0], stagger=stagger[0])
+    return staggered_diff(first, deriv_order=deriv_order[1],
+                          fd_order=fd_order[1], dim=dims[1], stagger=stagger[1])
+
+
+def generate_fd_functions(function):
+    """
+    Create all possible FD functions from the indices,
+    space_order (and time_order if time dependant)
+    """
+    dimensions = function.indices
+    space_fd_order = function.space_order
+    time_fd_order = function.time_order if function.is_TimeFunction else 0
+    is_staggered = any(s is None for s in function.staggered)
+
+    deriv_function = generic_derivative if is_staggered else staggered_diff
+    c_deriv_function = generic_cross_derivative if is_staggered else staggered_cross_diff
+
+    side = dict()
+    for (d, s) in zip(dimensions, function.staggered):
+        if s == 0:
+            side[d] = left
+        elif s == 1:
+            side[d] = right
+        else:
+            side[d] = centered
+
+    derivatives = ()
+    done = ()
+
+    for d in dimensions:
+        # Dimension is treated, remove from list
+        done += (d,)
+        other_dims = tuple(i for i in dimensions if i not in done)
+        # Dimension name and corresponding FD order
+        dim_order = time_fd_order if d.is_Time else space_fd_order
+        name = 't' if d.is_Time else d.root.name
+        # All possible derivatives go up to the dimension FD order
+        for o in range(1, dim_order + 1):
+            deriv = partial(deriv_function, deriv_order=o, dim=d,
+                            fd_order=dim_order, stagger=side[d])
+            name_fd = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
+            desciption = 'derivative of order %d w.r.t dimension %s' % (o, d)
+
+            derivatives += ((deriv, name_fd, desciption),)
+            # Cross derivatives with the other dimension
+            # Skip already done dimensions a dxdy is the same as dydx
+            for d2 in other_dims:
+                dim_order2 = time_fd_order if d2.is_Time else space_fd_order
+                name2 = 't' if d2.is_Time else d2.root.name
+                for o2 in range(1, dim_order2 + 1):
+                    deriv = partial(c_deriv_function, deriv_order=(o, o2), dim=(d, d2),
+                                    fd_order=(dim_order, dim_order2),
+                                    stagger=(side[d], side[d2]))
+                    name_fd2 = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
+                    name_fd2 += 'd%s%d' % (name2, o2) if o2 > 1 else 'd%s' % name2
+                    desciption = 'derivative of order (%d, %d) ' % (o, o2)
+                    desciption += 'w.r.t dimension (%s, %s) ' % (d, d2)
+                    derivatives += ((deriv, name_fd2, desciption), )
+
+    # add non-conventional, non-centered first-order FDs
+    if not is_staggered:
+        for d in dimensions:
+            # left
+            deriv = partial(first_derivative, order=space_fd_order,
+                            dim=d, side=left)
+            name_fd = 'd%sl' % name
+            desciption = 'left first order derivative w.r.t dimension %s' % d
+            derivatives += ((deriv, name_fd2, desciption), )
+            # right
+            deriv = partial(first_derivative, order=space_fd_order,
+                            dim=d, side=right)
+            name_fd = 'd%sr' % name
+            desciption = 'left first order derivative w.r.t dimension %s' % d
+            derivatives += ((deriv, name_fd2, desciption), )
+
+    return derivatives
 
 
 def initialize_derivatives(function):
     """
     Dynamically create notational shortcuts for space derivatives.
     """
-    derivatives = ()
-    for (dim, s) in zip(function.indices, function.staggered):
-        deriv_function = staggered_diff if s is not None else generic_derivative
-        if s == 0:
-            side = left
-        elif s == 1:
-            side = right
-        else:
-            side = centered
-        name = 't' if dim.is_Time else dim.root.name
-        order = function.time_order if dim.is_Time else function.space_order
-        # First derivative, default
-        dx = partial(deriv_function, deriv_order=1, dim=dim,
-                     fd_order=order, stagger=side)
-        setattr(function.__class__, 'd%s' % name,
-                property(dx, 'Return the symbolic expression for '
-                         'the centered first derivative wrt. '
-                         'the %s dimension' % name))
-        derivatives += ('d%s' % name, )
-        if s is not None:
-            # First derivative, centred staggered
-            dx = partial(deriv_function, deriv_order=1, dim=dim,
-                         fd_order=order, stagger=centered)
-            setattr(function.__class__, 'd%sc' % name,
-                    property(dx, 'Return the symbolic expression for '
-                             'the centered first derivative wrt. '
-                             'the %s dimension' % name))
-            derivatives += ('d%sc' % name,)
-        # First derivative, left, only for cartesian grid
-        if s is None:
-            dxl = partial(first_derivative, order=order,
-                          dim=dim, side=left)
-            setattr(function.__class__, 'd%sl' % name,
-                    property(dxl, 'Return the symbolic expression for '
-                             'the left-sided first derivative wrt. '
-                             'the %s dimension' % name))
-            derivatives += ('d%sl' % name,)
-            # First derivative, right
-            dxr = partial(first_derivative, order=order,
-                          dim=dim, side=right)
-            setattr(function.__class__, 'd%sr' % name,
-                    property(dxr, 'Return the symbolic expression for '
-                             'the right-sided first derivative wrt. '
-                             'the %s dimension' % name))
-            derivatives += ('d%sr' % name,)
-        # Second derivative
-        dx2 = partial(deriv_function, deriv_order=2, dim=dim,
-                      fd_order=order, stagg=side)
-        setattr(function.__class__, 'd%s2' % name,
-                property(dx2, 'Return the symbolic expression for '
-                         'the second derivative wrt. the '
-                         '%s dimension' % name))
-        derivatives += ('d%s2' % name,)
-        # Fourth derivative
-        dx4 = partial(deriv_function, deriv_order=4, dim=dim,
-                      fd_order=max(int(order / 2), 2), stagg=side)
-        setattr(function.__class__, 'd%s4' % name,
-                property(dx4, 'Return the symbolic expression for '
-                         'the fourth derivative wrt. the '
-                         '%s dimension' % name))
-        derivatives += ('d%s4' % name,)
-        # Cross derivatives, not supported in staggered grid
-        if any(function.staggered) is None:
-            for dim2 in function.space_dimensions:
-                name2 = 't' if dim2.is_Time else dim2.root.name
-                order2 = function.time_order if dim2.is_Time else function.space_order
-                # First cross derivative
-                dxy = partial(cross_derivative, order=(order, order2),
-                              dims=(dim, dim2))
-                setattr(function.__class__, 'd%s%s' % (name, name2),
-                        property(dxy, 'Return the symbolic expression for '
-                                 'the first cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (name, name2)))
-                derivatives += ('d%s%s' % (name, name2),)
-                # Second cross derivative
-                dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
-                                order=(order, order2))
-                setattr(function.__class__, 'd%s2%s2' % (dim.name, name2),
-                        property(dx2y2, 'Return the symbolic expression for '
-                                 'the second cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (name, name2)))
-                derivatives += ('d%s2%s2' % (name, name2),)
-
-    function.derivatives = derivatives
+    fd_derivatives = generate_fd_functions(function)
+    for d in fd_derivatives:
+        setattr(function.__class__, d[1], property(d[0], d[1]))
+    function.derivatives = tuple(d[1] for d in fd_derivatives)

@@ -1,3 +1,4 @@
+from sympy import cos, sin
 from collections import Counter
 
 from devito.symbolics.search import retrieve_ops, search
@@ -25,7 +26,6 @@ def estimate_cost(handle, estimate_functions=False):
     :param estimate_functions: approximate the operation count of known
                                functions (eg, sin, cos).
     """
-    from devito.finite_differences.differentiable import cos, sin
     external_functions = {sin: 50, cos: 50}
     try:
         # Is it a plain SymPy object ?
@@ -57,6 +57,7 @@ def estimate_cost(handle, estimate_functions=False):
                     flops += 1
             else:
                 flops += len(op.args) - (1 + sum(True for i in op.args if i.is_Integer))
+        print(flops)
         return flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))

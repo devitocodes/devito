@@ -11,10 +11,10 @@ from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.finite_differences import initialize_derivatives, Add, Mul
+from devito.finite_differences import initialize_derivatives, Differentiable
 from devito.logger import debug, warning
 from devito.parameters import configuration
-from devito.symbolics import indexify, retrieve_indexed
+from devito.symbolics import indexify, retrieve_indexed, Add
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import Tag, ReducerMap, prod, powerset, is_integer
@@ -457,22 +457,23 @@ class TensorFunction(AbstractCachedFunction):
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
 
     def __add__(self, other):
-        return Add(*[self, other])
+        return Differentiable(sympy.Add(*[self, other]))
 
     def __iadd__(self, other):
-        return Add(*[self, other])
+        return Differentiable(sympy.Add(*[self, other]))
 
     def __radd__(self, other):
-        return Add(*[self, other])
+        return Differentiable(sympy.Add(*[self, other]))
 
     def __mul__(self, other):
-        return Mul(*[self, other])
+        return Differentiable(sympy.Mul(*[self, other]))
 
     def __imul__(self, other):
-        return Mul(*[self, other])
+        return Differentiable(sympy.Mul(*[self, other]))
 
     def __rmul__(self, other):
-        return Mul(*[self, other])
+        return Differentiable(sympy.Mul(*[self, other]))
+
 
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express

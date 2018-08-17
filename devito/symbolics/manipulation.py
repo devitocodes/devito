@@ -153,7 +153,6 @@ def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
 
 
 def pow_to_mul(expr):
-    from devito.finite_differences.differentiable import Mul
     if expr.is_Atom or expr.is_Indexed:
         return expr
     elif expr.is_Pow:
