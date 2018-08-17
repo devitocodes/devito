@@ -457,23 +457,42 @@ class TensorFunction(AbstractCachedFunction):
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
 
     def __add__(self, other):
-        return Differentiable(sympy.Add(*[self, other]))
+        if isinstance(other, Differentiable):
+            return Differentiable(sympy.Add(*[self, other.expr]))
+        else:
+            return Differentiable(sympy.Add(*[self, other]))
 
-    def __iadd__(self, other):
-        return Differentiable(sympy.Add(*[self, other]))
+    __iadd__ = __add__
+    __radd__ = __add__
 
-    def __radd__(self, other):
-        return Differentiable(sympy.Add(*[self, other]))
+    def __sub__(self, other):
+        if isinstance(other, Differentiable):
+            return Differentiable(sympy.Add(*[self, -other.expr]))
+        else:
+            return Differentiable(sympy.Add(*[self, -other]))
+
+    def __rsub__(self, other):
+        if isinstance(other, Differentiable):
+            return Differentiable(sympy.Add(*[-self, other.expr]))
+        else:
+            return Differentiable(sympy.Add(*[-self, other]))
+
+    __isub__ = __sub__
 
     def __mul__(self, other):
-        return Differentiable(sympy.Mul(*[self, other]))
+        if isinstance(other, Differentiable):
+            return Differentiable(sympy.Mul(*[self, other.expr]))
+        else:
+            return Differentiable(sympy.Mul(*[self, other]))
 
-    def __imul__(self, other):
-        return Differentiable(sympy.Mul(*[self, other]))
+    __imul__ = __mul__
+    __rmul__ = __mul__
 
-    def __rmul__(self, other):
-        return Differentiable(sympy.Mul(*[self, other]))
-
+    def __div__(self, other):
+        if isinstance(other, Differentiable):
+            return Differentiable(self/other.expr)
+        else:
+            return Differentiable(self/other)
 
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express

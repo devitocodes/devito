@@ -4,6 +4,7 @@ from sympy import Number, Indexed, Symbol, LM, LC, Mul, Add
 
 from devito.symbolics.extended_sympy import FrozenExpr, Eq
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
+from devito.finite_differences.differentiable import Differentiable
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
 from devito.types import Symbol as dSymbol
@@ -153,18 +154,23 @@ def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
 
 
 def pow_to_mul(expr):
+    exprin = expr.expr if isinstance(expr, Differentiable) else expr
     if expr.is_Atom or expr.is_Indexed:
-        return expr
+        out = expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
         if exp <= 0 or not exp.is_integer:
             # Cannot handle powers containing non-integer non-positive exponents
-            return expr
+            out = expr
         else:
-            return Mul(*[base]*exp, evaluate=False)
+            out = Mul(*[base]*exp, evaluate=False)
     else:
-        return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
+        out = expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
 
+    if isinstance(expr, Differentiable):
+        return Differentiable(out)
+    else:
+        return out
 
 def as_symbol(expr):
     """

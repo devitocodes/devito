@@ -57,7 +57,6 @@ def estimate_cost(handle, estimate_functions=False):
                     flops += 1
             else:
                 flops += len(op.args) - (1 + sum(True for i in op.args if i.is_Integer))
-        print(flops)
         return flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))

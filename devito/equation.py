@@ -80,8 +80,12 @@ def solve(eq, target, **kwargs):
                    the equation. For more information. refer to
                    ``sympy.solve.__doc__``.
     """
+    from devito.finite_differences.differentiable import Differentiable
     # Enforce certain parameters to values that are known to guarantee a quick
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
-    return sympy.solve(eq, target, **kwargs)[0]
+    if isinstance(eq, Differentiable):
+        return sympy.solve(eq.expr, target, **kwargs)[0]
+    else:
+        return sympy.solve(eq, target, **kwargs)[0]

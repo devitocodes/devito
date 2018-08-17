@@ -14,12 +14,12 @@ class Differentiable(FrozenExpr):
     provides FD shortcuts for such expressions
     """
     _op_priority = 100.0
-
+    is_Function = True
     def __new__(cls, *args, **kwargs):
         return sympy.Expr.__new__(cls, *args)
 
     def __init__(self, expr, **kwargs):
-        from devito.finite_differences.finit_difference import generate_fd_functions
+        from devito.finite_differences.finite_difference import generate_fd_functions
         self.expr = expr.expr if isinstance(expr, Differentiable) else expr
         # Recover the list of possible FD shortcuts
         self.dtype = self._dtype()
@@ -27,6 +27,7 @@ class Differentiable(FrozenExpr):
         self.time_order = self._space_order()
         self.indices = self._indices()
         self.staggered = self._staggered()
+        self.is_TimeFunction = self._is_time()
         # Generate FD shortcuts for expression or copy from input
         if isinstance(expr, Differentiable):
             self.fd = expr.fd
@@ -87,6 +88,14 @@ class Differentiable(FrozenExpr):
     def args(self):
         return self.expr.args
 
+    def _is_time(self):
+        """
+        Check wether or not time is an index
+        """
+        func = list(retrieve_functions(self.expr))
+
+        return any(i.is_TimeFunction for i in func)
+
     def _space_order(self):
         """
         Infer space_order from expression
@@ -139,7 +148,7 @@ class Differentiable(FrozenExpr):
         if self.is_Number:
             return self.args[0]
         else:
-            return self.func(*[i.evalf(N) for i in self.args], evaluate=False)
+            return self.expr.evalf(N)
 
     def subs(self, subs):
         return Differentiable(self.expr.subs(subs))
