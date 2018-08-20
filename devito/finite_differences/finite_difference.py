@@ -229,7 +229,6 @@ def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):
     deriv = 0
     all_dims = tuple(set((dim, ) +
                      tuple([i for i in expr.indices if i.root == dim])))
-
     for i in range(0, len(indices)):
             subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
             deriv += expr.subs(subs) * c[i]
@@ -317,10 +316,9 @@ def generate_fd_functions(function):
     dimensions = function.indices
     space_fd_order = function.space_order
     time_fd_order = function.time_order if function.is_TimeFunction else 0
-    is_staggered = any(s is None for s in function.staggered)
-
-    deriv_function = generic_derivative if is_staggered else staggered_diff
-    c_deriv_function = generic_cross_derivative if is_staggered else staggered_cross_diff
+    is_staggered = not any(s is None for s in function.staggered)
+    deriv_function = staggered_diff if is_staggered else generic_derivative
+    c_deriv_function = staggered_cross_diff if is_staggered else generic_cross_derivative
 
     side = dict()
     for (d, s) in zip(dimensions, function.staggered):
@@ -372,13 +370,13 @@ def generate_fd_functions(function):
                             dim=d, side=left)
             name_fd = 'd%sl' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
-            derivatives += ((deriv, name_fd2, desciption), )
+            derivatives += ((deriv, name_fd, desciption), )
             # right
             deriv = partial(first_derivative, order=space_fd_order,
                             dim=d, side=right)
             name_fd = 'd%sr' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
-            derivatives += ((deriv, name_fd2, desciption), )
+            derivatives += ((deriv, name_fd, desciption), )
 
     return derivatives
 

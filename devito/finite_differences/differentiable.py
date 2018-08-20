@@ -22,7 +22,6 @@ class Differentiable(FrozenExpr):
     def __init__(self, expr, **kwargs):
         from devito.finite_differences.finite_difference import generate_fd_functions
         self.expr = expr.expr if isinstance(expr, Differentiable) else expr
-
         # Recover the list of possible FD shortcuts
         self.dtype = self._dtype()
         self.space_order = self._space_order()
@@ -79,6 +78,15 @@ class Differentiable(FrozenExpr):
 
     def __pow__(self, exponent):
         return Differentiable(sympy.Pow(self, exponent))
+
+    def __eq__(self, other):
+        if isinstance(other, Differentiable):
+            return self.expr == other.expr
+        else:
+            return self.expr == other
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def func(self, *args, **kwargs):
         return Differentiable(self.expr.func(*args), **kwargs)
@@ -158,3 +166,6 @@ class Differentiable(FrozenExpr):
             if isinstance(v, Differentiable):
                 subs[k] = v.expr
         return Differentiable(self.expr.subs(subs))
+
+    def __hash__(self):
+        return hash(self.expr)

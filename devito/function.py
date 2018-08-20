@@ -11,7 +11,7 @@ from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.finite_differences import initialize_derivatives, Differentiable
+from devito.finite_differences import initialize_derivatives
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed, Add
@@ -455,47 +455,6 @@ class TensorFunction(AbstractCachedFunction):
 
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
-
-    def __add__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[self, other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[self, other]))
-
-    __iadd__ = __add__
-    __radd__ = __add__
-
-    def __sub__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[self, -other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[self, -other]))
-
-    def __rsub__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[-self, other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[-self, other]))
-
-    __isub__ = __sub__
-
-    def __mul__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Mul(*[self, other.expr]))
-        else:
-            return Differentiable(sympy.Mul(*[self, other]))
-
-    __imul__ = __mul__
-    __rmul__ = __mul__
-
-    def __div__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(self/other.expr)
-        else:
-            return Differentiable(self/other)
-
-    def __pow__(self, exponent):
-        return Differentiable(sympy.Pow(self, exponent))
 
 
 class Function(TensorFunction):

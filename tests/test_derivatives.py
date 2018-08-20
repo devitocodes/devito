@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from conftest import skipif_yask
-from sympy import Derivative, simplify, diff
+from sympy import Derivative, diff
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
                     clear_cache, ConditionalDimension, left, right, centered,
@@ -96,7 +96,7 @@ def test_derivatives_space(grid, derivative, dim, order):
     else:
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
     s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
-    assert(simplify(expr - s_expr) == 0)  # Symbolic equality
+    assert((expr - s_expr) == 0)  # Symbolic equality
     assert(e == s_e for e, s_e in zip(expr.args, s_expr.args))  # Exact equality
 
 
@@ -114,7 +114,7 @@ def test_second_derivatives_space(grid, derivative, dim, order):
     width = int(order / 2)
     indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
     s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
-    assert(simplify(expr - s_expr) == 0)  # Symbolic equality
+    assert((expr - s_expr) == 0)  # Symbolic equality
     assert(e == s_e for e, s_e in zip(expr.args, s_expr.args))  # Exact equality
 
 

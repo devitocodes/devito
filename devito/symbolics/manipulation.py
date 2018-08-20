@@ -216,6 +216,7 @@ def indexify(expr):
     :class:`AbstractFunction` objects have been converted into :class:`Indexed`
     objects.
     """
+    expr = expr.expr if isinstance(expr, Differentiable) else expr
     mapper = {}
     for i in retrieve_functions(expr):
         try:
