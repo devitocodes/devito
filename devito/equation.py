@@ -85,6 +85,9 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
+    # Reset to eqn = 0 if provided an Eq object
+    if isinstance(eq, Eq):
+        eq = eq.lhs - eq.rhs
     if isinstance(eq, Differentiable):
         return Differentiable(sympy.solve(eq.expr, target, **kwargs)[0])
     else:

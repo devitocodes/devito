@@ -76,6 +76,9 @@ class Differentiable(FrozenExpr):
         else:
             return Differentiable(self.expr/other)
 
+    def __neg__(self):
+        return Differentiable(- self.expr)
+
     def __pow__(self, exponent):
         return Differentiable(sympy.Pow(self, exponent))
 
