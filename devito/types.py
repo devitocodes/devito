@@ -840,6 +840,9 @@ class Indexed(sympy.Indexed):
     def dtype(self):
         return self.function.dtype
 
+    @property
+    def name(self):
+        return self.function.name
 
 # Utilities
 
