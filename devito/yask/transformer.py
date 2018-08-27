@@ -5,10 +5,10 @@ from devito.symbolics import IntDiv, split_affine
 
 from devito.yask import nfac
 
-__all__ = ['yaskizer', 'make_yask_ast']
+__all__ = ['yaskit', 'make_yask_ast']
 
 
-def yaskizer(trees, yc_soln):
+def yaskit(trees, yc_soln):
     """
     Populate a YASK compiler solution with the :class:`Expression`s found in an IET.
 

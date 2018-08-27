@@ -16,7 +16,7 @@ from devito.yask import configuration
 from devito.yask.data import DataScalar
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, namespace
 from devito.yask.wrappers import contexts
-from devito.yask.transformer import yaskizer
+from devito.yask.transformer import yaskit
 from devito.yask.types import YaskGridObject, YaskSolnObject
 
 __all__ = ['Operator']
@@ -75,7 +75,7 @@ class Operator(OperatorRunnable):
 
             try:
                 # Generate YASK grids and populate `yc_soln` with equations
-                mapper = yaskizer(trees, yc_soln)
+                mapper = yaskit(trees, yc_soln)
                 local_grids = [i for i in mapper if i.is_Array]
 
                 # Transform the IET
