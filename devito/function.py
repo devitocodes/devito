@@ -1087,7 +1087,7 @@ class SparseFunction(AbstractSparseFunction):
         reference_cell = {**left, **right}
         # Substitute in interpolation matrix
         A = A.subs(reference_cell)
-        return A.inv().T.dot(p)
+        return A.inv().T * p
 
     @property
     def point_symbols(self):
