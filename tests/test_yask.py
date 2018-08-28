@@ -7,7 +7,7 @@ pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from devito import (Eq, Grid, Dimension, ConditionalDimension, Operator, Constant,
                     Function, TimeFunction,  SparseTimeFunction, configuration, clear_cache)  # noqa
-from devito.ir.iet import retrieve_iteration_tree  # noqa
+from devito.ir.iet import FindNodes, ForeignExpression, retrieve_iteration_tree  # noqa
 
 # For the acoustic wave test
 from examples.seismic.acoustic import AcousticWaveSolver, iso_stencil  # noqa
@@ -418,6 +418,16 @@ class TestOperatorAdvanced(object):
         eqns = [Eq(u.forward, u + 1.), Eq(usave, u)]
         op = Operator(eqns)
         op.apply(time=nt-1)
+
+        # Check numerical correctness
+        assert np.all(usave.data[0] == 0.)
+        assert np.all(usave.data[1] == 4.)
+        assert np.all(usave.data[2] == 8.)
+
+        # Check code generation
+        solns = FindNodes(ForeignExpression).visit(op)
+        assert len(solns) == 2
+        assert all('run_solution' in str(i) for i in solns)
 
 
 class TestIsotropicAcoustic(object):
