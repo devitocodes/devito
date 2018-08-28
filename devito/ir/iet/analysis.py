@@ -8,11 +8,11 @@ perform actual data dependence analysis.
 from collections import OrderedDict
 from functools import cmp_to_key
 
-from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, MapIteration, NestedTransformer,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+                           VECTOR, WRAPPABLE, AFFINE, REDUNDANT, MapIteration, FindNodes,
+                           Transformer, retrieve_iteration_tree)
 from devito.ir.support import Scope
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_mapper, as_tuple, filter_ordered, flatten
 
 __all__ = ['iet_analyze']
 
@@ -50,14 +50,15 @@ def iet_analyze(iet):
     analysis = mark_vectorizable(analysis)
     analysis = mark_wrappable(analysis)
     analysis = mark_affine(analysis)
+    analysis = mark_halospots(analysis)
 
     # Decorate the Iteration/Expression tree with the found properties
     mapper = OrderedDict()
     for k, v in list(analysis.properties.items()):
         args = k.args
         properties = as_tuple(args.pop('properties')) + as_tuple(v)
-        mapper[k] = Iteration(properties=properties, **args)
-    processed = NestedTransformer(mapper).visit(iet)
+        mapper[k] = k._rebuild(properties=properties, **args)
+    processed = Transformer(mapper, nested=True).visit(iet)
 
     return processed
 
@@ -69,12 +70,13 @@ def mark_parallel(analysis):
     properties = OrderedDict()
     for tree in analysis.trees:
         for depth, i in enumerate(tree):
-            if i in properties:
+            if properties.get(i) is SEQUENTIAL:
+                # Speed-up analysis
                 continue
 
             if i.uindices:
                 # Only ++/-- increments of iteration variables are supported
-                properties[i] = SEQUENTIAL
+                properties.setdefault(i, []).append(SEQUENTIAL)
                 continue
 
             # Get all dimensions up to and including Iteration /i/, grouped by Iteration
@@ -104,11 +106,16 @@ def mark_parallel(analysis):
                         break
 
             if is_parallel:
-                properties[i] = PARALLEL
+                properties.setdefault(i, []).append(PARALLEL)
             elif is_atomic_parallel:
-                properties[i] = PARALLEL_IF_ATOMIC
+                properties.setdefault(i, []).append(PARALLEL_IF_ATOMIC)
             else:
-                properties[i] = SEQUENTIAL
+                properties.setdefault(i, []).append(SEQUENTIAL)
+
+    # Reduction (e.g, SEQUENTIAL takes priority over PARALLEL)
+    priorities = {PARALLEL: 0, PARALLEL_IF_ATOMIC: 1, SEQUENTIAL: 2}
+    properties = OrderedDict([(k, max(v, key=lambda i: priorities[i]))
+                              for k, v in properties.items()])
 
     analysis.update(properties)
 
@@ -144,11 +151,10 @@ def mark_vectorizable(analysis):
 def mark_wrappable(analysis):
     """Update the ``analysis`` detecting the ``WRAPPABLE`` Iterations within
     ``analysis.iet``."""
-    for i in analysis.scopes:
+    for i, scope in analysis.scopes.items():
         if not i.dim.is_Time:
             continue
 
-        scope = analysis.scopes[i]
         accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
 
         # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
@@ -206,5 +212,28 @@ def mark_affine(analysis):
             arrays = [a for a in analysis.scopes[i].accesses if not a.is_scalar]
             if all(a.is_regular and a.affine_if_present(i.dim._defines) for a in arrays):
                 properties[i] = AFFINE
+
+    analysis.update(properties)
+
+
+@propertizer
+def mark_halospots(analysis):
+    """Update the ``analysis`` detecting the ``REDUNDANT`` HaloSpots within
+    ``analysis.iet``."""
+    properties = OrderedDict()
+
+    def analyze(fmapper, scope):
+        for f, hse in fmapper.items():
+            if all(dep.cause & set(hse.loc_indices) for dep in scope.d_anti.project(f)):
+                return False
+        return True
+
+    for i, scope in analysis.scopes.items():
+        mapper = as_mapper(FindNodes(HaloSpot).visit(i), lambda hs: hs.halo_scheme)
+        for k, v in mapper.items():
+            if len(v) == 1:
+                continue
+            if analyze(k.fmapper, scope):
+                properties.update({i: REDUNDANT for i in v[1:]})
 
     analysis.update(properties)

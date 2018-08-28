@@ -1,10 +1,10 @@
 from collections import OrderedDict
 
-from anytree import LevelOrderIter, findall
+from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support.space import IterationSpace
+from devito.ir.support import IterationSpace
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
 from devito.tools import flatten
@@ -51,7 +51,8 @@ def st_schedule(clusters):
 
         # The reused sub-trees might acquire some new sub-iterators
         for i in pointers[:index]:
-            mapper[i].ispace = IterationSpace.merge(mapper[i].ispace, c.ispace)
+            mapper[i].ispace = IterationSpace.merge(mapper[i].ispace,
+                                                    c.ispace.project([i.dim]))
         # Later sub-trees, instead, will not be used anymore
         for i in pointers[index:]:
             mapper.pop(i)
@@ -62,7 +63,7 @@ def st_schedule(clusters):
             mapper[i] = root
 
         # Add in Expressions
-        NodeExprs(c.exprs, c.shape, c.ops, c.traffic, root)
+        NodeExprs(c.exprs, c.ispace, c.dspace, c.shape, c.ops, c.traffic, root)
 
         # Add in Conditionals
         for k, v in mapper.items():
@@ -76,38 +77,34 @@ def st_schedule(clusters):
 
 def st_make_halo(stree):
     """
-    Add :class:`NodeHalo` to a :class:`ScheduleTree`. A halo node describes
-    what halo exchanges should take place before executing the sub-tree.
+    Add :class:`NodeHalo`s to a :class:`ScheduleTree`. A HaloNode captures
+    the halo exchanges that should take place before executing the sub-tree;
+    these are described by means of a :class:`HaloScheme`.
     """
-    if not configuration['mpi']:
-        # TODO: This will be dropped as soon as stronger analysis will have
-        # been implemented
-        return stree
-
-    processed = {}
-    for n in LevelOrderIter(stree, stop=lambda i: i.parent in processed):
-        if not n.is_Iteration:
-            continue
-        exprs = flatten(i.exprs for i in findall(n, lambda i: i.is_Exprs))
+    # Build a HaloScheme for each expression bundle
+    halo_schemes = {}
+    for n in findall(stree, lambda i: i.is_Exprs):
         try:
-            halo_scheme = HaloScheme(exprs)
-            if n.dim in halo_scheme.dmapper:
-                processed[n] = NodeHalo(halo_scheme)
-        except HaloSchemeException:
-            # We should get here only when trying to compute a halo
-            # scheme for a group of expressions that belong to different
-            # iteration spaces. We expect proper halo schemes to be built
-            # as the `stree` visit proceeds.
-            # TODO: However, at the end, we should check that a halo scheme,
-            # possibly even a "void" one, has been built for *all* of the
-            # expressions, and error out otherwise.
-            continue
-        except RuntimeError as e:
-            if configuration['mpi'] is True:
+            halo_schemes[n] = HaloScheme(n.exprs, n.ispace, n.dspace)
+        except HaloSchemeException as e:
+            if configuration['mpi']:
                 raise RuntimeError(str(e))
 
-    for k, v in processed.items():
-        insert(v, k.parent, [k])
+    # Insert the HaloScheme at a suitable level in the ScheduleTree
+    mapper = {}
+    for k, hs in halo_schemes.items():
+        for f, v in hs.fmapper.items():
+            spot = k
+            ancestors = [n for n in k.ancestors if n.is_Iteration]
+            for n in ancestors:
+                test0 = any(n.dim is i.dim for i in v.halos)
+                test1 = n.dim not in [i.root for i in v.loc_indices]
+                if test0 or test1:
+                    spot = n
+                    break
+            mapper.setdefault(spot, []).append((f, v))
+    for spot, entries in mapper.items():
+        insert(NodeHalo(HaloScheme(fmapper=dict(entries))), spot.parent, [spot])
 
     return stree
 

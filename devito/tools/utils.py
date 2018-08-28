@@ -42,11 +42,13 @@ def as_tuple(item, type=None, length=None):
     return t
 
 
-def as_mapper(iterable, key):
+def as_mapper(iterable, key=None):
     """
     Rearrange an iterable into a dictionary of lists in which keys are
     produced by the function ``key``.
     """
+    if key is None:
+        key = lambda i: i
     mapper = {}
     for i in iterable:
         mapper.setdefault(key(i), []).append(i)

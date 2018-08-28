@@ -295,10 +295,14 @@ def parallel(item):
 
         # Only spew tracebacks on rank 0.
         # Run xfailing tests to ensure that errors are reported to calling process
+        if item.cls is not None:
+            testname = "%s::%s::%s" % (item.fspath, item.cls.__name__, item.name)
+        else:
+            testname = "%s::%s" % (item.fspath, item.name)
         call = ["mpiexec", "-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
-                "-q", "%s::%s" % (item.fspath, item.name)]
+                "-q", testname]
         call.extend([":", "-n", "%d" % (i - 1), "python", "-m", "pytest",
-                     "--runxfail", "--tb=no", "-q", "%s::%s" % (item.fspath, item.name)])
+                     "--runxfail", "--tb=no", "-q", testname])
         check_call(call)
 
 
@@ -312,8 +316,12 @@ def pytest_configure(config):
 def pytest_runtest_setup(item):
     if item.get_marker("parallel") and MPI.COMM_WORLD.size == 1:
         # Blow away function arg in "master" process, to ensure
-        # this test isn't run on only one process.
-        item.obj = lambda *args, **kwargs: True
+        # this test isn't run on only one process
+        dummy_test = lambda *args, **kwargs: True
+        if item.cls is not None:
+            setattr(item.cls, item.name, dummy_test)
+        else:
+            item.obj = dummy_test
 
 
 def pytest_runtest_call(item):

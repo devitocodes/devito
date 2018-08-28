@@ -104,7 +104,7 @@ class Operator(Callable):
         # Insert code for MPI support
         iet = self._generate_mpi(iet, **kwargs)
 
-        # Insert data and pointer casts for array parameters and profiling structs
+        # Insert data and pointer casts for array parameters
         iet = self._build_casts(iet)
 
         # Derive parameters as symbols not defined in the kernel itself
@@ -178,7 +178,7 @@ class Operator(Callable):
         args = self.prepare_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
-            if p.name not in args:
+            if args.get(p.name) is None:
                 raise ValueError("No value found for parameter %s" % p.name)
         return args
 

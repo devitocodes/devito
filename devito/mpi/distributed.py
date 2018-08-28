@@ -86,6 +86,20 @@ class Distributor(object):
         return tuple(i[j] for i, j in zip(self._glb_numbs, self._comm.coords))
 
     @property
+    def glb_pos_map(self):
+        """Return the mapper ``dimension -> side`` telling the position
+        of the calling rank in the global grid."""
+        ret = {}
+        for d, i, s in zip(self.dimensions, self.mycoords, self.topology):
+            v = []
+            if i == 0:
+                v.append(LEFT)
+            if i == s - 1:
+                v.append(RIGHT)
+            ret[d] = tuple(v)
+        return ret
+
+    @property
     def shape(self):
         """Return the shape of this process' domain."""
         return tuple(len(i) for i in self.glb_numb)
@@ -118,13 +132,14 @@ class Distributor(object):
 
             https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
         """
-        from devito.types import CompositeObject
-        ptype = c_int if MPI._sizeof(self._comm) == sizeof(c_int) else c_void_p
-        obj = CompositeObject('comm', 'MPI_Comm', ptype, [])
+        from devito.types import Object
+        if MPI._sizeof(self._comm) == sizeof(c_int):
+            ctype = type('MPI_Comm', (c_int,), {})
+        else:
+            ctype = type('MPI_Comm', (c_void_p,), {})
         comm_ptr = MPI._addressof(self._comm)
-        comm_val = obj.dtype.from_address(comm_ptr)
-        obj.value = comm_val
-        return obj
+        comm_val = ctype.from_address(comm_ptr)
+        return Object(name='comm', dtype=ctype, value=comm_val)
 
     @cached_property
     def _C_neighbours(self):

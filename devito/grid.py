@@ -156,6 +156,11 @@ class Grid(ArgProvider):
         """Return the type to create constant symbols."""
         return Constant
 
+    def is_distributed(self, dim):
+        """Return True if ``dim`` is a distributed :class:`Dimension`,
+        False otherwise."""
+        return dim in self.distributor.dimensions
+
     def _make_stepping_dim(self, time_dim, name=None):
         """Create a stepping dimension for this Grid."""
         if name is None:

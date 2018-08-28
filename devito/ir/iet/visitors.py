@@ -14,7 +14,6 @@ import cgen as c
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.function import TimeFunction
-from devito.ir.iet.nodes import Node
 from devito.ir.support.space import Backward
 from devito.symbolics import xreplace_indices
 from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
@@ -22,14 +21,13 @@ from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
            'IsPerfectIteration', 'ReplaceStepIndices', 'printAST', 'CGen',
-           'Transformer', 'NestedTransformer', 'FindAdjacentIterations',
-           'MapIteration']
+           'Transformer', 'FindAdjacent', 'MapIteration']
 
 
 class Visitor(GenericVisitor):
 
     def visit_Node(self, o, **kwargs):
-        return self.visit(o.children, **kwargs)
+        return self._visit(o.children, **kwargs)
 
     def reuse(self, o, *args, **kwargs):
         """A visit method to reuse a node, ignoring children."""
@@ -38,7 +36,7 @@ class Visitor(GenericVisitor):
     def maybe_rebuild(self, o, *args, **kwargs):
         """A visit method that rebuilds nodes if their children have changed."""
         ops, okwargs = o.operands()
-        new_ops = [self.visit(op, *args, **kwargs) for op in ops]
+        new_ops = [self._visit(op, *args, **kwargs) for op in ops]
         if all(a is b for a, b in zip(ops, new_ops)):
             return o
         return o._rebuild(*new_ops, **okwargs)
@@ -46,7 +44,7 @@ class Visitor(GenericVisitor):
     def always_rebuild(self, o, *args, **kwargs):
         """A visit method that always rebuilds nodes."""
         ops, okwargs = o.operands()
-        new_ops = [self.visit(op, *args, **kwargs) for op in ops]
+        new_ops = [self._visit(op, *args, **kwargs) for op in ops]
         return o._rebuild(*new_ops, **okwargs)
 
 
@@ -85,28 +83,28 @@ class PrintAST(Visitor):
 
     def visit_Callable(self, o):
         self._depth += 1
-        body = self.visit(o.children)
+        body = self._visit(o.children)
         self._depth -= 1
         return self.indent + '<Callable %s>\n%s' % (o.name, body)
 
     def visit_list(self, o):
-        return ('\n').join([self.visit(i) for i in o])
+        return ('\n').join([self._visit(i) for i in o])
 
     def visit_tuple(self, o):
-        return '\n'.join([self.visit(i) for i in o])
+        return '\n'.join([self._visit(i) for i in o])
 
     def visit_Block(self, o):
         self._depth += 1
         if self.verbose:
-            body = [self.visit(o.header), self.visit(o.body), self.visit(o.footer)]
+            body = [self._visit(o.header), self._visit(o.body), self._visit(o.footer)]
         else:
-            body = [self.visit(o.body)]
+            body = [self._visit(o.body)]
         self._depth -= 1
-        return self.indent + "<%s>\n%s" % (o.__class__.__name__, '\n'.join(body))
+        return self.indent + "%s\n%s" % (o.__repr__(), '\n'.join(body))
 
     def visit_Iteration(self, o):
         self._depth += 1
-        body = self.visit(o.children)
+        body = self._visit(o.children)
         self._depth -= 1
         if self.verbose:
             detail = '::%s::%s::%s' % (o.index, o.limits, o.offsets)
@@ -125,10 +123,10 @@ class PrintAST(Visitor):
 
     def visit_Conditional(self, o):
         self._depth += 1
-        then_body = self.visit(o.then_body)
+        then_body = self._visit(o.then_body)
         self._depth -= 1
         if o.else_body:
-            else_body = self.visit(o.else_body)
+            else_body = self._visit(o.else_body)
             return self.indent + "<If %s>\n%s\n<Else>\n%s" % (o.condition,
                                                               then_body, else_body)
         else:
@@ -190,14 +188,14 @@ class CGen(Visitor):
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
-        return tuple(self.visit(i) for i in o)
+        return tuple(self._visit(i) for i in o)
 
     def visit_Block(self, o):
-        body = flatten(self.visit(i) for i in o.children)
+        body = flatten(self._visit(i) for i in o.children)
         return c.Module(o.header + (c.Block(body),) + o.footer)
 
     def visit_List(self, o):
-        body = flatten(self.visit(i) for i in o.children)
+        body = flatten(self._visit(i) for i in o.children)
         return c.Module(o.header + (c.Collection(body),) + o.footer)
 
     def visit_Element(self, o):
@@ -220,15 +218,15 @@ class CGen(Visitor):
         return c.Statement('%s(%s)' % (o.name, ','.join(arguments)))
 
     def visit_Conditional(self, o):
-        then_body = c.Block(self.visit(o.then_body))
+        then_body = c.Block(self._visit(o.then_body))
         if o.else_body:
-            else_body = c.Block(self.visit(o.else_body))
+            else_body = c.Block(self._visit(o.else_body))
             return c.If(ccode(o.condition), then_body, else_body)
         else:
             return c.If(ccode(o.condition), then_body)
 
     def visit_Iteration(self, o):
-        body = flatten(self.visit(i) for i in o.children)
+        body = flatten(self._visit(i) for i in o.children)
 
         # Start
         if o.offsets[0] != 0:
@@ -277,7 +275,7 @@ class CGen(Visitor):
         return handle
 
     def visit_Callable(self, o):
-        body = flatten(self.visit(i) for i in o.children)
+        body = flatten(self._visit(i) for i in o.children)
         params = o.parameters
         decls = self._args_decl(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
@@ -285,7 +283,7 @@ class CGen(Visitor):
 
     def visit_Operator(self, o):
         # Kernel signature and body
-        body = flatten(self.visit(i) for i in o.children)
+        body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         retval = [c.Statement("return 0")]
@@ -329,14 +327,14 @@ class FindSections(Visitor):
         if ret is None:
             ret = self.default_retval()
         for i in o:
-            ret = self.visit(i, ret=ret, queue=queue)
+            ret = self._visit(i, ret=ret, queue=queue)
         return ret
 
     def visit_Node(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         for i in o.children:
-            ret = self.visit(i, ret=ret, queue=queue)
+            ret = self._visit(i, ret=ret, queue=queue)
         return ret
 
     def visit_Iteration(self, o, ret=None, queue=None):
@@ -345,7 +343,7 @@ class FindSections(Visitor):
         else:
             queue.append(o)
         for i in o.children:
-            ret = self.visit(i, ret=ret, queue=queue)
+            ret = self._visit(i, ret=ret, queue=queue)
         queue.remove(o)
         return ret
 
@@ -420,11 +418,11 @@ class FindSymbols(Visitor):
         self.rule = self.rules[mode]
 
     def visit_tuple(self, o):
-        symbols = flatten([self.visit(i) for i in o])
+        symbols = flatten([self._visit(i) for i in o])
         return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Iteration(self, o):
-        symbols = flatten([self.visit(i) for i in o.children])
+        symbols = flatten([self._visit(i) for i in o.children])
         symbols += self.rule(o)
         return filter_sorted(symbols, key=attrgetter('name'))
 
@@ -469,7 +467,7 @@ class FindNodes(Visitor):
 
     def visit_tuple(self, o, ret=None):
         for i in o:
-            ret = self.visit(i, ret=ret)
+            ret = self._visit(i, ret=ret)
         return ret
 
     def visit_Node(self, o, ret=None):
@@ -478,21 +476,25 @@ class FindNodes(Visitor):
         if self.rule(self.match, o):
             ret.append(o)
         for i in o.children:
-            ret = self.visit(i, ret=ret)
+            ret = self._visit(i, ret=ret)
         return ret
 
 
-class FindAdjacentIterations(Visitor):
+class FindAdjacent(Visitor):
 
     @classmethod
     def default_retval(cls):
-        return OrderedDict([('seen_iteration', False)])
+        return OrderedDict([('seen_type', False)])
 
     """
     Return a mapper from nodes N in an Expression/Iteration tree to sequences of
-    :class:`Iteration` objects I = [I_0, I_1, ...], where N is the direct ancestor of
+    objects I = [I_0, I_1, ...] of type T, where N is the direct ancestor of
     the items in I and all items in I are adjacent nodes in the tree.
     """
+
+    def __init__(self, match):
+        super(FindAdjacent, self).__init__()
+        self.match = match
 
     def handler(self, o, parent=None, ret=None):
         if ret is None:
@@ -501,8 +503,8 @@ class FindAdjacentIterations(Visitor):
             return ret
         group = []
         for i in o:
-            ret = self.visit(i, parent=parent, ret=ret)
-            if i and ret['seen_iteration'] is True:
+            ret = self._visit(i, parent=parent, ret=ret)
+            if i and ret['seen_type'] is True:
                 group.append(i)
             else:
                 if len(group) > 1:
@@ -514,6 +516,10 @@ class FindAdjacentIterations(Visitor):
             ret.setdefault(parent, []).append(tuple(group))
         return ret
 
+    def _post_visit(self, ret):
+        ret.pop('seen_type', None)
+        return ret
+
     def visit_object(self, o, parent=None, ret=None):
         return ret
 
@@ -522,12 +528,7 @@ class FindAdjacentIterations(Visitor):
 
     def visit_Node(self, o, parent=None, ret=None):
         ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_iteration'] = False
-        return ret
-
-    def visit_Iteration(self, o, parent=None, ret=None):
-        ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_iteration'] = True
+        ret['seen_type'] = type(o) is self.match
         return ret
 
 
@@ -541,23 +542,23 @@ class IsPerfectIteration(Visitor):
         return False
 
     def visit_tuple(self, o, **kwargs):
-        return all(self.visit(i, **kwargs) for i in o)
+        return all(self._visit(i, **kwargs) for i in o)
 
     def visit_Node(self, o, found=False, **kwargs):
         if not found:
             return False
-        return all(self.visit(i, found=found, **kwargs) for i in o.children)
+        return all(self._visit(i, found=found, **kwargs) for i in o.children)
 
     def visit_Conditional(self, o, found=False, **kwargs):
         if not found:
             return False
-        return all(self.visit(i, found=found, nomore=True) for i in o.children)
+        return all(self._visit(i, found=found, nomore=True) for i in o.children)
 
     def visit_Iteration(self, o, found=False, nomore=False):
         if found and nomore:
             return False
         nomore = len(o.nodes) > 1
-        return all(self.visit(i, found=True, nomore=nomore) for i in o.children)
+        return all(self._visit(i, found=True, nomore=nomore) for i in o.children)
 
 
 class Transformer(Visitor):
@@ -573,16 +574,16 @@ class Transformer(Visitor):
     "extended" by pre-pending to its body the nodes in ``M[n]``.
     """
 
-    def __init__(self, mapper={}):
+    def __init__(self, mapper={}, nested=False):
         super(Transformer, self).__init__()
         self.mapper = mapper.copy()
-        self.rebuilt = {}
+        self.nested = nested
 
     def visit_object(self, o, **kwargs):
         return o
 
     def visit_tuple(self, o, **kwargs):
-        visited = tuple(self.visit(i, **kwargs) for i in o)
+        visited = tuple(self._visit(i, **kwargs) for i in o)
         return tuple(i for i in visited if i is not None)
 
     visit_list = visit_tuple
@@ -591,46 +592,31 @@ class Transformer(Visitor):
         if o in self.mapper:
             handle = self.mapper[o]
             if handle is None:
-                # None -> drop /o/
+                # None -> drop `o`
                 return None
             elif isinstance(handle, Iterable):
+                # Iterable -> inject `handle` into `o`'s children
                 if not o.children:
                     raise VisitorException
-                extended = (tuple(handle) + o.children[0],) + o.children[1:]
-                return o._rebuild(*extended, **o.args_frozen)
+                if self.nested:
+                    children = [self._visit(i, **kwargs) for i in o.children]
+                else:
+                    children = o.children
+                children = (tuple(handle) + children[0],) + tuple(children[1:])
+                return o._rebuild(*children, **o.args_frozen)
             else:
-                return handle._rebuild(**handle.args)
+                # Replace `o` with `handle`
+                if self.nested:
+                    children = [self._visit(i, **kwargs) for i in handle.children]
+                    return handle._rebuild(*children, **handle.args_frozen)
+                else:
+                    return handle._rebuild(**handle.args)
         else:
-            rebuilt = [self.visit(i, **kwargs) for i in o.children]
-            return o._rebuild(*rebuilt, **o.args_frozen)
+            children = [self._visit(i, **kwargs) for i in o.children]
+            return o._rebuild(*children, **o.args_frozen)
 
-    def visit(self, o, *args, **kwargs):
-        obj = super(Transformer, self).visit(o, *args, **kwargs)
-        if isinstance(o, Node) and obj is not o:
-            self.rebuilt[o] = obj
-        return obj
-
-
-class NestedTransformer(Transformer):
-
-    """
-    Unlike a :class:`Transformer`, a :class:`NestedTransforer` applies
-    replacements in a depth-first fashion.
-    """
-
-    def visit_Node(self, o, **kwargs):
-        rebuilt = [self.visit(i, **kwargs) for i in o.children]
-        handle = self.mapper.get(o, o)
-        if handle is None:
-            # None -> drop /o/
-            return None
-        elif isinstance(handle, Iterable):
-            if not o.children:
-                raise VisitorException
-            extended = [tuple(handle) + rebuilt[0]] + rebuilt[1:]
-            return o._rebuild(*extended, **o.args_frozen)
-        else:
-            return handle._rebuild(*rebuilt, **handle.args_frozen)
+    def visit_Operator(self, o, **kwargs):
+        raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
 
 
 class ReplaceStepIndices(Transformer):
@@ -653,4 +639,4 @@ class ReplaceStepIndices(Transformer):
 
 
 def printAST(node, verbose=True):
-    return PrintAST(verbose=verbose).visit(node)
+    return PrintAST(verbose=verbose)._visit(node)

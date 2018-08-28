@@ -4,7 +4,8 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Function, TimeFunction, Eq, Operator
+from devito import Grid, Function, TimeFunction, Dimension, Eq, Inc, Operator
+from devito.ir.iet import Call, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
@@ -19,237 +20,230 @@ def teardown_module(module):
 
 
 @skipif_yask
-@pytest.mark.parallel(nprocs=[2, 4])
-def test_basic_partitioning():
-    grid = Grid(shape=(15, 15))
-    f = Function(name='f', grid=grid)
+class TestPythonMPI(object):
 
-    distributor = grid.distributor
-    expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
-        2: [(15, 8), (15, 7)],
-        4: [(8, 8), (8, 7), (7, 8), (7, 7)]
-    }
-    assert f.shape == expected[distributor.nprocs][distributor.myrank]
+    @pytest.mark.parallel(nprocs=[2, 4])
+    def test_basic_partitioning(self):
+        grid = Grid(shape=(15, 15))
+        f = Function(name='f', grid=grid)
 
+        distributor = grid.distributor
+        expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
+            2: [(15, 8), (15, 7)],
+            4: [(8, 8), (8, 7), (7, 8), (7, 7)]
+        }
+        assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
-@skipif_yask
-@pytest.mark.parallel(nprocs=9)
-def test_neighborhood_2d():
-    grid = Grid(shape=(3, 3))
-    x, y = grid.dimensions
+    @pytest.mark.parallel(nprocs=9)
+    def test_neighborhood_2d(self):
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions
 
-    distributor = grid.distributor
-    # Rank map:
-    # ---------------y
-    # | 0 | 1 | 2 |
-    # -------------
-    # | 3 | 4 | 5 |
-    # -------------
-    # | 6 | 7 | 8 |
-    # -------------
-    # |
-    # x
-    expected = {
-        0: {x: {LEFT: MPI.PROC_NULL, RIGHT: 3}, y: {LEFT: MPI.PROC_NULL, RIGHT: 1}},
-        1: {x: {LEFT: MPI.PROC_NULL, RIGHT: 4}, y: {LEFT: 0, RIGHT: 2}},
-        2: {x: {LEFT: MPI.PROC_NULL, RIGHT: 5}, y: {LEFT: 1, RIGHT: MPI.PROC_NULL}},
-        3: {x: {LEFT: 0, RIGHT: 6}, y: {LEFT: MPI.PROC_NULL, RIGHT: 4}},
-        4: {x: {LEFT: 1, RIGHT: 7}, y: {LEFT: 3, RIGHT: 5}},
-        5: {x: {LEFT: 2, RIGHT: 8}, y: {LEFT: 4, RIGHT: MPI.PROC_NULL}},
-        6: {x: {LEFT: 3, RIGHT: MPI.PROC_NULL}, y: {LEFT: MPI.PROC_NULL, RIGHT: 7}},
-        7: {x: {LEFT: 4, RIGHT: MPI.PROC_NULL}, y: {LEFT: 6, RIGHT: 8}},
-        8: {x: {LEFT: 5, RIGHT: MPI.PROC_NULL}, y: {LEFT: 7, RIGHT: MPI.PROC_NULL}},
-    }
-    assert expected[distributor.myrank] == distributor.neighbours
+        distributor = grid.distributor
+        # Rank map:
+        # ---------------y
+        # | 0 | 1 | 2 |
+        # -------------
+        # | 3 | 4 | 5 |
+        # -------------
+        # | 6 | 7 | 8 |
+        # -------------
+        # |
+        # x
+        expected = {
+            0: {x: {LEFT: MPI.PROC_NULL, RIGHT: 3}, y: {LEFT: MPI.PROC_NULL, RIGHT: 1}},
+            1: {x: {LEFT: MPI.PROC_NULL, RIGHT: 4}, y: {LEFT: 0, RIGHT: 2}},
+            2: {x: {LEFT: MPI.PROC_NULL, RIGHT: 5}, y: {LEFT: 1, RIGHT: MPI.PROC_NULL}},
+            3: {x: {LEFT: 0, RIGHT: 6}, y: {LEFT: MPI.PROC_NULL, RIGHT: 4}},
+            4: {x: {LEFT: 1, RIGHT: 7}, y: {LEFT: 3, RIGHT: 5}},
+            5: {x: {LEFT: 2, RIGHT: 8}, y: {LEFT: 4, RIGHT: MPI.PROC_NULL}},
+            6: {x: {LEFT: 3, RIGHT: MPI.PROC_NULL}, y: {LEFT: MPI.PROC_NULL, RIGHT: 7}},
+            7: {x: {LEFT: 4, RIGHT: MPI.PROC_NULL}, y: {LEFT: 6, RIGHT: 8}},
+            8: {x: {LEFT: 5, RIGHT: MPI.PROC_NULL}, y: {LEFT: 7, RIGHT: MPI.PROC_NULL}},
+        }
+        assert expected[distributor.myrank] == distributor.neighbours
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_halo_exchange_bilateral(self):
+        """
+        Test halo exchange between two processes organised in a 1x2 cartesian grid.
 
-@skipif_yask
-@pytest.mark.parallel(nprocs=2)
-def test_halo_exchange_bilateral():
-    """
-    Test halo exchange between two processes organised in a 1x2 cartesian grid.
+        The initial ``data_with_halo`` looks like:
 
-    The initial ``data_with_halo`` looks like:
+               rank0           rank1
+            0 0 0 0 0 0     0 0 0 0 0 0
+            0 1 1 1 1 0     0 2 2 2 2 0
+            0 1 1 1 1 0     0 2 2 2 2 0
+            0 1 1 1 1 0     0 2 2 2 2 0
+            0 1 1 1 1 0     0 2 2 2 2 0
+            0 0 0 0 0 0     0 0 0 0 0 0
 
-           rank0           rank1
-        0 0 0 0 0 0     0 0 0 0 0 0
-        0 1 1 1 1 0     0 2 2 2 2 0
-        0 1 1 1 1 0     0 2 2 2 2 0
-        0 1 1 1 1 0     0 2 2 2 2 0
-        0 1 1 1 1 0     0 2 2 2 2 0
-        0 0 0 0 0 0     0 0 0 0 0 0
+        After the halo exchange, the following is expected and tested for:
 
-    After the halo exchange, the following is expected and tested for:
+               rank0           rank1
+            0 0 0 0 0 0     0 0 0 0 0 0
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 0 0 0 0 0     0 0 0 0 0 0
+        """
+        grid = Grid(shape=(12, 12))
+        f = Function(name='f', grid=grid)
 
-           rank0           rank1
-        0 0 0 0 0 0     0 0 0 0 0 0
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 0 0 0 0 0     0 0 0 0 0 0
-    """
-    grid = Grid(shape=(12, 12))
-    f = Function(name='f', grid=grid)
+        distributor = grid.distributor
+        f.data[:] = distributor.myrank + 1
 
-    distributor = grid.distributor
-    f.data[:] = distributor.myrank + 1
+        # Now trigger a halo exchange...
+        f.data_with_halo   # noqa
 
-    # Now trigger a halo exchange...
-    f.data_with_halo   # noqa
-
-    if distributor.myrank == 0:
-        assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
-        assert np.all(f.data_ro_with_halo[:, 0] == 0.)
-    else:
-        assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
-        assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-    assert np.all(f.data_ro_with_halo[0] == 0.)
-    assert np.all(f.data_ro_with_halo[-1] == 0.)
-
-
-@skipif_yask
-@pytest.mark.parallel(nprocs=2)
-def test_halo_exchange_bilateral_asymmetric():
-    """
-    Test halo exchange between two processes organised in a 1x2 cartesian grid.
-
-    In this test, the size of left and right halo regions are different.
-
-    The initial ``data_with_halo`` looks like:
-
-           rank0           rank1
-        0 0 0 0 0 0 0     0 0 0 0 0 0 0
-        0 0 0 0 0 0 0     0 0 0 0 0 0 0
-        0 0 1 1 1 1 0     0 0 2 2 2 2 0
-        0 0 1 1 1 1 0     0 0 2 2 2 2 0
-        0 0 1 1 1 1 0     0 0 2 2 2 2 0
-        0 0 1 1 1 1 0     0 0 2 2 2 2 0
-        0 0 0 0 0 0 0     0 0 0 0 0 0 0
-
-    After the halo exchange, the following is expected and tested for:
-
-           rank0           rank1
-        0 0 0 0 0 0 0     0 0 0 0 0 0 0
-        0 0 0 0 0 0 0     0 0 0 0 0 0 0
-        0 0 1 1 1 1 2     1 1 2 2 2 2 0
-        0 0 1 1 1 1 2     1 1 2 2 2 2 0
-        0 0 1 1 1 1 2     1 1 2 2 2 2 0
-        0 0 1 1 1 1 2     1 1 2 2 2 2 0
-        0 0 0 0 0 0 0     0 0 0 0 0 0 0
-    """
-    grid = Grid(shape=(12, 12))
-    f = Function(name='f', grid=grid, space_order=(1, 2, 1))
-
-    distributor = grid.distributor
-    f.data[:] = distributor.myrank + 1
-
-    # Now trigger a halo exchange...
-    f.data_with_halo   # noqa
-
-    if distributor.myrank == 0:
-        assert np.all(f.data_ro_with_halo[2:-1, -1] == 2.)
-        assert np.all(f.data_ro_with_halo[:, 0:2] == 0.)
-    else:
-        assert np.all(f.data_ro_with_halo[2:-1, 0:2] == 1.)
-        assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-    assert np.all(f.data_ro_with_halo[0:2] == 0.)
-    assert np.all(f.data_ro_with_halo[-1] == 0.)
-
-
-@skipif_yask
-@pytest.mark.parallel(nprocs=4)
-def test_halo_exchange_quadrilateral():
-    """
-    Test halo exchange between four processes organised in a 2x2 cartesian grid.
-
-    The initial ``data_with_halo`` looks like:
-
-           rank0           rank1
-        0 0 0 0 0 0     0 0 0 0 0 0
-        0 1 1 1 1 0     0 2 2 2 2 0
-        0 1 1 1 1 0     0 2 2 2 2 0
-        0 1 1 1 1 0     0 2 2 2 2 0
-        0 1 1 1 1 0     0 2 2 2 2 0
-        0 0 0 0 0 0     0 0 0 0 0 0
-
-           rank2           rank3
-        0 0 0 0 0 0     0 0 0 0 0 0
-        0 3 3 3 3 0     0 4 4 4 4 0
-        0 3 3 3 3 0     0 4 4 4 4 0
-        0 3 3 3 3 0     0 4 4 4 4 0
-        0 3 3 3 3 0     0 4 4 4 4 0
-        0 0 0 0 0 0     0 0 0 0 0 0
-
-    After the halo exchange, the following is expected and tested for:
-
-           rank0           rank1
-        0 0 0 0 0 0     0 0 0 0 0 0
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 3 3 3 3 4     3 4 4 4 4 0
-
-           rank2           rank3
-        0 1 1 1 1 2     1 2 2 2 2 0
-        0 3 3 3 3 4     3 4 4 4 4 0
-        0 3 3 3 3 4     3 4 4 4 4 0
-        0 3 3 3 3 4     3 4 4 4 4 0
-        0 3 3 3 3 4     3 4 4 4 4 0
-        0 0 0 0 0 0     0 0 0 0 0 0
-    """
-    grid = Grid(shape=(12, 12))
-    f = Function(name='f', grid=grid)
-
-    distributor = grid.distributor
-    f.data[:] = distributor.myrank + 1
-
-    # Now trigger a halo exchange...
-    f.data_with_halo   # noqa
-
-    if distributor.myrank == 0:
+        if distributor.myrank == 0:
+            assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
+            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
+        else:
+            assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
+            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
         assert np.all(f.data_ro_with_halo[0] == 0.)
-        assert np.all(f.data_ro_with_halo[:, 0] == 0.)
-        assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
-        assert np.all(f.data_ro_with_halo[-1, 1:-1] == 3.)
-        assert f.data_ro_with_halo[-1, -1] == 4.
-    elif distributor.myrank == 1:
-        assert np.all(f.data_ro_with_halo[0] == 0.)
-        assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
-        assert np.all(f.data_ro_with_halo[-1, 1:-1] == 4.)
-        assert f.data_ro_with_halo[-1, 0] == 3.
-    elif distributor.myrank == 2:
         assert np.all(f.data_ro_with_halo[-1] == 0.)
-        assert np.all(f.data_ro_with_halo[:, 0] == 0.)
-        assert np.all(f.data_ro_with_halo[1:-1, -1] == 4.)
-        assert np.all(f.data_ro_with_halo[0, 1:-1] == 1.)
-        assert f.data_ro_with_halo[0, -1] == 2.
-    else:
+
+    @pytest.mark.parallel(nprocs=2)
+    def test_halo_exchange_bilateral_asymmetric(self):
+        """
+        Test halo exchange between two processes organised in a 1x2 cartesian grid.
+
+        In this test, the size of left and right halo regions are different.
+
+        The initial ``data_with_halo`` looks like:
+
+               rank0           rank1
+            0 0 0 0 0 0 0     0 0 0 0 0 0 0
+            0 0 0 0 0 0 0     0 0 0 0 0 0 0
+            0 0 1 1 1 1 0     0 0 2 2 2 2 0
+            0 0 1 1 1 1 0     0 0 2 2 2 2 0
+            0 0 1 1 1 1 0     0 0 2 2 2 2 0
+            0 0 1 1 1 1 0     0 0 2 2 2 2 0
+            0 0 0 0 0 0 0     0 0 0 0 0 0 0
+
+        After the halo exchange, the following is expected and tested for:
+
+               rank0           rank1
+            0 0 0 0 0 0 0     0 0 0 0 0 0 0
+            0 0 0 0 0 0 0     0 0 0 0 0 0 0
+            0 0 1 1 1 1 2     1 1 2 2 2 2 0
+            0 0 1 1 1 1 2     1 1 2 2 2 2 0
+            0 0 1 1 1 1 2     1 1 2 2 2 2 0
+            0 0 1 1 1 1 2     1 1 2 2 2 2 0
+            0 0 0 0 0 0 0     0 0 0 0 0 0 0
+        """
+        grid = Grid(shape=(12, 12))
+        f = Function(name='f', grid=grid, space_order=(1, 2, 1))
+
+        distributor = grid.distributor
+        f.data[:] = distributor.myrank + 1
+
+        # Now trigger a halo exchange...
+        f.data_with_halo   # noqa
+
+        if distributor.myrank == 0:
+            assert np.all(f.data_ro_with_halo[2:-1, -1] == 2.)
+            assert np.all(f.data_ro_with_halo[:, 0:2] == 0.)
+        else:
+            assert np.all(f.data_ro_with_halo[2:-1, 0:2] == 1.)
+            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
+        assert np.all(f.data_ro_with_halo[0:2] == 0.)
         assert np.all(f.data_ro_with_halo[-1] == 0.)
-        assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo[1:-1, 0] == 3.)
-        assert np.all(f.data_ro_with_halo[0, 1:-1] == 2.)
-        assert f.data_ro_with_halo[0, 0] == 1.
 
+    @pytest.mark.parallel(nprocs=4)
+    def test_halo_exchange_quadrilateral(self):
+        """
+        Test halo exchange between four processes organised in a 2x2 cartesian grid.
 
-@skipif_yask
-@pytest.mark.parallel(nprocs=[2, 4])
-def test_ctypes_neighbours():
-    grid = Grid(shape=(4, 4))
-    distributor = grid.distributor
+        The initial ``data_with_halo`` looks like:
 
-    PN = MPI.PROC_NULL
-    attrs = ['xleft', 'xright', 'yleft', 'yright']
-    expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
-        2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
-        4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
-    }
+               rank0           rank1
+            0 0 0 0 0 0     0 0 0 0 0 0
+            0 1 1 1 1 0     0 2 2 2 2 0
+            0 1 1 1 1 0     0 2 2 2 2 0
+            0 1 1 1 1 0     0 2 2 2 2 0
+            0 1 1 1 1 0     0 2 2 2 2 0
+            0 0 0 0 0 0     0 0 0 0 0 0
 
-    mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-    _, _, obj = distributor._C_neighbours
-    assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
+               rank2           rank3
+            0 0 0 0 0 0     0 0 0 0 0 0
+            0 3 3 3 3 0     0 4 4 4 4 0
+            0 3 3 3 3 0     0 4 4 4 4 0
+            0 3 3 3 3 0     0 4 4 4 4 0
+            0 3 3 3 3 0     0 4 4 4 4 0
+            0 0 0 0 0 0     0 0 0 0 0 0
+
+        After the halo exchange, the following is expected and tested for:
+
+               rank0           rank1
+            0 0 0 0 0 0     0 0 0 0 0 0
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 3 3 3 3 4     3 4 4 4 4 0
+
+               rank2           rank3
+            0 1 1 1 1 2     1 2 2 2 2 0
+            0 3 3 3 3 4     3 4 4 4 4 0
+            0 3 3 3 3 4     3 4 4 4 4 0
+            0 3 3 3 3 4     3 4 4 4 4 0
+            0 3 3 3 3 4     3 4 4 4 4 0
+            0 0 0 0 0 0     0 0 0 0 0 0
+        """
+        grid = Grid(shape=(12, 12))
+        f = Function(name='f', grid=grid)
+
+        distributor = grid.distributor
+        f.data[:] = distributor.myrank + 1
+
+        # Now trigger a halo exchange...
+        f.data_with_halo   # noqa
+
+        if distributor.myrank == 0:
+            assert np.all(f.data_ro_with_halo[0] == 0.)
+            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
+            assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
+            assert np.all(f.data_ro_with_halo[-1, 1:-1] == 3.)
+            assert f.data_ro_with_halo[-1, -1] == 4.
+        elif distributor.myrank == 1:
+            assert np.all(f.data_ro_with_halo[0] == 0.)
+            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
+            assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
+            assert np.all(f.data_ro_with_halo[-1, 1:-1] == 4.)
+            assert f.data_ro_with_halo[-1, 0] == 3.
+        elif distributor.myrank == 2:
+            assert np.all(f.data_ro_with_halo[-1] == 0.)
+            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
+            assert np.all(f.data_ro_with_halo[1:-1, -1] == 4.)
+            assert np.all(f.data_ro_with_halo[0, 1:-1] == 1.)
+            assert f.data_ro_with_halo[0, -1] == 2.
+        else:
+            assert np.all(f.data_ro_with_halo[-1] == 0.)
+            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
+            assert np.all(f.data_ro_with_halo[1:-1, 0] == 3.)
+            assert np.all(f.data_ro_with_halo[0, 1:-1] == 2.)
+            assert f.data_ro_with_halo[0, 0] == 1.
+
+    @skipif_yask
+    @pytest.mark.parallel(nprocs=[2, 4])
+    def test_ctypes_neighbours(self):
+        grid = Grid(shape=(4, 4))
+        distributor = grid.distributor
+
+        PN = MPI.PROC_NULL
+        attrs = ['xleft', 'xright', 'yleft', 'yright']
+        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
+            2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
+            4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
+        }
+
+        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+        _, _, obj = distributor._C_neighbours
+        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
 
 @skipif_yask
@@ -339,26 +333,205 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 
 
 @skipif_yask
-@pytest.mark.parallel(nprocs=2)
-def test_simple_operator():
-    grid = Grid(shape=(10,))
-    x = grid.dimensions[0]
-    t = grid.stepping_dim
+class TestOperatorSimple(object):
 
-    f = TimeFunction(name='f', grid=grid)
-    f.data_with_halo[:] = 1.
+    @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
+    def test_trivial_eq_1d(self):
+        grid = Grid(shape=(32,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
 
-    op = Operator(Eq(f.forward, f[t, x-1] + f[t, x+1] + 1))
-    op.apply(time=1)
+        f = TimeFunction(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
 
-    assert np.all(f.data_ro_domain[1] == 3.)
-    if f.grid.distributor.myrank == 0:
-        assert f.data_ro_domain[0, 0] == 5.
-        assert np.all(f.data_ro_domain[0, 1:] == 7.)
-    else:
-        assert f.data_ro_domain[0, -1] == 5.
-        assert np.all(f.data_ro_domain[0, :-1] == 7.)
+        op = Operator(Eq(f.forward, f[t, x-1] + f[t, x+1] + 1))
+        op.apply(time=1)
+
+        assert np.all(f.data_ro_domain[1] == 3.)
+        if f.grid.distributor.myrank == 0:
+            assert f.data_ro_domain[0, 0] == 5.
+            assert np.all(f.data_ro_domain[0, 1:] == 7.)
+        elif f.grid.distributor.myrank == f.grid.distributor.nprocs - 1:
+            assert f.data_ro_domain[0, -1] == 5.
+            assert np.all(f.data_ro_domain[0, :-1] == 7.)
+        else:
+            assert np.all(f.data_ro_domain[0] == 7.)
+
+    @pytest.mark.parallel(nprocs=2)
+    def test_trivial_eq_1d_save(self):
+        grid = Grid(shape=(32,))
+        x = grid.dimensions[0]
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, save=5)
+        f.data_with_halo[:] = 1.
+
+        op = Operator(Eq(f.forward, f[time, x-1] + f[time, x+1] + 1))
+        op.apply()
+
+        time_M = op.prepare_arguments()['time_M']
+
+        assert np.all(f.data_ro_domain[1] == 3.)
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(f.data_ro_domain[-1, time_M:] == 31.)
+        else:
+            assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_trivial_eq_2d(self):
+        grid = Grid(shape=(8, 8,))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid, space_order=1)
+        f.data_with_halo[:] = 1.
+
+        eqn = Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + f[t, x, y-1] + f[t, x, y+1])
+        op = Operator(eqn)
+        op.apply(time=1)
+
+        # Expected computed values
+        corner, side, interior = 10., 13., 16.
+
+        glb_pos_map = f.grid.distributor.glb_pos_map
+
+        assert np.all(f.data_ro_interior[0] == interior)
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert f.data_ro_domain[0, 0, 0] == corner
+            assert np.all(f.data_ro_domain[0, 1:, :1] == side)
+            assert np.all(f.data_ro_domain[0, :1, 1:] == side)
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert f.data_ro_domain[0, 0, -1] == corner
+            assert np.all(f.data_ro_domain[0, :1, :-1] == side)
+            assert np.all(f.data_ro_domain[0, 1:, -1:] == side)
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert f.data_ro_domain[0, -1, 0] == corner
+            assert np.all(f.data_ro_domain[0, -1:, 1:] == side)
+            assert np.all(f.data_ro_domain[0, :-1, :1] == side)
+        else:
+            assert f.data_ro_domain[0, -1, -1] == corner
+            assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
+            assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_multiple_eqs_funcs(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        f.data_with_halo[:] = 0.
+        g = TimeFunction(name='g', grid=grid)
+        g.data_with_halo[:] = 0.
+
+        op = Operator([Eq(f.forward, f[t, x+1] + g[t, x-1] + 1),
+                       Eq(g.forward, f[t, x-1] + g[t, x+1] + 1)])
+        op.apply(time=1)
+
+        assert np.all(f.data_ro_domain[1] == 1.)
+        if f.grid.distributor.myrank == 0:
+            assert f.data_ro_domain[0, 0] == 2.
+            assert np.all(f.data_ro_domain[0, 1:] == 3.)
+        elif f.grid.distributor.myrank == f.grid.distributor.nprocs - 1:
+            assert f.data_ro_domain[0, -1] == 2.
+            assert np.all(f.data_ro_domain[0, :-1] == 3.)
+        else:
+            assert np.all(f.data_ro_domain[0] == 3.)
+
+        # Also check that there are no redundant halo exchanges. Here, only
+        # two are expected before the `x` Iteration, one for `f` and one for `g`
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+    def test_nostencil_implies_nohaloupdate(self):
+        grid = Grid(shape=(12,))
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        op = Operator([Eq(f.forward, f + 1.),
+                       Eq(g, f + 1.)])
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
+    def test_stencil_nowrite_implies_haloupdate(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    def test_avoid_redundant_haloupdate(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        i = Dimension(name='i')
+        j = Dimension(name='j')
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
+                       Inc(f[t+1, i], f[t+1, i] + 1.),  # no halo update as it's an Inc
+                       Eq(g, f[t, j] + 1)])  # access `f` at `t`, not `t+1`!
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(nprocs=2)
+    def test_redo_haloupdate_due_to_antidep(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
+                       Eq(g.forward, f[t+1, x-1] + f[t+1, x+1] + g)])
+        op.apply(time=0)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+        assert np.all(f.data_ro_domain[1] == 1.)
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(g.data_ro_domain[1, 1:] == 2.)
+        else:
+            assert np.all(g.data_ro_domain[1, :-1] == 2.)
+
+
+class TestIsotropicAcoustic(object):
+
+    """
+    Test the acoustic wave model with MPI.
+    """
+
+    # TODO: Cannot mark the following test as `xfail` since this marker
+    # doesn't cope well with the `parallel` mark. Leaving it commented out
+    # for the time being...
+    # @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
+    #     # 1 tests with varying time and space orders
+    #     ((60, ), 'OT2', 4, 10),
+    # ])
+    # @pytest.mark.parallel(nprocs=2)
+    # def test_adjoint_F(self, shape, kernel, space_order, nbpml):
+    #     from test_adjoint import TestAdjoint
+    #     TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
+
+    pass
 
 
 if __name__ == "__main__":
-    test_simple_operator()
+    configuration['mpi'] = True
+    TestOperatorSimple().test_avoid_redundant_haloupdate()
