@@ -141,7 +141,7 @@ class YaskKernel(object):
         Create a new YASK grid.
         """
         return self.soln.new_fixed_size_grid('%s_%d' % (obj.name, contexts.ngrids),
-                                             [str(i) for i in obj.indices],
+                                             [str(i.root) for i in obj.indices],
                                              [int(i) for i in obj.shape])  # cast np.int
 
     def pre_apply(self, toshare):
@@ -294,7 +294,7 @@ class YaskContext(Signer):
             # `obj` examples: u(x, d), u(x, y, z)
             dimensions = [make_yask_ast(i, yc_hook, {}) for i in self.dimensions]
             yc_hook.new_grid('dummy_grid_full', dimensions)
-        dimensions = [make_yask_ast(i, yc_hook, {}) for i in obj.indices]
+        dimensions = [make_yask_ast(i.root, yc_hook, {}) for i in obj.indices]
         yc_hook.new_grid('dummy_grid_true', dimensions)
 
         # Create 'hook' kernel solution
@@ -319,8 +319,8 @@ class YaskContext(Signer):
                 grid.set_right_halo_size(i.name, h.right)
             else:
                 # time and misc dimensions
-                assert grid.is_dim_used(i.name)
-                assert grid.get_alloc_size(i.name) == s
+                assert grid.is_dim_used(i.root.name)
+                assert grid.get_alloc_size(i.root.name) == s
         grid.alloc_storage()
 
         self.grids[grid.get_name()] = grid
