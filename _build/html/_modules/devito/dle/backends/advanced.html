@@ -167,9 +167,10 @@
 <span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">BlockingArg</span><span class="p">,</span> <span class="n">Ompizer</span><span class="p">,</span> <span class="n">dle_pass</span><span class="p">,</span>
                                  <span class="n">simdinfo</span><span class="p">,</span> <span class="n">get_simd_flag</span><span class="p">,</span> <span class="n">get_simd_items</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">HaloSpot</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span>
                            <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
-                           <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
+                           <span class="n">FindAdjacent</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">compose_nodes</span><span class="p">,</span>
+                           <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span><span class="p">,</span> <span class="n">perf_adv</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
@@ -180,6 +181,7 @@
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_optimize_halo_updates</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
@@ -199,6 +201,40 @@
             <span class="n">perf_adv</span><span class="p">(</span><span class="s2">&quot;Functions using modulo iteration along Dimension `</span><span class="si">%s</span><span class="s2">` &quot;</span>
                      <span class="s2">&quot;may safely allocate a one slot smaller buffer&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">iet</span><span class="p">,</span> <span class="p">{}</span>
+
+    <span class="nd">@dle_pass</span>
+    <span class="k">def</span> <span class="nf">_optimize_halo_updates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Drop unnecessary halo exchanges, or shuffle them around to improve</span>
+<span class="sd">        computation-communication overlap.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># First, seek adjacent redundant HaloSpots, since by dropping any of</span>
+        <span class="c1"># these we may be able to change the IET nesting, thus affecting</span>
+        <span class="c1"># later manipulation passes</span>
+        <span class="c1"># Example (assume halo1 is redundant and has same HaloScheme as halo0):</span>
+        <span class="c1"># root -&gt; halo0 -&gt; iteration0        root -&gt; halo0 -&gt; iteration0</span>
+        <span class="c1">#      |                        ==&gt;                |</span>
+        <span class="c1">#      -&gt; halo1 -&gt; iteration1                      -&gt; iteration1</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">FindAdjacent</span><span class="p">(</span><span class="n">HaloSpot</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">adjacents</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                <span class="c1"># Note: at this point `adjacents` has at least two items</span>
+                <span class="n">crt</span> <span class="o">=</span> <span class="n">adjacents</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">adjacents</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                    <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Redundant</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">halo_scheme</span> <span class="o">==</span> <span class="n">crt</span><span class="o">.</span><span class="n">halo_scheme</span><span class="p">:</span>
+                        <span class="n">mapper</span><span class="p">[</span><span class="n">crt</span><span class="p">]</span> <span class="o">=</span> <span class="n">crt</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">crt</span><span class="p">,</span> <span class="n">crt</span><span class="p">)</span><span class="o">.</span><span class="n">body</span> <span class="o">+</span> <span class="p">(</span><span class="n">i</span><span class="p">,),</span>
+                                                   <span class="o">**</span><span class="n">crt</span><span class="o">.</span><span class="n">args_frozen</span><span class="p">)</span>
+                        <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">crt</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+        <span class="c1"># Then, drop any leftover redundant HaloSpot</span>
+        <span class="n">hss</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">HaloSpot</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">hss</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Redundant</span><span class="p">}</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">nested</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{}</span>
 
     <span class="nd">@dle_pass</span>
     <span class="k">def</span> <span class="nf">_loop_blocking</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
@@ -454,6 +490,7 @@
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_optimize_halo_updates</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_wrapping</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>

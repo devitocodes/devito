@@ -153,11 +153,11 @@
   <h1>Source code for devito.ir.stree.algorithms</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">anytree</span> <span class="k">import</span> <span class="n">LevelOrderIter</span><span class="p">,</span> <span class="n">findall</span>
+<span class="kn">from</span> <span class="nn">anytree</span> <span class="k">import</span> <span class="n">findall</span>
 
 <span class="kn">from</span> <span class="nn">devito.ir.stree.tree</span> <span class="k">import</span> <span class="p">(</span><span class="n">ScheduleTree</span><span class="p">,</span> <span class="n">NodeIteration</span><span class="p">,</span> <span class="n">NodeConditional</span><span class="p">,</span>
                                   <span class="n">NodeExprs</span><span class="p">,</span> <span class="n">NodeSection</span><span class="p">,</span> <span class="n">NodeHalo</span><span class="p">,</span> <span class="n">insert</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.ir.support.space</span> <span class="k">import</span> <span class="n">IterationSpace</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">IterationSpace</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">HaloScheme</span><span class="p">,</span> <span class="n">HaloSchemeException</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
@@ -204,7 +204,8 @@
 
         <span class="c1"># The reused sub-trees might acquire some new sub-iterators</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pointers</span><span class="p">[:</span><span class="n">index</span><span class="p">]:</span>
-            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span>
+                                                    <span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">project</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="p">]))</span>
         <span class="c1"># Later sub-trees, instead, will not be used anymore</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pointers</span><span class="p">[</span><span class="n">index</span><span class="p">:]:</span>
             <span class="n">mapper</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
@@ -215,7 +216,7 @@
             <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span>
 
         <span class="c1"># Add in Expressions</span>
-        <span class="n">NodeExprs</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ops</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">traffic</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
+        <span class="n">NodeExprs</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ops</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">traffic</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
 
         <span class="c1"># Add in Conditionals</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -229,38 +230,34 @@
 
 <span class="k">def</span> <span class="nf">st_make_halo</span><span class="p">(</span><span class="n">stree</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Add :class:`NodeHalo` to a :class:`ScheduleTree`. A halo node describes</span>
-<span class="sd">    what halo exchanges should take place before executing the sub-tree.</span>
+<span class="sd">    Add :class:`NodeHalo`s to a :class:`ScheduleTree`. A HaloNode captures</span>
+<span class="sd">    the halo exchanges that should take place before executing the sub-tree;</span>
+<span class="sd">    these are described by means of a :class:`HaloScheme`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
-        <span class="c1"># TODO: This will be dropped as soon as stronger analysis will have</span>
-        <span class="c1"># been implemented</span>
-        <span class="k">return</span> <span class="n">stree</span>
-
-    <span class="n">processed</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">LevelOrderIter</span><span class="p">(</span><span class="n">stree</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Iteration</span><span class="p">:</span>
-            <span class="k">continue</span>
-        <span class="n">exprs</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exprs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">findall</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Exprs</span><span class="p">))</span>
+    <span class="c1"># Build a HaloScheme for each expression bundle</span>
+    <span class="n">halo_schemes</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">findall</span><span class="p">(</span><span class="n">stree</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Exprs</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">halo_scheme</span> <span class="o">=</span> <span class="n">HaloScheme</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="n">halo_scheme</span><span class="o">.</span><span class="n">dmapper</span><span class="p">:</span>
-                <span class="n">processed</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">NodeHalo</span><span class="p">(</span><span class="n">halo_scheme</span><span class="p">)</span>
-        <span class="k">except</span> <span class="n">HaloSchemeException</span><span class="p">:</span>
-            <span class="c1"># We should get here only when trying to compute a halo</span>
-            <span class="c1"># scheme for a group of expressions that belong to different</span>
-            <span class="c1"># iteration spaces. We expect proper halo schemes to be built</span>
-            <span class="c1"># as the `stree` visit proceeds.</span>
-            <span class="c1"># TODO: However, at the end, we should check that a halo scheme,</span>
-            <span class="c1"># possibly even a &quot;void&quot; one, has been built for *all* of the</span>
-            <span class="c1"># expressions, and error out otherwise.</span>
-            <span class="k">continue</span>
-        <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">halo_schemes</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">HaloScheme</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">n</span><span class="o">.</span><span class="n">dspace</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">HaloSchemeException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
 
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">processed</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">insert</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">[</span><span class="n">k</span><span class="p">])</span>
+    <span class="c1"># Insert the HaloScheme at a suitable level in the ScheduleTree</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">hs</span> <span class="ow">in</span> <span class="n">halo_schemes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">hs</span><span class="o">.</span><span class="n">fmapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">spot</span> <span class="o">=</span> <span class="n">k</span>
+            <span class="n">ancestors</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">k</span><span class="o">.</span><span class="n">ancestors</span> <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Iteration</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">ancestors</span><span class="p">:</span>
+                <span class="n">test0</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">dim</span> <span class="ow">is</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">halos</span><span class="p">)</span>
+                <span class="n">test1</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">dim</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">loc_indices</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">test0</span> <span class="ow">or</span> <span class="n">test1</span><span class="p">:</span>
+                    <span class="n">spot</span> <span class="o">=</span> <span class="n">n</span>
+                    <span class="k">break</span>
+            <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">spot</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">spot</span><span class="p">,</span> <span class="n">entries</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">insert</span><span class="p">(</span><span class="n">NodeHalo</span><span class="p">(</span><span class="n">HaloScheme</span><span class="p">(</span><span class="n">fmapper</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">entries</span><span class="p">))),</span> <span class="n">spot</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">[</span><span class="n">spot</span><span class="p">])</span>
 
     <span class="k">return</span> <span class="n">stree</span>
 

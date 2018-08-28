@@ -161,11 +161,11 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">cmp_to_key</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Iteration</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">PARALLEL_IF_ATOMIC</span><span class="p">,</span>
-                           <span class="n">VECTOR</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span> <span class="n">AFFINE</span><span class="p">,</span> <span class="n">MapIteration</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span>
-                           <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">HaloSpot</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">PARALLEL_IF_ATOMIC</span><span class="p">,</span>
+                           <span class="n">VECTOR</span><span class="p">,</span> <span class="n">WRAPPABLE</span><span class="p">,</span> <span class="n">AFFINE</span><span class="p">,</span> <span class="n">REDUNDANT</span><span class="p">,</span> <span class="n">MapIteration</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span>
+                           <span class="n">Transformer</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Scope</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_mapper</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;iet_analyze&#39;</span><span class="p">]</span>
 
@@ -203,14 +203,15 @@
     <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_vectorizable</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
     <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_wrappable</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
     <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_affine</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
+    <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_halospots</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
 
     <span class="c1"># Decorate the Iteration/Expression tree with the found properties</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">analysis</span><span class="o">.</span><span class="n">properties</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
         <span class="n">args</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">args</span>
         <span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;properties&#39;</span><span class="p">))</span> <span class="o">+</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-        <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">Iteration</span><span class="p">(</span><span class="n">properties</span><span class="o">=</span><span class="n">properties</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
-    <span class="n">processed</span> <span class="o">=</span> <span class="n">NestedTransformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+        <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">properties</span><span class="o">=</span><span class="n">properties</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">nested</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">processed</span></div>
 
@@ -222,12 +223,13 @@
     <span class="n">properties</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">trees</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">depth</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tree</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">properties</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">properties</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">is</span> <span class="n">SEQUENTIAL</span><span class="p">:</span>
+                <span class="c1"># Speed-up analysis</span>
                 <span class="k">continue</span>
 
             <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">uindices</span><span class="p">:</span>
                 <span class="c1"># Only ++/-- increments of iteration variables are supported</span>
-                <span class="n">properties</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">SEQUENTIAL</span>
+                <span class="n">properties</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SEQUENTIAL</span><span class="p">)</span>
                 <span class="k">continue</span>
 
             <span class="c1"># Get all dimensions up to and including Iteration /i/, grouped by Iteration</span>
@@ -257,11 +259,16 @@
                         <span class="k">break</span>
 
             <span class="k">if</span> <span class="n">is_parallel</span><span class="p">:</span>
-                <span class="n">properties</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">PARALLEL</span>
+                <span class="n">properties</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PARALLEL</span><span class="p">)</span>
             <span class="k">elif</span> <span class="n">is_atomic_parallel</span><span class="p">:</span>
-                <span class="n">properties</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">PARALLEL_IF_ATOMIC</span>
+                <span class="n">properties</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PARALLEL_IF_ATOMIC</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">properties</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">SEQUENTIAL</span>
+                <span class="n">properties</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SEQUENTIAL</span><span class="p">)</span>
+
+    <span class="c1"># Reduction (e.g, SEQUENTIAL takes priority over PARALLEL)</span>
+    <span class="n">priorities</span> <span class="o">=</span> <span class="p">{</span><span class="n">PARALLEL</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="n">PARALLEL_IF_ATOMIC</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+    <span class="n">properties</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">priorities</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+                              <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">properties</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
 
     <span class="n">analysis</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
 
@@ -297,11 +304,10 @@
 <span class="k">def</span> <span class="nf">mark_wrappable</span><span class="p">(</span><span class="n">analysis</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Update the ``analysis`` detecting the ``WRAPPABLE`` Iterations within</span>
 <span class="sd">    ``analysis.iet``.&quot;&quot;&quot;</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">scope</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">:</span>
             <span class="k">continue</span>
 
-        <span class="n">scope</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
         <span class="n">accesses</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">accesses</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_TimeFunction</span><span class="p">]</span>
 
         <span class="c1"># If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE</span>
@@ -359,6 +365,29 @@
             <span class="n">arrays</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">accesses</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">a</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">]</span>
             <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">is_regular</span> <span class="ow">and</span> <span class="n">a</span><span class="o">.</span><span class="n">affine_if_present</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arrays</span><span class="p">):</span>
                 <span class="n">properties</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFFINE</span>
+
+    <span class="n">analysis</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
+
+
+<span class="nd">@propertizer</span>
+<span class="k">def</span> <span class="nf">mark_halospots</span><span class="p">(</span><span class="n">analysis</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Update the ``analysis`` detecting the ``REDUNDANT`` HaloSpots within</span>
+<span class="sd">    ``analysis.iet``.&quot;&quot;&quot;</span>
+    <span class="n">properties</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">analyze</span><span class="p">(</span><span class="n">fmapper</span><span class="p">,</span> <span class="n">scope</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">hse</span> <span class="ow">in</span> <span class="n">fmapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">dep</span><span class="o">.</span><span class="n">cause</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">hse</span><span class="o">.</span><span class="n">loc_indices</span><span class="p">)</span> <span class="k">for</span> <span class="n">dep</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_anti</span><span class="o">.</span><span class="n">project</span><span class="p">(</span><span class="n">f</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">scope</span> <span class="ow">in</span> <span class="n">analysis</span><span class="o">.</span><span class="n">scopes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">as_mapper</span><span class="p">(</span><span class="n">FindNodes</span><span class="p">(</span><span class="n">HaloSpot</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">hs</span><span class="p">:</span> <span class="n">hs</span><span class="o">.</span><span class="n">halo_scheme</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">analyze</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">fmapper</span><span class="p">,</span> <span class="n">scope</span><span class="p">):</span>
+                <span class="n">properties</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="n">REDUNDANT</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">:]})</span>
 
     <span class="n">analysis</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
 </pre></div>

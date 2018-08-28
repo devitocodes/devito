@@ -239,6 +239,20 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_glb_numbs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="o">.</span><span class="n">coords</span><span class="p">))</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">glb_pos_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the mapper ``dimension -&gt; side`` telling the position</span>
+<span class="sd">        of the calling rank in the global grid.&quot;&quot;&quot;</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mycoords</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">topology</span><span class="p">):</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LEFT</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">s</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">RIGHT</span><span class="p">)</span>
+            <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the shape of this process&#39; domain.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_numb</span><span class="p">)</span>
@@ -271,13 +285,14 @@
 
 <span class="sd">            https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">CompositeObject</span>
-        <span class="n">ptype</span> <span class="o">=</span> <span class="n">c_int</span> <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_sizeof</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="p">)</span> <span class="o">==</span> <span class="n">sizeof</span><span class="p">(</span><span class="n">c_int</span><span class="p">)</span> <span class="k">else</span> <span class="n">c_void_p</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">CompositeObject</span><span class="p">(</span><span class="s1">&#39;comm&#39;</span><span class="p">,</span> <span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="n">ptype</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Object</span>
+        <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_sizeof</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="p">)</span> <span class="o">==</span> <span class="n">sizeof</span><span class="p">(</span><span class="n">c_int</span><span class="p">):</span>
+            <span class="n">ctype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_int</span><span class="p">,),</span> <span class="p">{})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ctype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
         <span class="n">comm_ptr</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_addressof</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="p">)</span>
-        <span class="n">comm_val</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">from_address</span><span class="p">(</span><span class="n">comm_ptr</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">comm_val</span>
-        <span class="k">return</span> <span class="n">obj</span>
+        <span class="n">comm_val</span> <span class="o">=</span> <span class="n">ctype</span><span class="o">.</span><span class="n">from_address</span><span class="p">(</span><span class="n">comm_ptr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Object</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;comm&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">ctype</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">comm_val</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_C_neighbours</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

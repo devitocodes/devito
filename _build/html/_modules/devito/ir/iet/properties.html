@@ -204,6 +204,20 @@
 <div class="viewcode-block" id="ntags"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.ntags">[docs]</a><span class="k">def</span> <span class="nf">ntags</span><span class="p">():</span>
     <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span><span class="p">)</span> <span class="o">-</span> <span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span></div>
 <span class="n">ntags</span><span class="o">.</span><span class="n">n_original_properties</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">IterationProperty</span><span class="o">.</span><span class="n">_KNOWN</span><span class="p">)</span>  <span class="c1"># noqa</span>
+
+
+<div class="viewcode-block" id="HaloSpotProperty"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.properties.HaloSpotProperty">[docs]</a><span class="k">class</span> <span class="nc">HaloSpotProperty</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A :class:`HaloSpot` decorator.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">pass</span></div>
+
+
+<span class="n">REDUNDANT</span> <span class="o">=</span> <span class="n">HaloSpotProperty</span><span class="p">(</span><span class="s1">&#39;redundant&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The HaloSpot is redundant given that some other HaloSpots already take care</span>
+<span class="sd">of updating the data accessed in the sub-tree.&quot;&quot;&quot;</span>
 </pre></div>
 
            </div>

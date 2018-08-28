@@ -96,6 +96,7 @@
 <li class="toctree-l3 current"><a class="current reference internal" href="#">devito.mpi package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.mpi.distributed">devito.mpi.distributed module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.mpi.halo_scheme">devito.mpi.halo_scheme module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.mpi.routines">devito.mpi.routines module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.mpi.utils">devito.mpi.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.mpi">Module contents</a></li>
@@ -233,6 +234,13 @@
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.mpi.distributed.Distributor.glb_pos_map">
+<code class="descname">glb_pos_map</code><a class="headerlink" href="#devito.mpi.distributed.Distributor.glb_pos_map" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the mapper <code class="docutils literal notranslate"><span class="pre">dimension</span> <span class="pre">-&gt;</span> <span class="pre">side</span></code> telling the position
+of the calling rank in the global grid.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.mpi.distributed.Distributor.mycoords">
 <code class="descname">mycoords</code><a class="headerlink" href="#devito.mpi.distributed.Distributor.mycoords" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -274,6 +282,71 @@ logically at right (value=1) or left (value=-1) of <code class="docutils literal
 </dd></dl>
 
 </div>
+<div class="section" id="module-devito.mpi.halo_scheme">
+<span id="devito-mpi-halo-scheme-module"></span><h2>devito.mpi.halo_scheme module<a class="headerlink" href="#module-devito.mpi.halo_scheme" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.mpi.halo_scheme.HaloScheme">
+<em class="property">class </em><code class="descclassname">devito.mpi.halo_scheme.</code><code class="descname">HaloScheme</code><span class="sig-paren">(</span><em>exprs=None</em>, <em>ispace=None</em>, <em>dspace=None</em>, <em>fmapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/mpi/halo_scheme.html#HaloScheme"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mpi.halo_scheme.HaloScheme" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A HaloScheme describes a halo exchange pattern through a mapper:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">M</span> <span class="p">:</span> <span class="n">Function</span> <span class="o">-&gt;</span> <span class="n">HaloSchemeEntry</span>
+</pre></div>
+</div>
+<p>Where <code class="docutils literal notranslate"><span class="pre">HaloSchemeEntry</span></code> is a (named) 2-tuple:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">({</span><span class="n">loc_indices</span><span class="p">},</span> <span class="p">((</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">DataSide</span><span class="p">,</span> <span class="n">amount</span><span class="p">),</span> <span class="o">...</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>The tuples (Dimension, DataSide, amount) tell the amount of data that
+a <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code> should communicate along (a subset of) its
+:class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Dimension`s.</p>
+<p>The dict <code class="docutils literal notranslate"><span class="pre">loc_indices</span></code> tells how to access/insert the halo along the
+keyed Function’s non-halo indices. For example, consider the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> <code class="docutils literal notranslate"><span class="pre">u(t,</span> <span class="pre">x,</span> <span class="pre">y)</span></code>. Assume <code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">y</span></code> require a halo
+exchange. The question is: once the halo exchange is performed, at what
+offset in <code class="docutils literal notranslate"><span class="pre">t</span></code> should it be placed? should it be at <code class="docutils literal notranslate"><span class="pre">u(0,</span> <span class="pre">...)</span></code> or
+<code class="docutils literal notranslate"><span class="pre">u(1,</span> <span class="pre">...)</span></code> or even <code class="docutils literal notranslate"><span class="pre">u(t-1,</span> <span class="pre">...)</span></code>? <code class="docutils literal notranslate"><span class="pre">loc_indices</span></code> has as many entries
+as non-halo dimensions, and each entry provides symbolic information about
+how to access the corresponding non-halo dimension. Thus, in this example
+<code class="docutils literal notranslate"><span class="pre">loc_indices</span></code> could be, for instance, <code class="docutils literal notranslate"><span class="pre">{t:</span> <span class="pre">0}</span></code> or <code class="docutils literal notranslate"><span class="pre">{t:</span> <span class="pre">t-1}</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>exprs</strong> – The :class:<a href="#id5"><span class="problematic" id="id6">`</span></a>IREq`s for which the HaloScheme is built.</li>
+<li><strong>ispace</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code> describing the iteration
+directions and the sub-iterators used by the <code class="docutils literal notranslate"><span class="pre">exprs</span></code>.</li>
+<li><strong>dspace</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code> describing the <code class="docutils literal notranslate"><span class="pre">exprs</span></code> data
+access pattern.</li>
+<li><strong>fmapper</strong> – (Optional) Alternatively, a HaloScheme can be built from a
+set of known HaloSchemeEntry. If <code class="docutils literal notranslate"><span class="pre">fmapper</span></code> is provided,
+then <code class="docutils literal notranslate"><span class="pre">exprs</span></code>, <code class="docutils literal notranslate"><span class="pre">ispace</span></code>, and <code class="docutils literal notranslate"><span class="pre">dspace</span></code> are ignored.
+<code class="docutils literal notranslate"><span class="pre">fmapper</span></code> is a dictionary having same format as <code class="docutils literal notranslate"><span class="pre">M</span></code>, the
+HaloScheme mapper defined at the top of this docstring.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="devito.mpi.halo_scheme.HaloScheme.fmapper">
+<code class="descname">fmapper</code><a class="headerlink" href="#devito.mpi.halo_scheme.HaloScheme.fmapper" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.mpi.halo_scheme.HaloScheme.mask">
+<code class="descname">mask</code><a class="headerlink" href="#devito.mpi.halo_scheme.HaloScheme.mask" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="devito.mpi.halo_scheme.HaloSchemeException">
+<em class="property">exception </em><code class="descclassname">devito.mpi.halo_scheme.</code><code class="descname">HaloSchemeException</code><a class="reference internal" href="_modules/devito/mpi/halo_scheme.html#HaloSchemeException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mpi.halo_scheme.HaloSchemeException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+</div>
 <div class="section" id="module-devito.mpi.routines">
 <span id="devito-mpi-routines-module"></span><h2>devito.mpi.routines module<a class="headerlink" href="#module-devito.mpi.routines" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
@@ -308,59 +381,6 @@ dimension and side.</p>
 <code class="descclassname">devito.mpi.utils.</code><code class="descname">get_views</code><span class="sig-paren">(</span><em>f</em>, <em>fixed</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/mpi/utils.html#get_views"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mpi.utils.get_views" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a mapper <code class="docutils literal notranslate"><span class="pre">(dimension,</span> <span class="pre">side,</span> <span class="pre">region)</span> <span class="pre">-&gt;</span> <span class="pre">(size,</span> <span class="pre">offset)</span></code> for a
 <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code>.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="devito.mpi.utils.HaloScheme">
-<em class="property">class </em><code class="descclassname">devito.mpi.utils.</code><code class="descname">HaloScheme</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/mpi/utils.html#HaloScheme"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mpi.utils.HaloScheme" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>A HaloScheme consists of several mappers describing a halo exchange pattern.</p>
-<blockquote>
-<div><ul class="simple">
-<li><code class="docutils literal notranslate"><span class="pre">dmapper</span></code>: <code class="docutils literal notranslate"><span class="pre">dimension</span> <span class="pre">-&gt;</span> <span class="pre">[(function,</span> <span class="pre">side,</span> <span class="pre">amount),</span> <span class="pre">...]</span></code></li>
-<li><code class="docutils literal notranslate"><span class="pre">fmapper</span></code>: <code class="docutils literal notranslate"><span class="pre">function</span> <span class="pre">-&gt;</span> <span class="pre">[(dimension,</span> <span class="pre">side,</span> <span class="pre">amount),</span> <span class="pre">...]</span></code></li>
-</ul>
-</div></blockquote>
-<p>For the :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Dimension`s that need no halo exchange but appear in one
-or more of the tracked :class:<a href="#id5"><span class="problematic" id="id6">`</span></a>TensorFunction`s, a further mapper</p>
-<blockquote>
-<div><ul class="simple">
-<li><code class="docutils literal notranslate"><span class="pre">fixed</span></code>: <code class="docutils literal notranslate"><span class="pre">dimension</span> <span class="pre">-&gt;</span> <span class="pre">dimension</span></code></li>
-</ul>
-</div></blockquote>
-<p>is provided telling at which index in these dimensions should the halo
-be inserted.
-For example, consider the <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> <code class="docutils literal notranslate"><span class="pre">u(t,</span> <span class="pre">x,</span> <span class="pre">y)</span></code>. Assume <code class="docutils literal notranslate"><span class="pre">x</span></code> and
-<code class="docutils literal notranslate"><span class="pre">y</span></code> require a halo exchange. A question is: once the halo exchange is
-performed, at what offset in <code class="docutils literal notranslate"><span class="pre">t</span></code> should it be placed? should it be at
-<code class="docutils literal notranslate"><span class="pre">u(0,</span> <span class="pre">...)</span></code> or <code class="docutils literal notranslate"><span class="pre">u(1,</span> <span class="pre">...)</span></code> or even <code class="docutils literal notranslate"><span class="pre">u(t-1,</span> <span class="pre">...)</span></code>? The <code class="docutils literal notranslate"><span class="pre">fixed</span></code> mapper
-provides this information.</p>
-<dl class="attribute">
-<dt id="devito.mpi.utils.HaloScheme.dmapper">
-<code class="descname">dmapper</code><a class="headerlink" href="#devito.mpi.utils.HaloScheme.dmapper" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.mpi.utils.HaloScheme.fixed">
-<code class="descname">fixed</code><a class="headerlink" href="#devito.mpi.utils.HaloScheme.fixed" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.mpi.utils.HaloScheme.fmapper">
-<code class="descname">fmapper</code><a class="headerlink" href="#devito.mpi.utils.HaloScheme.fmapper" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.mpi.utils.HaloScheme.mask">
-<code class="descname">mask</code><a class="headerlink" href="#devito.mpi.utils.HaloScheme.mask" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="exception">
-<dt id="devito.mpi.utils.HaloSchemeException">
-<em class="property">exception </em><code class="descclassname">devito.mpi.utils.</code><code class="descname">HaloSchemeException</code><a class="reference internal" href="_modules/devito/mpi/utils.html#HaloSchemeException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mpi.utils.HaloSchemeException" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
 </dd></dl>
 
 </div>

@@ -156,8 +156,8 @@
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">Allocator</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">LocalExpression</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
                            <span class="n">Conditional</span><span class="p">,</span> <span class="n">Section</span><span class="p">,</span> <span class="n">HaloSpot</span><span class="p">,</span> <span class="n">ExpressionBundle</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span>
-                           <span class="n">MapExpressions</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span>
-                           <span class="n">ReplaceStepIndices</span><span class="p">,</span> <span class="n">iet_analyze</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
+                           <span class="n">MapExpressions</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">ReplaceStepIndices</span><span class="p">,</span>
+                           <span class="n">iet_analyze</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_mapper</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;iet_build&#39;</span><span class="p">,</span> <span class="s1">&#39;iet_insert_C_decls&#39;</span><span class="p">]</span>
@@ -254,7 +254,7 @@
     <span class="n">allocator</span> <span class="o">=</span> <span class="n">Allocator</span><span class="p">()</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
 
-    <span class="c1"># First, schedule declarations for Expressions</span>
+    <span class="c1"># Detect all IET nodes accessing symbols that need to be declared</span>
     <span class="n">scopes</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">me</span> <span class="o">=</span> <span class="n">MapExpressions</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">me</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -262,40 +262,38 @@
             <span class="n">func</span> <span class="o">=</span> <span class="n">func_table</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">func</span><span class="o">.</span><span class="n">local</span><span class="p">:</span>
                 <span class="n">scopes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">me</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">scopes</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">scopes</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
-            <span class="c1"># Inline declaration</span>
-            <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">LocalExpression</span><span class="p">(</span><span class="o">**</span><span class="n">k</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">:</span>
-            <span class="c1"># Nothing to do, e.g., variable passed as kernel argument</span>
-            <span class="k">continue</span>
-        <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">:</span>
-            <span class="c1"># On the stack</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span>
-            <span class="n">site</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="s1">&#39;asap&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[</span><span class="n">iet</span><span class="p">]</span>
-            <span class="n">allocator</span><span class="o">.</span><span class="n">push_stack</span><span class="p">(</span><span class="n">site</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># On the heap, as a tensor that must be globally accessible</span>
-            <span class="n">allocator</span><span class="o">.</span><span class="n">push_heap</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>
+        <span class="n">scopes</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
 
-    <span class="c1"># Then, schedule declarations callables arguments passed by reference/pointer</span>
-    <span class="c1"># (as modified internally by the callable)</span>
-    <span class="n">scopes</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">me</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Call</span><span class="p">]</span>
+    <span class="c1"># Classify, and then schedule declarations to stack/heap</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">scopes</span><span class="p">:</span>
-        <span class="n">site</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">v</span> <span class="k">else</span> <span class="n">iet</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">k</span><span class="o">.</span><span class="n">params</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Expression</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
+                <span class="c1"># Inline declaration</span>
+                <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">LocalExpression</span><span class="p">(</span><span class="o">**</span><span class="n">k</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="n">objs</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">write</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Call</span><span class="p">:</span>
+            <span class="n">objs</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">params</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Cannot schedule declarations for IET &quot;</span>
+                                      <span class="s2">&quot;node of type `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">objs</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_LocalObject</span><span class="p">:</span>
                     <span class="c1"># On the stack</span>
+                    <span class="n">site</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">v</span> <span class="k">else</span> <span class="n">iet</span>
                     <span class="n">allocator</span><span class="o">.</span><span class="n">push_stack</span><span class="p">(</span><span class="n">site</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_external</span><span class="p">:</span>
+                        <span class="c1"># Nothing to do; e.g., a user-provided Function</span>
+                        <span class="k">continue</span>
+                    <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">:</span>
                         <span class="c1"># On the stack</span>
-                        <span class="n">allocator</span><span class="o">.</span><span class="n">push_stack</span><span class="p">(</span><span class="n">site</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
-                    <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_heap</span><span class="p">:</span>
-                        <span class="c1"># On the heap</span>
+                        <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span>
+                        <span class="n">site</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="s1">&#39;asap&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[</span><span class="n">iet</span><span class="p">]</span>
+                        <span class="n">allocator</span><span class="o">.</span><span class="n">push_stack</span><span class="p">(</span><span class="n">site</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">i</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># On the heap, as a tensor that must be globally accessible</span>
                         <span class="n">allocator</span><span class="o">.</span><span class="n">push_heap</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
                 <span class="c1"># E.g., a generic SymPy expression</span>
@@ -304,7 +302,7 @@
     <span class="c1"># Introduce declarations on the stack</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">allocator</span><span class="o">.</span><span class="n">onstack</span><span class="p">:</span>
         <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Element</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">)</span>
-    <span class="n">iet</span> <span class="o">=</span> <span class="n">NestedTransformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">nested</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">func_table</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
         <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">local</span><span class="p">:</span>
             <span class="n">func_table</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">MetaCall</span><span class="p">(</span><span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">root</span><span class="p">),</span> <span class="n">v</span><span class="o">.</span><span class="n">local</span><span class="p">)</span>

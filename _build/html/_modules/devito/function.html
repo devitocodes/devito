@@ -411,6 +411,23 @@
 
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_interior</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The interior data values.</span>
+
+<span class="sd">        Elements are stored in row-major format.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            With this accessor you are claiming that you will modify</span>
+<span class="sd">            the values you get back. If you only need to look at the</span>
+<span class="sd">            values, use :meth:`data_ro_interior` instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_interior</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
     <span class="k">def</span> <span class="nf">data_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The domain+halo data values.</span>
@@ -457,6 +474,16 @@
 
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
+    <span class="k">def</span> <span class="nf">data_ro_interior</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A read-only view of the interior data values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_interior</span><span class="p">]</span>
+        <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">view</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@_allocate_memory</span>
     <span class="k">def</span> <span class="nf">data_ro_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;A read-only view of the domain+halo data values.&quot;&quot;&quot;</span>
         <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_with_halo</span><span class="p">]</span>
@@ -492,6 +519,26 @@
         <span class="n">symbolic_shape</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">symbolic_shape</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">j</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">symbolic_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_mask_interior</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A mask to access the interior region of the allocated data.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">glb_pos_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">glb_pos_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_pos_map</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Space</span><span class="p">:</span>
+                <span class="n">lshift</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">LEFT</span> <span class="ow">in</span> <span class="n">glb_pos_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[]))</span>
+                <span class="n">rshift</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">RIGHT</span> <span class="ow">in</span> <span class="n">glb_pos_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[]))</span>
+                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">stop</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="n">lshift</span><span class="p">,</span> <span class="o">-</span><span class="n">rshift</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="n">lshift</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="n">rshift</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Perform the halo exchange with the neighboring processes.&quot;&quot;&quot;</span>

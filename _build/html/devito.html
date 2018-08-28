@@ -287,6 +287,7 @@
 <li class="toctree-l1"><a class="reference internal" href="devito.mpi.html">devito.mpi package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="devito.mpi.html#submodules">Submodules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.mpi.html#module-devito.mpi.distributed">devito.mpi.distributed module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.mpi.html#module-devito.mpi.halo_scheme">devito.mpi.halo_scheme module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.mpi.html#module-devito.mpi.routines">devito.mpi.routines module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.mpi.html#module-devito.mpi.utils">devito.mpi.utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.mpi.html#module-devito.mpi">Module contents</a></li>
@@ -3000,6 +3001,13 @@ the conventions for defining the coordinate space in 2D are:</p>
 <dt id="devito.grid.Grid.distributor">
 <code class="descname">distributor</code><a class="headerlink" href="#devito.grid.Grid.distributor" title="Permalink to this definition">¶</a></dt>
 <dd><p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">Distributor</span></code> used for domain decomposition.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.grid.Grid.is_distributed">
+<code class="descname">is_distributed</code><span class="sig-paren">(</span><em>dim</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/grid.html#Grid.is_distributed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.Grid.is_distributed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if <code class="docutils literal notranslate"><span class="pre">dim</span></code> is a distributed <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>,
+False otherwise.</p>
 </dd></dl>
 
 <dl class="attribute">

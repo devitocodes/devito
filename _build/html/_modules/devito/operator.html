@@ -257,7 +257,7 @@
         <span class="c1"># Insert code for MPI support</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_mpi</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="c1"># Insert data and pointer casts for array parameters and profiling structs</span>
+        <span class="c1"># Insert data and pointer casts for array parameters</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_casts</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
         <span class="c1"># Derive parameters as symbols not defined in the kernel itself</span>
@@ -331,7 +331,7 @@
         <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prepare_arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># Check all arguments are present</span>
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No value found for parameter </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">args</span></div>
 

@@ -195,11 +195,13 @@
     <span class="k">return</span> <span class="n">t</span></div>
 
 
-<div class="viewcode-block" id="as_mapper"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.as_mapper">[docs]</a><span class="k">def</span> <span class="nf">as_mapper</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+<div class="viewcode-block" id="as_mapper"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.as_mapper">[docs]</a><span class="k">def</span> <span class="nf">as_mapper</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Rearrange an iterable into a dictionary of lists in which keys are</span>
 <span class="sd">    produced by the function ``key``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterable</span><span class="p">:</span>
         <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>

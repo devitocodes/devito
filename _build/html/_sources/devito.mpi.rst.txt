@@ -12,6 +12,14 @@ devito.mpi.distributed module
     :undoc-members:
     :show-inheritance:
 
+devito.mpi.halo\_scheme module
+------------------------------
+
+.. automodule:: devito.mpi.halo_scheme
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.mpi.routines module
 --------------------------
 

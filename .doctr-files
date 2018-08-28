@@ -76,6 +76,7 @@
 ./_build/html/_modules/devito/ir/support/utils.html
 ./_build/html/_modules/devito/logger.html
 ./_build/html/_modules/devito/mpi/distributed.html
+./_build/html/_modules/devito/mpi/halo_scheme.html
 ./_build/html/_modules/devito/mpi/routines.html
 ./_build/html/_modules/devito/mpi/utils.html
 ./_build/html/_modules/devito/operator.html

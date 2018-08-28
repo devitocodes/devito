@@ -154,8 +154,8 @@
 <span></span><span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">IncrDimension</span>
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">ntags</span><span class="p">,</span> <span class="n">FindAdjacentIterations</span><span class="p">,</span>
-                           <span class="n">FindNodes</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
+<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">ntags</span><span class="p">,</span> <span class="n">FindAdjacent</span><span class="p">,</span>
+                           <span class="n">FindNodes</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span>
                            <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">xreplace_indices</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
@@ -167,8 +167,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create :class:`IterationFold`s from sequences of nested :class:`Iteration`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">found</span> <span class="o">=</span> <span class="n">FindAdjacentIterations</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-    <span class="n">found</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;seen_iteration&#39;</span><span class="p">)</span>
+    <span class="n">found</span> <span class="o">=</span> <span class="n">FindAdjacent</span><span class="p">(</span><span class="n">Iteration</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
 
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">found</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -212,7 +211,7 @@
                     <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="c1"># Insert the IterationFolds in the Iteration/Expression tree</span>
-    <span class="n">processed</span> <span class="o">=</span> <span class="n">NestedTransformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">nested</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">processed</span></div>
 

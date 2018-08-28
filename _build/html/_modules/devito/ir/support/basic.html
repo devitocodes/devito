@@ -426,6 +426,27 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">fi</span> <span class="k">for</span> <span class="n">fi</span><span class="p">,</span> <span class="n">im</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_mode</span><span class="p">)</span> <span class="k">if</span> <span class="n">im</span> <span class="o">==</span> <span class="n">AFFINE</span><span class="p">)</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">findices_irregular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">fi</span> <span class="k">for</span> <span class="n">fi</span><span class="p">,</span> <span class="n">im</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_mode</span><span class="p">)</span>
+                     <span class="k">if</span> <span class="n">im</span> <span class="o">==</span> <span class="n">IRREGULAR</span><span class="p">)</span>
+
+<div class="viewcode-block" id="IterationInstance.affine"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.affine">[docs]</a>    <span class="k">def</span> <span class="nf">affine</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">findices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if all of the provided findices appear in self and are</span>
+<span class="sd">        affine, False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">findices</span><span class="p">))</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices_affine</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="IterationInstance.affine_if_present"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.affine_if_present">[docs]</a>    <span class="k">def</span> <span class="nf">affine_if_present</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">findices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return False if any of the provided findices appears in self and</span>
+<span class="sd">        is not affine, True otherwise.&quot;&quot;&quot;</span>
+        <span class="n">findices</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">findices</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">findices</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">))</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices_affine</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="IterationInstance.irregular"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.irregular">[docs]</a>    <span class="k">def</span> <span class="nf">irregular</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">findices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if all of the provided findices appear in self and are</span>
+<span class="sd">        irregular, False otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">findices</span><span class="p">))</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices_irregular</span><span class="p">))</span></div>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_regular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">CONSTANT</span><span class="p">,</span> <span class="n">AFFINE</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_mode</span><span class="p">)</span>
 
@@ -436,11 +457,6 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">0</span>
-
-<div class="viewcode-block" id="IterationInstance.affine_if_present"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.affine_if_present">[docs]</a>    <span class="k">def</span> <span class="nf">affine_if_present</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">findices</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return False if any of the provided findices appears in self and</span>
-<span class="sd">        is not affine, True otherwise.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">findices</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">))</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices_affine</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="IterationInstance.distance"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.distance">[docs]</a>    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">findex</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">view</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Compute the distance from ``self`` to ``other``.</span>
@@ -645,9 +661,22 @@
         <span class="k">assert</span> <span class="n">source</span><span class="o">.</span><span class="n">function</span> <span class="o">==</span> <span class="n">sink</span><span class="o">.</span><span class="n">function</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="n">source</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sink</span> <span class="o">=</span> <span class="n">sink</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">findices</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">findices</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">function</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">distance</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">sink</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">function</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">findices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">findices</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">aindices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">({</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">}</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">aindices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">aindices</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_defined_findices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -670,8 +699,16 @@
         <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_regular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_regular</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_regular</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_increment</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_increment</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_irregular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_regular</span>
 
     <span class="k">def</span> <span class="nf">is_carried</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return True if definitely a dimension-carried dependence,</span>
@@ -689,7 +726,7 @@
         <span class="sd">&quot;&quot;&quot;Return True if ``dim`` may represent a reduction dimension for</span>
 <span class="sd">        ``self``, False otherwise.&quot;&quot;&quot;</span>
         <span class="n">test0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_increment</span>
-        <span class="n">test1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_regular</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_regular</span>
+        <span class="n">test1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_regular</span>
         <span class="n">test2</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_defined_findices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">test0</span> <span class="ow">and</span> <span class="n">test1</span> <span class="ow">and</span> <span class="n">test2</span>
 
@@ -766,6 +803,11 @@
     <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">DependenceGroup</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">other</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">project</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a new DependenceGroup retaining only the dependences due to</span>
+<span class="sd">        the provided function.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span> <span class="ow">is</span> <span class="n">function</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Scope"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.Scope">[docs]</a><span class="k">class</span> <span class="nc">Scope</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>

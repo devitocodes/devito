@@ -276,6 +276,13 @@ is accessed.</li>
 </ul>
 </div></blockquote>
 <dl class="method">
+<dt id="devito.ir.support.basic.IterationInstance.affine">
+<code class="descname">affine</code><span class="sig-paren">(</span><em>findices</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/basic.html#IterationInstance.affine"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.affine" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if all of the provided findices appear in self and are
+affine, False otherwise.</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.ir.support.basic.IterationInstance.affine_if_present">
 <code class="descname">affine_if_present</code><span class="sig-paren">(</span><em>findices</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/basic.html#IterationInstance.affine_if_present"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.affine_if_present" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return False if any of the provided findices appears in self and
@@ -315,9 +322,21 @@ supplied, project the distance along these dimensions.</li>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.ir.support.basic.IterationInstance.findices_irregular">
+<code class="descname">findices_irregular</code><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.findices_irregular" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.support.basic.IterationInstance.index_mode">
 <code class="descname">index_mode</code><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.index_mode" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.basic.IterationInstance.irregular">
+<code class="descname">irregular</code><span class="sig-paren">(</span><em>findices</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/basic.html#IterationInstance.irregular"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.basic.IterationInstance.irregular" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if all of the provided findices appear in self and are
+irregular, False otherwise.</p>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.support.basic.IterationInstance.is_irregular">
@@ -763,6 +782,11 @@ space is traversed.</li>
 <dd><p>A relaxed version of <code class="docutils literal notranslate"><span class="pre">__eq__</span></code>, in which only non-derived dimensions
 are compared for equality.</p>
 </dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.support.space.IterationSpace.is_forward">
+<code class="descname">is_forward</code><span class="sig-paren">(</span><em>dim</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IterationSpace.is_forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IterationSpace.is_forward" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.support.space.IterationSpace.itintervals">
