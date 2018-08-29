@@ -515,25 +515,15 @@ class Model(Pysical_Model):
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
                  **kwargs):
+        super(Model, self).__init__(origin, spacing, shape, space_order, nbpml, dtype)
 
-        super(Model, self).__init__(origin, spacing, shape, space_order,
-                                    nbpml=nbpml, dtype=dtype)
+        # Are we provided with an existing grid?
+        grid = kwargs.get('grid')
+        if grid is not None:
+            assert self.grid.extent == grid.extent
+            assert self.grid.shape == grid.shape
+            self.grid = grid
 
-        self.shape = shape
-        self.nbpml = int(nbpml)
-        self.origin = tuple([dtype(o) for o in origin])
-
-        shape_pml = np.array(shape) + 2 * self.nbpml
-        # Physical extent is calculated per cell, so shape - 1
-        extent = tuple(np.array(spacing) * (shape_pml - 1))
-        # Check for input grid
-        self.grid = kwargs.get('grid', None)
-        # Or create a new one
-        if self.grid is None:
-            self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype)
-
-        assert (self.grid.extent == extent)
-        assert (self.grid.shape == shape_pml).all()
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.m = Function(name="m", grid=self.grid, space_order=space_order)
