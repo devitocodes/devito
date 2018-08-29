@@ -7,15 +7,14 @@ from functools import wraps
 
 from devito.parameters import configuration
 
-__all__ = ('set_log_level', 'set_log_noperf', 'silencio', 'log',
+__all__ = ('set_log_level', 'set_log_noperf', 'silencio',
            'log', 'warning', 'error', 'perf', 'perf_adv', 'dse', 'dse_warning',
            'dle', 'dle_warning',
            'RED', 'GREEN', 'BLUE')
 
 
 logger = logging.getLogger('Devito')
-_ch = logging.StreamHandler()
-logger.addHandler(_ch)
+stream_handler = logging.StreamHandler()
 
 # Add extra logging levels (note: INFO has value=20, WARNING has value=30)
 DEBUG = logging.DEBUG
@@ -75,16 +74,29 @@ COLORS = {
 }
 
 
-def set_log_level(level):
+def set_log_level(level, comm=None):
     """
     Set the log level of the Devito logger.
 
-    :param level: accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
-                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL
+    :param level: Accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
+                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL.
+    :param comm: An MPI communicator the logger should be collective
+                 over. If provided, only rank-0 on that communicator will
+                 write to the registered handlers, other ranks will use a
+                 :class:`logging.NullHandler`.  By default, ``comm`` is set
+                 to ``None``, so all ranks will use the default handlers.
+                 This could be used, for example, if one wants to log to
+                 one file per rank.
     """
     if level not in logger_registry:
         raise ValueError("Illegal logging level %s" % level)
-    logger.setLevel(level)
+
+    if comm is not None and comm.rank != 0:
+        logger.removeHandler(stream_handler)
+        logger.addHandler(logging.NullHandler())
+    else:
+        logger.addHandler(stream_handler)
+        logger.setLevel(level)
 
 
 def set_log_noperf():
