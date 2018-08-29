@@ -480,11 +480,6 @@ class Pysical_Model(object):
         return self.grid.dtype
 
     @property
-    def shape_domain(self):
-        """Computational shape of the model domain, with PML layers"""
-        return tuple(d + 2*self.nbpml for d in self.shape)
-
-    @property
     def domain_size(self):
         """
         Physical size of the domain as determined by shape and spacing

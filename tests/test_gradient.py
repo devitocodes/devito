@@ -47,8 +47,8 @@ class TestGradient(object):
                      kernel=kernel, space_order=space_order,
                      nbpml=40)
 
-        m0 = Function(name='m0', grid=wave.model.m.grid, space_order=space_order)
-        m0.data[:] = smooth10(wave.model.m.data, wave.model.m.shape_domain)
+        m0 = Function(name='m0', grid=wave.model.grid, space_order=space_order)
+        smooth10(m0, wave.model.m)
 
         # Compute receiver data for the true velocity
         rec, u, _ = wave.forward()
@@ -95,8 +95,8 @@ class TestGradient(object):
                      kernel=kernel, space_order=space_order,
                      nbpml=40)
 
-        m0 = Function(name='m0', grid=wave.model.m.grid, space_order=space_order)
-        m0.data[:] = smooth10(wave.model.m.data, wave.model.m.shape_domain)
+        m0 = Function(name='m0', grid=wave.model.grid, space_order=space_order)
+        smooth10(m0, wave.model.m)
         dm = np.float32(wave.model.m.data - m0.data)
 
         # Compute receiver data for the true velocity
@@ -163,8 +163,8 @@ class TestGradient(object):
                      kernel=kernel, space_order=space_order,
                      tn=1000., nbpml=10+space_order/2)
 
-        m0 = Function(name='m0', grid=wave.model.m.grid, space_order=space_order)
-        m0.data[:] = smooth10(wave.model.m.data, wave.model.shape_domain)
+        m0 = Function(name='m0', grid=wave.model.grid, space_order=space_order)
+        smooth10(m0, wave.model.m)
         dm = np.float64(wave.model.m.data - m0.data)
         linrec = Receiver(name='rec', grid=wave.model.grid,
                           time_range=wave.receiver.time_range,
