@@ -388,8 +388,44 @@ def initialize_function(function, data, nbpml):
     :param data: The data array used for initialisation.
     :param nbpml: Number of PML layers for boundary damping.
     """
-    pad_list = [(nbpml + i.left, nbpml + i.right) for i in function._offset_domain]
-    function.data_with_halo[:] = np.pad(data, pad_list, 'edge')
+    pad_widths = [(nbpml, nbpml) for i in range(function.ndim)]
+    data = np.pad(data, pad_widths, 'edge')
+
+    distributor = function.grid.distributor
+
+    glb_ranges = distributor.glb_ranges
+    glb_shape = distributor.glb_shape
+
+    assert data.shape == glb_shape
+
+    # TODO: If running with MPI, all ranks have at this point built the entire
+    # global data; below, the local grid is extracted. However, this is not
+    # how things should work in practice -- the global function should have been
+    # memory-mapped at the very beginning, so that we avoid most of the following
+    # costly (in a real-life setting, prohibitively expensive) operations, but
+    # this still needs to be implemented
+    pad_widths = []
+    data_slices = []
+    for d, o in zip(function.dimensions, function._offset_domain):
+        try:
+            glb_range = glb_ranges[d]
+
+            lslice = min(glb_range.left, max(glb_range.left - o.left, 0))
+            rslice = max(glb_range.right, min(glb_range.right + o.right, glb_shape[d]))
+
+            lpad = o.left - glb_range.left if lslice == 0 else 0
+            rpad = o.right - (rslice - glb_range.right) if rslice == glb_shape[d] else 0
+
+            data_slices.append((lslice, rslice))
+            pad_widths.append((lpad, rpad))
+        except KeyError:
+            # Not a distributed dimension
+            data_slices.append((None, None))
+            pad_widths.append((0, 0))
+    data = data[[slice(*i) for i in data_slices]]
+    data = np.pad(data, pad_widths, 'edge')
+
+    function.data_with_halo[:] = data
 
 
 class Pysical_Model(object):
