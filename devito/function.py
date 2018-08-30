@@ -21,7 +21,7 @@ from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
-from devito.tools import Tag, ReducerMap, prod, powerset, is_integer
+from devito.tools import Tag, ReducerMap, as_tuple, prod, powerset, is_integer
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -778,6 +778,30 @@ class Function(TensorFunction):
                      for d in self.space_dimensions])
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
+
+    def sum(self, p=None, dims=None):
+        """
+        Generate a symbolic expression computing the sum of ``p`` points
+        along the spatial dimensions ``dims``.
+
+        :param p: (Optional) the number of summands. Defaults to the
+                  halo extent.
+        :param dims: (Optional) the :class:`Dimension`s along which the
+                     sum is computed. Defaults to ``self``'s spatial
+                     dimensions.
+        """
+        points = []
+        for d in (as_tuple(dims) or self.space_dimensions):
+            if p is None:
+                lp = self._extent_halo[d].left
+                rp = self._extent_halo[d].right
+            else:
+                lp = p // 2 + p % 2
+                rp = p // 2
+            indices = [d - i for i in range(lp, 0, -1)]
+            indices.extend([d + i for i in range(rp)])
+            points.extend([self.subs(d, i) for i in indices])
+        return sum(points)
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
