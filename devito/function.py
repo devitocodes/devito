@@ -803,6 +803,20 @@ class Function(TensorFunction):
             points.extend([self.subs(d, i) for i in indices])
         return sum(points)
 
+    def avg(self, p=None, dims=None):
+        """
+        Generate a symbolic expression computing the average of ``p`` points
+        along the spatial dimensions ``dims``.
+
+        :param p: (Optional) the number of summands. Defaults to the
+                  halo extent.
+        :param dims: (Optional) the :class:`Dimension`s along which the
+                     sum is computed. Defaults to ``self``'s spatial
+                     dimensions.
+        """
+        tot = self.sum(p, dims)
+        return tot / len(tot.args)
+
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
         ['space_order', 'shape', 'dimensions']
