@@ -16,9 +16,7 @@ def smooth(dest, src):
         # Return a scaled version of the input if it's a Constant
         dest.data[:] = .9 * src.value
     else:
-        eq = Eq(dest, src.avg(dims=dest.dimensions[-1]))
-        op = Operator(eq, name='smoother')
-        op.apply()
+        Operator(Eq(dest, src.avg(dims=src.dimensions[-1])), name='smoother').apply()
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
