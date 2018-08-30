@@ -2,31 +2,23 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
-from devito import Constant, Function
+from devito import Constant, Eq, Function, Operator
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 
 
-def smooth10(dest, src):
+def smooth(dest, src):
     """
-    Run a 10-point moving averaging kernel over ``src`` and store the result
-    into ``dest``.
+    Run an n-point moving average kernel over ``src`` and store the result
+    into ``dest``. The average is computed along the innermost ``src`` dimension.
     """
     if src.is_Constant:
         # Return a scaled version of the input if it's a Constant
         dest.data[:] = .9 * src.value
     else:
-        dest.data[:] = src.data
-        # Size of the smoothed dimension
-        nz = dest.shape[-1]
-        # Indexing is done via slices for YASK compatibility
-        # Fist get the full span
-        full_dims = [slice(0, d) for d in dest.shape[:-1]]
-        for a in range(5, nz-6):
-            # Get the a-5 yto ai+5 indices along the last dimension at index a
-            slicessum = full_dims + [slice(a - 5, a + 5)]
-            # Average input
-            dest.data[..., a] = np.sum(src.data[slicessum], axis=len(dest.shape)-1) / 10
+        eq = Eq(dest, src.avg(dims=dest.dimensions[-1]))
+        op = Operator(eq, name='smoother')
+        op.apply()
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
@@ -69,7 +61,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     # Smooth velocity
     initial_vp = Function(name='ivp', grid=solver.model.grid, space_order=space_order)
-    smooth10(initial_vp, solver.model.m)
+    smooth(initial_vp, solver.model.m)
     dm = np.float32(initial_vp.data**2 - solver.model.m.data)
 
     info("Applying Forward")
