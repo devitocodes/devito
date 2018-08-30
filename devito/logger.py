@@ -18,13 +18,13 @@ stream_handler = logging.StreamHandler()
 
 # Add extra logging levels (note: INFO has value=20, WARNING has value=30)
 DEBUG = logging.DEBUG
-PERF = 19
-YASK = 19
-YASK_WARN = YASK
+YASK = 16
+YASK_WARN = 17
 DSE = 18
 DSE_WARN = 19
 DLE = DSE
 DLE_WARN = DSE_WARN
+PERF = 19
 INFO = logging.INFO
 WARNING = logging.WARNING
 ERROR = logging.ERROR
@@ -61,8 +61,8 @@ GREEN = '\033[1;37;32m%s\033[0m'
 COLORS = {
     DEBUG: NOCOLOR,
     PERF: GREEN,
-    YASK: GREEN,
-    YASK_WARN: GREEN,
+    YASK: NOCOLOR,
+    YASK_WARN: BLUE,
     INFO: NOCOLOR,
     DSE: NOCOLOR,
     DSE_WARN: BLUE,
@@ -134,12 +134,9 @@ def log(msg, level=INFO, *args, **kwargs):
     the severity 'level'.
 
     :param msg: the message to be printed.
-    :param level: accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
-                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL
+    :param level: accepted values are: DEBUG, YASK, YASK_WARN, PERF, INFO, DSE,
+                  DSE_WARN, DLE, DLE_WARN, WARNING, ERROR, CRITICAL.
     """
-    assert level in [DEBUG, PERF, INFO, DSE, DSE_WARN, DLE, DLE_WARN,
-                     WARNING, ERROR, CRITICAL]
-
     color = COLORS[level] if sys.stdout.isatty() and sys.stderr.isatty() else '%s'
     logger.log(level, color % msg, *args, **kwargs)
 
@@ -149,7 +146,7 @@ def info(msg, *args, **kwargs):
 
 
 def perf(msg, *args, **kwargs):
-    log("Performance: %s" % msg, PERF, *args, **kwargs)
+    log(msg, PERF, *args, **kwargs)
 
 
 def perf_adv(msg, *args, **kwargs):
