@@ -4,8 +4,9 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Function, TimeFunction, Dimension, Eq, Inc, Operator
-from devito.ir.iet import Call, FindNodes
+from devito import (Grid, Function, TimeFunction, Dimension, ConditionalDimension,
+                    SubDimension, Eq, Inc, Operator)
+from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
@@ -23,7 +24,7 @@ def teardown_module(module):
 class TestPythonMPI(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
-    def test_basic_partitioning(self):
+    def test_partitioning(self):
         grid = Grid(shape=(15, 15))
         f = Function(name='f', grid=grid)
 
@@ -31,6 +32,24 @@ class TestPythonMPI(object):
         expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
             2: [(15, 8), (15, 7)],
             4: [(8, 8), (8, 7), (7, 8), (7, 7)]
+        }
+        assert f.shape == expected[distributor.nprocs][distributor.myrank]
+
+    @pytest.mark.parallel(nprocs=[2, 4])
+    def test_partitioning_fewer_dims(self):
+        """Test domain decomposition for Functions defined over a strict subset
+        of grid-decomposed dimensions."""
+        size_x, size_y = 16, 16
+        grid = Grid(shape=(size_x, size_y))
+        x, y = grid.dimensions
+
+        # A function with fewer dimensions that in `grid`
+        f = Function(name='f', grid=grid, dimensions=(y,), shape=(size_y,))
+
+        distributor = grid.distributor
+        expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
+            2: [(8,), (8,)],
+            4: [(8,), (8,), (8,), (8,)]
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
@@ -511,6 +530,188 @@ class TestOperatorSimple(object):
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
 
+@skipif_yask
+class TestOperatorAdvanced(object):
+
+    @pytest.mark.parallel(nprocs=2)
+    def test_subsampling(self):
+        grid = Grid(shape=(40,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+        time = grid.time_dim
+
+        nt = 9
+
+        f = TimeFunction(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+
+        # Setup subsampled function
+        factor = 4
+        nsamples = (nt+factor-1)//factor
+        times = ConditionalDimension('t_sub', parent=time, factor=factor)
+        fsave = TimeFunction(name='fsave', grid=grid, save=nsamples, time_dim=times)
+
+        eqns = [Eq(f.forward, f[t, x-1] + f[t, x+1]), Eq(fsave, f)]
+        op = Operator(eqns)
+        op.apply(time=nt-1)
+
+        assert np.all(f.data_ro_domain[0] == fsave.data_ro_domain[nsamples-1])
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(fsave.data_ro_domain[nsamples-1, nt-1:] == 256.)
+        else:
+            assert np.all(fsave.data_ro_domain[nsamples-1, :-(nt-1)] == 256.)
+
+        # Also check there are no redundant halo exchanges
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+        # In particular, there is no need for a halo exchange within the conditional
+        conditional = FindNodes(Conditional).visit(op)
+        assert len(conditional) == 1
+        assert len(FindNodes(Call).visit(conditional[0])) == 0
+
+    @pytest.mark.parallel(nprocs=2)
+    def test_arguments_subrange(self):
+        """
+        Test op.apply when a subrange is specified for a distributed dimension.
+        """
+        grid = Grid(shape=(16,))
+        x = grid.dimensions[0]
+
+        f = TimeFunction(name='f', grid=grid)
+
+        op = Operator(Eq(f.forward, f + 1.))
+        op.apply(time=0, x_m=4, x_M=11)
+
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(f.data_ro_domain[1, :4] == 0.)
+            assert np.all(f.data_ro_domain[1, 4:] == 1.)
+        else:
+            assert np.all(f.data_ro_domain[1, :-4] == 1.)
+            assert np.all(f.data_ro_domain[1, -4:] == 0.)
+
+    @pytest.mark.parallel(nprocs=2)
+    def test_bcs_basic(self):
+        """
+        Test MPI in presence of boundary condition loops. Here, no halo exchange
+        is expected (as there is no stencil in the computed expression) but we
+        check that:
+
+            * the left BC loop is computed by the leftmost rank only
+            * the right BC loop is computed by the rightmost rank only
+        """
+        grid = Grid(shape=(20,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        thickness = 4
+
+        u = TimeFunction(name='u', grid=grid, time_order=1)
+
+        xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=thickness, thickness_right=thickness)
+        xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
+
+        t_in_centre = Eq(u[t+1, xi], 1)
+        leftbc = Eq(u[t+1, xleft], u[t+1, xleft+1] + 1)
+        rightbc = Eq(u[t+1, xright], u[t+1, xright-1] + 1)
+
+        op = Operator([t_in_centre, leftbc, rightbc])
+
+        op.apply(time_m=1, time_M=1)
+
+        glb_pos_map = u.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(u.data_ro_domain[0, thickness:] == 1.)
+            assert np.all(u.data_ro_domain[0, :thickness] == range(thickness+1, 1, -1))
+        else:
+            assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
+            assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
+
+    @pytest.mark.parallel(nprocs=9)
+    def test_nontrivial_operator(self):
+        """
+        Test MPI in a non-trivial scenario: ::
+
+            * 9 processes logically organised in a 3x3 cartesian grid (as opposed to
+              most tests in this module, which only use 2 or 4 processed);
+            * star-like stencil expression;
+            * non-trivial Higdon-like BCs;
+            * simultaneous presence of TimeFunction(grid), Function(grid), and
+              Function(dimensions)
+        """
+        size_x, size_y = 9, 9
+        tkn = 2
+
+        # Grid and Dimensions
+        grid = Grid(shape=(size_x, size_y,))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        # SubDimensions to implement BCs
+        xl, yl = [SubDimension.left('%sl' % d.name, d, tkn) for d in [x, y]]
+        xi, yi = [SubDimension.middle('%si' % d.name, d, tkn, tkn) for d in [x, y]]
+        xr, yr = [SubDimension.right('%sr' % d.name, d, tkn) for d in [x, y]]
+
+        # Functions
+        u = TimeFunction(name='f', grid=grid)
+        m = Function(name='m', grid=grid)
+        c = Function(name='c', grid=grid, dimensions=(x,), shape=(size_x,))
+
+        # Data initialization
+        u.data_with_halo[:] = 0.
+        m.data_with_halo[:] = 1.
+        c.data_with_halo[:] = 0.
+
+        # Equations
+        c_init = Eq(c, 1.)
+        eqn = Eq(u[t+1, xi, yi], u[t, xi, yi] + m[xi, yi] + c[xi] + 1.)
+        bc_left = Eq(u[t+1, xl, yi], u[t+1, xl+1, yi] + 1.)
+        bc_right = Eq(u[t+1, xr, yi], u[t+1, xr-1, yi] + 1.)
+        bc_top = Eq(u[t+1, xi, yl], u[t+1, xi, yl+1] + 1.)
+        bc_bottom = Eq(u[t+1, xi, yr], u[t+1, xi, yr-1] + 1.)
+
+        op = Operator([c_init, eqn, bc_left, bc_right, bc_top, bc_bottom])
+        op.apply(time=0)
+
+        # Expected (global view):
+        # 0 0 5 5 5 5 5 0 0
+        # 0 0 4 4 4 4 4 0 0
+        # 5 4 3 3 3 3 3 4 5
+        # 5 4 3 3 3 3 3 4 5
+        # 5 4 3 3 3 3 3 4 5
+        # 5 4 3 3 3 3 3 4 5
+        # 0 0 4 4 4 4 4 0 0
+        # 0 0 5 5 5 5 5 0 0
+
+        assert np.all(u.data_ro_domain[0] == 0)  # The write occures at t=1
+
+        glb_pos_map = u.grid.distributor.glb_pos_map
+        # Check cornes
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[0, 0, 5], [0, 0, 4], [5, 4, 3]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[5, 0, 0], [4, 0, 0], [3, 4, 5]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[5, 4, 3], [0, 0, 4], [0, 0, 5]])
+        elif RIGHT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[3, 4, 5], [4, 0, 0], [5, 0, 0]])
+        # Check sides
+        if not glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[5, 4, 3], [5, 4, 3], [5, 4, 3]])
+        elif not glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[3, 4, 5], [3, 4, 5], [3, 4, 5]])
+        elif LEFT in glb_pos_map[x] and not glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[5, 5, 5], [4, 4, 4], [3, 3, 3]])
+        elif RIGHT in glb_pos_map[x] and not glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == [[3, 3, 3], [4, 4, 4], [5, 5, 5]])
+        # Check center
+        if not glb_pos_map[x] and not glb_pos_map[y]:
+            assert np.all(u.data_ro_domain[1] == 3)
+
+
 class TestIsotropicAcoustic(object):
 
     """
@@ -534,4 +735,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorSimple().test_avoid_redundant_haloupdate()
+    TestOperatorAdvanced().test_nontrivial_operator()

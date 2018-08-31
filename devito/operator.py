@@ -124,12 +124,22 @@ class Operator(Callable):
         args.update([p._arg_values() for p in self.input if p.name not in args])
         args = args.reduce_all()
 
+        # All TensorFunctions should be defined on the same Grid
+        functions = [kwargs.get(p, p) for p in self.input if p.is_TensorFunction]
+        mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
+        try:
+            grid = mapper.unique('grid')
+        except (KeyError, ValueError):
+            if mapper and configuration['mpi']:
+                raise RuntimeError("Multiple `Grid`s found before `apply`")
+            grid = None
+
         # Process dimensions (derived go after as they might need/affect their parents)
         derived, main = split(self.dimensions, lambda i: i.is_Derived)
         for p in main:
-            args.update(p._arg_values(args, self._dspace[p], **kwargs))
+            args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
         for p in derived:
-            args.update(p._arg_values(args, self._dspace[p], **kwargs))
+            args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
 
         # Sanity check
         for p in self.input:

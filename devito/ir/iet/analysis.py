@@ -224,7 +224,7 @@ def mark_halospots(analysis):
 
     def analyze(fmapper, scope):
         for f, hse in fmapper.items():
-            if all(dep.cause & set(hse.loc_indices) for dep in scope.d_anti.project(f)):
+            if any(dep.cause & set(hse.loc_indices) for dep in scope.d_anti.project(f)):
                 return False
         return True
 
