@@ -162,6 +162,7 @@
 <span class="kn">from</span> <span class="nn">mpi4py</span> <span class="k">import</span> <span class="n">MPI</span>
 
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">EnrichedTuple</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Distributor&#39;</span><span class="p">]</span>
 
@@ -202,8 +203,8 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_comm</span> <span class="o">=</span> <span class="n">input_comm</span>
 
         <span class="c1"># Perform domain decomposition</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_glb_numbs</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array_split</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">j</span><span class="p">)</span>
-                           <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topology</span><span class="p">)]</span>
+        <span class="n">glb_numbs</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array_split</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topology</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_glb_numbs</span> <span class="o">=</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">glb_numbs</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_input_comm</span><span class="o">.</span><span class="n">Free</span><span class="p">()</span>
@@ -236,7 +237,8 @@
     <span class="k">def</span> <span class="nf">glb_numb</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the global numbering of this process&#39; domain.&quot;&quot;&quot;</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_glb_numbs</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_glb_numbs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="o">.</span><span class="n">coords</span><span class="p">))</span>
+        <span class="n">glb_numb</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_glb_numbs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="o">.</span><span class="n">coords</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">glb_numb</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">glb_pos_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -251,6 +253,75 @@
                 <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">RIGHT</span><span class="p">)</span>
             <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">ret</span>
+
+<div class="viewcode-block" id="Distributor.glb_to_loc"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.distributed.Distributor.glb_to_loc">[docs]</a>    <span class="k">def</span> <span class="nf">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        glb_to_loc(dim, index)</span>
+<span class="sd">        glb_to_loc(dim, offset, side)</span>
+<span class="sd">        glb_to_loc(dim, (min, max))</span>
+
+<span class="sd">        Translate global indices into local indices.</span>
+
+<span class="sd">        :param dim: The :class:`Dimension` of the provided global indices.</span>
+<span class="sd">        :param args: There are three possible cases:</span>
+<span class="sd">                       * ``args`` is a single integer I representing a global index.</span>
+<span class="sd">                         Then, the corresponding local index is returned if I is</span>
+<span class="sd">                         owned by ``self``, otherwise None.</span>
+<span class="sd">                       * ``args`` consists of two items, O and S -- O is the offset</span>
+<span class="sd">                         the side S along ``dim``. O is therefore an integer, while S</span>
+<span class="sd">                         is an object of type :class:`DataSide`. Return the offset in</span>
+<span class="sd">                         the local domain, possibly 0 if the local range does not</span>
+<span class="sd">                         intersect with the region defined by the global offset.</span>
+<span class="sd">                       * ``args`` is a tuple (min, max); return a 2-tuple (min&#39;,</span>
+<span class="sd">                         max&#39;), where ``min&#39;`` and ``max&#39;`` can be either None or</span>
+<span class="sd">                         an integer:</span>
+<span class="sd">                           - ``min&#39;=None`` means that ``min`` is not owned by</span>
+<span class="sd">                             ``self``, but it precedes ``self``&#39;s minimum. Likewise,</span>
+<span class="sd">                             ``max&#39;=None`` means that ``max`` is not owned by</span>
+<span class="sd">                             ``self``, but it comes after ``self``&#39;s maximum.</span>
+<span class="sd">                           - If ``min/max=int``, then the integer can represent</span>
+<span class="sd">                             either the local index corresponding to the</span>
+<span class="sd">                             ``min/max``, or it could be any random number such that</span>
+<span class="sd">                             ``max=min-1``, meaning that the input argument does not</span>
+<span class="sd">                             represent a valid range for ``self``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">dim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span>
+        <span class="n">glb_numb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_numb</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">glb_numb</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="c1"># glb_to_loc(dim, index)</span>
+                <span class="n">glb_index</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">glb_index</span> <span class="o">-</span> <span class="n">base</span><span class="p">)</span> <span class="k">if</span> <span class="n">glb_index</span> <span class="ow">in</span> <span class="n">glb_numb</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># glb_to_loc(dim, (min, max))</span>
+                <span class="n">glb_min</span><span class="p">,</span> <span class="n">glb_max</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">glb_min</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">glb_min</span> <span class="o">&lt;=</span> <span class="n">base</span><span class="p">:</span>
+                    <span class="n">loc_min</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="k">elif</span> <span class="n">glb_min</span> <span class="o">&gt;</span> <span class="nb">max</span><span class="p">(</span><span class="n">glb_numb</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">loc_min</span> <span class="o">=</span> <span class="n">glb_min</span> <span class="o">-</span> <span class="n">base</span>
+                <span class="k">if</span> <span class="n">glb_max</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">glb_max</span> <span class="o">&gt;=</span> <span class="nb">max</span><span class="p">(</span><span class="n">glb_numb</span><span class="p">):</span>
+                    <span class="n">loc_max</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="k">elif</span> <span class="n">glb_max</span> <span class="o">&lt;</span> <span class="n">base</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">loc_max</span> <span class="o">=</span> <span class="n">glb_max</span> <span class="o">-</span> <span class="n">base</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">loc_min</span><span class="p">,</span> <span class="n">loc_max</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># glb_to_loc(dim, offset, side)</span>
+            <span class="n">rel_ofs</span><span class="p">,</span> <span class="n">side</span> <span class="o">=</span> <span class="n">args</span>
+            <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
+                <span class="n">abs_ofs</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_glb_numbs</span><span class="p">[</span><span class="n">dim</span><span class="p">])</span> <span class="o">+</span> <span class="n">rel_ofs</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">glb_numb</span><span class="p">)</span>
+                <span class="n">extent</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">glb_numb</span><span class="p">)</span> <span class="o">-</span> <span class="n">base</span>
+                <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">abs_ofs</span> <span class="o">-</span> <span class="n">base</span><span class="p">,</span> <span class="n">extent</span><span class="p">)</span> <span class="k">if</span> <span class="n">abs_ofs</span> <span class="o">&gt;</span> <span class="n">base</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">abs_ofs</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_glb_numbs</span><span class="p">[</span><span class="n">dim</span><span class="p">])</span> <span class="o">-</span> <span class="n">rel_ofs</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">glb_numb</span><span class="p">)</span>
+                <span class="n">extent</span> <span class="o">=</span> <span class="n">base</span> <span class="o">-</span> <span class="nb">min</span><span class="p">(</span><span class="n">glb_numb</span><span class="p">)</span>
+                <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">base</span> <span class="o">-</span> <span class="n">abs_ofs</span><span class="p">,</span> <span class="n">extent</span><span class="p">)</span> <span class="k">if</span> <span class="n">abs_ofs</span> <span class="o">&lt;</span> <span class="n">base</span> <span class="k">else</span> <span class="mi">0</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

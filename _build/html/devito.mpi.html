@@ -240,6 +240,54 @@
 of the calling rank in the global grid.</p>
 </dd></dl>
 
+<dl class="method">
+<dt id="devito.mpi.distributed.Distributor.glb_to_loc">
+<code class="descname">glb_to_loc</code><span class="sig-paren">(</span><em>dim</em>, <em>index</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/mpi/distributed.html#Distributor.glb_to_loc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mpi.distributed.Distributor.glb_to_loc" title="Permalink to this definition">¶</a></dt>
+<dd><p>glb_to_loc(dim, offset, side)
+glb_to_loc(dim, (min, max))</p>
+<p>Translate global indices into local indices.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>dim</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> of the provided global indices.</li>
+<li><strong>args</strong> – <p>There are three possible cases:
+* <code class="docutils literal notranslate"><span class="pre">args</span></code> is a single integer I representing a global index.</p>
+<blockquote>
+<div>Then, the corresponding local index is returned if I is
+owned by <code class="docutils literal notranslate"><span class="pre">self</span></code>, otherwise None.</div></blockquote>
+<ul>
+<li><code class="docutils literal notranslate"><span class="pre">args</span></code> consists of two items, O and S – O is the offset
+the side S along <code class="docutils literal notranslate"><span class="pre">dim</span></code>. O is therefore an integer, while S
+is an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSide</span></code>. Return the offset in
+the local domain, possibly 0 if the local range does not
+intersect with the region defined by the global offset.</li>
+<li><code class="docutils literal notranslate"><span class="pre">args</span></code> is a tuple (min, max); return a 2-tuple (min’,
+max’), where <code class="docutils literal notranslate"><span class="pre">min'</span></code> and <code class="docutils literal notranslate"><span class="pre">max'</span></code> can be either None or
+an integer:<blockquote>
+<div><ul>
+<li><code class="docutils literal notranslate"><span class="pre">min'=None</span></code> means that <code class="docutils literal notranslate"><span class="pre">min</span></code> is not owned by
+<code class="docutils literal notranslate"><span class="pre">self</span></code>, but it precedes <code class="docutils literal notranslate"><span class="pre">self</span></code>’s minimum. Likewise,
+<code class="docutils literal notranslate"><span class="pre">max'=None</span></code> means that <code class="docutils literal notranslate"><span class="pre">max</span></code> is not owned by
+<code class="docutils literal notranslate"><span class="pre">self</span></code>, but it comes after <code class="docutils literal notranslate"><span class="pre">self</span></code>’s maximum.</li>
+<li>If <code class="docutils literal notranslate"><span class="pre">min/max=int</span></code>, then the integer can represent
+either the local index corresponding to the
+<code class="docutils literal notranslate"><span class="pre">min/max</span></code>, or it could be any random number such that
+<code class="docutils literal notranslate"><span class="pre">max=min-1</span></code>, meaning that the input argument does not
+represent a valid range for <code class="docutils literal notranslate"><span class="pre">self</span></code>.</li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="attribute">
 <dt id="devito.mpi.distributed.Distributor.mycoords">
 <code class="descname">mycoords</code><a class="headerlink" href="#devito.mpi.distributed.Distributor.mycoords" title="Permalink to this definition">¶</a></dt>

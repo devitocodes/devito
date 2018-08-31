@@ -151,7 +151,9 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.grid</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
+
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">SpaceDimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">,</span> <span class="n">SteppingDimension</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">Distributor</span>
 <span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Constant</span>
@@ -298,6 +300,15 @@
     <span class="k">def</span> <span class="nf">shape_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Shape of the local (per-process) physical domain.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimension_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Map between ``self``&#39;s :class:`SpaceDimension` and their global and</span>
+<span class="sd">        local size.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Size&#39;</span><span class="p">,</span> <span class="s1">&#39;glb loc&#39;</span><span class="p">)(</span><span class="n">g</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span><span class="p">)}</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">distributor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
