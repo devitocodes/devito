@@ -1204,7 +1204,7 @@ class SparseFunction(AbstractSparseFunction):
         return self._coordinates
 
     @property
-    def coefficients(self):
+    def _coefficients(self):
         """Symbolic expression for the coefficients for sparse point
         interpolation according to:
         https://en.wikipedia.org/wiki/Bilinear_interpolation.
@@ -1217,7 +1217,7 @@ class SparseFunction(AbstractSparseFunction):
         # 1, x1, y1, z1, x1*y1, ...
         indices = list(powerset(indices1))
         indices[0] = (1,)
-        point_sym = list(powerset(self.point_symbols))
+        point_sym = list(powerset(self._point_symbols))
         point_sym[0] = (1,)
         # 1, px. py, pz, px*py, ...
         A = []
@@ -1242,7 +1242,7 @@ class SparseFunction(AbstractSparseFunction):
         return A.inv().T * p
 
     @property
-    def point_symbols(self):
+    def _point_symbols(self):
         """Symbol for coordinate value in each dimension of the point"""
         return tuple(sympy.symbols('p%s' % d) for d in self.grid.dimensions)
 
@@ -1252,28 +1252,28 @@ class SparseFunction(AbstractSparseFunction):
         return tuple(product(range(2), repeat=self.grid.dim))
 
     @property
-    def coordinate_symbols(self):
+    def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension"""
         p_dim = self.indices[-1]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
     @property
-    def coordinate_indices(self):
+    def _coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
         indices = self.grid.dimensions
         return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
-                      for c, o, i in zip(self.coordinate_symbols, self.grid.origin,
+                      for c, o, i in zip(self._coordinate_symbols, self.grid.origin,
                                          indices[:self.grid.dim])])
 
     @property
-    def coordinate_bases(self):
+    def _coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
         indices = self.grid.dimensions
         return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
-                      for c, o, idx, i in zip(self.coordinate_symbols,
+                      for c, o, idx, i in zip(self._coordinate_symbols,
                                               self.grid.origin,
-                                              self.coordinate_indices,
+                                              self._coordinate_indices,
                                               indices[:self.grid.dim])])
 
     def _interpolation_indices(self, variables, offset=0):
@@ -1282,7 +1282,7 @@ class SparseFunction(AbstractSparseFunction):
         """
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
-                              in zip(inc, self.coordinate_indices))
+                              in zip(inc, self._coordinate_indices))
                         for inc in self._point_increments]
 
         # Generate index substitutions for all grid variables except
@@ -1295,7 +1295,7 @@ class SparseFunction(AbstractSparseFunction):
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
-        return OrderedDict(zip(self.point_symbols, self.coordinate_bases)), idx_subs
+        return OrderedDict(zip(self._point_symbols, self._coordinate_bases)), idx_subs
 
     def interpolate(self, expr, offset=0, cummulative=False, self_subs={}):
         """Creates a :class:`sympy.Eq` equation for the interpolation
@@ -1314,7 +1314,7 @@ class SparseFunction(AbstractSparseFunction):
         subs, idx_subs = self._interpolation_indices(variables, offset)
         # Substitute coordinate base symbols into the coefficients
         rhs = sum([expr.subs(vsub) * b.subs(subs)
-                   for b, vsub in zip(self.coefficients, idx_subs)])
+                   for b, vsub in zip(self._coefficients, idx_subs)])
 
         lhs = self.subs(self_subs)
         rhs = rhs + lhs if cummulative else rhs
@@ -1339,7 +1339,7 @@ class SparseFunction(AbstractSparseFunction):
         # Substitute coordinate base symbols into the coefficients
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
-                for b, vsub in zip(self.coefficients, idx_subs)]
+                for b, vsub in zip(self._coefficients, idx_subs)]
 
     # Pickling support
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']
@@ -1495,7 +1495,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             gridpoints_data = kwargs.get('gridpoints', None)
             assert(gridpoints_data is not None)
             gridpoints.data[:] = gridpoints_data[:]
-            self.gridpoints = gridpoints
+            self._gridpoints = gridpoints
 
             coefficients = Function(name="%s_coefficients" % self.name, dtype=self.dtype,
                                     dimensions=(self.indices[-1], Dimension(name='d'),
@@ -1505,7 +1505,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             coefficients_data = kwargs.get('coefficients', None)
             assert(coefficients_data is not None)
             coefficients.data[:] = coefficients_data[:]
-            self.coefficients = coefficients
+            self._coefficients = coefficients
             warning("Ensure that the provided coefficient and grid point values are " +
                     "computed on the final grid that will be used for other " +
                     "computations.")
@@ -1532,15 +1532,13 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             t = self.grid.stepping_dim
             expr = expr.subs(t, u_t).subs(time, u_t)
 
-        coefficients = self.coefficients.indexed
-        gridpoints = self.gridpoints.indexed
         p, _, _ = self.coefficients.indices
         dim_subs = []
         coeffs = []
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-            dim_subs.append((d, INT(rd + gridpoints[p, i])))
-            coeffs.append(coefficients[p, i, rd])
+            dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
+            coeffs.append(self.coefficients[p, i, rd])
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
         rhs = prod(coeffs) * expr.subs(dim_subs)
@@ -1566,19 +1564,24 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         if p_t is not None:
             expr = expr.subs(self.indices[0], p_t)
 
-        gridpoints = self.gridpoints.indexed
-        coefficients = self.coefficients.indexed
-
         p, _ = self.gridpoints.indices
         dim_subs = []
         coeffs = []
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-            dim_subs.append((d, INT(rd + gridpoints[p, i])))
-            coeffs.append(coefficients[p, i, rd])
+            dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
+            coeffs.append(self.coefficients[p, i, rd])
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
+
+    @property
+    def gridpoints(self):
+        return self._gridpoints
+
+    @property
+    def coefficients(self):
+        return self._coefficients
 
 
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
