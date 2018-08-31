@@ -4,8 +4,8 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import (Grid, Function, TimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator)
+from devito import (Grid, Function, TimeFunction, SparseFunction, Dimension,
+                    ConditionalDimension, SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
@@ -349,6 +349,31 @@ if (myr)
   sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
 otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 }"""
+
+
+@skipif_yask
+class TestSparseFunction(object):
+
+    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parametrize('coords,expected', [
+        ([(1., 1.), (1., 3.), (3., 1.), (3., 3.)], (0, 1, 2, 3)),
+    ])
+    def test_sparse_point_owner(self, coords, expected):
+        """Given a sparse point ``p`` with known coordinates, this test checks
+        that the MPI rank owning ``p`` is retrieved correctly."""
+        grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
+
+        sf = SparseFunction(name='sf', grid=grid, npoint=4, coordinates=coords)
+
+        assert len(sf.gridpoints) == len(expected)
+        assert all(sf.is_owned(i) == (j == grid.distributor.myrank)
+                   for i, j in zip(sf.gridpoints, expected))
+
+    def test_sparse_point_scatter(self):
+        """Given a sparse point ``p`` with known coordinates, this test checks
+        that ``p`` is correctly communicated from the owner MPI rank to (the halo
+        of) all other MPI ranks requiring ``p``."""
+        pass
 
 
 @skipif_yask
@@ -735,4 +760,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_nontrivial_operator()
+    TestSparseFunction().test_sparse_point_owner([(1., 1.), (1., 3.), (3., 1.), (3., 3.)], (0, 1, 2, 3))
