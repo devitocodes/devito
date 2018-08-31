@@ -1304,10 +1304,6 @@ class SparseFunction(AbstractSparseFunction):
         :param expr: The expression to interpolate.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into
-                    field data in `expr`.
-        :param p_t: (Optional) time index to use for indexing into
-                    the sparse point data.
         :param cummulative: (Optional) If True, perform an increment rather
                             than an assignment. Defaults to False.
         """
@@ -1332,8 +1328,6 @@ class SparseFunction(AbstractSparseFunction):
         :param expr: The expression to inject.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into `field`.
-        :param p_t: (Optional) time index to use for indexing into `expr`.
         """
         expr = indexify(expr)
         field = indexify(field)
