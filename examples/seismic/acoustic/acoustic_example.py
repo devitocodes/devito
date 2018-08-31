@@ -14,7 +14,7 @@ def smooth(dest, src):
     """
     if src.is_Constant:
         # Return a scaled version of the input if it's a Constant
-        dest.data[:] = .9 * src.value
+        dest.data[:] = .9 * src.data
     else:
         Operator(Eq(dest, src.avg(dims=src.dimensions[-1])), name='smoother').apply()
 
