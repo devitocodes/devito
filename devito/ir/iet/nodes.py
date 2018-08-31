@@ -13,7 +13,8 @@ import cgen as c
 from devito.cgen_utils import ccode
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags)
+                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
+                           REDUNDANT)
 from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -566,8 +567,8 @@ class Callable(Node):
     def __repr__(self):
         parameters = ",".join(['void*' if i.is_Object else c.dtype_to_ctype(i.dtype)
                                for i in self.parameters])
-        body = "\n\t".join([str(s) for s in self.body])
-        return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
+        return "%s[%s]<%s; %s>" % (self.__class__.__name__, self.name, self.retval,
+                                   parameters)
 
 
 class Conditional(Node):
@@ -641,10 +642,6 @@ class TimedList(List):
                                "(double)(end_%(ln)s.tv_usec-start_%(ln)s.tv_usec)" +
                                "/1000000") % {'gn': timer.name, 'ln': lname})]
         super(TimedList, self).__init__(header, body, footer)
-
-    def __repr__(self):
-        body = "\n\t".join([str(s) for s in self.body])
-        return "%s::\n\t%s" % (self.__class__.__name__, body)
 
     @property
     def name(self):
@@ -795,9 +792,10 @@ class HaloSpot(List):
 
     is_HaloSpot = True
 
-    def __init__(self, halo_scheme, body=None):
+    def __init__(self, halo_scheme, body=None, properties=None):
         super(HaloSpot, self).__init__(body=body)
         self.halo_scheme = halo_scheme
+        self.properties = as_tuple(properties)
 
     @property
     def fmapper(self):
@@ -808,11 +806,12 @@ class HaloSpot(List):
         return self.halo_scheme.mask
 
     @property
-    def fixed(self):
-        return self.halo_scheme.fixed
+    def is_Redundant(self):
+        return REDUNDANT in self.properties
 
     def __repr__(self):
-        return "<HaloSpot>"
+        redundant = "[redundant]" if self.is_Redundant else ""
+        return "<HaloSpot%s>" % redundant
 
 
 class ExpressionBundle(List):

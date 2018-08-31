@@ -7,9 +7,9 @@ import numpy as np
 
 from devito.dimension import IncrDimension
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
-from devito.ir.iet import (Denormals, Call, Callable, List, NestedTransformer,
+from devito.ir.iet import (Denormals, Call, Callable, List, ArrayCast,
                            Transformer, FindSymbols, retrieve_iteration_tree,
-                           filter_iterations, derive_parameters, ArrayCast)
+                           filter_iterations, derive_parameters)
 from devito.symbolics import as_symbol
 from devito.tools import flatten
 from devito.types import Scalar
@@ -79,7 +79,7 @@ class BasicRewriter(AbstractRewriter):
                 free.append(i._rebuild(limits=limits, offsets=None, uindices=uindices))
 
             # Construct elemental function body, and inspect it
-            free = NestedTransformer(dict((zip(target, free)))).visit(root)
+            free = Transformer(dict((zip(target, free))), nested=True).visit(root)
 
             # Insert array casts for all non-defined
             f_symbols = FindSymbols('symbolics').visit(free)

@@ -255,6 +255,23 @@ class TensorFunction(AbstractCachedFunction):
 
     @property
     @_allocate_memory
+    def data_interior(self):
+        """
+        The interior data values.
+
+        Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_interior` instead.
+        """
+        self._is_halo_dirty = True
+        return self._data[self._mask_interior]
+
+    @property
+    @_allocate_memory
     def data_with_halo(self):
         """
         The domain+halo data values.
@@ -301,6 +318,16 @@ class TensorFunction(AbstractCachedFunction):
 
     @property
     @_allocate_memory
+    def data_ro_interior(self):
+        """
+        A read-only view of the interior data values.
+        """
+        view = self._data[self._mask_interior]
+        view.setflags(write=False)
+        return view
+
+    @property
+    @_allocate_memory
     def data_ro_with_halo(self):
         """A read-only view of the domain+halo data values."""
         view = self._data[self._mask_with_halo]
@@ -337,6 +364,26 @@ class TensorFunction(AbstractCachedFunction):
         staggered = tuple([s if s is not None else 0 for s in self.staggered])
         return tuple(sympy.Add(i, -j, evaluate=False)
                      for i, j in zip(symbolic_shape, staggered))
+
+    @property
+    def _mask_interior(self):
+        """A mask to access the interior region of the allocated data."""
+        if self.grid is None:
+            glb_pos_map = {d: [LEFT, RIGHT] for d in self.dimensions}
+        else:
+            glb_pos_map = self.grid.distributor.glb_pos_map
+        ret = []
+        for d, i in zip(self.dimensions, self._mask_domain):
+            if d.is_Space:
+                lshift = int(LEFT in glb_pos_map.get(d, []))
+                rshift = int(RIGHT in glb_pos_map.get(d, []))
+                if i.stop is None:
+                    ret.append(slice(i.start + lshift, -rshift or None))
+                else:
+                    ret.append(slice(i.start + lshift, i.stop - rshift))
+            else:
+                ret.append(i)
+        return tuple(ret)
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
@@ -594,23 +641,44 @@ class Function(TensorFunction):
         dimensions = kwargs.get('dimensions')
         if grid is None:
             if dimensions is None:
-                raise TypeError("Function needs either `grid` or `dimensions` argument")
-        else:
-            if dimensions is not None:
-                warning("Creating Function with `grid` and `dimensions` "
-                        "argument; ignoring the `dimensions` and using `grid`.")
+                raise TypeError("Need either `grid` or `dimensions`")
+        elif dimensions is None:
             dimensions = grid.dimensions
         return dimensions
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
+        dimensions = kwargs.get('dimensions')
+        shape = kwargs.get('shape')
         if grid is None:
-            shape = kwargs.get('shape')
             if shape is None:
-                raise TypeError("Function needs either 'grid' or 'shape' argument")
-        else:
+                raise TypeError("Need either `grid` or `shape`")
+        elif shape is None:
             shape = grid.shape_domain
+        elif dimensions is None:
+            raise TypeError("`dimensions` required if both `grid` and "
+                            "`shape` are provided")
+        else:
+            # Got `grid`, `dimensions`, and `shape`. We sanity-check that the
+            # Dimensions in `dimensions` which also appear in `grid` have
+            # size (given by `shape`) matching the one in `grid`
+            if len(shape) != len(dimensions):
+                raise TypeError("`shape` and `dimensions` must have the "
+                                "same number of entries")
+            loc_shape = []
+            for d, s in zip(dimensions, shape):
+                if d in grid.dimensions:
+                    size = grid.dimension_map[d]
+                    if size.glb != s:
+                        raise TypeError("Dimension `%s` is given size `%d`, "
+                                        "while `grid` says `%s` has size `%d` "
+                                        % (d, s, d, size.glb))
+                    else:
+                        loc_shape.append(size.loc)
+                else:
+                    loc_shape.append(s)
+            shape = tuple(loc_shape)
         return shape
 
     def __halo_setup__(self, **kwargs):
@@ -776,19 +844,21 @@ class TimeFunction(Function):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        save = kwargs.get('save')
-        grid = kwargs.get('grid')
-        time_dim = kwargs.get('time_dim')
+        dimensions = kwargs.get('dimensions')
+        if dimensions is None:
+            save = kwargs.get('save')
+            grid = kwargs.get('grid')
+            time_dim = kwargs.get('time_dim')
 
-        if time_dim is None:
-            time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
-        elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
-            raise TypeError("`time_dim` must be a time dimension")
+            if time_dim is None:
+                time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
+            elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
+                raise TypeError("`time_dim` must be a time dimension")
 
-        indices = list(Function.__indices_setup__(**kwargs))
-        indices.insert(cls._time_position, time_dim)
+            dimensions = list(Function.__indices_setup__(**kwargs))
+            dimensions.insert(cls._time_position, time_dim)
 
-        return tuple(indices)
+        return tuple(dimensions)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -799,20 +869,21 @@ class TimeFunction(Function):
 
         if grid is None:
             if shape is None:
-                raise TypeError("TimeFunction needs either `shape` or `grid` argument")
+                raise TypeError("Need either `grid` or `shape`")
             if save is not None:
                 raise TypeError("Ambiguity detected: provide either `grid` and `save` "
                                 "or just `shape` ")
-        else:
+        elif shape is None:
+            shape = list(grid.shape_domain)
             if save is None:
-                shape = (time_order + 1,) + grid.shape_domain
+                shape.insert(cls._time_position, time_order + 1)
             elif isinstance(save, Buffer):
-                shape = (save.val,) + grid.shape_domain
+                shape.insert(cls._time_position, save.val)
             elif isinstance(save, int):
-                shape = (save,) + grid.shape_domain
+                shape.insert(cls._time_position, save)
             else:
                 raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
-        return shape
+        return tuple(shape)
 
     @property
     def forward(self):
@@ -1048,7 +1119,7 @@ class SparseFunction(AbstractSparseFunction):
         reference_cell = {**left, **right}
         # Substitute in interpolation matrix
         A = A.subs(reference_cell)
-        return A.inv().T.dot(p)
+        return A.inv().T * p
 
     @property
     def point_symbols(self):
