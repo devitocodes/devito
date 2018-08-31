@@ -1093,6 +1093,21 @@ class AbstractSparseFunction(TensorFunction):
         """Return a tuple of argument names introduced by this function."""
         return tuple([self.name] + [x for x in self._child_functions])
 
+    def is_owned(self, point):
+        """Return True if ``point`` is in self's local domain, False otherwise."""
+        point = as_tuple(point)
+        if len(point) != self.grid.dim:
+            raise ValueError("`%s` is an %dD point (expected %dD)"
+                             % (point, len(point), self.grid.dim))
+        distributor = self.grid.distributor
+        return all(distributor.glb_to_loc(d, p) is not None
+                   for d, p in zip(self.grid.dimensions, point))
+
+    @property
+    def gridpoints(self):
+        """The *reference* grid point corresponding to each sparse point."""
+        raise NotImplementedError
+
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
 
@@ -1296,6 +1311,16 @@ class SparseFunction(AbstractSparseFunction):
 
         # Substitute coordinate base symbols into the coefficients
         return OrderedDict(zip(self._point_symbols, self._coordinate_bases)), idx_subs
+
+    @property
+    def gridpoints(self):
+        if self.coordinates._data is None:
+            raise ValueError("No coordinates attached to this SparseFunction")
+        ret = []
+        for coords in self.coordinates.data:
+            ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
+                             zip(coords, self.grid.origin, self.grid.dimensions)))
+        return ret
 
     def interpolate(self, expr, offset=0, cummulative=False, self_subs={}):
         """Creates a :class:`sympy.Eq` equation for the interpolation
