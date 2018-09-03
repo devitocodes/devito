@@ -1,10 +1,12 @@
 from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
+from devito.dimension import ConditionalDimension
 from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
                            Conditional, Section, HaloSpot, ExpressionBundle, MetaCall,
-                           MapExpressions, Transformer, FindNodes, ReplaceStepIndices,
-                           iet_analyze, filter_iterations)
+                           MapExpressions, Transformer, FindNodes, FindSymbols,
+                           XSubs, iet_analyze, filter_iterations)
+from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper
 
 __all__ = ['iet_build', 'iet_insert_C_decls']
@@ -22,8 +24,8 @@ def iet_build(stree):
     # Data dependency analysis. Properties are attached directly to nodes
     iet = iet_analyze(iet)
 
-    # Replace stepping dimensions with modulo dimensions
-    iet = iet_lower_steppers(iet)
+    # Turn DerivedDimensions into lower-level Dimensions or Symbols
+    iet = iet_lower_dimensions(iet)
 
     return iet
 
@@ -65,11 +67,19 @@ def iet_make(stree):
     assert False
 
 
-def iet_lower_steppers(iet):
+def iet_lower_dimensions(iet):
     """
-    Replace the :class:`SteppingDimension`s within ``iet``'s expressions with
-    suitable :class:`ModuloDimension`s.
+    Replace all :class:`DerivedDimension`s within the ``iet``'s expressions with
+    lower-level symbolic objects (other :class:`Dimension`s, or :class:`sympy.Symbol`).
+
+        * Array indices involving :class:`SteppingDimension`s are turned into
+          :class:`ModuloDimension`s.
+          Example: ``u[t+1, x] = u[t, x] + 1 >>> u[t1, x] = u[t0, x] + 1``
+        * Array indices involving :class:`ConditionalDimension`s used are turned into
+          integer-division expressions.
+          Example: ``u[t_sub, x] = u[time, x] >>> u[time / 4, x] = u[time, x]``
     """
+    # Lower SteppingDimensions
     for i in FindNodes(Iteration).visit(iet):
         if not i.uindices:
             # Be quick: avoid uselessy reconstructing nodes
@@ -82,8 +92,16 @@ def iet_lower_steppers(iet):
         groups = as_mapper(i.uindices, lambda d: d.modulo)
         for k, v in groups.items():
             mapper = {d.origin: d for d in v}
-            rule = lambda i: i.function._time_size == k
-            iet = ReplaceStepIndices(mapper, rule).visit(iet)
+            rule = lambda i: i.function.is_TimeFunction and i.function._time_size == k
+            replacer = lambda i: xreplace_indices(i, mapper, rule)
+            iet = XSubs(replacer=replacer).visit(iet)
+
+    # Lower ConditionalDimensions
+    cdims = [d for d in FindSymbols('free-symbols').visit(iet)
+             if isinstance(d, ConditionalDimension)]
+    mapper = {d: IntDiv(d.parent, d.factor) for d in cdims}
+    iet = XSubs(mapper).visit(iet)
+
     return iet
 
 

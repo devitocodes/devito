@@ -13,14 +13,12 @@ import cgen as c
 
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
-from devito.function import TimeFunction
 from devito.ir.support.space import Backward
-from devito.symbolics import xreplace_indices
 from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
-           'IsPerfectIteration', 'ReplaceStepIndices', 'printAST', 'CGen',
+           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen',
            'Transformer', 'FindAdjacent', 'MapIteration']
 
 
@@ -619,23 +617,22 @@ class Transformer(Visitor):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
 
 
-class ReplaceStepIndices(Transformer):
+class XSubs(Transformer):
     """
-    :class:`Transformer` that performs index substitution on
-    :class:`Expression`s in a given tree.
+    :class:`Transformer` that performs substitutions on :class:`Expression`s
+    in a given tree, akin to SymPy's ``subs``.
 
-    :param subs: (Optional) dictionary defining the symbol substitution.
-    :param rule: (Optional) the matching rule. See xreplace_constrained.__doc__
-                 for more info.
+    :param mapper: (Optional) dictionary defining the substitutions.
+    :param replacer: (Optional) a function to perform the substitution. Defaults
+                     to SymPy's ``subs``.
     """
 
-    def __init__(self, subs=None, rule=lambda i: True):
-        super(ReplaceStepIndices, self).__init__()
-        self.subs = subs or {}
-        self.rule = lambda i: (isinstance(i.function, TimeFunction) and rule(i))
+    def __init__(self, mapper=None, replacer=None):
+        super(XSubs, self).__init__()
+        self.replacer = replacer or (lambda i: i.subs(mapper))
 
     def visit_Expression(self, o):
-        return o._rebuild(expr=xreplace_indices(o.expr, self.subs, self.rule))
+        return o._rebuild(expr=self.replacer(o.expr))
 
 
 def printAST(node, verbose=True):

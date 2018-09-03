@@ -16,7 +16,7 @@ from devito.yask import configuration
 from devito.yask.data import DataScalar
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, namespace
 from devito.yask.wrappers import contexts
-from devito.yask.transformer import yaskizer
+from devito.yask.transformer import yaskit
 from devito.yask.types import YaskGridObject, YaskSolnObject
 
 __all__ = ['Operator']
@@ -61,30 +61,31 @@ class Operator(OperatorRunnable):
         to generate YASK code. Such YASK code is then called from within the
         transformed Iteration/Expression tree.
         """
+        mapper = {}
         self.yk_solns = OrderedDict()
         for n, (section, trees) in enumerate(find_offloadable_trees(iet).items()):
             dimensions = tuple(filter_ordered(i.dim.root for i in flatten(trees)))
             context = contexts.fetch(dimensions, self._dtype)
 
             # A unique name for the 'real' compiler and kernel solutions
-            name = namespace['jit-soln'](Signer._digest(iet, configuration))
+            name = namespace['jit-soln'](Signer._digest(configuration,
+                                                        *[i.root for i in trees]))
 
             # Create a YASK compiler solution for this Operator
             yc_soln = context.make_yc_solution(name)
 
             try:
                 # Generate YASK grids and populate `yc_soln` with equations
-                mapper = yaskizer(trees, yc_soln)
-                local_grids = [i for i in mapper if i.is_Array]
+                gridmap = yaskit(trees, yc_soln)
+                local_grids = [i for i in gridmap if i.is_Array]
 
-                # Transform the IET
+                # Build the new IET nodes
                 yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'],
                                                  ['time'], yk_soln_obj)
                 funcall = ForeignExpression(funcall, self._dtype)
-                mapper = {trees[0].root: funcall}
+                mapper[trees[0].root] = funcall
                 mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
-                iet = Transformer(mapper).visit(iet)
 
                 # Mark `funcall` as an external function call
                 self._func_table[namespace['code-soln-run']] = MetaCall(None, False)
@@ -99,6 +100,7 @@ class Operator(OperatorRunnable):
                      yc_soln.get_num_equations()))
             except NotImplementedError as e:
                 log("Unable to offload a candidate tree. Reason: [%s]" % str(e))
+        iet = Transformer(mapper).visit(iet)
 
         if not self.yk_solns:
             log("No offloadable trees found")
