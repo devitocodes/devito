@@ -9,7 +9,7 @@ import numpy as np
 from mpi4py import MPI
 
 from devito.types import LEFT, RIGHT
-from devito.tools import EnrichedTuple
+from devito.tools import EnrichedTuple, as_tuple
 
 __all__ = ['Distributor']
 
@@ -81,6 +81,31 @@ class Distributor(object):
         return self._topology
 
     @property
+    def all_coords(self):
+        """Return an iterable containing the coordinates of each MPI rank in
+        the decomposed domain. The iterable is order based on the MPI rank."""
+        ret = product(*[range(i) for i in self.topology])
+        return tuple(sorted(ret, key=lambda i: self.comm.Get_cart_rank(i)))
+
+    @property
+    def all_numb(self):
+        """Return an iterable containing the global numbering of each MPI rank."""
+        ret = []
+        for c in self.all_coords:
+            glb_numb = [i[j] for i, j in zip(self._glb_numbs, c)]
+            ret.append(EnrichedTuple(*glb_numb, getters=self.dimensions))
+        return tuple(ret)
+
+    @property
+    def all_ranges(self):
+        """Return an iterable containing the global ranges of each MPI rank."""
+        ret = []
+        for i in self.all_numb:
+            ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) for j in i],
+                                     getters=self.dimensions))
+        return tuple(ret)
+
+    @property
     def glb_shape(self):
         return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
 
@@ -110,6 +135,25 @@ class Distributor(object):
                 v.append(RIGHT)
             ret[d] = tuple(v)
         return ret
+
+    def glb_to_rank(self, index):
+        """
+        Return the rank owning a given global index.
+
+        :param index: A single domain index, or a list of domain indices. In
+                      the latter case, a list of corresponding ranks is returned.
+        """
+        ret = []
+        for i in as_tuple(index):
+            assert len(i) == self.ndim
+            found = False
+            for r, j in enumerate(self.all_ranges):
+                if all(v in j[d] for v, d in zip(i, self.dimensions)):
+                    ret.append(r)
+                    found = True
+                    break
+            assert found
+        return tuple(ret)
 
     def glb_to_loc(self, dim, *args):
         """
