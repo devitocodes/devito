@@ -94,8 +94,7 @@ class Distributor(object):
     @property
     def glb_ranges(self):
         """Return the global ranges of this process' domain section."""
-        Range = namedtuple('Range', 'left right')
-        return EnrichedTuple(*[Range(min(i), max(i) + 1) for i in self.glb_numb],
+        return EnrichedTuple(*[range(min(i), max(i) + 1) for i in self.glb_numb],
                              getters=self.dimensions)
 
     @property
