@@ -1106,59 +1106,98 @@ class AbstractSparseFunction(TensorFunction):
                    for d, p in zip(self.grid.dimensions, point))
 
     @cached_property
-    def _datamap(self):
+    def _dist_datamap(self):
         """
         Return a mapper ``M : MPI rank -> logically owned sparse data``
         """
         targets = self.grid.distributor.glb_to_rank(self.gridpoints)
         return as_mapper(range(self.npoint), lambda i: targets[i])
 
-    def _scatter(self):
+    @cached_property
+    def _dist_counts(self):
         """
-        Return a ``numpy.ndarray`` containing logically owned data only. This
-        requires distributing physically owned data to the MPI ranks that
-        logically own it.
+        Return a 2-tuple of iterables, describing how much data is each MPI rank
+        expected to send/receive to/from each other MPI rank.
+        """
+        dmap = self._dist_datamap
+        comm = self.grid.distributor.comm
+
+        sendcount = np.array([len(dmap.get(i, [])) for i in range(comm.size)], dtype=int)
+        recvcount = np.empty(comm.size, dtype=int)
+        comm.Alltoall(sendcount, recvcount)
+
+        return sendcount, recvcount
+
+    def _dist_scatter(self):
+        """
+        Return a ``numpy.ndarray`` containing up-to-date data and coordinate values
+        belonging to the calling MPI rank. A data value belongs to a given MPI rank R
+        if its coordinates fall in R's local domain region.
         """
         if self.coordinates._data is None:
             raise ValueError("No coordinates attached to this SparseFunction")
-        dmap = self._datamap
+        dmap = self._dist_datamap
         comm = self.grid.distributor.comm
 
-        # First, tell each rank how many sparse points will be received
-        sendcount = np.array([len(dmap.get(i, [])) for i in range(comm.size)], dtype=int)
-        npoints = np.empty(comm.size, dtype=int)
-        comm.Alltoall(sendcount, npoints)
+        # First, determine what (i) needs to be sent to and (ii) what needs to
+        # be received from each MPI rank
+        sendcount, recvcount = self._dist_counts
 
         # Pack (reordered) data values so that they can be sent out via an Alltoallv
         mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
         data = self.data[mask]
 
         # Send out the sparse point values
-        dispcount = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
-        disprecv = np.concatenate([[0], tuple(np.cumsum(npoints))[:-1]])
-        recvbuf = np.empty(sum(npoints), dtype=self.dtype)
+        senddisp = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
+        recvdisp = np.concatenate([[0], tuple(np.cumsum(recvcount))[:-1]])
+        scattered = np.empty(sum(recvcount), dtype=self.dtype)
         mpitype = MPI._typedict[np.dtype(self.dtype).char]
-        comm.Alltoallv([data, sendcount, dispcount, mpitype],
-                       [recvbuf, npoints, disprecv, mpitype])
-        data = recvbuf
+        comm.Alltoallv([data, sendcount, senddisp, mpitype],
+                       [scattered, recvcount, recvdisp, mpitype])
+        data = scattered
 
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
         coords = self.coordinates.data[mask]
 
         # Send out the sparse point coordinates
         ndim = self.grid.dim
-        recvbuf = np.empty(shape=(sum(npoints), ndim), dtype=self.coordinates.dtype)
-        comm.Alltoallv([coords, sendcount*ndim, dispcount*ndim, mpitype],
-                       [recvbuf, npoints*ndim, disprecv*ndim, mpitype])
-        coords = recvbuf
+        scattered = np.empty(shape=(sum(recvcount), ndim), dtype=self.coordinates.dtype)
+        comm.Alltoallv([coords, sendcount*ndim, senddisp*ndim, mpitype],
+                       [scattered, recvcount*ndim, recvdisp*ndim, mpitype])
+        coords = scattered
 
         return data, coords
 
-    def _gather(self):
+    def _dist_gather(self, data):
         """
-        TODO
+        Return a ``numpy.ndarray`` containing up-to-date data and coordinate values
+        suitable for insertion into ``self.data``.
         """
-        pass
+        if self.coordinates._data is None:
+            raise ValueError("No coordinates attached to this SparseFunction")
+        dmap = self._dist_datamap
+        comm = self.grid.distributor.comm
+
+        # First, determine what (i) needs to be sent to and (ii) what needs to
+        # be received from each MPI rank
+        sendcount, recvcount = self._dist_counts
+
+        # Send back the sparse point values
+        senddisp = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
+        recvdisp = np.concatenate([[0], tuple(np.cumsum(recvcount))[:-1]])
+        gathered = np.empty(sum(sendcount), dtype=self.dtype)
+        mpitype = MPI._typedict[np.dtype(self.dtype).char]
+        comm.Alltoallv([data, recvcount, recvdisp, mpitype],
+                       [gathered, sendcount, senddisp, mpitype])
+        data = gathered
+
+        # Insert back into `self.data` based on the original (expected) data layout
+        mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
+        self.data[:] = data[mask]
+
+        # Note: this method is almost the dual of `_dist_scatter`, except for the
+        # fact that `coordinates` are not sent back. This is because `coordinates`
+        # should never be written to
 
     @property
     def gridpoints(self):
