@@ -358,7 +358,7 @@ class TestSparseFunction(object):
     @pytest.mark.parametrize('coords,expected', [
         ([(1., 1.), (1., 3.), (3., 1.), (3., 3.)], (0, 1, 2, 3)),
     ])
-    def test_sparse_point_owner(self, coords, expected):
+    def test_ownership(self, coords, expected):
         """Given a sparse point ``p`` with known coordinates, this test checks
         that the MPI rank owning ``p`` is retrieved correctly."""
         grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
@@ -366,7 +366,7 @@ class TestSparseFunction(object):
         sf = SparseFunction(name='sf', grid=grid, npoint=4, coordinates=coords)
 
         assert len(sf.gridpoints) == len(expected)
-        assert all(sf.is_owned(i) == (j == grid.distributor.myrank)
+        assert all(sf._is_owned(i) == (j == grid.distributor.myrank)
                    for i, j in zip(sf.gridpoints, expected))
 
     def test_sparse_point_scatter(self):

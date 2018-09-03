@@ -1093,7 +1093,7 @@ class AbstractSparseFunction(TensorFunction):
         """Return a tuple of argument names introduced by this function."""
         return tuple([self.name] + [x for x in self._child_functions])
 
-    def is_owned(self, point):
+    def _is_owned(self, point):
         """Return True if ``point`` is in self's local domain, False otherwise."""
         point = as_tuple(point)
         if len(point) != self.grid.dim:
