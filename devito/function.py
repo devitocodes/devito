@@ -4,6 +4,7 @@ from itertools import product
 
 import sympy
 import numpy as np
+from cached_property import cached_property
 from psutil import virtual_memory
 from mpi4py import MPI
 
@@ -21,7 +22,8 @@ from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
-from devito.tools import Tag, ReducerMap, as_tuple, prod, powerset, is_integer
+from devito.tools import (Tag, ReducerMap, as_mapper, as_tuple, flatten, is_integer,
+                          prod, powerset)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -1103,6 +1105,14 @@ class AbstractSparseFunction(TensorFunction):
         return all(distributor.glb_to_loc(d, p) is not None
                    for d, p in zip(self.grid.dimensions, point))
 
+    @cached_property
+    def _datamap(self):
+        """
+        Return a mapper ``M : MPI rank -> logically owned sparse data``
+        """
+        targets = self.grid.distributor.glb_to_rank(self.gridpoints)
+        return as_mapper(range(self.npoint), lambda i: targets[i])
+
     def _scatter(self):
         """
         Return a ``numpy.ndarray`` containing logically owned data only. This
@@ -1111,8 +1121,38 @@ class AbstractSparseFunction(TensorFunction):
         """
         if self.coordinates._data is None:
             raise ValueError("No coordinates attached to this SparseFunction")
-        targets = self.grid.distributor.glb_to_rank(self.gridpoints)
-        from IPython import embed; embed()
+        dmap = self._datamap
+        comm = self.grid.distributor.comm
+
+        # First, tell each rank how many sparse points will be received
+        sendcount = np.array([len(dmap.get(i, [])) for i in range(comm.size)], dtype=int)
+        npoints = np.empty(comm.size, dtype=int)
+        comm.Alltoall(sendcount, npoints)
+
+        # Pack (reordered) data values so that they can be sent out via an Alltoallv
+        mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
+        data = self.data[mask]
+
+        # Send out the sparse point values
+        dispcount = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
+        disprecv = np.concatenate([[0], tuple(np.cumsum(npoints))[:-1]])
+        recvbuf = np.empty(sum(npoints), dtype=self.dtype)
+        mpitype = MPI._typedict[np.dtype(self.dtype).char]
+        comm.Alltoallv([data, sendcount, dispcount, mpitype],
+                       [recvbuf, npoints, disprecv, mpitype])
+        data = recvbuf
+
+        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
+        coords = self.coordinates.data[mask]
+
+        # Send out the sparse point coordinates
+        ndim = self.grid.dim
+        recvbuf = np.empty(shape=(sum(npoints), ndim), dtype=self.coordinates.dtype)
+        comm.Alltoallv([coords, sendcount*ndim, dispcount*ndim, mpitype],
+                       [recvbuf, npoints*ndim, disprecv*ndim, mpitype])
+        coords = recvbuf
+
+        return data, coords
 
     def _gather(self):
         """
