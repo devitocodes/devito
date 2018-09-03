@@ -1103,6 +1103,23 @@ class AbstractSparseFunction(TensorFunction):
         return all(distributor.glb_to_loc(d, p) is not None
                    for d, p in zip(self.grid.dimensions, point))
 
+    def _scatter(self):
+        """
+        Return a ``numpy.ndarray`` containing logically owned data only. This
+        requires distributing physically owned data to the MPI ranks that
+        logically own it.
+        """
+        if self.coordinates._data is None:
+            raise ValueError("No coordinates attached to this SparseFunction")
+        targets = self.grid.distributor.glb_to_rank(self.gridpoints)
+        from IPython import embed; embed()
+
+    def _gather(self):
+        """
+        TODO
+        """
+        pass
+
     @property
     def gridpoints(self):
         """The *reference* grid point corresponding to each sparse point."""

@@ -369,11 +369,57 @@ class TestSparseFunction(object):
         assert all(sf._is_owned(i) == (j == grid.distributor.myrank)
                    for i, j in zip(sf.gridpoints, expected))
 
-    def test_sparse_point_scatter(self):
-        """Given a sparse point ``p`` with known coordinates, this test checks
-        that ``p`` is correctly communicated from the owner MPI rank to (the halo
-        of) all other MPI ranks requiring ``p``."""
-        pass
+    @pytest.mark.parallel(nprocs=4)
+    def test_scatter_gather(self):
+        """
+        Test scattering and gathering of sparse data from and to a single MPI rank.
+
+        The initial data distribution looks like:
+
+               rank0           rank1           rank2           rank3
+            [0, 1, 2, 3]        []              []               []
+
+        Logically (i.e., given point coordinates and domain decomposition), 0 belongs
+        to rank0, 1 belongs to rank1, etc. Thus, after scattering, the data distribution
+        is expected to be:
+
+               rank0           rank1           rank2           rank3
+                [0]             [1]             [2]             [3]
+
+        Then, locally on each rank, some trivial computation is performed, and we obtain:
+
+               rank0           rank1           rank2           rank3
+                [0]             [2]             [4]             [6]
+
+        Finally, we gather the data values and we get:
+
+               rank0           rank1           rank2           rank3
+            [0, 2, 4, 6]        []              []              []
+        """
+        grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
+
+        # Initialization
+        if grid.distributor.myrank == 0:
+            coords = [(1., 1.), (1., 3.), (3., 1.), (3., 3.)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = list(range(len(coords)))
+
+        # Scatter
+        data, _ = sf._dist_scatter()
+        assert len(data) == 1
+        assert data[0] == grid.distributor.myrank
+
+        # Do some local computation
+        data = data*2
+
+        # Gather
+        sf._dist_gather(data)
+        if grid.distributor.myrank == 0:
+            assert np.all(sf.data == [0, 2, 4, 6])
+        else:
+            assert not sf.data
 
 
 @skipif_yask
@@ -760,4 +806,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestSparseFunction().test_sparse_point_owner([(1., 1.), (1., 3.), (3., 1.), (3., 3.)], (0, 1, 2, 3))
+    TestSparseFunction().test_scatter_gather()
