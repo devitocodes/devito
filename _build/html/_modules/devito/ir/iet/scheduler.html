@@ -154,10 +154,12 @@
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">Allocator</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">ConditionalDimension</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Expression</span><span class="p">,</span> <span class="n">LocalExpression</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
                            <span class="n">Conditional</span><span class="p">,</span> <span class="n">Section</span><span class="p">,</span> <span class="n">HaloSpot</span><span class="p">,</span> <span class="n">ExpressionBundle</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span>
-                           <span class="n">MapExpressions</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">ReplaceStepIndices</span><span class="p">,</span>
-                           <span class="n">iet_analyze</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
+                           <span class="n">MapExpressions</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span>
+                           <span class="n">XSubs</span><span class="p">,</span> <span class="n">iet_analyze</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">IntDiv</span><span class="p">,</span> <span class="n">xreplace_indices</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_mapper</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;iet_build&#39;</span><span class="p">,</span> <span class="s1">&#39;iet_insert_C_decls&#39;</span><span class="p">]</span>
@@ -175,8 +177,8 @@
     <span class="c1"># Data dependency analysis. Properties are attached directly to nodes</span>
     <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_analyze</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
-    <span class="c1"># Replace stepping dimensions with modulo dimensions</span>
-    <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_lower_steppers</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+    <span class="c1"># Turn DerivedDimensions into lower-level Dimensions or Symbols</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_lower_dimensions</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">iet</span></div>
 
@@ -218,11 +220,19 @@
     <span class="k">assert</span> <span class="kc">False</span>
 
 
-<span class="k">def</span> <span class="nf">iet_lower_steppers</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">iet_lower_dimensions</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Replace the :class:`SteppingDimension`s within ``iet``&#39;s expressions with</span>
-<span class="sd">    suitable :class:`ModuloDimension`s.</span>
+<span class="sd">    Replace all :class:`DerivedDimension`s within the ``iet``&#39;s expressions with</span>
+<span class="sd">    lower-level symbolic objects (other :class:`Dimension`s, or :class:`sympy.Symbol`).</span>
+
+<span class="sd">        * Array indices involving :class:`SteppingDimension`s are turned into</span>
+<span class="sd">          :class:`ModuloDimension`s.</span>
+<span class="sd">          Example: ``u[t+1, x] = u[t, x] + 1 &gt;&gt;&gt; u[t1, x] = u[t0, x] + 1``</span>
+<span class="sd">        * Array indices involving :class:`ConditionalDimension`s used are turned into</span>
+<span class="sd">          integer-division expressions.</span>
+<span class="sd">          Example: ``u[t_sub, x] = u[time, x] &gt;&gt;&gt; u[time / 4, x] = u[time, x]``</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Lower SteppingDimensions</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Iteration</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">uindices</span><span class="p">:</span>
             <span class="c1"># Be quick: avoid uselessy reconstructing nodes</span>
@@ -235,8 +245,16 @@
         <span class="n">groups</span> <span class="o">=</span> <span class="n">as_mapper</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">uindices</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">modulo</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">origin</span><span class="p">:</span> <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">v</span><span class="p">}</span>
-            <span class="n">rule</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">_time_size</span> <span class="o">==</span> <span class="n">k</span>
-            <span class="n">iet</span> <span class="o">=</span> <span class="n">ReplaceStepIndices</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">rule</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+            <span class="n">rule</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_TimeFunction</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">_time_size</span> <span class="o">==</span> <span class="n">k</span>
+            <span class="n">replacer</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">xreplace_indices</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">rule</span><span class="p">)</span>
+            <span class="n">iet</span> <span class="o">=</span> <span class="n">XSubs</span><span class="p">(</span><span class="n">replacer</span><span class="o">=</span><span class="n">replacer</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
+    <span class="c1"># Lower ConditionalDimensions</span>
+    <span class="n">cdims</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;free-symbols&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">)]</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">IntDiv</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">factor</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cdims</span><span class="p">}</span>
+    <span class="n">iet</span> <span class="o">=</span> <span class="n">XSubs</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
+
     <span class="k">return</span> <span class="n">iet</span>
 
 

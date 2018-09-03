@@ -166,14 +166,12 @@
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">blankline</span><span class="p">,</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">VisitorException</span>
-<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">TimeFunction</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support.space</span> <span class="k">import</span> <span class="n">Backward</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">xreplace_indices</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">GenericVisitor</span>
 
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FindNodes&#39;</span><span class="p">,</span> <span class="s1">&#39;FindSections&#39;</span><span class="p">,</span> <span class="s1">&#39;FindSymbols&#39;</span><span class="p">,</span> <span class="s1">&#39;MapExpressions&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;IsPerfectIteration&#39;</span><span class="p">,</span> <span class="s1">&#39;ReplaceStepIndices&#39;</span><span class="p">,</span> <span class="s1">&#39;printAST&#39;</span><span class="p">,</span> <span class="s1">&#39;CGen&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;IsPerfectIteration&#39;</span><span class="p">,</span> <span class="s1">&#39;XSubs&#39;</span><span class="p">,</span> <span class="s1">&#39;printAST&#39;</span><span class="p">,</span> <span class="s1">&#39;CGen&#39;</span><span class="p">,</span>
            <span class="s1">&#39;Transformer&#39;</span><span class="p">,</span> <span class="s1">&#39;FindAdjacent&#39;</span><span class="p">,</span> <span class="s1">&#39;MapIteration&#39;</span><span class="p">]</span>
 
 
@@ -772,23 +770,22 @@
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot apply a Transformer visitor to an Operator directly&quot;</span><span class="p">)</span></div></div>
 
 
-<div class="viewcode-block" id="ReplaceStepIndices"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ReplaceStepIndices">[docs]</a><span class="k">class</span> <span class="nc">ReplaceStepIndices</span><span class="p">(</span><span class="n">Transformer</span><span class="p">):</span>
+<div class="viewcode-block" id="XSubs"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.XSubs">[docs]</a><span class="k">class</span> <span class="nc">XSubs</span><span class="p">(</span><span class="n">Transformer</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    :class:`Transformer` that performs index substitution on</span>
-<span class="sd">    :class:`Expression`s in a given tree.</span>
+<span class="sd">    :class:`Transformer` that performs substitutions on :class:`Expression`s</span>
+<span class="sd">    in a given tree, akin to SymPy&#39;s ``subs``.</span>
 
-<span class="sd">    :param subs: (Optional) dictionary defining the symbol substitution.</span>
-<span class="sd">    :param rule: (Optional) the matching rule. See xreplace_constrained.__doc__</span>
-<span class="sd">                 for more info.</span>
+<span class="sd">    :param mapper: (Optional) dictionary defining the substitutions.</span>
+<span class="sd">    :param replacer: (Optional) a function to perform the substitution. Defaults</span>
+<span class="sd">                     to SymPy&#39;s ``subs``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="kc">True</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">ReplaceStepIndices</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">subs</span> <span class="o">=</span> <span class="n">subs</span> <span class="ow">or</span> <span class="p">{}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">rule</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="n">TimeFunction</span><span class="p">)</span> <span class="ow">and</span> <span class="n">rule</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">replacer</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">XSubs</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">replacer</span> <span class="o">=</span> <span class="n">replacer</span> <span class="ow">or</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span>
 
-<div class="viewcode-block" id="ReplaceStepIndices.visit_Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.ReplaceStepIndices.visit_Expression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">xreplace_indices</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rule</span><span class="p">))</span></div></div>
+<div class="viewcode-block" id="XSubs.visit_Expression"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.XSubs.visit_Expression">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expression</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">replacer</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="p">))</span></div></div>
 
 
 <div class="viewcode-block" id="printAST"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.visitors.printAST">[docs]</a><span class="k">def</span> <span class="nf">printAST</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
