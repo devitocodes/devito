@@ -1050,8 +1050,8 @@ class AbstractSparseFunction(TensorFunction):
             npoint = kwargs.get('npoint')
             if not isinstance(npoint, int):
                 raise TypeError('SparseFunction needs `npoint` int argument')
-            if npoint <= 0:
-                raise ValueError('`npoint` must be > 0')
+            if npoint < 0:
+                raise ValueError('`npoint` must be >= 0')
             self.npoint = npoint
 
             # A Grid must have been provided
@@ -1207,7 +1207,7 @@ class SparseFunction(AbstractSparseFunction):
             coordinates = kwargs.get('coordinates')
             if isinstance(coordinates, Function):
                 self._coordinates = coordinates
-            else:
+            elif coordinates is not None:
                 dimensions = (self.indices[-1], Dimension(name='d'))
                 self._coordinates = Function(name='%s_coords' % self.name,
                                              dtype=self.dtype, dimensions=dimensions,
