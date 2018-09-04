@@ -83,9 +83,9 @@ def test_function():
     pkl_f = pickle.dumps(f)
     new_f = pickle.loads(pkl_f)
 
-    # The Data objects are different as they are not pickled !
+    # .data is initialized, so it should have been pickled too
     assert np.all(f.data[0] == 1.)
-    assert np.all(new_f.data[0] == 0.)
+    assert np.all(new_f.data[0] == 1.)
 
     assert f.space_order == new_f.space_order
     assert f.dtype == new_f.dtype
@@ -101,9 +101,12 @@ def test_sparse_function():
     pkl_sf = pickle.dumps(sf)
     new_sf = pickle.loads(pkl_sf)
 
-    # The Data objects are different as they are not pickled !
+    # .data is initialized, so it should have been pickled too
     assert np.all(sf.data[0] == 1.)
-    assert np.all(new_sf.data[0] == 0.)
+    assert np.all(new_sf.data[0] == 1.)
+
+    # coordinates should also have been pickled
+    assert np.all(sf.coordinates.data == new_sf.coordinates.data)
 
     assert sf.space_order == new_sf.space_order
     assert sf.dtype == new_sf.dtype
