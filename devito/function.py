@@ -1151,13 +1151,22 @@ class SparseFunction(AbstractSparseFunction):
             super(SparseFunction, self).__init__(*args, **kwargs)
 
             # Set up coordinates of sparse points
-            coordinates = Function(name='%s_coords' % self.name, dtype=self.dtype,
-                                   dimensions=(self.indices[-1], Dimension(name='d')),
-                                   shape=(self.npoint, self.grid.dim), space_order=0)
-            coordinate_data = kwargs.get('coordinates')
-            if coordinate_data is not None:
-                coordinates.data[:] = coordinate_data[:]
-            self.coordinates = coordinates
+            coordinates = kwargs.get('coordinates')
+            if coordinates is None or isinstance(coordinates, Function):
+                self._coordinates = coordinates
+            elif coordinates is not None:
+                dimensions = (self.indices[-1], Dimension(name='d'))
+                self._coordinates = Function(name='%s_coords' % self.name,
+                                             dtype=self.dtype, dimensions=dimensions,
+                                             shape=(self.npoint, self.grid.dim),
+                                             space_order=0, initializer=coordinates)
+            else:
+                raise ValueError("`coordinates` must be buffer or Function, not %s"
+                                 % type(coordinates))
+
+    @property
+    def coordinates(self):
+        return self._coordinates
 
     @property
     def coefficients(self):
@@ -1303,6 +1312,9 @@ class SparseFunction(AbstractSparseFunction):
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
+    # Pickling support
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']
+
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
@@ -1384,6 +1396,10 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             expr = expr.subs(self.time_dim, p_t)
 
         return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
+
+    # Pickling support
+    _pickle_kwargs = AbstractSparseTimeFunction._pickle_kwargs +\
+        SparseFunction._pickle_kwargs
 
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
