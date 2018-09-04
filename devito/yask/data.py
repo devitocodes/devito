@@ -260,7 +260,7 @@ class Data(object):
         """
         self[:] = 0.0
 
-    def view(self):
+    def view(self, *args):
         """
         View of the YASK grid in standard (i.e., Devito) row-major layout,
         returned as a :class:`numpy.ndarray`.

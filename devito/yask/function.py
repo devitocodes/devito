@@ -153,9 +153,6 @@ class Function(function.Function, Signer):
     def data_allocated(self):
         return Data(self._data.grid, self.shape_allocated, self.indices, self.dtype)
 
-    def initialize(self):
-        raise NotImplementedError
-
     def _arg_defaults(self, alias=None):
         args = super(Function, self)._arg_defaults(alias=alias)
 
