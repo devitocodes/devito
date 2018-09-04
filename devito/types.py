@@ -369,12 +369,12 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        """Extract the function indices from ``kwargs``."""
+        """Extract the object indices from ``kwargs``."""
         return ()
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
-        """Extract the function shape from ``kwargs``."""
+        """Extract the object shape from ``kwargs``."""
         return ()
 
     def __halo_setup__(self, **kwargs):
@@ -385,22 +385,22 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def name(self):
-        """Return the name of the function."""
+        """Return the name of the object."""
         return self._name
 
     @property
     def indices(self):
-        """Return the indices (aka dimensions) of the function."""
+        """Return the indices (aka dimensions) of the object."""
         return self._indices
 
     @property
     def dimensions(self):
-        """Tuple of :class:`Dimension`s representing the function indices."""
+        """Tuple of :class:`Dimension`s representing the object indices."""
         return self.indices
 
     @property
     def shape(self):
-        """Return the shape of the function."""
+        """Return the shape of the object."""
         return self._shape
 
     @property

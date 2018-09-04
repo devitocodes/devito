@@ -105,8 +105,7 @@ class Constant(AbstractCachedSymbol):
         except AttributeError:
             pass
 
-    _pickle_kwargs = (AbstractCachedSymbol._pickle_kwargs
-                      + ['dtype', '_value'])
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
 
 
 class TensorFunction(AbstractCachedFunction):
@@ -137,7 +136,7 @@ class TensorFunction(AbstractCachedFunction):
             # Staggered mask
             self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
-                raise ValueError("'staggered' needs %s entries for indices %s"
+                raise ValueError("`staggered` needs %s entries for indices %s"
                                  % (len(self.indices), self.indices))
 
             # Data-related properties
@@ -534,8 +533,11 @@ class Function(TensorFunction):
                     in each dimension, may be passed; in this case, an error is
                     raised if such tuple has fewer entries then the number of space
                     dimensions.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -792,7 +794,7 @@ class TimeFunction(Function):
                  intermediate results are required (or, simply, to forbid the
                  usage of an alternating buffer), an explicit value for ``save``
                  (i.e., an integer) must be provided.
-    :param time_dim: (Optional) The :class:`Dimension` object to use to represent
+    :param time_dim: (Optional) the :class:`Dimension` object to use to represent
                      time in this symbol. Defaults to the time dimension provided
                      by the :class:`Grid`.
     :param staggered: (Optional) tuple containing staggering offsets.
@@ -802,7 +804,10 @@ class TimeFunction(Function):
                     in each dimension, may be passed; in this case, an error is
                     raised if such tuple has fewer entries then the number of
                     space dimensions.
-    :param initializer: (Optional) a callable to initialize the data
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
     :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
@@ -1094,13 +1099,16 @@ class SparseFunction(AbstractSparseFunction):
     :param name: Name of the function.
     :param npoint: Number of points to sample.
     :param grid: :class:`Grid` object defining the computational domain.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: (Optional) discretisation order for space derivatives.
     :param shape: (Optional) shape of the function. Defaults to ``(npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: (Optional) discretisation order for space derivatives.
     :param dtype: (Optional) data type of the buffered data.
-    :param initializer: (Optional) a callable to initialize the data
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
     :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
@@ -1282,17 +1290,20 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     :param nt: Size of the time dimension for point data.
     :param npoint: Number of points to sample.
     :param grid: :class:`Grid` object defining the computational domain.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
     :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: (Optional) Discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) Discretisation order for time derivatives.
-                       Default to 1.
     :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -1376,15 +1387,18 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                          coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
                          for r=6, we will store 18 coefficients per sparse point (instead
                          of potentially 216). Shape must be [npoint][grid.ndim][r].
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
     :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param space_order: (Optional) Discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) Discretisation order for time derivatives.
-                       Default to 1.
-    :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
 
     .. note::
 
@@ -1524,15 +1538,18 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
                          coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
                          for r=6, we will store 18 coefficients per sparse point (instead
                          of potentially 216). Shape must be [npoint][grid.ndim][r].
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
     :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param space_order: (Optional) Discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) Discretisation order for time derivatives.
-                       Default to 1.
-    :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
 
     .. note::
 
