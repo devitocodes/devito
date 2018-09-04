@@ -142,13 +142,22 @@ class TensorFunction(AbstractCachedFunction):
                 raise ValueError("`staggered` needs %s entries for indices %s"
                                  % (len(self.indices), self.indices))
 
-            # Data-related properties
-            self.initializer = kwargs.get('initializer')
-            if self.initializer is not None:
-                assert(callable(self.initializer))
-            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
+            # Data-related properties and data initialization
             self._data = None
+            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._allocator = kwargs.get('allocator', default_allocator())
+            initializer = kwargs.get('initializer')
+            if initializer is None or callable(initializer):
+                # Initialization postponed until the first access to .data
+                self._initializer = initializer
+            elif isinstance(initializer, (np.ndarray, list)):
+                # Allocate memory and initialize it. Note that we do *not* hold
+                # a reference to the user-provided buffer
+                self._initializer = None
+                self.data_allocated[:] = initializer
+            else:
+                raise ValueError("`initializer` must be callable or buffer, not %s"
+                                 % type(initializer))
 
     def _allocate_memory(func):
         """Allocate memory as a :class:`Data`."""
@@ -159,15 +168,15 @@ class TensorFunction(AbstractCachedFunction):
                                   allocator=self._allocator)
                 if self._first_touch:
                     first_touch(self)
-                if self.initializer is not None:
+                if callable(self._initializer):
                     if self._first_touch:
                         warning("`first touch` together with `initializer` causing "
                                 "redundant data initialization")
                     try:
-                        self.initializer(self._data)
+                        self._initializer(self._data)
                     except ValueError:
                         # Perhaps user only wants to initialise the physical domain
-                        self.initializer(self._data[self._mask_domain])
+                        self._initializer(self._data[self._mask_domain])
                 else:
                     self._data.fill(0)
             return func(self)
@@ -370,6 +379,13 @@ class TensorFunction(AbstractCachedFunction):
     @property
     def staggered(self):
         return self._staggered
+
+    @property
+    def initializer(self):
+        if self._data is not None:
+            return self._data.view(np.ndarray)
+        else:
+            return self._initializer
 
     @property
     def symbolic_shape(self):
