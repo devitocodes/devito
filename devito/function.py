@@ -1233,7 +1233,7 @@ class SparseFunction(AbstractSparseFunction):
     :param grid: :class:`Grid` object defining the computational domain.
     :param coordinates: (Optional) coordinate data for the sparse points.
     :param space_order: (Optional) discretisation order for space derivatives.
-    :param shape: (Optional) shape of the function. Defaults to ``(npoints,)``.
+    :param shape: (Optional) shape of the function. Defaults to ``(npoint,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data.
@@ -1440,7 +1440,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
                         Default to 0.
     :param time_order: (Optional) discretisation order for time derivatives.
                        Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) Data type of the buffered data.
@@ -1540,7 +1540,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                         Default to 0.
     :param time_order: (Optional) discretisation order for time derivatives.
                        Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data.
@@ -1694,7 +1694,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
                         Default to 0.
     :param time_order: (Optional) discretisation order for time derivatives.
                        Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data.
