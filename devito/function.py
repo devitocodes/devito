@@ -1027,6 +1027,10 @@ class AbstractSparseFunction(TensorFunction):
         """Return a tuple of argument names introduced by this function."""
         return tuple([self.name] + [x for x in self._child_functions])
 
+    # Pickling support
+    _pickle_kwargs = TensorFunction._pickle_kwargs +\
+        ['npoint', 'grid', 'dtype', 'space_order']
+
 
 class AbstractSparseTimeFunction(AbstractSparseFunction):
     """
@@ -1073,6 +1077,9 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     @property
     def _time_size(self):
         return self.shape_allocated[self._time_position]
+
+    # Pickling support
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['nt', 'time_order']
 
 
 class SparseFunction(AbstractSparseFunction):
