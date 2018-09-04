@@ -1,174 +1,131 @@
 import sympy
+from sympy.core.basic import _aresame
 import numpy as np
 
 from devito.symbolics.search import retrieve_functions
-from devito.symbolics.extended_sympy import FrozenExpr
+from devito.symbolics.extended_sympy import IntDiv
 
 __all__ = ['Differentiable']
 
 
-class Differentiable(FrozenExpr):
+class Differentiable(sympy.Expr):
     """
     This class represents Devito differentiable objects such as
     sum of functions, product of function or FD approximation and
     provides FD shortcuts for such expressions
     """
     _op_priority = 100.0
-    is_Function = True
+    is_Function = False
+    is_TimeFunction = False
 
     def __new__(cls, *args, **kwargs):
         return sympy.Expr.__new__(cls, *args)
 
     def __init__(self, expr, **kwargs):
         from devito.finite_differences.finite_difference import generate_fd_functions
-        self.expr = expr.expr if isinstance(expr, Differentiable) else expr
         # Recover the list of possible FD shortcuts
-        self.dtype = self._dtype()
-        self.space_order = self._space_order()
-        self.time_order = self._space_order()
-        self.indices = self._indices()
-        self.staggered = self._staggered()
+        self.dtype = kwargs.get('dtype')
+        self.space_order =  kwargs.get('space_order')
+        self.time_order =  kwargs.get('time_order', 0)
+        self.indices =  kwargs.get('indices', ())
+        self.staggered =  kwargs.get('staggered')
         # Generate FD shortcuts for expression or copy from input
-        if isinstance(expr, Differentiable):
-            self.fd = expr.fd
-        else:
-            self.fd = generate_fd_functions(self)
-
+        self.fd = kwargs.get('fd', [])
         for d in self.fd:
             setattr(self.__class__, d[1], property(d[0], d[1]))
         self.derivatives = tuple(d[1] for d in self.fd)
+        # Save kwargs
+        self._kwargs = kwargs
+        self._expr = expr
+
+    def xreplace(self, rule):
+        out = getattr(self, '_expr', self)
+        if out in rule:
+            return rule[out]
+        elif rule:
+            args = []
+            for a in out.args:
+                try:
+                    args.append(a.xreplace(rule))
+                except AttributeError:
+                    args.append(a)
+            args = tuple(args)
+            if not _aresame(args, out.args):
+                return out.func(*args, evaluate=False)
+        return out
+
+
+    def merge_fd_properties(self, other):
+        merged = getattr(self, '_kwargs', dict())
+        merged["space_order"] = np.min([getattr(self, 'space_order', 100) or 100 ,
+                                        getattr(other, 'space_order', 100)])
+        merged["time_order"] = np.min([getattr(self, 'time_order', 100) or 100,
+                                       getattr(other, 'time_order', 100)])
+        merged["indices"] = tuple(set(self.indices + getattr(other, 'indices', ())))
+        merged["fd"] = list(set(getattr(self, 'fd', []) + getattr(other, 'fd', [])))
+        merged["staggered"] = self.staggered
+        merged["dtype"] = self.dtype
+        return merged
 
     def __add__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[self.expr, other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[self.expr, other]))
+        return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
+                                          getattr(other, '_expr', other)]),
+                                          **self.merge_fd_properties(other))
 
     __iadd__ = __add__
     __radd__ = __add__
 
     def __sub__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[self.expr, -other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[self.expr, -other]))
+        return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
+                                          -getattr(other, '_expr', other)]),
+                                          **self.merge_fd_properties(other))
 
     def __rsub__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[-self.expr, other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[-self.expr, other]))
+        return Differentiable(sympy.Add(*[-getattr(self, '_expr', self),
+                                          getattr(other, '_expr', other)]),
+                                          **self.merge_fd_properties(other))
 
     __isub__ = __sub__
 
     def __mul__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Mul(*[self.expr, other.expr]))
-        else:
-            return Differentiable(sympy.Mul(*[self.expr, other]))
+        return Differentiable(sympy.Mul(*[getattr(self, '_expr', self),
+                                          getattr(other, '_expr', other)]),
+                                          **self.merge_fd_properties(other))
 
     __imul__ = __mul__
     __rmul__ = __mul__
 
-    def __div__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(self.expr/other.expr)
-        else:
-            return Differentiable(self.expr/other)
+    def __truediv__(self, other):
+        return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), other**(-1)]),
+                                        **self.merge_fd_properties(other))
+
+    def __rtruediv__(self, other):
+        return Differentiable(sympy.Mul(*[other, getattr(self, '_expr', self)**(-1)]),
+                                        **self.merge_fd_properties(other))
 
     def __neg__(self):
-        return Differentiable(- self.expr)
+        return self * -1
 
     def __pow__(self, exponent):
-        return Differentiable(sympy.Pow(self, exponent))
-
-    def __eq__(self, other):
-        if isinstance(other, Differentiable):
-            return self.expr == other.expr
-        else:
-            return self.expr == other
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def func(self, *args, **kwargs):
-        return Differentiable(self.expr.func(*args), **kwargs)
+        return Differentiable(sympy.Pow(getattr(self, '_expr', self), exponent),
+                                        **self._kwargs)
 
     def __str__(self):
-        return self.expr.__str__()
+        if self.is_Function:
+            return super(sympy.Expr, self).__str__()
+        return self._expr.__str__()
 
     __repr__ = __str__
-
-    @property
-    def args(self):
-        return self.expr.args
-
-    @property
-    def is_TimeFunction(self):
-        """
-        Check wether or not time is an index
-        """
-        return any(i.is_Time for i in self.indices)
-
-    def _space_order(self):
-        """
-        Infer space_order from expression
-        """
-        func = list(retrieve_functions(self.expr))
-        order = 100
-        for i in func:
-            order = min(order, getattr(i, 'space_order', order))
-
-        return order
-
-    def _time_order(self):
-        """
-        Infer space_order from expression
-        """
-        func = list(retrieve_functions(self.expr))
-        order = 100
-        for i in func:
-            order = min(order, getattr(i, 'time_order', order))
-
-        return order
-
-    def _dtype(self):
-        """
-        Infer dtype for expression
-        """
-        func = list(retrieve_functions(self.expr))
-        is_double = False
-        for i in func:
-            dtype_i = getattr(i, 'dtype', np.float32)
-            is_double = dtype_i == np.float64 or is_double
-
-        return np.float64 if is_double else np.float32
-
-    def _indices(self):
-        """
-        Indices of the expression setup
-        """
-        func = list(retrieve_functions(self.expr))
-        return tuple(set([d for i in func for d in getattr(i, 'indices', ())]))
-
-    def _staggered(self):
-        """
-        Staggered grid setup
-        """
-        return tuple([None] * len(self.indices))
 
     def evalf(self, N=None):
         N = N or sympy.N(sympy.Float(1.0))
         if self.is_Number:
             return self.args[0]
         else:
-            return self.func(*[i.evalf(N) for i in self.args], evaluate=False)
+            return self.func(*[i.evalf(N) for i in self.args], **self._kwargs)
 
     def subs(self, subs):
-        for k, v in subs.items():
-            if isinstance(v, Differentiable):
-                subs[k] = v.expr
-        return Differentiable(self.expr.subs(subs))
-
-    def __hash__(self):
-        return hash(self.expr)
+        subs = getattr(subs, '_expr', subs)
+        if self.is_Function:
+            return super(sympy.Expr, self).subs(subs)
+        return self._expr.subs(subs)

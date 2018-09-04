@@ -10,7 +10,7 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'IntDiv', 'Add', 'Mul',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'Macro']
+           'ListInitializer', 'Byref', 'Macro', 'ExprDiv']
 
 
 class FrozenExpr(Expr):
@@ -26,7 +26,7 @@ class FrozenExpr(Expr):
     At the moment, only xreplace is overridded (to prevent unpicking factorizations)
     """
 
-    def xreplace(self, rule):
+    def xreplace(self, rule, **kwargs):
         if self in rule:
             return rule[self]
         elif rule:
@@ -38,7 +38,8 @@ class FrozenExpr(Expr):
                     args.append(a)
             args = tuple(args)
             if not _aresame(args, self.args):
-                return self.func(*args, evaluate=False)
+                kwargs["evaluate"] = False
+                return self.func(*args, **kwargs)
         return self
 
 
@@ -96,6 +97,30 @@ class IntDiv(sympy.Expr):
 
     def __new__(cls, lhs, rhs, params=None):
         rhs = Integer(rhs)
+        obj = sympy.Expr.__new__(cls, lhs, rhs)
+        obj.lhs = lhs
+        obj.rhs = rhs
+        return obj
+
+    def __str__(self):
+        return "%s / %s" % (self.lhs, self.rhs)
+
+    __repr__ = __str__
+
+
+class ExprDiv(sympy.Expr):
+
+    """
+    A support type for integer division. Should only be used by the compiler
+    for code generation purposes (i.e., not for symbolic manipulation).
+    This works around the annoying way SymPy represents integer division,
+    namely as a ``Mul`` between the numerator and the reciprocal of the
+    denominator (e.g., ``a*3.args -> (a, 1/3)), which ends up generating
+    "weird" C code.
+    """
+    is_Atom = True
+
+    def __new__(cls, lhs, rhs, params=None):
         obj = sympy.Expr.__new__(cls, lhs, rhs)
         obj.lhs = lhs
         obj.rhs = rhs

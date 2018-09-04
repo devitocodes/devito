@@ -105,7 +105,7 @@ class Constant(AbstractCachedSymbol):
                       + ['dtype', '_value'])
 
 
-class TensorFunction(AbstractCachedFunction):
+class TensorFunction(AbstractCachedFunction, Differentiable):
 
     """
     Utility class to encapsulate all symbolic types that represent
@@ -503,48 +503,6 @@ class TensorFunction(AbstractCachedFunction):
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
 
-    def __add__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[self, other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[self, other]))
-
-    __iadd__ = __add__
-    __radd__ = __add__
-
-    def __sub__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[self, -other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[self, -other]))
-
-    def __rsub__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Add(*[-self, other.expr]))
-        else:
-            return Differentiable(sympy.Add(*[-self, other]))
-
-    __isub__ = __sub__
-
-    def __mul__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(sympy.Mul(*[self, other.expr]))
-        else:
-            return Differentiable(sympy.Mul(*[self, other]))
-
-    __imul__ = __mul__
-    __rmul__ = __mul__
-
-    def __div__(self, other):
-        if isinstance(other, Differentiable):
-            return Differentiable(self/other.expr)
-        else:
-            return Differentiable(self/other)
-
-    def __pow__(self, exponent):
-        return Differentiable(sympy.Pow(self, exponent))
-
-
 class Function(TensorFunction):
     """A :class:`TensorFunction` providing operations to express
     finite-difference approximation. A ``Function`` encapsulates
@@ -607,13 +565,11 @@ class Function(TensorFunction):
        ``staggered=(0, 1, 1)`` entails discretization side facets and
        ``staggered=(1, 1, 1)`` entails discretization on cells.
     """
-
     is_Function = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(Function, self).__init__(*args, **kwargs)
-
             # Grid
             self.grid = kwargs.get('grid')
 
@@ -634,6 +590,14 @@ class Function(TensorFunction):
 
             # Dynamically add derivative short-cuts
             initialize_derivatives(self)
+            self.time_order = 0
+            # Add fd property to _kwargs for Differentiable constructor
+            self._kwargs=kwargs
+            self._kwargs["space_order"] = self.space_order
+            self._kwargs["time_order"] = 0
+            self._kwargs["dtype"] = self.dtype
+            self._kwargs["indices"] = self.indices
+            self._kwargs["fd"] = self.fd
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -841,6 +805,8 @@ class TimeFunction(Function):
                 raise TypeError("`time_order` must be int")
 
             self.save = kwargs.get('save')
+            # Add fd property to _kwargs for Differentiable constructor
+            self._kwargs["time_order"] = self.time_order
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -891,7 +857,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.indices[self._time_position]
 
-        return self.subs(_t, _t + i * _t.spacing)
+        return self.subs({_t: _t + i * _t.spacing})
 
     @property
     def backward(self):
@@ -899,7 +865,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.indices[self._time_position]
 
-        return self.subs(_t, _t - i * _t.spacing)
+        return self.subs({_t: _t - i * _t.spacing})
 
     @property
     def _time_size(self):

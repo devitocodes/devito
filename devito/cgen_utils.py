@@ -1,5 +1,6 @@
 from collections import OrderedDict
 
+import sympy
 import numpy as np
 import cgen as c
 
@@ -152,9 +153,6 @@ class CodePrinter(C99CodePrinter):
             rv = rv + 'F'
         return rv
 
-    def _print_Differentiable(self, expr):
-        return self._print(expr.expr)
-
     def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
 
@@ -173,6 +171,9 @@ class CodePrinter(C99CodePrinter):
 
     def _print_IntDiv(self, expr):
         return str(expr)
+
+    def _print_ExprDiv(self, expr):
+        return "%s / %s" % (self._print(expr.lhs), self._print(expr.rhs))
 
     def _print_Byref(self, expr):
         return "&%s" % expr.name
