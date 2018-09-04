@@ -8,6 +8,7 @@ from mpmath.libmp import prec_to_dps, to_str
 from sympy import Function
 from sympy.printing.ccode import C99CodePrinter
 
+from devito.symbolics import pow_to_mul
 
 class Allocator(object):
 
@@ -177,6 +178,9 @@ class CodePrinter(C99CodePrinter):
 
     def _print_Byref(self, expr):
         return "&%s" % expr.name
+
+    def _print_Pow(self, expr):
+        return self._print(pow_to_mul(expr))
 
 
 def ccode(expr, dtype=np.float32, **settings):

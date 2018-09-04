@@ -669,35 +669,6 @@ class Function(TensorFunction):
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
 
-    @property
-    def laplace(self):
-        """
-        Generates a symbolic expression for the Laplacian, the second
-        derivative wrt. all spatial dimensions.
-        """
-        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-        return sum([getattr(self, d) for d in derivs[:self.ndim]])
-
-    def laplace2(self, weight=1):
-        """
-        Generates a symbolic expression for the double Laplacian
-        wrt. all spatial dimensions.
-        """
-        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-        return sum([getattr(self.laplace * weight, d) for d in derivs[:self.ndim]])
-
-    def getdiff(self, name):
-        """
-        Returns finite dofference aproximation 'name' if depends on that dimension
-        or 0
-        """
-        if name in self.derivatives:
-            return getattr(self, name)
-        else:
-            warning("FD shortcut %s not found for Function %s " % (name, self) +
-                    "and dimension %s, returning 0" % name[1])
-            return 0
-
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
         ['dtype', 'grid', 'space_order', 'shape', 'dimensions']

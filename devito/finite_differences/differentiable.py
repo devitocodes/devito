@@ -2,9 +2,8 @@ import sympy
 from sympy.core.basic import _aresame
 import numpy as np
 
-from devito.symbolics.search import retrieve_functions
-from devito.symbolics.extended_sympy import IntDiv
-
+from devito.finite_differences.finite_difference import generate_fd_functions
+from devito.symbolics.extended_sympy import ExprDiv
 __all__ = ['Differentiable']
 
 
@@ -22,7 +21,6 @@ class Differentiable(sympy.Expr):
         return sympy.Expr.__new__(cls, *args)
 
     def __init__(self, expr, **kwargs):
-        from devito.finite_differences.finite_difference import generate_fd_functions
         # Recover the list of possible FD shortcuts
         self.dtype = kwargs.get('dtype')
         self.space_order =  kwargs.get('space_order')
@@ -51,7 +49,7 @@ class Differentiable(sympy.Expr):
                     args.append(a)
             args = tuple(args)
             if not _aresame(args, out.args):
-                return out.func(*args, evaluate=False)
+                return out.func(*args)
         return out
 
 
@@ -107,8 +105,15 @@ class Differentiable(sympy.Expr):
         return self * -1
 
     def __pow__(self, exponent):
-        return Differentiable(sympy.Pow(getattr(self, '_expr', self), exponent),
-                                        **self._kwargs)
+        if exponent > 0:
+            return Differentiable(sympy.Mul(*[getattr(self, '_expr', self)]*exponent, evaluate=False),**self._kwargs)
+        elif exponent < 0 :
+            return Differentiable(ExprDiv(sympy.Number(1),
+                                          sympy.Mul(*[getattr(self, '_expr', self)]*(-exponent),
+                                                    evaluate=False)),
+                                  **self._kwargs)
+        else:
+            return sympy.Number(0)
 
     def __str__(self):
         if self.is_Function:
@@ -129,3 +134,24 @@ class Differentiable(sympy.Expr):
         if self.is_Function:
             return super(sympy.Expr, self).subs(subs)
         return self._expr.subs(subs)
+
+
+    @property
+    def laplace(self):
+        """
+        Generates a symbolic expression for the Laplacian, the second
+        derivative wrt. all spatial dimensions.
+        """
+        space_dims = [d for d in self.indices if d.is_Space]
+        derivs = tuple('d%s2' % d.name for d in space_dims)
+        return sum([getattr(self, d) for d in derivs])
+
+    def laplace2(self, weight=1):
+        """
+        Generates a symbolic expression for the double Laplacian
+        wrt. all spatial dimensions.
+        """
+        space_dims = [d for d in self.indices if d.is_Space]
+        derivs = tuple('d%s2' % d.name for d in space_dims)
+        print(self.laplace * weight)
+        return sum([getattr(self.laplace * weight, d) for d in derivs])
