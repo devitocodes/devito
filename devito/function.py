@@ -150,7 +150,7 @@ class TensorFunction(AbstractCachedFunction):
             if initializer is None or callable(initializer):
                 # Initialization postponed until the first access to .data
                 self._initializer = initializer
-            elif isinstance(initializer, (np.ndarray, list)):
+            elif isinstance(initializer, (np.ndarray, list, tuple)):
                 # Allocate memory and initialize it. Note that we do *not* hold
                 # a reference to the user-provided buffer
                 self._initializer = None
