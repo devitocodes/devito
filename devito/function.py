@@ -778,8 +778,8 @@ class TimeFunction(Function):
     :param shape: (Optional) shape of the domain region in grid points.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param dtype: (Optional) data type of the buffered data
-    :param save: (Optional) Defaults to `None`, which indicates the use of
+    :param dtype: (Optional) data type of the buffered data.
+    :param save: (Optional) defaults to `None`, which indicates the use of
                  alternating buffers. This enables cyclic writes to the
                  TimeFunction. For example, if the TimeFunction ``u(t, x)`` has
                  shape (3, 100), then, in an :class:`Operator`, ``t`` will
@@ -802,8 +802,8 @@ class TimeFunction(Function):
                     in each dimension, may be passed; in this case, an error is
                     raised if such tuple has fewer entries then the number of
                     space dimensions.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable to initialize the data
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -1091,10 +1091,10 @@ class SparseFunction(AbstractSparseFunction):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param dtype: Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param space_order: (Optional) discretisation order for space derivatives.
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable to initialize the data
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.

@@ -75,13 +75,15 @@ class PointSource(SparseTimeFunction):
 
     :param name: Name of the symbol representing this source.
     :param grid: :class:`Grid` object defining the computational domain.
-    :param coordinates: Point coordinates for this source.
     :param time_range: :class:`TimeAxis` TimeAxis(start, step, num) object.
-    :param data: (Optional) Data values to initialise point data.
-    :param npoint: (Optional) Number of sparse points represented by this source.
-    :param time_order: (Optional) Time discretization order (defaults to 2).
-    :param dimension: :(Optional) class:`Dimension` object for
-                       representing the number of points in this source.
+    :param npoint: (Optional) number of sparse points represented by this source.
+    :param data: (Optional) data values to initialise point data.
+    :param coordinates: (Optional) point coordinates for this source.
+    :param space_order: (Optional) space discretization order.
+    :param time_order: (Optional) time discretization order (defaults to 2).
+    :param dtype: (Optional) data type of the buffered data.
+    :param dimension: (Optional) class:`Dimension` object for
+                      representing the number of points in this source.
     """
 
     def __new__(cls, name, grid, time_range, npoint=None,
