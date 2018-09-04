@@ -1152,17 +1152,14 @@ class SparseFunction(AbstractSparseFunction):
 
             # Set up coordinates of sparse points
             coordinates = kwargs.get('coordinates')
-            if coordinates is None or isinstance(coordinates, Function):
+            if isinstance(coordinates, Function):
                 self._coordinates = coordinates
-            elif coordinates is not None:
+            else:
                 dimensions = (self.indices[-1], Dimension(name='d'))
                 self._coordinates = Function(name='%s_coords' % self.name,
                                              dtype=self.dtype, dimensions=dimensions,
                                              shape=(self.npoint, self.grid.dim),
                                              space_order=0, initializer=coordinates)
-            else:
-                raise ValueError("`coordinates` must be buffer or Function, not %s"
-                                 % type(coordinates))
 
     @property
     def coordinates(self):
