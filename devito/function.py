@@ -133,6 +133,9 @@ class TensorFunction(AbstractCachedFunction):
         if not self._cached():
             super(TensorFunction, self).__init__(*args, **kwargs)
 
+            # There may or may not be a `Grid` attached to the TensorFunction
+            self._grid = kwargs.get('grid')
+
             # Staggered mask
             self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
@@ -170,6 +173,17 @@ class TensorFunction(AbstractCachedFunction):
             return func(self)
         return wrapper
 
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        grid = kwargs.get('grid')
+        dtype = kwargs.get('dtype')
+        if dtype is not None:
+            return dtype
+        elif grid is not None:
+            return grid.dtype
+        else:
+            return np.float32
+
     @property
     def _data_buffer(self):
         """Reference to the data. Unlike ``data, data_with_halo, data_allocated``,
@@ -179,6 +193,10 @@ class TensorFunction(AbstractCachedFunction):
     @property
     def _mem_external(self):
         return True
+
+    @property
+    def grid(self):
+        return self._grid
 
     @property
     def shape(self):
@@ -500,7 +518,8 @@ class TensorFunction(AbstractCachedFunction):
             i._arg_check(args, s, intervals[i])
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
+        ['dtype', 'grid', 'staggered', 'initializer']
 
 
 class Function(TensorFunction):
@@ -574,15 +593,6 @@ class Function(TensorFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(Function, self).__init__(*args, **kwargs)
-
-            # Grid
-            self.grid = kwargs.get('grid')
-
-            # Data type (provided or inferred)
-            if self.grid is None:
-                self.dtype = kwargs.get('dtype', np.float32)
-            else:
-                self.dtype = kwargs.get('dtype', self.grid.dtype)
 
             # Space order
             space_order = kwargs.get('space_order', 1)
@@ -755,7 +765,7 @@ class Function(TensorFunction):
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['dtype', 'grid', 'space_order', 'shape', 'dimensions']
+        ['space_order', 'shape', 'dimensions']
 
 
 class TimeFunction(Function):
@@ -990,13 +1000,10 @@ class AbstractSparseFunction(TensorFunction):
                 raise ValueError('`npoint` must be > 0')
             self.npoint = npoint
 
-            # Grid must be provided
-            grid = kwargs.get('grid')
-            if kwargs.get('grid') is None:
+            # A Grid must have been provided
+            if self.grid is None:
                 raise TypeError('SparseFunction needs `grid` argument')
-            self.grid = grid
 
-            self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.space_order = kwargs.get('space_order', 0)
 
     @classmethod
@@ -1033,8 +1040,7 @@ class AbstractSparseFunction(TensorFunction):
         return tuple([self.name] + [x for x in self._child_functions])
 
     # Pickling support
-    _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['npoint', 'grid', 'dtype', 'space_order']
+    _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
 
 
 class AbstractSparseTimeFunction(AbstractSparseFunction):
