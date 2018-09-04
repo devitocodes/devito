@@ -678,9 +678,9 @@ class Array(AbstractCachedFunction):
         return self.symbolic_shape
 
     def update(self, **kwargs):
-        self.dtype = kwargs.get('dtype', self.dtype)
         self._shape = kwargs.get('shape', self.shape)
         self._indices = kwargs.get('dimensions', self.indices)
+        self._dtype = kwargs.get('dtype', self.dtype)
         self._halo = kwargs.get('halo', self._halo)
         self._padding = kwargs.get('padding', self._padding)
         self._scope = kwargs.get('scope', self._scope)
