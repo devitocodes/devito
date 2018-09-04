@@ -1,6 +1,6 @@
-from sympy import solve, Symbol
+from sympy import Symbol
 
-from devito import Eq, Operator, Function, TimeFunction, Inc
+from devito import Eq, Operator, Function, TimeFunction, Inc, solve
 from examples.seismic import PointSource, Receiver
 
 
@@ -34,7 +34,6 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     as well as the updated time-step (u.forwad or u.backward)
     :return: Stencil for the wave-equation
     """
-
     # Creat a temporary symbol for H to avoid expensive sympy solve
     H = Symbol('H')
     # Define time sep to be updated
@@ -44,7 +43,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     # Add dampening field according to the propagation direction
     eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
     # Solve the symbolic equation for the field to be updated
-    eq_time = solve(eq, next, rational=False, simplify=False)[0]
+    eq_time = solve(eq, next)
     # Get the spacial FD
     lap = laplacian(field, m, s, kernel)
     # return the Stencil with H replaced by its symbolic expression
@@ -182,12 +181,13 @@ def BornOperator(model, source, receiver, space_order=4,
                    npoint=receiver.npoint)
 
     # Create wavefields and a dm field
-    u = TimeFunction(name="u", grid=model.grid, save=None,
+    u = TimeFunction(name='u', grid=model.grid,
                      time_order=2, space_order=space_order)
     U = TimeFunction(name="U", grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
     dm = Function(name="dm", grid=model.grid, space_order=0)
 
+    print((u+U).dt)
     s = model.grid.stepping_dim.spacing
     eqn1 = iso_stencil(u, m, s, damp, kernel)
     eqn2 = iso_stencil(U, m, s, damp, kernel, q=-dm*u.dt2)

@@ -32,7 +32,7 @@ class AcousticWaveSolver(object):
         self.source = source
         self.receiver = receiver
 
-        self.space_order = space_order
+        self.space_order = space_order // 2 if kernel == 'OT4' else space_order
         self.kernel = kernel
 
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
@@ -67,7 +67,7 @@ class AcousticWaveSolver(object):
     @memoized_meth
     def op_born(self):
         """Cached operator for born runs"""
-        return BornOperator(self.model, save=None, source=self.source,
+        return BornOperator(self.model, source=self.source,
                             receiver=self.receiver, kernel=self.kernel,
                             space_order=self.space_order, **self._kwargs)
 

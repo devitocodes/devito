@@ -1,11 +1,10 @@
 from collections import OrderedDict
 
 import numpy as np
-from sympy import cos, sin
 
 from devito.dse.backends import AbstractRewriter, dse_pass
 from devito.dse.manipulation import common_subexprs_elimination
-from devito.symbolics import Eq, bhaskara_cos, bhaskara_sin, retrieve_indexed, q_affine
+from devito.symbolics import Eq, retrieve_indexed, q_affine
 from devito.types import Scalar
 
 
@@ -73,18 +72,3 @@ class BasicRewriter(AbstractRewriter):
         processed = common_subexprs_elimination(candidates, make)
 
         return cluster.rebuild(skip + processed)
-
-    @dse_pass
-    def _optimize_trigonometry(self, cluster, **kwargs):
-        """
-        Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
-        polynomials.
-        """
-
-        processed = []
-        for expr in cluster.exprs:
-            handle = expr.replace(sin, bhaskara_sin)
-            handle = handle.replace(cos, bhaskara_cos)
-            processed.append(handle)
-
-        return cluster.rebuild(processed)

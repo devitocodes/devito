@@ -1,6 +1,5 @@
-from collections import Counter
-
 from sympy import cos, sin
+from collections import Counter
 
 from devito.symbolics.search import retrieve_ops, search
 from devito.logger import warning

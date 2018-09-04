@@ -1,9 +1,8 @@
 from collections import Iterable, OrderedDict, namedtuple
 
-import sympy
-from sympy import Number, Indexed, Symbol, LM, LC
+from sympy import Number, Indexed, Symbol, LM, LC, Mul, Add
 
-from devito.symbolics.extended_sympy import Add, Mul, Eq, FrozenExpr
+from devito.symbolics.extended_sympy import FrozenExpr, Eq, ExprDiv
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
@@ -114,7 +113,6 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
     for expr in as_tuple(exprs):
         assert expr.is_Equality
         root = expr.rhs
-
         while True:
             ret, flag = run(root)
             if isinstance(make, dict) and root.is_Atom and flag:
@@ -128,7 +126,6 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
 
     # Post-process the output
     found = [Eq(v, k) for k, v in found.items()]
-
     return found + rebuilt, found
 
 
@@ -162,9 +159,9 @@ def pow_to_mul(expr):
         base, exp = expr.as_base_exp()
         if exp <= 0 or not exp.is_integer:
             # Cannot handle powers containing non-integer non-positive exponents
-            return expr
+            return ExprDiv(Number(1), pow_to_mul(base**(-exp)))
         else:
-            return sympy.Mul(*[base]*exp, evaluate=False)
+            return Mul(*[base]*exp, evaluate=False)
     else:
         return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
 

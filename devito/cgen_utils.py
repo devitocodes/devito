@@ -1,5 +1,6 @@
 from collections import OrderedDict
 
+import sympy
 import numpy as np
 import cgen as c
 
@@ -7,6 +8,7 @@ from mpmath.libmp import prec_to_dps, to_str
 from sympy import Function
 from sympy.printing.ccode import C99CodePrinter
 
+from devito.symbolics import pow_to_mul
 
 class Allocator(object):
 
@@ -171,8 +173,14 @@ class CodePrinter(C99CodePrinter):
     def _print_IntDiv(self, expr):
         return str(expr)
 
+    def _print_ExprDiv(self, expr):
+        return "%s / %s" % (self._print(expr.lhs), self._print(expr.rhs))
+
     def _print_Byref(self, expr):
         return "&%s" % expr.name
+
+    def _print_Pow(self, expr):
+        return self._print(pow_to_mul(expr))
 
 
 def ccode(expr, dtype=np.float32, **settings):
@@ -191,5 +199,6 @@ printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i
 INT = Function('INT')
 FLOAT = Function('FLOAT')
 DOUBLE = Function('DOUBLE')
+FLOOR = Function('floor')
 
 cast_mapper = {np.float32: FLOAT, float: DOUBLE, np.float64: DOUBLE}

@@ -1,7 +1,8 @@
-from sympy import Eq, diff, cos, sin, nan
+from sympy import diff, nan, Eq
 
 from devito.dimension import Dimension
 from devito.tools import as_tuple
+
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
@@ -42,6 +43,7 @@ def q_terminal(expr):
 
 
 def q_trigonometry(expr):
+    from devito.finite_differences.differentiable import cos, sin
     return expr.is_Function and expr.func in [sin, cos]
 
 

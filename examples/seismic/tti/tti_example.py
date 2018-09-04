@@ -18,7 +18,7 @@ def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.015, time_range=time_range)
+    src = RickerSource(name='src', grid=model.grid, f0=0.010, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
@@ -41,7 +41,6 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
 
     rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
-
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
 

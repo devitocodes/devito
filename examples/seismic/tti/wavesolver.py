@@ -65,6 +65,11 @@ class AnisotropicWaveSolver(object):
             else self.space_order
 
         time_order = 1 if kernel == 'staggered' else 2
+        if kernel == 'staggered':
+            stagg_u = (0, 0, 0, -1) if self.model.grid.dim == 3 else (0, 0, -1)
+            stagg_v = (0, -1, -1, 0) if self.model.grid.dim == 3 else (0, -1, 0)
+        else:
+            stagg_u = stagg_v = tuple([None]*(self.model.grid.dim+1))
         # Source term is read-only, so re-use the default
         src = src or self.source
         # Create a new receiver object to store the result
@@ -73,13 +78,15 @@ class AnisotropicWaveSolver(object):
                               coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield if not provided
-        u = u or TimeFunction(name='u', grid=self.model.grid,
-                              save=self.source.nt if save else None,
-                              time_order=time_order, space_order=self.space_order)
+        if u is None:
+            u = TimeFunction(name='u', grid=self.model.grid, staggered=stagg_u,
+                             save=self.source.nt if save else None,
+                             time_order=time_order, space_order=self.space_order)
         # Create the forward wavefield if not provided
-        v = v or TimeFunction(name='v', grid=self.model.grid,
-                              save=self.source.nt if save else None,
-                              time_order=time_order, space_order=self.space_order)
+        if v is None:
+            v = TimeFunction(name='v', grid=self.model.grid, staggered=stagg_v,
+                             save=self.source.nt if save else None,
+                             time_order=time_order, space_order=self.space_order)
 
         if kernel == 'staggered':
             vx, vz, vy = particle_velocity_fields(self.model, self.space_order)

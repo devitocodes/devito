@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from conftest import skipif_yask
-from sympy import Derivative, simplify, diff
+from sympy import Derivative, diff
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
                     clear_cache, ConditionalDimension, left, right, centered,
@@ -96,8 +96,8 @@ def test_derivatives_space(grid, derivative, dim, order):
     else:
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
     s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
-    assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-    assert(expr == s_expr)  # Exact equailty
+    assert((expr - s_expr) == 0)  # Symbolic equality
+    assert(e == s_e for e, s_e in zip(expr.args, s_expr.args))  # Exact equality
 
 
 @skipif_yask
@@ -114,8 +114,8 @@ def test_second_derivatives_space(grid, derivative, dim, order):
     width = int(order / 2)
     indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
     s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
-    assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-    assert(expr == s_expr)  # Exact equailty
+    assert((expr - s_expr) == 0)  # Symbolic equality
+    assert(e == s_e for e, s_e in zip(expr.args, s_expr.args))  # Exact equality
 
 
 @skipif_yask
@@ -160,14 +160,16 @@ def test_fd_space(derivative, space_order):
     space_border = space_order
     error = abs(du.data[space_border:-space_border] -
                 Dpolyvalues[space_border:-space_border])
+
     assert np.isclose(np.mean(error), 0., atol=1e-3)
 
 
 @skipif_yask
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+@pytest.mark.parametrize('deriv_order', [1, 2])
 @pytest.mark.parametrize('stagger', [centered, right, left])
 # Only test x and t as y and z are the same as x
-def test_fd_space_staggered(space_order, stagger):
+def test_fd_space_staggered(space_order, stagger, deriv_order):
     """
     This test compares the discrete finite-difference scheme against polynomials
     For a given order p, the finite difference scheme should
@@ -175,6 +177,8 @@ def test_fd_space_staggered(space_order, stagger):
     :param derivative: name of the derivative to be tested
     :param space_order: space order of the finite difference stencil
     """
+    if space_order == 2 and deriv_order == 2:
+        return True
     clear_cache()
     if stagger == left:
         off = -.5
@@ -201,9 +205,12 @@ def test_fd_space_staggered(space_order, stagger):
     u.data[:] = polyvalues
     # True derivative of the polynome
     Dpolynome = diff(polynome)
+    if deriv_order == 2:
+        Dpolynome = diff(Dpolynome)
     Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx2], np.float32)
     # FD derivative, symbolic
-    u_deriv = staggered_diff(u, order=space_order, dim=x, stagger=stagger)
+    u_deriv = staggered_diff(u, fd_order=space_order, dim=x, deriv_order=deriv_order,
+                             stagger=stagger)
     # Compute numerical FD
     stencil = Eq(du, u_deriv)
     op = Operator(stencil, subs={x.spacing: dx})

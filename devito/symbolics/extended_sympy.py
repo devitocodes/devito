@@ -3,16 +3,14 @@ Extended SymPy hierarchy.
 """
 
 import sympy
-from sympy import Expr, Integer, Float, Symbol
+from sympy import Expr, Integer, Symbol
 from sympy.core.basic import _aresame
-from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
 from devito.tools import Pickable, as_tuple
 
-__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'IntDiv',
+__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'IntDiv', 'Add', 'Mul',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'Macro', 'taylor_sin', 'taylor_cos',
-           'bhaskara_sin', 'bhaskara_cos']
+           'ListInitializer', 'Byref', 'Macro', 'ExprDiv']
 
 
 class FrozenExpr(Expr):
@@ -28,7 +26,7 @@ class FrozenExpr(Expr):
     At the moment, only xreplace is overridded (to prevent unpicking factorizations)
     """
 
-    def xreplace(self, rule):
+    def xreplace(self, rule, **kwargs):
         if self in rule:
             return rule[self]
         elif rule:
@@ -40,7 +38,8 @@ class FrozenExpr(Expr):
                     args.append(a)
             args = tuple(args)
             if not _aresame(args, self.args):
-                return self.func(*args, evaluate=False)
+                kwargs["evaluate"] = False
+                return self.func(*args, **kwargs)
         return self
 
 
@@ -98,6 +97,30 @@ class IntDiv(sympy.Expr):
 
     def __new__(cls, lhs, rhs, params=None):
         rhs = Integer(rhs)
+        obj = sympy.Expr.__new__(cls, lhs, rhs)
+        obj.lhs = lhs
+        obj.rhs = rhs
+        return obj
+
+    def __str__(self):
+        return "%s / %s" % (self.lhs, self.rhs)
+
+    __repr__ = __str__
+
+
+class ExprDiv(sympy.Expr):
+
+    """
+    A support type for integer division. Should only be used by the compiler
+    for code generation purposes (i.e., not for symbolic manipulation).
+    This works around the annoying way SymPy represents integer division,
+    namely as a ``Mul`` between the numerator and the reciprocal of the
+    denominator (e.g., ``a*3.args -> (a, 1/3)), which ends up generating
+    "weird" C code.
+    """
+    is_Atom = True
+
+    def __new__(cls, lhs, rhs, params=None):
         obj = sympy.Expr.__new__(cls, lhs, rhs)
         obj.lhs = lhs
         obj.rhs = rhs
@@ -259,77 +282,3 @@ class Macro(sympy.Symbol):
     Symbolic representation of a C++ macro.
     """
     pass
-
-
-class taylor_sin(TrigonometricFunction):
-
-    """
-    Approximation of the sine function using a Taylor polynomial.
-    """
-
-    @classmethod
-    def eval(cls, arg):
-        return eval_taylor_sin(arg)
-
-
-class taylor_cos(TrigonometricFunction):
-
-    """
-    Approximation of the cosine function using a Taylor polynomial.
-    """
-
-    @classmethod
-    def eval(cls, arg):
-        return 1.0 if arg == 0.0 else eval_taylor_cos(arg)
-
-
-class bhaskara_sin(TrigonometricFunction):
-
-    """
-    Approximation of the sine function using a Bhaskara polynomial.
-    """
-
-    @classmethod
-    def eval(cls, arg):
-        return eval_bhaskara_sin(arg)
-
-
-class bhaskara_cos(TrigonometricFunction):
-
-    """
-    Approximation of the cosine function using a Bhaskara polynomial.
-    """
-
-    @classmethod
-    def eval(cls, arg):
-        return 1.0 if arg == 0.0 else eval_bhaskara_sin(arg + 1.5708)
-
-
-# Utils
-
-def eval_bhaskara_sin(expr):
-    return 16.0*expr*(3.1416-abs(expr))/(49.3483-4.0*abs(expr)*(3.1416-abs(expr)))
-
-
-def eval_taylor_sin(expr):
-    v = expr + Mul(-1/6.0,
-                   Mul(expr, expr, expr, evaluate=False),
-                   1.0 + Mul(Mul(expr, expr, evaluate=False), -0.05, evaluate=False),
-                   evaluate=False)
-    try:
-        Float(expr)
-        return v.doit()
-    except (TypeError, ValueError):
-        return v
-
-
-def eval_taylor_cos(expr):
-    v = 1.0 + Mul(-0.5,
-                  Mul(expr, expr, evaluate=False),
-                  1.0 + Mul(expr, expr, -1/12.0, evaluate=False),
-                  evaluate=False)
-    try:
-        Float(expr)
-        return v.doit()
-    except (TypeError, ValueError):
-        return v
