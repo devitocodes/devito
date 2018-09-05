@@ -35,12 +35,16 @@ class Differentiable(sympy.Expr):
         self.grid = kwargs.get('grid')
         # Generate FD shortcuts for expression or copy from input
         self.fd = kwargs.get('fd', [])
-        for d in self.fd:
-            setattr(self.__class__, d[1], property(d[0], d[1]))
-        self.derivatives = tuple(d[1] for d in self.fd)
         # Save kwargs
         self._kwargs = kwargs
         self._expr = expr
+
+    def __getattr__(self, name):
+        if name == 'fd':
+            raise AttributeError()
+        if name in self.fd.keys():
+            return self.fd[name][0](self)
+        return self.__getattribute__(name)
 
     def xreplace(self, rule):
         out = getattr(self, '_expr', self)
@@ -65,7 +69,7 @@ class Differentiable(sympy.Expr):
         merged["time_order"] = np.min([getattr(self, 'time_order', 100) or 100,
                                        getattr(other, 'time_order', 100)])
         merged["indices"] = tuple(set(self.indices + getattr(other, 'indices', ())))
-        merged["fd"] = list(set(getattr(self, 'fd', []) + getattr(other, 'fd', [])))
+        merged["fd"] = dict(getattr(self, 'fd', {}), **getattr(other, 'fd', {}))
         merged["staggered"] = self.staggered
         merged["dtype"] = self.dtype
         return merged

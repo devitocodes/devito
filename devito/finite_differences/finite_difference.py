@@ -328,7 +328,7 @@ def generate_fd_functions(function):
         else:
             side[d] = centered
 
-    derivatives = []
+    derivatives = dict()
     done = []
 
     for d in dimensions:
@@ -345,7 +345,7 @@ def generate_fd_functions(function):
             name_fd = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
             desciption = 'derivative of order %d w.r.t dimension %s' % (o, d)
 
-            derivatives += [(deriv, name_fd, desciption)]
+            derivatives[name_fd] = (deriv, desciption)
             # Cross derivatives with the other dimension
             # Skip already done dimensions a dxdy is the same as dydx
             for d2 in other_dims:
@@ -359,7 +359,7 @@ def generate_fd_functions(function):
                     name_fd2 += 'd%s%d' % (name2, o2) if o2 > 1 else 'd%s' % name2
                     desciption = 'derivative of order (%d, %d) ' % (o, o2)
                     desciption += 'w.r.t dimension (%s, %s) ' % (d, d2)
-                    derivatives += [(deriv, name_fd2, desciption)]
+                    derivatives[name_fd2] = (deriv, desciption)
 
     # add non-conventional, non-centered first-order FDs
     if not is_staggered:
@@ -369,13 +369,13 @@ def generate_fd_functions(function):
                             dim=d, side=left)
             name_fd = 'd%sl' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
-            derivatives += [(deriv, name_fd, desciption)]
+            derivatives[name_fd] = (deriv, desciption)
             # right
             deriv = partial(first_derivative, order=space_fd_order,
                             dim=d, side=right)
             name_fd = 'd%sr' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
-            derivatives += [(deriv, name_fd, desciption)]
+            derivatives[name_fd] = (deriv, desciption)
     else:
         # Add centered first derivatives if staggered
         for d in dimensions:
@@ -385,7 +385,7 @@ def generate_fd_functions(function):
             name_fd = 'd%sc' % name
             desciption = 'derivative of order %d w.r.t dimension %s' % (o, d)
 
-            derivatives += [(deriv, name_fd, desciption)]
+            derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
 
@@ -395,7 +395,4 @@ def initialize_derivatives(function):
     Dynamically create notational shortcuts for space derivatives.
     """
     fd_derivatives = generate_fd_functions(function)
-    for d in fd_derivatives:
-        setattr(function.__class__, d[1], property(d[0], d[1]))
-    function.derivatives = tuple(d[1] for d in fd_derivatives)
     function.fd = fd_derivatives
