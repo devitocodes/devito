@@ -497,12 +497,14 @@ object. Optionally also includes point markers for sources and receivers.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the symbol representing this source.</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
-<li><strong>coordinates</strong> – Point coordinates for this source.</li>
 <li><strong>time_range</strong> – <a class="reference internal" href="#examples.seismic.source.TimeAxis" title="examples.seismic.source.TimeAxis"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeAxis</span></code></a> TimeAxis(start, step, num) object.</li>
-<li><strong>data</strong> – (Optional) Data values to initialise point data.</li>
-<li><strong>npoint</strong> – (Optional) Number of sparse points represented by this source.</li>
-<li><strong>time_order</strong> – (Optional) Time discretization order (defaults to 2).</li>
-<li><strong>dimension</strong> – :(Optional) class:<cite>Dimension</cite> object for
+<li><strong>npoint</strong> – (Optional) number of sparse points represented by this source.</li>
+<li><strong>data</strong> – (Optional) data values to initialise point data.</li>
+<li><strong>coordinates</strong> – (Optional) point coordinates for this source.</li>
+<li><strong>space_order</strong> – (Optional) space discretization order.</li>
+<li><strong>time_order</strong> – (Optional) time discretization order (defaults to 2).</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>dimension</strong> – (Optional) class:<cite>Dimension</cite> object for
 representing the number of points in this source.</li>
 </ul>
 </td>

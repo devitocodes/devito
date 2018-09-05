@@ -590,8 +590,11 @@ In alternative to an integer, a tuple, indicating the padding
 in each dimension, may be passed; in this case, an error is
 raised if such tuple has fewer entries then the number of space
 dimensions.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
-<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+<li><strong>allocator</strong> – (Optional) an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
 specify where to allocate the function data when running
 on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
 __doc__ for more information about possible allocators.</li>
@@ -1009,15 +1012,18 @@ the contribution of the point (i, j, k) will be multiplied by
 coefficients[…, i]*coefficients[…, j]*coefficients[…,k]. So
 for r=6, we will store 18 coefficients per sparse point (instead
 of potentially 216). Shape must be [npoint][grid.ndim][r].</li>
+<li><strong>space_order</strong> – (Optional) discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) discretisation order for time derivatives.
+Default to 1.</li>
 <li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
-Default to 0.</li>
-<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
-Default to 1.</li>
-<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
 </ul>
 </td>
 </tr>
@@ -1065,15 +1071,18 @@ the contribution of the point (i, j, k) will be multiplied by
 coefficients[…, i]*coefficients[…, j]*coefficients[…,k]. So
 for r=6, we will store 18 coefficients per sparse point (instead
 of potentially 216). Shape must be [npoint][grid.ndim][r].</li>
+<li><strong>space_order</strong> – (Optional) discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) discretisation order for time derivatives.
+Default to 1.</li>
 <li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
-Default to 0.</li>
-<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
-Default to 1.</li>
-<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
 </ul>
 </td>
 </tr>
@@ -1133,14 +1142,17 @@ data points.</p>
 <li><strong>name</strong> – Name of the function.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
 <li><strong>grid</strong> – <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a> object defining the computational domain.</li>
+<li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
+<li><strong>space_order</strong> – (Optional) discretisation order for space derivatives.</li>
 <li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
-<li><strong>space_order</strong> – Discretisation order for space derivatives.</li>
-<li><strong>dtype</strong> – Data type of the buffered data.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
-<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+<li><strong>allocator</strong> – (Optional) an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
 specify where to allocate the function data when running
 on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
 __doc__ for more information about possible allocators.</li>
@@ -1176,17 +1188,20 @@ symbolic function.</p>
 <li><strong>nt</strong> – Size of the time dimension for point data.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
 <li><strong>grid</strong> – <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a> object defining the computational domain.</li>
+<li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
+<li><strong>space_order</strong> – (Optional) discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) discretisation order for time derivatives.
+Default to 1.</li>
 <li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
-<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
-Default to 0.</li>
-<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
-Default to 1.</li>
 <li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
-<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+<li><strong>allocator</strong> – (Optional) an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
 specify where to allocate the function data when running
 on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
 __doc__ for more information about possible allocators.</li>
@@ -1236,8 +1251,8 @@ and right (<code class="docutils literal notranslate"><span class="pre">rp</span
 <li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
-<li><strong>save</strong> – (Optional) Defaults to <cite>None</cite>, which indicates the use of
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>save</strong> – (Optional) defaults to <cite>None</cite>, which indicates the use of
 alternating buffers. This enables cyclic writes to the
 TimeFunction. For example, if the TimeFunction <code class="docutils literal notranslate"><span class="pre">u(t,</span> <span class="pre">x)</span></code> has
 shape (3, 100), then, in an <a class="reference internal" href="#devito.base.Operator" title="devito.base.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a>, <code class="docutils literal notranslate"><span class="pre">t</span></code> will
@@ -1250,7 +1265,7 @@ size for the time buffer, one should use the syntax
 intermediate results are required (or, simply, to forbid the
 usage of an alternating buffer), an explicit value for <code class="docutils literal notranslate"><span class="pre">save</span></code>
 (i.e., an integer) must be provided.</li>
-<li><strong>time_dim</strong> – (Optional) The <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent
+<li><strong>time_dim</strong> – (Optional) the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent
 time in this symbol. Defaults to the time dimension provided
 by the <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
 <li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
@@ -1260,8 +1275,11 @@ In alternative to an integer, a tuple, indicating the padding
 in each dimension, may be passed; in this case, an error is
 raised if such tuple has fewer entries then the number of
 space dimensions.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
-<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+<li><strong>allocator</strong> – (Optional) an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
 specify where to allocate the function data when running
 on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
 __doc__ for more information about possible allocators.</li>
@@ -2354,8 +2372,11 @@ In alternative to an integer, a tuple, indicating the padding
 in each dimension, may be passed; in this case, an error is
 raised if such tuple has fewer entries then the number of space
 dimensions.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
-<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+<li><strong>allocator</strong> – (Optional) an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
 specify where to allocate the function data when running
 on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
 __doc__ for more information about possible allocators.</li>
@@ -2444,8 +2465,8 @@ and right (<code class="docutils literal notranslate"><span class="pre">rp</span
 <li><strong>shape</strong> – (Optional) shape of the domain region in grid points.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
-<li><strong>save</strong> – (Optional) Defaults to <cite>None</cite>, which indicates the use of
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>save</strong> – (Optional) defaults to <cite>None</cite>, which indicates the use of
 alternating buffers. This enables cyclic writes to the
 TimeFunction. For example, if the TimeFunction <code class="docutils literal notranslate"><span class="pre">u(t,</span> <span class="pre">x)</span></code> has
 shape (3, 100), then, in an <code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code>, <code class="docutils literal notranslate"><span class="pre">t</span></code> will
@@ -2458,7 +2479,7 @@ size for the time buffer, one should use the syntax
 intermediate results are required (or, simply, to forbid the
 usage of an alternating buffer), an explicit value for <code class="docutils literal notranslate"><span class="pre">save</span></code>
 (i.e., an integer) must be provided.</li>
-<li><strong>time_dim</strong> – (Optional) The <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent
+<li><strong>time_dim</strong> – (Optional) the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent
 time in this symbol. Defaults to the time dimension provided
 by the <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code>.</li>
 <li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
@@ -2468,8 +2489,11 @@ In alternative to an integer, a tuple, indicating the padding
 in each dimension, may be passed; in this case, an error is
 raised if such tuple has fewer entries then the number of
 space dimensions.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
-<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+<li><strong>allocator</strong> – (Optional) an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
 specify where to allocate the function data when running
 on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
 __doc__ for more information about possible allocators.</li>
@@ -2556,14 +2580,17 @@ data points.</p>
 <li><strong>name</strong> – Name of the function.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
+<li><strong>space_order</strong> – (Optional) discretisation order for space derivatives.</li>
 <li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
-<li><strong>space_order</strong> – Discretisation order for space derivatives.</li>
-<li><strong>dtype</strong> – Data type of the buffered data.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
-<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+<li><strong>allocator</strong> – (Optional) an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
 specify where to allocate the function data when running
 on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
 __doc__ for more information about possible allocators.</li>
@@ -2611,6 +2638,11 @@ interpolation according to:
 <code class="descname">coordinate_symbols</code><a class="headerlink" href="#devito.function.SparseFunction.coordinate_symbols" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol representing the coordinate values in each dimension</p>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.SparseFunction.coordinates">
+<code class="descname">coordinates</code><a class="headerlink" href="#devito.function.SparseFunction.coordinates" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.function.SparseFunction.default_assumptions">
@@ -2692,17 +2724,20 @@ than an assignment. Defaults to False.</li>
 <li><strong>nt</strong> – Size of the time dimension for point data.</li>
 <li><strong>npoint</strong> – Number of points to sample.</li>
 <li><strong>grid</strong> – <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code> object defining the computational domain.</li>
+<li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
+<li><strong>space_order</strong> – (Optional) discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) discretisation order for time derivatives.
+Default to 1.</li>
 <li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>coordinates</strong> – (Optional) coordinate data for the sparse points.</li>
-<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
-Default to 0.</li>
-<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
-Default to 1.</li>
 <li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
-<li><strong>allocator</strong> – (Optional) An object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+<li><strong>allocator</strong> – (Optional) an object of type <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to
 specify where to allocate the function data when running
 on a NUMA architecture. Refer to <code class="docutils literal notranslate"><span class="pre">default_allocator()</span></code>’s
 __doc__ for more information about possible allocators.</li>
@@ -2806,15 +2841,18 @@ the contribution of the point (i, j, k) will be multiplied by
 coefficients[…, i]*coefficients[…, j]*coefficients[…,k]. So
 for r=6, we will store 18 coefficients per sparse point (instead
 of potentially 216). Shape must be [npoint][grid.ndim][r].</li>
+<li><strong>space_order</strong> – (Optional) discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) discretisation order for time derivatives.
+Default to 1.</li>
 <li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
-Default to 0.</li>
-<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
-Default to 1.</li>
-<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
 </ul>
 </td>
 </tr>
@@ -2915,15 +2953,18 @@ the contribution of the point (i, j, k) will be multiplied by
 coefficients[…, i]*coefficients[…, j]*coefficients[…,k]. So
 for r=6, we will store 18 coefficients per sparse point (instead
 of potentially 216). Shape must be [npoint][grid.ndim][r].</li>
+<li><strong>space_order</strong> – (Optional) discretisation order for space derivatives.
+Default to 0.</li>
+<li><strong>time_order</strong> – (Optional) discretisation order for time derivatives.
+Default to 1.</li>
 <li><strong>shape</strong> – (Optional) shape of the function. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoints,)</span></code>.</li>
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
-<li><strong>space_order</strong> – (Optional) Discretisation order for space derivatives.
-Default to 0.</li>
-<li><strong>time_order</strong> – (Optional) Discretisation order for time derivatives.
-Default to 1.</li>
-<li><strong>dtype</strong> – (Optional) Data type of the buffered data.</li>
-<li><strong>initializer</strong> – (Optional) A callable to initialize the data</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
+<li><strong>initializer</strong> – (Optional) a callable or an object exposing buffer interface
+used to initialize the data. If a callable is provided,
+initialization is deferred until the first access to
+<code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
 </ul>
 </td>
 </tr>
