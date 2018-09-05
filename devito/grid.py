@@ -3,14 +3,13 @@ from collections import namedtuple
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
 from devito.mpi import Distributor
-from devito.function import Constant
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap
 
 from sympy import prod
 import numpy as np
 
-__all__ = ['Grid']
+__all__ = ['Grid', 'staggered']
 
 
 class Grid(ArgProvider):
@@ -165,6 +164,7 @@ class Grid(ArgProvider):
     @property
     def _const(self):
         """Return the type to create constant symbols."""
+        from devito.function import Constant
         return Constant
 
     def is_distributed(self, dim):
@@ -201,3 +201,23 @@ class Grid(ArgProvider):
         for k, v in state.items():
             setattr(self, k, v)
         self._distributor = Distributor(self.shape, self.dimensions)
+
+
+def staggered(function):
+    """
+    For a given function and it's staggered property `staggered`
+    returns a tuple of 0 or 1 for each dimension:
+    0 if not staggered in the dimension
+    1 if staggered in the dimension
+    """
+    s = (lambda x: x if type(x) is tuple else (x,))(function.staggered)
+
+    if function.staggered in ['node', None]:
+        return tuple(0 for _ in function.indices)
+    if function.staggered == 'cell':
+        return tuple(1 for _ in function.indices)
+    staggered = ()
+    for d in function.indices:
+        staggered += (1,) if d in s else (0,)
+
+    return staggered

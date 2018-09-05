@@ -171,6 +171,9 @@ class CodePrinter(C99CodePrinter):
     def _print_IntDiv(self, expr):
         return str(expr)
 
+    def _print_ExprDiv(self, expr):
+        return "%s / %s" % (self._print(expr.lhs), self._print(expr.rhs))
+
     def _print_Byref(self, expr):
         return "&%s" % expr.name
 
@@ -191,5 +194,6 @@ printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i
 INT = Function('INT')
 FLOAT = Function('FLOAT')
 DOUBLE = Function('DOUBLE')
+FLOOR = Function('floor')
 
 cast_mapper = {np.float32: FLOAT, float: DOUBLE, np.float64: DOUBLE}

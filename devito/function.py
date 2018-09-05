@@ -16,9 +16,11 @@ from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
+from devito.grid import staggered
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
+from devito.finite_differences import Differentiable, initialize_derivatives
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import Tag, ReducerMap, prod, powerset, is_integer
@@ -108,7 +110,7 @@ class Constant(AbstractCachedSymbol):
     _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
 
 
-class TensorFunction(AbstractCachedFunction):
+class TensorFunction(AbstractCachedFunction, Differentiable):
 
     """
     Utility class to encapsulate all symbolic types that represent
@@ -137,10 +139,7 @@ class TensorFunction(AbstractCachedFunction):
             self._grid = kwargs.get('grid')
 
             # Staggered mask
-            self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
-            if len(self.staggered) != len(self.indices):
-                raise ValueError("`staggered` needs %s entries for indices %s"
-                                 % (len(self.indices), self.indices))
+            self._staggered = kwargs.get('staggered', None)
 
             # Data-related properties and data initialization
             self._data = None
@@ -227,7 +226,7 @@ class TensorFunction(AbstractCachedFunction):
 
             Alias to ``self.shape``.
         """
-        return tuple(i - j for i, j in zip(self._shape, self.staggered))
+        return tuple(i - j for i, j in zip(self._shape, staggered(self)))
 
     @property
     def shape_with_halo(self):
@@ -398,7 +397,7 @@ class TensorFunction(AbstractCachedFunction):
         """
         symbolic_shape = super(TensorFunction, self).symbolic_shape
         return tuple(sympy.Add(i, -j, evaluate=False)
-                     for i, j in zip(symbolic_shape, self.staggered))
+                     for i, j in zip(symbolic_shape, staggered(self)))
 
     @property
     def _mask_interior(self):
@@ -477,7 +476,7 @@ class TensorFunction(AbstractCachedFunction):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
+        for i, s, o, k in zip(self.indices, self.shape, staggered(self), key.indices):
             args.update(i._arg_defaults(start=0, size=s+o, alias=k))
 
         # Add MPI-related data structures
@@ -504,7 +503,7 @@ class TensorFunction(AbstractCachedFunction):
                 # We've been provided a pure-data replacement (array)
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
-                for i, s, o in zip(self.indices, new.shape, self.staggered):
+                for i, s, o in zip(self.indices, new.shape, staggered(self)):
                     values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
                 # Add MPI-related data structures
                 if self.grid is not None:
@@ -596,18 +595,20 @@ class Function(TensorFunction):
 
     .. note::
 
-       The tuple :param staggered: contains a ``1`` in each dimension
-       entry that should be staggered, and ``0`` otherwise. For example,
-       ``staggered=(1, 0, 0)`` entails discretization on horizontal edges,
-       ``staggered=(0, 0, 1)`` entails discretization on vertical edges,
-       ``staggered=(0, 1, 1)`` entails discretization side facets and
-       ``staggered=(1, 1, 1)`` entails discretization on cells.
+       The dimension or String :param staggered: defines the dimension in which the
+       function is staggerd or if on the node. For example,
+       ``staggered=x`` entails discretization on x edges,
+       ``staggered=y`` entails discretization on y edges,
+       ``staggered=(x, y)`` entails discretization xy facets and
+       ``staggered='node'`` entails discretization on node
+       ``staggerd='cell'`` entails discretization on cell.
     """
 
     is_Function = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            self._kwargs = kwargs
             super(Function, self).__init__(*args, **kwargs)
 
             # Space order
@@ -620,73 +621,13 @@ class Function(TensorFunction):
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
 
             # Dynamically add derivative short-cuts
-            self._initialize_derivatives()
-
-    def _initialize_derivatives(self):
-        """
-        Dynamically create notational shortcuts for space derivatives.
-        """
-        for dim in self.space_dimensions:
-            name = dim.parent.name if dim.is_Derived else dim.name
-            # First derivative, centred
-            dx = partial(first_derivative, order=self.space_order,
-                         dim=dim, side=centered)
-            setattr(self.__class__, 'd%s' % name,
-                    property(dx, 'Return the symbolic expression for '
-                             'the centered first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # First derivative, left
-            dxl = partial(first_derivative, order=self.space_order,
-                          dim=dim, side=left)
-            setattr(self.__class__, 'd%sl' % name,
-                    property(dxl, 'Return the symbolic expression for '
-                             'the left-sided first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # First derivative, right
-            dxr = partial(first_derivative, order=self.space_order,
-                          dim=dim, side=right)
-            setattr(self.__class__, 'd%sr' % name,
-                    property(dxr, 'Return the symbolic expression for '
-                             'the right-sided first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # Second derivative
-            dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
-                          fd_order=int(self.space_order / 2))
-            setattr(self.__class__, 'd%s2' % name,
-                    property(dx2, 'Return the symbolic expression for '
-                             'the second derivative wrt. the '
-                             '%s dimension' % name))
-
-            # Fourth derivative
-            dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
-                          fd_order=max(int(self.space_order / 2), 2))
-            setattr(self.__class__, 'd%s4' % name,
-                    property(dx4, 'Return the symbolic expression for '
-                             'the fourth derivative wrt. the '
-                             '%s dimension' % name))
-
-            for dim2 in self.space_dimensions:
-                name2 = dim2.parent.name if dim2.is_Derived else dim2.name
-                # First cross derivative
-                dxy = partial(cross_derivative, order=self.space_order,
-                              dims=(dim, dim2))
-                setattr(self.__class__, 'd%s%s' % (name, name2),
-                        property(dxy, 'Return the symbolic expression for '
-                                 'the first cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (name, name2)))
-
-                # Second cross derivative
-                dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
-                                order=self.space_order)
-                setattr(self.__class__, 'd%s2%s2' % (dim.name, name2),
-                        property(dx2y2, 'Return the symbolic expression for '
-                                 'the second cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (name, name2)))
+            initialize_derivatives(self)
+            # Add fd property to _kwargs for Differentiable constructor
+            self._kwargs["space_order"] = self.space_order
+            self._kwargs["time_order"] = 0
+            self._kwargs["dtype"] = self.dtype
+            self._kwargs["indices"] = self.indices
+            self._kwargs["fd"] = self.fd
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -757,27 +698,6 @@ class Function(TensorFunction):
             return tuple((i,)*2 if isinstance(i, int) else i for i in padding)
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
-
-    @property
-    def laplace(self):
-        """
-        Generates a symbolic expression for the Laplacian, the second
-        derivative wrt. all spatial dimensions.
-        """
-        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-
-        return sum([getattr(self, d) for d in derivs[:self.ndim]])
-
-    def laplace2(self, weight=1):
-        """
-        Generates a symbolic expression for the double Laplacian
-        wrt. all spatial dimensions.
-        """
-        order = self.space_order/2
-        first = sum([second_derivative(self, dim=d, order=order)
-                     for d in self.space_dimensions])
-        return sum([second_derivative(first * weight, dim=d, order=order)
-                    for d in self.space_dimensions])
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
@@ -875,6 +795,8 @@ class TimeFunction(Function):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
+            self.time_order = kwargs.get('time_order', 1)
             super(TimeFunction, self).__init__(*args, **kwargs)
 
             # Check we won't allocate too much memory for the system
@@ -882,13 +804,12 @@ class TimeFunction(Function):
             if np.dtype(self.dtype).itemsize * self.size > available_mem:
                 warning("Trying to allocate more memory for symbol %s " % self.name +
                         "than available on physical device, this will start swapping")
-
-            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
-            self.time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise TypeError("`time_order` must be int")
 
             self.save = kwargs.get('save')
+            self._kwargs["time_order"] = self.time_order
+
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -939,7 +860,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.indices[self._time_position]
 
-        return self.subs(_t, _t + i * _t.spacing)
+        return self.subs({_t: _t + i * _t.spacing})
 
     @property
     def backward(self):
@@ -947,29 +868,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.indices[self._time_position]
 
-        return self.subs(_t, _t - i * _t.spacing)
-
-    @property
-    def dt(self):
-        """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[self._time_position]
-        if self.time_order == 1:
-            # This hack is needed for the first-order diffusion test
-            indices = [_t, _t + _t.spacing]
-        else:
-            width = int(self.time_order / 2)
-            indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
-
-        return self.diff(_t).as_finite_difference(indices)
-
-    @property
-    def dt2(self):
-        """Symbol for the second derivative wrt the t dimension"""
-        _t = self.indices[0]
-        width_t = int(self.time_order / 2)
-        indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
-
-        return self.diff(_t, _t).as_finite_difference(indt)
+        return self.subs({_t: _t - i * _t.spacing})
 
     @property
     def _time_size(self):
