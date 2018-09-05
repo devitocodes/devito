@@ -16,10 +16,15 @@ class Differentiable(sympy.Expr):
     provides FD shortcuts for such expressions
     """
     _op_priority = 100.0
-    is_Function = False
-    is_TimeFunction = False
 
     def __new__(cls, *args, **kwargs):
+        if cls == Differentiable:
+            assert len(args) == 1
+            expr = args[0]
+            new_obj = sympy.Expr.__new__(cls, expr.args)
+            # Initialization
+            new_obj.__init__(expr, **kwargs)
+            return new_obj
         return sympy.Expr.__new__(cls, *args)
 
     def __init__(self, expr, **kwargs):
@@ -38,7 +43,6 @@ class Differentiable(sympy.Expr):
         # Save kwargs
         self._kwargs = kwargs
         self._expr = expr
-
 
     def xreplace(self, rule):
         out = getattr(self, '_expr', self)
@@ -103,9 +107,6 @@ class Differentiable(sympy.Expr):
     def __rtruediv__(self, other):
         return Differentiable(sympy.Mul(*[other, getattr(self, '_expr', self)**(-1)]),
                                         **self.merge_fd_properties(other))
-
-    def __neg__(self):
-        return self * -1
 
     def __pow__(self, exponent):
         if exponent > 0:

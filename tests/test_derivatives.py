@@ -58,8 +58,8 @@ def test_stencil_derivative(grid, shape, SymbolType, dim):
     s_dii = dii.as_finite_difference([i - i.spacing, i, i + i.spacing])
     # Check stencil length of first and second derivatives
     assert(len(s_di._expr.args) == 2 and len(s_dii._expr.args) == 3)
-    u_di = s_di.args[0].args[1]
-    u_dii = s_di.args[0].args[1]
+    u_di = s_di._expr.args[0].args[1]
+    u_dii = s_di._expr.args[0].args[1]
     # Ensure that devito meta-data survived symbolic transformation
     assert(u_di.grid.shape == shape and u_dii.grid.shape == shape)
     assert(u_di.shape == u.shape and u_dii.shape == u.shape)
@@ -76,7 +76,7 @@ def test_preformed_derivatives(grid, SymbolType, derivative, dim):
     """Test the stencil expressions provided by devito objects"""
     u = SymbolType(name='u', grid=grid, time_order=2, space_order=2)
     expr = getattr(u, derivative)
-    assert(len(expr.args) == dim)
+    assert(len(expr._expr.args) == dim)
 
 
 @skipif_yask
