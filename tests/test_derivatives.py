@@ -57,7 +57,7 @@ def test_stencil_derivative(grid, shape, SymbolType, dim):
     s_di = di.as_finite_difference([i - i.spacing, i])
     s_dii = dii.as_finite_difference([i - i.spacing, i, i + i.spacing])
     # Check stencil length of first and second derivatives
-    assert(len(s_di.args) == 2 and len(s_dii.args) == 3)
+    assert(len(s_di._expr.args) == 2 and len(s_dii._expr.args) == 3)
     u_di = s_di.args[0].args[1]
     u_dii = s_di.args[0].args[1]
     # Ensure that devito meta-data survived symbolic transformation

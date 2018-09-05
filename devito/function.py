@@ -110,7 +110,7 @@ class Constant(AbstractCachedSymbol):
     _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
 
 
-class TensorFunction(AbstractCachedFunction, Differentiable):
+class TensorFunction(AbstractCachedFunction):
 
     """
     Utility class to encapsulate all symbolic types that represent
@@ -537,7 +537,7 @@ class TensorFunction(AbstractCachedFunction, Differentiable):
         ['dtype', 'grid', 'staggered', 'initializer']
 
 
-class Function(TensorFunction):
+class Function(TensorFunction, Differentiable):
     """A :class:`TensorFunction` providing operations to express
     finite-difference approximation. A ``Function`` encapsulates
     space-varying data; for time-varying data, use :class:`TimeFunction`.
@@ -628,6 +628,7 @@ class Function(TensorFunction):
             self._kwargs["dtype"] = self.dtype
             self._kwargs["indices"] = self.indices
             self._kwargs["fd"] = self.fd
+            self._kwargs["grid"] = self.grid
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

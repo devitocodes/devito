@@ -4,6 +4,8 @@ import numpy as np
 
 from devito.finite_differences.finite_difference import generate_fd_functions
 from devito.symbolics.extended_sympy import ExprDiv
+from devito.finite_differences.utils import to_expr
+
 __all__ = ['Differentiable']
 
 
@@ -27,6 +29,7 @@ class Differentiable(sympy.Expr):
         self.time_order =  kwargs.get('time_order', 0)
         self.indices =  kwargs.get('indices', ())
         self.staggered =  kwargs.get('staggered')
+        self.grid = kwargs.get('grid')
         # Generate FD shortcuts for expression or copy from input
         self.fd = kwargs.get('fd', [])
         for d in self.fd:
@@ -35,6 +38,7 @@ class Differentiable(sympy.Expr):
         # Save kwargs
         self._kwargs = kwargs
         self._expr = expr
+
 
     def xreplace(self, rule):
         out = getattr(self, '_expr', self)
@@ -51,7 +55,6 @@ class Differentiable(sympy.Expr):
             if not _aresame(args, out.args):
                 return out.func(*args)
         return out
-
 
     def merge_fd_properties(self, other):
         merged = getattr(self, '_kwargs', dict())

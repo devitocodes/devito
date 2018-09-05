@@ -6,7 +6,7 @@ __all__ = ['to_expr']
 
 def to_expr(expr):
     if expr.is_Equality:
-        return Eq(to_expr(expr.lhs), to_expr(expr.rhs))
+        return Eq(to_expr(expr.lhs), to_expr(expr.rhs), region=expr._region)
     elif expr.is_Function:
         return expr
     elif hasattr(expr, '_expr'):
