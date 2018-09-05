@@ -211,13 +211,18 @@ def staggered(function):
     1 if staggered in the dimension
     """
     s = (lambda x: x if type(x) is tuple else (x,))(function.staggered)
-
     if function.staggered in ['node', None]:
         return tuple(0 for _ in function.indices)
     if function.staggered == 'cell':
         return tuple(1 for _ in function.indices)
     staggered = ()
+    s_neg = tuple([-ss for ss in s])
     for d in function.indices:
-        staggered += (1,) if d in s else (0,)
+        if d in s:
+            staggered += (1,)
+        elif d in s_neg:
+            staggered += (-1,)
+        else:
+            staggered += (0,)
 
     return staggered

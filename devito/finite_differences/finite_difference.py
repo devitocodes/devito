@@ -328,7 +328,6 @@ def generate_fd_functions(function):
         else:
             side[d] = centered
 
-    print(function, side, deriv_function)
     derivatives = []
     done = []
 
@@ -376,6 +375,16 @@ def generate_fd_functions(function):
                             dim=d, side=right)
             name_fd = 'd%sr' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
+            derivatives += [(deriv, name_fd, desciption)]
+    else:
+        # Add centered first derivatives if staggered
+        for d in dimensions:
+            name = 't' if d.is_Time else d.root.name
+            deriv = partial(deriv_function, deriv_order=1, dim=d,
+                            fd_order=dim_order, stagger=centered)
+            name_fd = 'd%sc' % name
+            desciption = 'derivative of order %d w.r.t dimension %s' % (o, d)
+
             derivatives += [(deriv, name_fd, desciption)]
 
     return derivatives

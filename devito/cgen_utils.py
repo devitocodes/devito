@@ -152,6 +152,9 @@ class CodePrinter(C99CodePrinter):
             rv = rv + 'F'
         return rv
 
+    def _print_Differentiable(self, expr):
+        return self._print(expr._expr)
+
     def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
 
@@ -176,6 +179,12 @@ class CodePrinter(C99CodePrinter):
 
     def _print_Byref(self, expr):
         return "&%s" % expr.name
+
+    def _print_TrigonometricFunction(self, expr):
+        func_name = str(expr.func)
+        if self.dtype == np.float32:
+            func_name += 'f'
+        return func_name + '(' + self._print(*expr.args) + ')'
 
 
 def ccode(expr, dtype=np.float32, **settings):
