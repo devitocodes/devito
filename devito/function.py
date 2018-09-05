@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from functools import partial
 from itertools import product
 
 import sympy
@@ -12,10 +11,6 @@ from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.finite_difference import (centered, cross_derivative,
-                                      first_derivative, left, right,
-                                      second_derivative, generic_derivative,
-                                      second_cross_derivative)
 from devito.grid import staggered
 from devito.logger import debug, warning
 from devito.parameters import configuration
@@ -810,7 +805,6 @@ class TimeFunction(Function):
 
             self.save = kwargs.get('save')
             self._kwargs["time_order"] = self.time_order
-
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

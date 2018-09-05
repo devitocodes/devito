@@ -1,10 +1,12 @@
-import sympy
-
 from devito.equation import Eq
-from devito.symbolics.manipulation import pow_to_mul
+
 __all__ = ['to_expr']
 
+
 def to_expr(expr):
+    """
+    Filter a Differential expression to return its sympy Expression
+    """
     if expr.is_Equality:
         return Eq(to_expr(expr.lhs), to_expr(expr.rhs), region=expr._region)
     elif expr.is_Function:

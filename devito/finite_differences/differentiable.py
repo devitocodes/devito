@@ -2,9 +2,7 @@ import sympy
 from sympy.core.basic import _aresame
 import numpy as np
 
-from devito.finite_differences.finite_difference import generate_fd_functions
 from devito.symbolics.extended_sympy import ExprDiv
-from devito.finite_differences.utils import to_expr
 
 __all__ = ['Differentiable']
 
@@ -30,10 +28,10 @@ class Differentiable(sympy.Expr):
     def __init__(self, expr, **kwargs):
         # Recover the list of possible FD shortcuts
         self.dtype = kwargs.get('dtype')
-        self.space_order =  kwargs.get('space_order')
-        self.time_order =  kwargs.get('time_order', 0)
-        self.indices =  kwargs.get('indices', ())
-        self.staggered =  kwargs.get('staggered')
+        self.space_order = kwargs.get('space_order')
+        self.time_order = kwargs.get('time_order', 0)
+        self.indices = kwargs.get('indices', ())
+        self.staggered = kwargs.get('staggered')
         self.grid = kwargs.get('grid')
         # Generate FD shortcuts for expression or copy from input
         self.fd = kwargs.get('fd', [])
@@ -62,7 +60,7 @@ class Differentiable(sympy.Expr):
 
     def merge_fd_properties(self, other):
         merged = getattr(self, '_kwargs', dict())
-        merged["space_order"] = np.min([getattr(self, 'space_order', 100) or 100 ,
+        merged["space_order"] = np.min([getattr(self, 'space_order', 100) or 100,
                                         getattr(other, 'space_order', 100)])
         merged["time_order"] = np.min([getattr(self, 'time_order', 100) or 100,
                                        getattr(other, 'time_order', 100)])
@@ -75,7 +73,7 @@ class Differentiable(sympy.Expr):
     def __add__(self, other):
         return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
-                                          **self.merge_fd_properties(other))
+                              **self.merge_fd_properties(other))
 
     __iadd__ = __add__
     __radd__ = __add__
@@ -83,37 +81,40 @@ class Differentiable(sympy.Expr):
     def __sub__(self, other):
         return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
                                           -getattr(other, '_expr', other)]),
-                                          **self.merge_fd_properties(other))
+                              **self.merge_fd_properties(other))
 
     def __rsub__(self, other):
         return Differentiable(sympy.Add(*[-getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
-                                          **self.merge_fd_properties(other))
+                              **self.merge_fd_properties(other))
 
     __isub__ = __sub__
 
     def __mul__(self, other):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
-                                          **self.merge_fd_properties(other))
+                              **self.merge_fd_properties(other))
 
     __imul__ = __mul__
     __rmul__ = __mul__
 
     def __truediv__(self, other):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), other**(-1)]),
-                                        **self.merge_fd_properties(other))
+                              **self.merge_fd_properties(other))
 
     def __rtruediv__(self, other):
         return Differentiable(sympy.Mul(*[other, getattr(self, '_expr', self)**(-1)]),
-                                        **self.merge_fd_properties(other))
+                              **self.merge_fd_properties(other))
 
     def __pow__(self, exponent):
         if exponent > 0:
-            return Differentiable(sympy.Mul(*[getattr(self, '_expr', self)]*exponent, evaluate=False),**self._kwargs)
-        elif exponent < 0 :
+            return Differentiable(sympy.Mul(*[getattr(self, '_expr', self)]*exponent,
+                                            evaluate=False),
+                                  **self._kwargs)
+        elif exponent < 0:
             return Differentiable(ExprDiv(sympy.Number(1),
-                                          sympy.Mul(*[getattr(self, '_expr', self)]*(-exponent),
+                                          sympy.Mul(*[getattr(self, '_expr',
+                                                      self)]*(-exponent),
                                                     evaluate=False)),
                                   **self._kwargs)
         else:

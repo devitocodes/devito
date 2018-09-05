@@ -108,8 +108,8 @@ class IntDiv(sympy.Expr):
 
     __repr__ = __str__
 
-class ExprDiv(sympy.Expr):
 
+class ExprDiv(sympy.Expr):
     """
     A support type for integer division. Should only be used by the compiler
     for code generation purposes (i.e., not for symbolic manipulation).
