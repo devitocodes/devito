@@ -419,7 +419,7 @@ def initialize_function(function, data, nbpml):
             data_slices.append((lslice, rslice))
             pad_widths.append((lpad, rpad))
         except KeyError:
-            # Not a distributed dimension
+            # Not a distributed dimension, so we make sure to get the entire array
             data_slices.append((None, None))
             pad_widths.append((0, 0))
     data = data[[slice(*i) for i in data_slices]]

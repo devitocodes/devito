@@ -7,16 +7,16 @@ from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 
 
-def smooth(dest, src):
+def smooth(dest, f):
     """
-    Run an n-point moving average kernel over ``src`` and store the result
-    into ``dest``. The average is computed along the innermost ``src`` dimension.
+    Run an n-point moving average kernel over ``f`` and store the result
+    into ``dest``. The average is computed along the innermost ``f`` dimension.
     """
-    if src.is_Constant:
+    if f.is_Constant:
         # Return a scaled version of the input if it's a Constant
-        dest.data[:] = .9 * src.data
+        dest.data[:] = .9 * f.data
     else:
-        Operator(Eq(dest, src.avg(dims=src.dimensions[-1])), name='smoother').apply()
+        Operator(Eq(dest, f.avg(dims=f.dimensions[-1])), name='smoother').apply()
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
@@ -58,7 +58,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
                             constant=constant, **kwargs)
 
     # Smooth velocity
-    initial_vp = Function(name='ivp', grid=solver.model.grid, space_order=space_order)
+    initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
     smooth(initial_vp, solver.model.m)
     dm = np.float32(initial_vp.data**2 - solver.model.m.data)
 
