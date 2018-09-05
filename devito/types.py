@@ -342,10 +342,12 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             newcls = cls._symbol_type(name)
             newobj = sympy.Function.__new__(newcls, *indices, **options)
 
-            # Initialization
+            # Initialization. The following attributes must be available
+            # when executing __init__
             newobj._name = name
             newobj._indices = indices
             newobj._shape = cls.__shape_setup__(**kwargs)
+            newobj._dtype = cls.__dtype_setup__(**kwargs)
             newobj.__init__(*args, **kwargs)
 
             # All objects cached on the AbstractFunction /newobj/ keep a reference
@@ -369,13 +371,18 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        """Extract the function indices from ``kwargs``."""
+        """Extract the object indices from ``kwargs``."""
         return ()
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
-        """Extract the function shape from ``kwargs``."""
+        """Extract the object shape from ``kwargs``."""
         return ()
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        """Extract the object data type from ``kwargs``."""
+        return None
 
     def __halo_setup__(self, **kwargs):
         return kwargs.get('halo', tuple((0, 0) for i in range(self.ndim)))
@@ -385,23 +392,28 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def name(self):
-        """Return the name of the function."""
+        """Return the name of the object."""
         return self._name
 
     @property
     def indices(self):
-        """Return the indices (aka dimensions) of the function."""
+        """Return the indices (aka dimensions) of the object."""
         return self._indices
 
     @property
     def dimensions(self):
-        """Tuple of :class:`Dimension`s representing the function indices."""
+        """Tuple of :class:`Dimension`s representing the object indices."""
         return self.indices
 
     @property
     def shape(self):
-        """Return the shape of the function."""
+        """Return the shape of the object."""
         return self._shape
+
+    @property
+    def dtype(self):
+        """Return the data type of the object."""
+        return self._dtype
 
     @property
     def ndim(self):
@@ -638,14 +650,16 @@ class Array(AbstractCachedFunction):
         if not self._cached():
             super(Array, self).__init__(*args, **kwargs)
 
-            self.dtype = kwargs.get('dtype', np.float32)
-
             self._scope = kwargs.get('scope', 'heap')
             assert self._scope in ['heap', 'stack', 'external']
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
         return tuple(kwargs['dimensions'])
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.float32)
 
     @property
     def _mem_external(self):
@@ -664,9 +678,9 @@ class Array(AbstractCachedFunction):
         return self.symbolic_shape
 
     def update(self, **kwargs):
-        self.dtype = kwargs.get('dtype', self.dtype)
         self._shape = kwargs.get('shape', self.shape)
         self._indices = kwargs.get('dimensions', self.indices)
+        self._dtype = kwargs.get('dtype', self.dtype)
         self._halo = kwargs.get('halo', self._halo)
         self._padding = kwargs.get('padding', self._padding)
         self._scope = kwargs.get('scope', self._scope)

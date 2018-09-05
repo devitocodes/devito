@@ -105,8 +105,7 @@ class Constant(AbstractCachedSymbol):
         except AttributeError:
             pass
 
-    _pickle_kwargs = (AbstractCachedSymbol._pickle_kwargs
-                      + ['dtype', '_value'])
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
 
 
 class TensorFunction(AbstractCachedFunction):
@@ -134,19 +133,31 @@ class TensorFunction(AbstractCachedFunction):
         if not self._cached():
             super(TensorFunction, self).__init__(*args, **kwargs)
 
+            # There may or may not be a `Grid` attached to the TensorFunction
+            self._grid = kwargs.get('grid')
+
             # Staggered mask
             self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
-                raise ValueError("'staggered' needs %s entries for indices %s"
+                raise ValueError("`staggered` needs %s entries for indices %s"
                                  % (len(self.indices), self.indices))
 
-            # Data-related properties
-            self.initializer = kwargs.get('initializer')
-            if self.initializer is not None:
-                assert(callable(self.initializer))
-            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
+            # Data-related properties and data initialization
             self._data = None
+            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._allocator = kwargs.get('allocator', default_allocator())
+            initializer = kwargs.get('initializer')
+            if initializer is None or callable(initializer):
+                # Initialization postponed until the first access to .data
+                self._initializer = initializer
+            elif isinstance(initializer, (np.ndarray, list, tuple)):
+                # Allocate memory and initialize it. Note that we do *not* hold
+                # a reference to the user-provided buffer
+                self._initializer = None
+                self.data_allocated[:] = initializer
+            else:
+                raise ValueError("`initializer` must be callable or buffer, not %s"
+                                 % type(initializer))
 
     def _allocate_memory(func):
         """Allocate memory as a :class:`Data`."""
@@ -157,19 +168,30 @@ class TensorFunction(AbstractCachedFunction):
                                   allocator=self._allocator)
                 if self._first_touch:
                     first_touch(self)
-                if self.initializer is not None:
+                if callable(self._initializer):
                     if self._first_touch:
                         warning("`first touch` together with `initializer` causing "
                                 "redundant data initialization")
                     try:
-                        self.initializer(self._data)
+                        self._initializer(self._data)
                     except ValueError:
                         # Perhaps user only wants to initialise the physical domain
-                        self.initializer(self._data[self._mask_domain])
+                        self._initializer(self._data[self._mask_domain])
                 else:
                     self._data.fill(0)
             return func(self)
         return wrapper
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        grid = kwargs.get('grid')
+        dtype = kwargs.get('dtype')
+        if dtype is not None:
+            return dtype
+        elif grid is not None:
+            return grid.dtype
+        else:
+            return np.float32
 
     @property
     def _data_buffer(self):
@@ -180,6 +202,10 @@ class TensorFunction(AbstractCachedFunction):
     @property
     def _mem_external(self):
         return True
+
+    @property
+    def grid(self):
+        return self._grid
 
     @property
     def shape(self):
@@ -355,6 +381,13 @@ class TensorFunction(AbstractCachedFunction):
         return self._staggered
 
     @property
+    def initializer(self):
+        if self._data is not None:
+            return self._data.view(np.ndarray)
+        else:
+            return self._initializer
+
+    @property
     def symbolic_shape(self):
         """
         Return the symbolic shape of the object. This includes: ::
@@ -501,7 +534,8 @@ class TensorFunction(AbstractCachedFunction):
             i._arg_check(args, s, intervals[i])
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['staggered']
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
+        ['dtype', 'grid', 'staggered', 'initializer']
 
 
 class Function(TensorFunction):
@@ -534,8 +568,11 @@ class Function(TensorFunction):
                     in each dimension, may be passed; in this case, an error is
                     raised if such tuple has fewer entries then the number of space
                     dimensions.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -572,15 +609,6 @@ class Function(TensorFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(Function, self).__init__(*args, **kwargs)
-
-            # Grid
-            self.grid = kwargs.get('grid')
-
-            # Data type (provided or inferred)
-            if self.grid is None:
-                self.dtype = kwargs.get('dtype', np.float32)
-            else:
-                self.dtype = kwargs.get('dtype', self.grid.dtype)
 
             # Space order
             space_order = kwargs.get('space_order', 1)
@@ -753,7 +781,7 @@ class Function(TensorFunction):
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['dtype', 'grid', 'space_order', 'shape', 'dimensions']
+        ['space_order', 'shape', 'dimensions']
 
 
 class TimeFunction(Function):
@@ -778,8 +806,8 @@ class TimeFunction(Function):
     :param shape: (Optional) shape of the domain region in grid points.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param dtype: (Optional) data type of the buffered data
-    :param save: (Optional) Defaults to `None`, which indicates the use of
+    :param dtype: (Optional) data type of the buffered data.
+    :param save: (Optional) defaults to `None`, which indicates the use of
                  alternating buffers. This enables cyclic writes to the
                  TimeFunction. For example, if the TimeFunction ``u(t, x)`` has
                  shape (3, 100), then, in an :class:`Operator`, ``t`` will
@@ -792,7 +820,7 @@ class TimeFunction(Function):
                  intermediate results are required (or, simply, to forbid the
                  usage of an alternating buffer), an explicit value for ``save``
                  (i.e., an integer) must be provided.
-    :param time_dim: (Optional) The :class:`Dimension` object to use to represent
+    :param time_dim: (Optional) the :class:`Dimension` object to use to represent
                      time in this symbol. Defaults to the time dimension provided
                      by the :class:`Grid`.
     :param staggered: (Optional) tuple containing staggering offsets.
@@ -802,8 +830,11 @@ class TimeFunction(Function):
                     in each dimension, may be passed; in this case, an error is
                     raised if such tuple has fewer entries then the number of
                     space dimensions.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -985,13 +1016,10 @@ class AbstractSparseFunction(TensorFunction):
                 raise ValueError('`npoint` must be > 0')
             self.npoint = npoint
 
-            # Grid must be provided
-            grid = kwargs.get('grid')
-            if kwargs.get('grid') is None:
+            # A Grid must have been provided
+            if self.grid is None:
                 raise TypeError('SparseFunction needs `grid` argument')
-            self.grid = grid
 
-            self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.space_order = kwargs.get('space_order', 0)
 
     @classmethod
@@ -1026,6 +1054,9 @@ class AbstractSparseFunction(TensorFunction):
     def _arg_names(self):
         """Return a tuple of argument names introduced by this function."""
         return tuple([self.name] + [x for x in self._child_functions])
+
+    # Pickling support
+    _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
 
 
 class AbstractSparseTimeFunction(AbstractSparseFunction):
@@ -1074,6 +1105,9 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     def _time_size(self):
         return self.shape_allocated[self._time_position]
 
+    # Pickling support
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['nt', 'time_order']
+
 
 class SparseFunction(AbstractSparseFunction):
     """
@@ -1087,14 +1121,17 @@ class SparseFunction(AbstractSparseFunction):
     :param name: Name of the function.
     :param npoint: Number of points to sample.
     :param grid: :class:`Grid` object defining the computational domain.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: (Optional) discretisation order for space derivatives.
     :param shape: (Optional) shape of the function. Defaults to ``(npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param dtype: Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -1114,13 +1151,19 @@ class SparseFunction(AbstractSparseFunction):
             super(SparseFunction, self).__init__(*args, **kwargs)
 
             # Set up coordinates of sparse points
-            coordinates = Function(name='%s_coords' % self.name, dtype=self.dtype,
-                                   dimensions=(self.indices[-1], Dimension(name='d')),
-                                   shape=(self.npoint, self.grid.dim), space_order=0)
-            coordinate_data = kwargs.get('coordinates')
-            if coordinate_data is not None:
-                coordinates.data[:] = coordinate_data[:]
-            self.coordinates = coordinates
+            coordinates = kwargs.get('coordinates')
+            if isinstance(coordinates, Function):
+                self._coordinates = coordinates
+            else:
+                dimensions = (self.indices[-1], Dimension(name='d'))
+                self._coordinates = Function(name='%s_coords' % self.name,
+                                             dtype=self.dtype, dimensions=dimensions,
+                                             shape=(self.npoint, self.grid.dim),
+                                             space_order=0, initializer=coordinates)
+
+    @property
+    def coordinates(self):
+        return self._coordinates
 
     @property
     def coefficients(self):
@@ -1266,6 +1309,9 @@ class SparseFunction(AbstractSparseFunction):
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
+    # Pickling support
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']
+
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
@@ -1275,17 +1321,20 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     :param nt: Size of the time dimension for point data.
     :param npoint: Number of points to sample.
     :param grid: :class:`Grid` object defining the computational domain.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
     :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: (Optional) Discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) Discretisation order for time derivatives.
-                       Default to 1.
     :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -1345,6 +1394,10 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
         return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
 
+    # Pickling support
+    _pickle_kwargs = AbstractSparseTimeFunction._pickle_kwargs +\
+        SparseFunction._pickle_kwargs
+
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
     """
@@ -1369,15 +1422,18 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                          coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
                          for r=6, we will store 18 coefficients per sparse point (instead
                          of potentially 216). Shape must be [npoint][grid.ndim][r].
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
     :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param space_order: (Optional) Discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) Discretisation order for time derivatives.
-                       Default to 1.
-    :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
 
     .. note::
 
@@ -1517,15 +1573,18 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
                          coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
                          for r=6, we will store 18 coefficients per sparse point (instead
                          of potentially 216). Shape must be [npoint][grid.ndim][r].
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
     :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param space_order: (Optional) Discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) Discretisation order for time derivatives.
-                       Default to 1.
-    :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
 
     .. note::
 
