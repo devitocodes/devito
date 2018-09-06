@@ -4,8 +4,8 @@ from sympy import Symbol
 from examples.seismic import demo_model
 from examples.seismic.source import TimeAxis, RickerSource
 
-from devito import (Constant, Eq, Function, TimeFunction, Grid, TimeDimension,
-                    SteppingDimension, Operator)
+from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
+                    TimeDimension, SteppingDimension, Operator)
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
@@ -83,9 +83,34 @@ def test_function():
     pkl_f = pickle.dumps(f)
     new_f = pickle.loads(pkl_f)
 
-    # The Data objects are different as they are not pickled !
+    # .data is initialized, so it should have been pickled too
     assert np.all(f.data[0] == 1.)
-    assert np.all(new_f.data[0] == 0.)
+    assert np.all(new_f.data[0] == 1.)
+
+    assert f.space_order == new_f.space_order
+    assert f.dtype == new_f.dtype
+    assert f.shape == new_f.shape
+
+
+def test_sparse_function():
+    grid = Grid(shape=(3,))
+    sf = SparseFunction(name='sf', grid=grid, npoint=3, space_order=2,
+                        coordinates=[(0.,), (1.,), (2.,)])
+    sf.data[0] = 1.
+
+    pkl_sf = pickle.dumps(sf)
+    new_sf = pickle.loads(pkl_sf)
+
+    # .data is initialized, so it should have been pickled too
+    assert np.all(sf.data[0] == 1.)
+    assert np.all(new_sf.data[0] == 1.)
+
+    # coordinates should also have been pickled
+    assert np.all(sf.coordinates.data == new_sf.coordinates.data)
+
+    assert sf.space_order == new_sf.space_order
+    assert sf.dtype == new_sf.dtype
+    assert sf.npoint == new_sf.npoint
 
 
 def test_symbolics():

@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
 from devito.mpi import Distributor
@@ -147,6 +149,15 @@ class Grid(ArgProvider):
         return self._distributor.shape
 
     @property
+    def dimension_map(self):
+        """
+        Map between ``self``'s :class:`SpaceDimension` and their global and
+        local size.
+        """
+        return {d: namedtuple('Size', 'glb loc')(g, l)
+                for d, g, l in zip(self.dimensions, self.shape, self.shape_domain)}
+
+    @property
     def distributor(self):
         """The :class:`Distributor` used for domain decomposition."""
         return self._distributor
@@ -155,6 +166,11 @@ class Grid(ArgProvider):
     def _const(self):
         """Return the type to create constant symbols."""
         return Constant
+
+    def is_distributed(self, dim):
+        """Return True if ``dim`` is a distributed :class:`Dimension`,
+        False otherwise."""
+        return dim in self.distributor.dimensions
 
     def _make_stepping_dim(self, time_dim, name=None):
         """Create a stepping dimension for this Grid."""

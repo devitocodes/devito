@@ -527,6 +527,9 @@ class IterationSpace(Space):
         return self.intervals == other.intervals and\
             self.nonderived_directions == other.nonderived_directions
 
+    def is_forward(self, dim):
+        return self.directions[dim] is Forward
+
     @property
     def sub_iterators(self):
         return self._sub_iterators

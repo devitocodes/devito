@@ -210,7 +210,7 @@ class Data(object):
                 target.set_right_halo_size(i.name, self.get_right_halo_size(i.name))
             else:
                 # time and misc dimensions
-                target.set_alloc_size(i.name, self.get_alloc_size(i.name))
+                target.set_alloc_size(i.root.name, self.get_alloc_size(i.root.name))
         target.share_storage(self.grid)
 
     def __getattr__(self, name):
@@ -260,7 +260,7 @@ class Data(object):
         """
         self[:] = 0.0
 
-    def view(self):
+    def view(self, *args):
         """
         View of the YASK grid in standard (i.e., Devito) row-major layout,
         returned as a :class:`numpy.ndarray`.

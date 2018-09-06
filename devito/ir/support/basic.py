@@ -273,6 +273,27 @@ class IterationInstance(Vector):
         return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im == AFFINE)
 
     @property
+    def findices_irregular(self):
+        return tuple(fi for fi, im in zip(self.findices, self.index_mode)
+                     if im == IRREGULAR)
+
+    def affine(self, findices):
+        """Return True if all of the provided findices appear in self and are
+        affine, False otherwise."""
+        return set(as_tuple(findices)).issubset(set(self.findices_affine))
+
+    def affine_if_present(self, findices):
+        """Return False if any of the provided findices appears in self and
+        is not affine, True otherwise."""
+        findices = as_tuple(findices)
+        return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
+
+    def irregular(self, findices):
+        """Return True if all of the provided findices appear in self and are
+        irregular, False otherwise."""
+        return set(as_tuple(findices)).issubset(set(self.findices_irregular))
+
+    @property
     def is_regular(self):
         return all(i in (CONSTANT, AFFINE) for i in self.index_mode)
 
@@ -283,11 +304,6 @@ class IterationInstance(Vector):
     @property
     def is_scalar(self):
         return self.rank == 0
-
-    def affine_if_present(self, findices):
-        """Return False if any of the provided findices appears in self and
-        is not affine, True otherwise."""
-        return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
 
     def distance(self, other, findex=None, view=None):
         """Compute the distance from ``self`` to ``other``.
@@ -492,9 +508,22 @@ class Dependence(object):
         assert source.function == sink.function
         self.source = source
         self.sink = sink
-        self.findices = source.findices
-        self.function = source.function
-        self.distance = source.distance(sink)
+
+    @property
+    def function(self):
+        return self.source.function
+
+    @property
+    def findices(self):
+        return self.source.findices
+
+    @property
+    def aindices(self):
+        return tuple({i, j} for i, j in zip(self.source.aindices, self.sink.aindices))
+
+    @cached_property
+    def distance(self):
+        return self.source.distance(self.sink)
 
     @property
     def _defined_findices(self):
@@ -517,8 +546,16 @@ class Dependence(object):
         return set()
 
     @property
+    def is_regular(self):
+        return self.source.is_regular and self.sink.is_regular
+
+    @property
     def is_increment(self):
         return self.source.is_increment and self.sink.is_increment
+
+    @property
+    def is_irregular(self):
+        return not self.is_regular
 
     def is_carried(self, dim=None):
         """Return True if definitely a dimension-carried dependence,
@@ -536,7 +573,7 @@ class Dependence(object):
         """Return True if ``dim`` may represent a reduction dimension for
         ``self``, False otherwise."""
         test0 = self.is_increment
-        test1 = self.source.is_regular and self.sink.is_regular
+        test1 = self.is_regular
         test2 = all(i not in self._defined_findices for i in dim._defines)
         return test0 and test1 and test2
 
@@ -613,6 +650,11 @@ class DependenceGroup(list):
     def __sub__(self, other):
         assert isinstance(other, DependenceGroup)
         return DependenceGroup([i for i in self if i not in other])
+
+    def project(self, function):
+        """Return a new DependenceGroup retaining only the dependences due to
+        the provided function."""
+        return DependenceGroup(i for i in self if i.function is function)
 
 
 class Scope(object):

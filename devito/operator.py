@@ -104,7 +104,7 @@ class Operator(Callable):
         # Insert code for MPI support
         iet = self._generate_mpi(iet, **kwargs)
 
-        # Insert data and pointer casts for array parameters and profiling structs
+        # Insert data and pointer casts for array parameters
         iet = self._build_casts(iet)
 
         # Derive parameters as symbols not defined in the kernel itself
@@ -124,12 +124,22 @@ class Operator(Callable):
         args.update([p._arg_values() for p in self.input if p.name not in args])
         args = args.reduce_all()
 
+        # All TensorFunctions should be defined on the same Grid
+        functions = [kwargs.get(p, p) for p in self.input if p.is_TensorFunction]
+        mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
+        try:
+            grid = mapper.unique('grid')
+        except (KeyError, ValueError):
+            if mapper and configuration['mpi']:
+                raise RuntimeError("Multiple `Grid`s found before `apply`")
+            grid = None
+
         # Process dimensions (derived go after as they might need/affect their parents)
         derived, main = split(self.dimensions, lambda i: i.is_Derived)
         for p in main:
-            args.update(p._arg_values(args, self._dspace[p], **kwargs))
+            args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
         for p in derived:
-            args.update(p._arg_values(args, self._dspace[p], **kwargs))
+            args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
 
         # Sanity check
         for p in self.input:
@@ -178,7 +188,7 @@ class Operator(Callable):
         args = self.prepare_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
-            if p.name not in args:
+            if args.get(p.name) is None:
                 raise ValueError("No value found for parameter %s" % p.name)
         return args
 
