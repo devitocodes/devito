@@ -480,8 +480,8 @@ class TensorFunction(AbstractCachedFunction):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
-            args.update(i._arg_defaults(start=0, size=s+o, alias=k))
+        for i, s, o in zip(key.indices, self.shape, self.staggered):
+            args.update(i._arg_defaults(start=0, size=s+o))
 
         # Add MPI-related data structures
         if self.grid is not None:
