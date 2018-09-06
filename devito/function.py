@@ -4,7 +4,6 @@ from itertools import product
 
 import sympy
 import numpy as np
-from cached_property import cached_property
 from psutil import virtual_memory
 from mpi4py import MPI
 
@@ -1103,24 +1102,6 @@ class AbstractSparseFunction(TensorFunction):
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('npoint'),))
 
-    def _arg_defaults(self, alias=None):
-        """
-        Returns a map of default argument values defined by this symbol.
-
-        :param alias: (Optional) name under which to store values.
-        """
-        key = alias or self
-        args = super(AbstractSparseFunction, self)._arg_defaults(alias=alias)
-        for child_name in self._child_functions:
-            child = getattr(self, child_name)
-            args.update(child._arg_defaults(alias=getattr(key, child_name)))
-        return args
-
-    @property
-    def _arg_names(self):
-        """Return a tuple of argument names introduced by this function."""
-        return tuple([self.name] + [x for x in self._child_functions])
-
     def _is_owned(self, point):
         """Return True if ``point`` is in self's local domain, False otherwise."""
         point = as_tuple(point)
@@ -1229,6 +1210,46 @@ class AbstractSparseFunction(TensorFunction):
     def gridpoints(self):
         """The *reference* grid point corresponding to each sparse point."""
         raise NotImplementedError
+
+    def _arg_defaults(self, alias=None):
+        key = alias or self
+        mapper = {self: key}
+        mapper.update({getattr(self, i): getattr(key, i) for i in self._sub_functions})
+        args = ReducerMap()
+
+        # Add in the sparse data (as well as any SubFunction data) belonging to
+        # self's local domain only
+        for k, v in self._dist_scatter().items():
+            args[mapper[k].name] = v
+            for i, s, o in zip(mapper[k].indices, v.shape, k.staggered):
+                args.update(i._arg_defaults(start=0, size=s+o))
+
+        # Add MPI-related data structures
+        args.update(self.grid._arg_defaults())
+
+        return args
+
+    def _arg_values(self, **kwargs):
+        # Add value override for own data if it is provided, otherwise
+        # use defaults
+        if self.name in kwargs:
+            new = kwargs.pop(self.name)
+            if isinstance(new, AbstractSparseFunction):
+                # Set new values and re-derive defaults
+                values = new._arg_defaults(alias=self).reduce_all()
+            else:
+                # We've been provided a pure-data replacement (array)
+                values = {}
+                for k, v in self._dist_scatter(new).items():
+                    values[k.name] = v
+                    for i, s, o in zip(k.indices, v.shape, k.staggered):
+                        values.update(i._arg_defaults(size=s+o-sum(k._offset_domain[i])))
+                # Add MPI-related data structures
+                values.update(self.grid._arg_defaults())
+        else:
+            values = self._arg_defaults(alias=self).reduce_all()
+
+        return values
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
