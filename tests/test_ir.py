@@ -583,7 +583,7 @@ else
             exprs[i] = eval(e)
 
         # Use 'openmp' here instead of 'advanced' to disable loop blocking
-        op = Operator(exprs, dle='openmp')
+        op = Operator(exprs, dle='advanced')
 
         iters = FindNodes(Iteration).visit(op)
         assert all([i.is_ParallelAtomic for i in iters if i.dim.name in atomic])
