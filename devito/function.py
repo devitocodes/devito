@@ -424,9 +424,10 @@ class TensorFunction(AbstractCachedFunction):
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
-        if self.grid.distributor.nprocs == 1 or not self._is_halo_dirty:
+        if MPI.COMM_WORLD.size == 1:
+            # Nothing to do
             return
-        if self.grid.distributor.nprocs > 1 and self.grid is None:
+        if MPI.COMM_WORLD.size > 1 and self.grid is None:
             raise RuntimeError("`%s` cannot perfom a halo exchange as it has "
                                "no Grid attached" % self.name)
         if self._in_flight:
