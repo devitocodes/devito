@@ -605,7 +605,7 @@ class TestOperatorSimple(object):
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(nprocs=[4])
-    def test_injection(self):
+    def test_injection_no_stencil(self):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         f = Function(name='f', grid=grid, space_order=0)
@@ -633,6 +633,36 @@ class TestOperatorAdvanced(object):
         op.apply()
 
         assert np.all(f.data == 1.25)
+
+    @pytest.mark.parallel(nprocs=[4])
+    def test_interpolation_no_stencil(self):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        f = Function(name='f', grid=grid, space_order=0)
+        f.data[:] = 4.
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = 0.
+
+        # This is the situation at this point
+        # O is a grid point
+        # * is a sparse point
+        #
+        # O --- O --- O --- O
+        # |  *  |     |  *  |
+        # O --- O --- O --- O
+        # |     |     |     |
+        # O --- O --- O --- O
+        # |  *  |     |  *  |
+        # O --- O --- O --- O
+
+        op = Operator(sf.interpolate(expr=f))
+        op.apply()
+
+        assert np.all(sf.data == 4.)
 
     @pytest.mark.parallel(nprocs=2)
     def test_subsampling(self):
@@ -836,4 +866,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_injection()
+    TestOperatorAdvanced().test_interpolation_no_stencil()
