@@ -21,15 +21,15 @@ from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
-from devito.tools import (Tag, ReducerMap, as_mapper, as_tuple, flatten, is_integer,
-                          prod, powerset)
+from devito.tools import (Tag, ReducerMap, ArgProvider, as_mapper, as_tuple,
+                          flatten, is_integer, prod, powerset)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction', 'Buffer']
 
 
-class Constant(AbstractCachedSymbol):
+class Constant(AbstractCachedSymbol, ArgProvider):
 
     """
     Symbol representing constant values in symbolic equations.
@@ -109,7 +109,7 @@ class Constant(AbstractCachedSymbol):
     _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
 
 
-class TensorFunction(AbstractCachedFunction):
+class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     """
     Utility class to encapsulate all symbolic types that represent
