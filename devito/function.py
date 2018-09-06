@@ -1112,18 +1112,18 @@ class AbstractSparseFunction(TensorFunction):
         return all(distributor.glb_to_loc(d, p) is not None
                    for d, p in zip(self.grid.dimensions, point))
 
-    @cached_property
+    @property
     def _dist_datamap(self):
         """
-        Return a mapper ``M : MPI rank -> logically owned sparse data``
+        Return a mapper ``M : MPI rank -> logically owned sparse data``.
         """
         targets = self.grid.distributor.glb_to_rank(self.gridpoints)
         return as_mapper(range(self.npoint), lambda i: targets[i])
 
-    @cached_property
+    @property
     def _dist_counts(self):
         """
-        Return a 2-tuple of iterables, describing how much data is each MPI rank
+        Return a 2-tuple of iterables, describing how much data is this MPI rank
         expected to send/receive to/from each other MPI rank.
         """
         dmap = self._dist_datamap
@@ -1137,74 +1137,18 @@ class AbstractSparseFunction(TensorFunction):
 
     def _dist_scatter(self):
         """
-        Return a ``numpy.ndarray`` containing up-to-date data and coordinate values
-        belonging to the calling MPI rank. A data value belongs to a given MPI rank R
-        if its coordinates fall in R's local domain region.
+        Return a ``numpy.ndarray`` containing up-to-date data values belonging
+        to the calling MPI rank. A data value belongs to a given MPI rank R
+        if its coordinates fall within R's local domain.
         """
-        if self.coordinates._data is None:
-            raise ValueError("No coordinates attached to this SparseFunction")
-        dmap = self._dist_datamap
-        comm = self.grid.distributor.comm
-
-        # First, determine what (i) needs to be sent to and (ii) what needs to
-        # be received from each MPI rank
-        sendcount, recvcount = self._dist_counts
-
-        # Pack (reordered) data values so that they can be sent out via an Alltoallv
-        mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
-        data = self.data[mask]
-
-        # Send out the sparse point values
-        senddisp = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
-        recvdisp = np.concatenate([[0], tuple(np.cumsum(recvcount))[:-1]])
-        scattered = np.empty(sum(recvcount), dtype=self.dtype)
-        mpitype = MPI._typedict[np.dtype(self.dtype).char]
-        comm.Alltoallv([data, sendcount, senddisp, mpitype],
-                       [scattered, recvcount, recvdisp, mpitype])
-        data = scattered
-
-        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
-        coords = self.coordinates.data[mask]
-
-        # Send out the sparse point coordinates
-        ndim = self.grid.dim
-        scattered = np.empty(shape=(sum(recvcount), ndim), dtype=self.coordinates.dtype)
-        comm.Alltoallv([coords, sendcount*ndim, senddisp*ndim, mpitype],
-                       [scattered, recvcount*ndim, recvdisp*ndim, mpitype])
-        coords = scattered
-
-        return data, coords
+        raise NotImplementedError
 
     def _dist_gather(self, data):
         """
         Return a ``numpy.ndarray`` containing up-to-date data and coordinate values
         suitable for insertion into ``self.data``.
         """
-        if self.coordinates._data is None:
-            raise ValueError("No coordinates attached to this SparseFunction")
-        dmap = self._dist_datamap
-        comm = self.grid.distributor.comm
-
-        # First, determine what (i) needs to be sent to and (ii) what needs to
-        # be received from each MPI rank
-        sendcount, recvcount = self._dist_counts
-
-        # Send back the sparse point values
-        senddisp = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
-        recvdisp = np.concatenate([[0], tuple(np.cumsum(recvcount))[:-1]])
-        gathered = np.empty(sum(sendcount), dtype=self.dtype)
-        mpitype = MPI._typedict[np.dtype(self.dtype).char]
-        comm.Alltoallv([data, recvcount, recvdisp, mpitype],
-                       [gathered, sendcount, senddisp, mpitype])
-        data = gathered
-
-        # Insert back into `self.data` based on the original (expected) data layout
-        mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
-        self.data[:] = data[mask]
-
-        # Note: this method is almost the dual of `_dist_scatter`, except for the
-        # fact that `coordinates` are not sent back. This is because `coordinates`
-        # should never be written to
+        raise NotImplementedError
 
     @property
     def gridpoints(self):
@@ -1509,6 +1453,67 @@ class SparseFunction(AbstractSparseFunction):
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self._coefficients, idx_subs)]
+
+    def _dist_scatter(self):
+        dmap = self._dist_datamap
+        comm = self.grid.distributor.comm
+
+        # First, determine what (i) needs to be sent to and (ii) what needs to
+        # be received from each MPI rank
+        sendcount, recvcount = self._dist_counts
+
+        # Pack (reordered) data values so that they can be sent out via an Alltoallv
+        mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
+        data = self.data[mask]
+
+        # Send out the sparse point values
+        senddisp = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
+        recvdisp = np.concatenate([[0], tuple(np.cumsum(recvcount))[:-1]])
+        scattered = np.empty(sum(recvcount), dtype=self.dtype)
+        mpitype = MPI._typedict[np.dtype(self.dtype).char]
+        comm.Alltoallv([data, sendcount, senddisp, mpitype],
+                       [scattered, recvcount, recvdisp, mpitype])
+        data = scattered
+
+        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
+        coords = self.coordinates.data[mask]
+
+        # Send out the sparse point coordinates
+        ndim = self.grid.dim
+        scattered = np.empty(shape=(sum(recvcount), ndim), dtype=self.coordinates.dtype)
+        comm.Alltoallv([coords, sendcount*ndim, senddisp*ndim, mpitype],
+                       [scattered, recvcount*ndim, recvdisp*ndim, mpitype])
+        coords = scattered
+
+        # Translate global coordinates into local coordinates
+        coords = coords - np.array(self.grid.origin_domain, dtype=self.dtype)
+
+        return {self: data, self.coordinates: coords}
+
+    def _dist_gather(self, data):
+        dmap = self._dist_datamap
+        comm = self.grid.distributor.comm
+
+        # First, determine what (i) needs to be sent to and (ii) what needs to
+        # be received from each MPI rank
+        sendcount, recvcount = self._dist_counts
+
+        # Send back the sparse point values
+        senddisp = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
+        recvdisp = np.concatenate([[0], tuple(np.cumsum(recvcount))[:-1]])
+        gathered = np.empty(sum(sendcount), dtype=self.dtype)
+        mpitype = MPI._typedict[np.dtype(self.dtype).char]
+        comm.Alltoallv([data, recvcount, recvdisp, mpitype],
+                       [gathered, sendcount, senddisp, mpitype])
+        data = gathered
+
+        # Insert back into `self.data` based on the original (expected) data layout
+        mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
+        self.data[:] = data[mask]
+
+        # Note: this method is almost the dual of `_dist_scatter`, except for the
+        # fact that `coordinates` are not sent back. This is because `coordinates`
+        # should never be written to
 
     # Pickling support
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']
