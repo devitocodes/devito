@@ -321,45 +321,45 @@ class TestAllocation(object):
         assert(np.allclose(m2.data, 0))
         assert(np.array_equal(m.data, m2.data))
 
-    @pytest.mark.parametrize('staggered, ndim', [
+    @pytest.mark.parametrize('stagg, ndim', [
         ('node', 2), (y, 2), (x, 2), ('cell', 2),
         ('node', 3), (x, 3), (y, 3), (z, 3),
         ((x, y), 3), ((x, z), 3), ((y, z), 3), ('cell', 3),
     ])
-    def test_staggered(self, staggered, ndim):
+    def test_staggered(self, stagg, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
         grid = Grid(shape=tuple([11]*ndim))
-        f = Function(name='f', grid=grid, staggered=staggered)
+        f = Function(name='f', grid=grid, staggered=stagg)
         assert f.data.shape == tuple(11-i for i in staggered(f))
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple(5 for _ in staggered)
+        index = tuple(5 for _ in staggered(f))
         set_f = Eq(f.indexed[index], 2.)
         set_g = Eq(g.indexed[index], 3.)
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
 
-    @pytest.mark.parametrize('staggered', [
-        (0, 0, 0), (0, 0, 1), (0, 1, 0), (0, 1, 1),
-        (0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
-        (0, 1, 1, 0), (0, 1, 0, 1), (0, 0, 1, 1), (0, 1, 1, 1),
+    @pytest.mark.parametrize('stagg, ndim', [
+        ('node', 2), (y, 2), (x, 2), ((x, y), 2),
+        ('node', 3), (x, 3), (y, 3), (z, 3),
+        ((x, y), 3), ((x, z), 3), ((y, z), 3), ((x, y, z), 3),
     ])
-    def test_staggered_time(self, staggered):
+    def test_staggered_time(self, stagg, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple(11 for _ in staggered[1:]))
-        f = TimeFunction(name='f', grid=grid, staggered=staggered)
-        assert f.data.shape[1:] == tuple(11-i for i in staggered[1:])
+        grid = Grid(shape=tuple([11]*ndim))
+        f = TimeFunction(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape[1:] == tuple(11-i for i in staggered(f)[1:])
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple([0] + [5 for _ in staggered[1:]])
+        index = tuple([0] + [5 for _ in staggered(f)[1:]])
         set_f = Eq(f.indexed[index], 2.)
         set_g = Eq(g.indexed[index], 3.)
         Operator([set_f, set_g])()

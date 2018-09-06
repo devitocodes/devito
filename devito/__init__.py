@@ -16,6 +16,7 @@ from devito.function import Buffer # noqa
 from devito.logger import error, warning, info, set_log_level, silencio  # noqa
 from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
+from devito.grid import * # noqa
 
 from devito.compiler import compiler_registry
 from devito.backends import backends_registry, init_backend
