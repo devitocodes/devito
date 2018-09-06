@@ -194,7 +194,7 @@
             <span class="c1"># Check the argument specification</span>
             <span class="c1"># Valid options are:</span>
             <span class="c1">#    visit_Foo(self, o, [*args, **kwargs])</span>
-            <span class="n">argspec</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">meth</span><span class="p">)</span>
+            <span class="n">argspec</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getfullargspec</span><span class="p">(</span><span class="n">meth</span><span class="p">)</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">argspec</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Visit method signature must be &quot;</span>
                                    <span class="s2">&quot;visit_Foo(self, o, [*args, **kwargs])&quot;</span><span class="p">)</span>
