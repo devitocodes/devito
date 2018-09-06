@@ -57,7 +57,7 @@ class Node(Signer):
 
     def __new__(cls, *args, **kwargs):
         obj = super(Node, cls).__new__(cls)
-        argnames = inspect.getargspec(cls.__init__).args
+        argnames = inspect.getfullargspec(cls.__init__).args
         obj._args = {k: v for k, v in zip(argnames[1:], args)}
         obj._args.update(kwargs.items())
         obj._args.update({k: None for k in argnames[1:] if k not in obj._args})
