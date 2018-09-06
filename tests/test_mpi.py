@@ -407,7 +407,7 @@ class TestSparseFunction(object):
         sf.data[:] = list(range(len(coords)))
 
         # Scatter
-        data, _ = sf._dist_scatter()
+        data = sf._dist_scatter()[sf]
         assert len(data) == 1
         assert data[0] == grid.distributor.myrank
 
@@ -603,6 +603,36 @@ class TestOperatorSimple(object):
 
 @skipif_yask
 class TestOperatorAdvanced(object):
+
+    @pytest.mark.parallel(nprocs=[4])
+    def test_injection(self):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        f = Function(name='f', grid=grid, space_order=0)
+        f.data[:] = 0.
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = 4.
+
+        # This is the situation at this point
+        # O is a grid point
+        # * is a sparse point
+        #
+        # O --- O --- O --- O
+        # |  *  |     |  *  |
+        # O --- O --- O --- O
+        # |     |     |     |
+        # O --- O --- O --- O
+        # |  *  |     |  *  |
+        # O --- O --- O --- O
+
+        op = Operator(sf.inject(field=f, expr=sf + 1))
+        op.apply()
+
+        assert np.all(f.data == 1.25)
 
     @pytest.mark.parallel(nprocs=2)
     def test_subsampling(self):
@@ -806,4 +836,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestSparseFunction().test_scatter_gather()
+    TestOperatorAdvanced().test_injection()
