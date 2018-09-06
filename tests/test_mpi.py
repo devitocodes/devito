@@ -459,7 +459,7 @@ class TestOperatorSimple(object):
         op = Operator(Eq(f.forward, f[time, x-1] + f[time, x+1] + 1))
         op.apply()
 
-        time_M = op.prepare_arguments()['time_M']
+        time_M = op._prepare_arguments()['time_M']
 
         assert np.all(f.data_ro_domain[1] == 3.)
         glb_pos_map = f.grid.distributor.glb_pos_map

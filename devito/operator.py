@@ -113,7 +113,7 @@ class Operator(Callable):
         # Finish instantiation
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
 
-    def prepare_arguments(self, **kwargs):
+    def _prepare_arguments(self, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
@@ -172,20 +172,20 @@ class Operator(Callable):
 
         # Check all user-provided keywords are known to the Operator
         for k, v in kwargs.items():
-            if k not in self.known_arguments:
+            if k not in self._known_arguments:
                 raise ValueError("Unrecognized argument %s=%s passed to `apply`" % (k, v))
 
         return args
 
     @cached_property
-    def known_arguments(self):
+    def _known_arguments(self):
         """Return an iterable of arguments that can be passed to ``apply``
         when running the operator."""
         ret = set.union(*[set(i._arg_names) for i in self.input + self.dimensions])
         return tuple(sorted(ret))
 
     def arguments(self, **kwargs):
-        args = self.prepare_arguments(**kwargs)
+        args = self._prepare_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
             if args.get(p.name) is None:
