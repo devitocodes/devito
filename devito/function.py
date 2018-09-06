@@ -1036,6 +1036,30 @@ class TimeFunction(Function):
     _pickle_kwargs = Function._pickle_kwargs + ['time_order', 'save']
 
 
+class SubFunction(Function):
+    """
+    A :class:`Function` that is bound to another "parent" TensorFunction.
+
+    A SubFunction hands control of argument binding and halo exchange to its
+    parent TensorFunction.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            super(SubFunction, self).__init__(*args, **kwargs)
+            self._parent = kwargs['parent']
+
+    def _halo_exchange(self):
+        return
+
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
+                               "a value dynamically" % self.name)
+        else:
+            return self._parent._arg_defaults(alias=self._parent).reduce_all()
+
+
 class AbstractSparseFunction(TensorFunction):
     """
     An abstract class to define behaviours common to any kind of sparse
@@ -1043,8 +1067,9 @@ class AbstractSparseFunction(TensorFunction):
     on the fly. This is an internal class only and should never be
     instantiated.
     """
-    # Symbols that are encapsulated within this symbol (e.g. coordinates)
-    _child_functions = []
+
+    _sub_functions = ()
+    """:class:`SubFunction`s encapsulated within this AbstractSparseFunction."""
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1294,22 +1319,23 @@ class SparseFunction(AbstractSparseFunction):
     """
 
     is_SparseFunction = True
-    _child_functions = ['coordinates']
+
+    _sub_functions = ('coordinates',)
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(SparseFunction, self).__init__(*args, **kwargs)
 
-            # Set up coordinates of sparse points
+            # Set up sparse point coordinates
             coordinates = kwargs.get('coordinates')
             if isinstance(coordinates, Function):
                 self._coordinates = coordinates
             elif coordinates is not None:
                 dimensions = (self.indices[-1], Dimension(name='d'))
-                self._coordinates = Function(name='%s_coords' % self.name,
-                                             dtype=self.dtype, dimensions=dimensions,
-                                             shape=(self.npoint, self.grid.dim),
-                                             space_order=0, initializer=coordinates)
+                self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
+                                                dtype=self.dtype, dimensions=dimensions,
+                                                shape=(self.npoint, self.grid.dim),
+                                                space_order=0, initializer=coordinates)
 
     @property
     def coordinates(self):
@@ -1595,8 +1621,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         SymPy uses `*args` to (re-)create the dimension arguments of the
         symbolic function.
     """
+
     is_PrecomputedSparseFunction = True
-    _child_functions = ['gridpoints', 'coefficients']
+
+    _sub_functions = ('gridpoints', 'coefficients')
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1610,20 +1638,21 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                 raise ValueError('`r` must be > 0')
             self.r = r
 
-            gridpoints = Function(name="%s_gridpoints" % self.name, dtype=np.int32,
-                                  dimensions=(self.indices[-1], Dimension(name='d')),
-                                  shape=(self.npoint, self.grid.dim), space_order=0)
+            gridpoints = SubFunction(name="%s_gridpoints" % self.name, dtype=np.int32,
+                                     dimensions=(self.indices[-1], Dimension(name='d')),
+                                     shape=(self.npoint, self.grid.dim), space_order=0,
+                                     parent=self)
 
             gridpoints_data = kwargs.get('gridpoints', None)
             assert(gridpoints_data is not None)
             gridpoints.data[:] = gridpoints_data[:]
             self._gridpoints = gridpoints
 
-            coefficients = Function(name="%s_coefficients" % self.name, dtype=self.dtype,
-                                    dimensions=(self.indices[-1], Dimension(name='d'),
-                                                Dimension(name='i')),
-                                    shape=(self.npoint, self.grid.dim, self.r),
-                                    space_order=0)
+            coefficients = SubFunction(name="%s_coefficients" % self.name,
+                                       dimensions=(self.indices[-1], Dimension(name='d'),
+                                                   Dimension(name='i')),
+                                       shape=(self.npoint, self.grid.dim, self.r),
+                                       dtype=self.dtype, space_order=0, parent=self)
             coefficients_data = kwargs.get('coefficients', None)
             assert(coefficients_data is not None)
             coefficients.data[:] = coefficients_data[:]
@@ -1749,6 +1778,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         SymPy uses `*args` to (re-)create the dimension arguments of the
         symbolic function.
     """
+
     is_PrecomputedSparseTimeFunction = True
 
 
