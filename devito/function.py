@@ -1195,6 +1195,9 @@ class AbstractSparseFunction(TensorFunction):
 
         return values
 
+    def _arg_apply(self, data):
+        self._dist_gather(data)
+
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
 
