@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, SparseTimeFunction, Dimension, error)
+                    SparseFunction, SparseTimeFunction, Dimension, error, staggered)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -321,18 +321,18 @@ class TestAllocation(object):
         assert(np.allclose(m2.data, 0))
         assert(np.array_equal(m.data, m2.data))
 
-    @pytest.mark.parametrize('staggered', [
-        (0, 0), (0, 1), (1, 0), (1, 1),
-        (0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1),
-        (1, 1, 0), (1, 0, 1), (0, 1, 1), (1, 1, 1),
+    @pytest.mark.parametrize('staggered, ndim', [
+        ('node', 2), (y, 2), (x, 2), ('cell', 2),
+        ('node', 3), (x, 3), (y, 3), (z, 3),
+        ((x, y), 3), ((x, z), 3), ((y, z), 3), ('cell', 3),
     ])
-    def test_staggered(self, staggered):
+    def test_staggered(self, staggered, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple(11 for _ in staggered))
+        grid = Grid(shape=tuple([11]*ndim))
         f = Function(name='f', grid=grid, staggered=staggered)
-        assert f.data.shape == tuple(11-i for i in staggered)
+        assert f.data.shape == tuple(11-i for i in staggered(f))
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)

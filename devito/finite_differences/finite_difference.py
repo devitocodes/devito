@@ -364,6 +364,7 @@ def generate_fd_functions(function):
     # add non-conventional, non-centered first-order FDs
     if not is_staggered:
         for d in dimensions:
+            name = 't' if d.is_Time else d.root.name
             # left
             deriv = partial(first_derivative, order=space_fd_order,
                             dim=d, side=left)

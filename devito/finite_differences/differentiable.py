@@ -124,6 +124,10 @@ class Differentiable(sympy.Expr):
         else:
             return sympy.Number(0)
 
+    def __neg__(self):
+        return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), -1]),
+                              **self._kwargs)
+
     def __str__(self):
         if self.is_Function:
             return super(sympy.Expr, self).__str__()
