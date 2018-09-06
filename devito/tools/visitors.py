@@ -41,7 +41,7 @@ class GenericVisitor(object):
             # Check the argument specification
             # Valid options are:
             #    visit_Foo(self, o, [*args, **kwargs])
-            argspec = inspect.getargspec(meth)
+            argspec = inspect.getfullargspec(meth)
             if len(argspec.args) < 2:
                 raise RuntimeError("Visit method signature must be "
                                    "visit_Foo(self, o, [*args, **kwargs])")
