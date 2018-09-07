@@ -205,7 +205,7 @@ def first_derivative(expr, **kwargs):
     for i in range(0, len(ind)):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
             deriv += expr.subs(subs) * c[i]
-    return deriv.evalf(_PRECISION)
+    return matvec._transpose*deriv.evalf(_PRECISION)
 
 
 def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):

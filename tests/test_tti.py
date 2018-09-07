@@ -102,9 +102,7 @@ def test_tti_staggered(shape):
     t0 = 0.0
     tn = 250.0
     time_range = TimeAxis(start=t0, stop=tn, step=dt)
-    nt = time_range.num
 
-    last = (nt - 1) % 2
     # Generate a wavefield as initial condition
     source = RickerSource(name='src', grid=model.grid, f0=f0, time_range=time_range)
     source.coordinates.data[0, :] = np.array(model.domain_size) * .5
@@ -124,9 +122,9 @@ def test_tti_staggered(shape):
     configuration['dle'] = 'basic'
     rec2, u2, v2, _ = solver_tti2.forward(kernel='staggered')
 
-    u_staggered1 = u1.data[last, :] + v1.data[last, :]
-    u_staggered2 = u2.data[last, :] + v2.data[last, :]
-
-    res = np.linalg.norm(u_staggered1.reshape(-1) - u_staggered2.reshape(-1))
-    log("DSE/DLE introduces error %2.4e in %d dimensions" % (res, len(shape)))
-    assert np.isclose(res, 0.0, atol=1e-8)
+    res1 = np.linalg.norm(u1.data.reshape(-1) - u2.data.reshape(-1))
+    res2 = np.linalg.norm(v1.data.reshape(-1) - v2.data.reshape(-1))
+    log("DSE/DLE introduces error %2.4e, %2.4e in %d dimensions" % (res1, res2,
+                                                                    len(shape)))
+    assert np.isclose(res1, 0.0, atol=1e-8)
+    assert np.isclose(res2, 0.0, atol=1e-8)
