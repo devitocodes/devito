@@ -4,8 +4,8 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import (Grid, Function, TimeFunction, SparseFunction, Dimension,
-                    ConditionalDimension, SubDimension, Eq, Inc, Operator)
+from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
+                    Dimension, ConditionalDimension, SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
@@ -634,6 +634,35 @@ class TestOperatorAdvanced(object):
 
         assert np.all(f.data == 1.25)
 
+    @pytest.mark.parallel(nprocs=4)
+    def test_injection_no_stencil_wtime(self):
+        """
+        Just like ``test_injection_no_stencil``, but using a SparseTimeFunction
+        instead of a SparseFunction. Hence, the data scattering/gathering now
+        has to correctly pack/unpack multidimensional arrays.
+        """
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        save = 3
+        f = TimeFunction(name='f', grid=grid, save=save, space_order=0)
+        f.data[:] = 0.
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        else:
+            coords = []
+        sf = SparseTimeFunction(name='sf', grid=grid, nt=save,
+                                npoint=len(coords), coordinates=coords)
+        sf.data[0, :] = 4.
+        sf.data[1, :] = 8.
+        sf.data[2, :] = 12.
+
+        op = Operator(sf.inject(field=f, expr=sf + 1))
+        op.apply()
+
+        assert np.all(f.data[0] == 1.25)
+        assert np.all(f.data[1] == 2.25)
+        assert np.all(f.data[2] == 3.25)
+
     @pytest.mark.parallel(nprocs=[4])
     def test_interpolation_no_stencil(self):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
@@ -866,4 +895,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_interpolation_no_stencil()
+    TestOperatorAdvanced().test_injection_no_stencil_wtime()
