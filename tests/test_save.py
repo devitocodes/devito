@@ -28,7 +28,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
                      initializer=initializer, time_order=1, space_order=2)
 
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
-    stencil = solve(eqn, u.forward)[
+    stencil = solve(eqn, u.forward)
     op = Operator(Eq(u.forward, stencil))
     op.apply(time=timesteps-2, dt=dt)
 
