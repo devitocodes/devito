@@ -287,7 +287,7 @@ def parallel(item):
 
     :parameter item: The test item to run.
     """
-    marker = item.get_marker("parallel")
+    marker = item.get_closest_marker("parallel")
     nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
     for i in nprocs:
         if i < 2:

@@ -12,7 +12,7 @@ from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.logger import bar, info
+from devito.logger import info, perf
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
@@ -403,16 +403,16 @@ class OperatorRunnable(Operator):
     def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
         summary = self.profiler.summary(args, self._dtype)
-        with bar():
-            for k, v in summary.items():
-                itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
-                if len(itershapes) > 1:
-                    name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
-                else:
-                    name = "%s<%s>" % (k, itershapes[0])
-                gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
-                info("%s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
-                     (name, v.oi, v.time, v.gflopss, gpointss))
+        info("Operator `%s` run in %.2f s" % (self.name, sum(summary.timings.values())))
+        for k, v in summary.items():
+            itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
+            if len(itershapes) > 1:
+                name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
+            else:
+                name = "%s<%s>" % (k, itershapes[0])
+            gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
+            perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
+                 (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
     def _profile_sections(self, iet):

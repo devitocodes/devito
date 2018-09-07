@@ -388,8 +388,44 @@ def initialize_function(function, data, nbpml):
     :param data: The data array used for initialisation.
     :param nbpml: Number of PML layers for boundary damping.
     """
-    pad_list = [(nbpml + i.left, nbpml + i.right) for i in function._offset_domain]
-    function.data_with_halo[:] = np.pad(data, pad_list, 'edge')
+    pad_widths = [(nbpml, nbpml) for i in range(function.ndim)]
+    data = np.pad(data, pad_widths, 'edge')
+
+    distributor = function.grid.distributor
+
+    glb_ranges = distributor.glb_ranges
+    glb_shape = distributor.glb_shape
+
+    assert data.shape == glb_shape
+
+    # TODO: If running with MPI, all ranks have at this point built the entire
+    # global data; below, the local grid is extracted. However, this is not
+    # how things should work in practice -- the global function should have been
+    # memory-mapped at the very beginning, so that we avoid most of the following
+    # costly (in a real-life setting, prohibitively expensive) operations, but
+    # this still needs to be implemented
+    pad_widths = []
+    data_slices = []
+    for d, o in zip(function.dimensions, function._offset_domain):
+        try:
+            glb_range = glb_ranges[d]
+
+            lslice = min(glb_range.left, max(glb_range.left - o.left, 0))
+            rslice = max(glb_range.right, min(glb_range.right + o.right, glb_shape[d]))
+
+            lpad = o.left - glb_range.left if lslice == 0 else 0
+            rpad = o.right - (rslice - glb_range.right) if rslice == glb_shape[d] else 0
+
+            data_slices.append((lslice, rslice))
+            pad_widths.append((lpad, rpad))
+        except KeyError:
+            # Not a distributed dimension, so we make sure to get the entire array
+            data_slices.append((None, None))
+            pad_widths.append((0, 0))
+    data = data[[slice(*i) for i in data_slices]]
+    data = np.pad(data, pad_widths, 'edge')
+
+    function.data_with_halo[:] = data
 
 
 class Pysical_Model(object):
@@ -451,11 +487,6 @@ class Pysical_Model(object):
         return self.grid.dtype
 
     @property
-    def shape_domain(self):
-        """Computational shape of the model domain, with PML layers"""
-        return tuple(d + 2*self.nbpml for d in self.shape)
-
-    @property
     def domain_size(self):
         """
         Physical size of the domain as determined by shape and spacing
@@ -486,25 +517,15 @@ class Model(Pysical_Model):
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
                  **kwargs):
+        super(Model, self).__init__(origin, spacing, shape, space_order, nbpml, dtype)
 
-        super(Model, self).__init__(origin, spacing, shape, space_order,
-                                    nbpml=nbpml, dtype=dtype)
+        # Are we provided with an existing grid?
+        grid = kwargs.get('grid')
+        if grid is not None:
+            assert self.grid.extent == grid.extent
+            assert self.grid.shape == grid.shape
+            self.grid = grid
 
-        self.shape = shape
-        self.nbpml = int(nbpml)
-        self.origin = tuple([dtype(o) for o in origin])
-
-        shape_pml = np.array(shape) + 2 * self.nbpml
-        # Physical extent is calculated per cell, so shape - 1
-        extent = tuple(np.array(spacing) * (shape_pml - 1))
-        # Check for input grid
-        self.grid = kwargs.get('grid', None)
-        # Or create a new one
-        if self.grid is None:
-            self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype)
-
-        assert (self.grid.extent == extent)
-        assert (self.grid.shape == shape_pml).all()
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.m = Function(name="m", grid=self.grid, space_order=space_order)

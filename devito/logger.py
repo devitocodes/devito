@@ -7,25 +7,24 @@ from functools import wraps
 
 from devito.parameters import configuration
 
-__all__ = ('set_log_level', 'set_log_noperf', 'silencio', 'log',
+__all__ = ('set_log_level', 'set_log_noperf', 'silencio',
            'log', 'warning', 'error', 'perf', 'perf_adv', 'dse', 'dse_warning',
            'dle', 'dle_warning',
            'RED', 'GREEN', 'BLUE')
 
 
 logger = logging.getLogger('Devito')
-_ch = logging.StreamHandler()
-logger.addHandler(_ch)
+stream_handler = logging.StreamHandler()
 
 # Add extra logging levels (note: INFO has value=20, WARNING has value=30)
 DEBUG = logging.DEBUG
-PERF = 19
-YASK = 19
-YASK_WARN = YASK
+YASK = 16
+YASK_WARN = 17
 DSE = 18
 DSE_WARN = 19
 DLE = DSE
 DLE_WARN = DSE_WARN
+PERF = 19
 INFO = logging.INFO
 WARNING = logging.WARNING
 ERROR = logging.ERROR
@@ -62,8 +61,8 @@ GREEN = '\033[1;37;32m%s\033[0m'
 COLORS = {
     DEBUG: NOCOLOR,
     PERF: GREEN,
-    YASK: GREEN,
-    YASK_WARN: GREEN,
+    YASK: NOCOLOR,
+    YASK_WARN: BLUE,
     INFO: NOCOLOR,
     DSE: NOCOLOR,
     DSE_WARN: BLUE,
@@ -75,16 +74,29 @@ COLORS = {
 }
 
 
-def set_log_level(level):
+def set_log_level(level, comm=None):
     """
     Set the log level of the Devito logger.
 
-    :param level: accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
-                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL
+    :param level: Accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
+                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL.
+    :param comm: An MPI communicator the logger should be collective
+                 over. If provided, only rank-0 on that communicator will
+                 write to the registered handlers, other ranks will use a
+                 :class:`logging.NullHandler`.  By default, ``comm`` is set
+                 to ``None``, so all ranks will use the default handlers.
+                 This could be used, for example, if one wants to log to
+                 one file per rank.
     """
     if level not in logger_registry:
         raise ValueError("Illegal logging level %s" % level)
-    logger.setLevel(level)
+
+    if comm is not None and comm.rank != 0:
+        logger.removeHandler(stream_handler)
+        logger.addHandler(logging.NullHandler())
+    else:
+        logger.addHandler(stream_handler)
+        logger.setLevel(level)
 
 
 def set_log_noperf():
@@ -122,12 +134,9 @@ def log(msg, level=INFO, *args, **kwargs):
     the severity 'level'.
 
     :param msg: the message to be printed.
-    :param level: accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
-                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL
+    :param level: accepted values are: DEBUG, YASK, YASK_WARN, PERF, INFO, DSE,
+                  DSE_WARN, DLE, DLE_WARN, WARNING, ERROR, CRITICAL.
     """
-    assert level in [DEBUG, PERF, INFO, DSE, DSE_WARN, DLE, DLE_WARN,
-                     WARNING, ERROR, CRITICAL]
-
     color = COLORS[level] if sys.stdout.isatty() and sys.stderr.isatty() else '%s'
     logger.log(level, color % msg, *args, **kwargs)
 
@@ -137,7 +146,7 @@ def info(msg, *args, **kwargs):
 
 
 def perf(msg, *args, **kwargs):
-    log("Performance: %s" % msg, PERF, *args, **kwargs)
+    log(msg, PERF, *args, **kwargs)
 
 
 def perf_adv(msg, *args, **kwargs):
