@@ -1375,6 +1375,9 @@ class SparseFunction(AbstractSparseFunction):
                                                 dtype=self.dtype, dimensions=dimensions,
                                                 shape=(self.npoint, self.grid.dim),
                                                 space_order=0, initializer=coordinates)
+                if self.npoint == 0:
+                    # Make sure self._data is not None
+                    self._coordinates.data
 
     @property
     def coordinates(self):

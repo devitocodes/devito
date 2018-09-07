@@ -895,4 +895,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_injection_no_stencil_wtime()
+    TestSparseFunction().test_scatter_gather()
