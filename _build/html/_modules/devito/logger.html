@@ -160,25 +160,24 @@
 
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;set_log_level&#39;</span><span class="p">,</span> <span class="s1">&#39;set_log_noperf&#39;</span><span class="p">,</span> <span class="s1">&#39;silencio&#39;</span><span class="p">,</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;set_log_level&#39;</span><span class="p">,</span> <span class="s1">&#39;set_log_noperf&#39;</span><span class="p">,</span> <span class="s1">&#39;silencio&#39;</span><span class="p">,</span>
            <span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="s1">&#39;warning&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">,</span> <span class="s1">&#39;perf&#39;</span><span class="p">,</span> <span class="s1">&#39;perf_adv&#39;</span><span class="p">,</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span> <span class="s1">&#39;dse_warning&#39;</span><span class="p">,</span>
            <span class="s1">&#39;dle&#39;</span><span class="p">,</span> <span class="s1">&#39;dle_warning&#39;</span><span class="p">,</span>
            <span class="s1">&#39;RED&#39;</span><span class="p">,</span> <span class="s1">&#39;GREEN&#39;</span><span class="p">,</span> <span class="s1">&#39;BLUE&#39;</span><span class="p">)</span>
 
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;Devito&#39;</span><span class="p">)</span>
-<span class="n">_ch</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
-<span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">_ch</span><span class="p">)</span>
+<span class="n">stream_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
 
 <span class="c1"># Add extra logging levels (note: INFO has value=20, WARNING has value=30)</span>
 <span class="n">DEBUG</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
-<span class="n">PERF</span> <span class="o">=</span> <span class="mi">19</span>
-<span class="n">YASK</span> <span class="o">=</span> <span class="mi">19</span>
-<span class="n">YASK_WARN</span> <span class="o">=</span> <span class="n">YASK</span>
+<span class="n">YASK</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="n">YASK_WARN</span> <span class="o">=</span> <span class="mi">17</span>
 <span class="n">DSE</span> <span class="o">=</span> <span class="mi">18</span>
 <span class="n">DSE_WARN</span> <span class="o">=</span> <span class="mi">19</span>
 <span class="n">DLE</span> <span class="o">=</span> <span class="n">DSE</span>
 <span class="n">DLE_WARN</span> <span class="o">=</span> <span class="n">DSE_WARN</span>
+<span class="n">PERF</span> <span class="o">=</span> <span class="mi">19</span>
 <span class="n">INFO</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
 <span class="n">WARNING</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
 <span class="n">ERROR</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span>
@@ -215,8 +214,8 @@
 <span class="n">COLORS</span> <span class="o">=</span> <span class="p">{</span>
     <span class="n">DEBUG</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
     <span class="n">PERF</span><span class="p">:</span> <span class="n">GREEN</span><span class="p">,</span>
-    <span class="n">YASK</span><span class="p">:</span> <span class="n">GREEN</span><span class="p">,</span>
-    <span class="n">YASK_WARN</span><span class="p">:</span> <span class="n">GREEN</span><span class="p">,</span>
+    <span class="n">YASK</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
+    <span class="n">YASK_WARN</span><span class="p">:</span> <span class="n">BLUE</span><span class="p">,</span>
     <span class="n">INFO</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
     <span class="n">DSE</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
     <span class="n">DSE_WARN</span><span class="p">:</span> <span class="n">BLUE</span><span class="p">,</span>
@@ -228,16 +227,29 @@
 <span class="p">}</span>
 
 
-<div class="viewcode-block" id="set_log_level"><a class="viewcode-back" href="../../devito.html#devito.logger.set_log_level">[docs]</a><span class="k">def</span> <span class="nf">set_log_level</span><span class="p">(</span><span class="n">level</span><span class="p">):</span>
+<div class="viewcode-block" id="set_log_level"><a class="viewcode-back" href="../../devito.html#devito.logger.set_log_level">[docs]</a><span class="k">def</span> <span class="nf">set_log_level</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">comm</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Set the log level of the Devito logger.</span>
 
-<span class="sd">    :param level: accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,</span>
-<span class="sd">                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL</span>
+<span class="sd">    :param level: Accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,</span>
+<span class="sd">                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL.</span>
+<span class="sd">    :param comm: An MPI communicator the logger should be collective</span>
+<span class="sd">                 over. If provided, only rank-0 on that communicator will</span>
+<span class="sd">                 write to the registered handlers, other ranks will use a</span>
+<span class="sd">                 :class:`logging.NullHandler`.  By default, ``comm`` is set</span>
+<span class="sd">                 to ``None``, so all ranks will use the default handlers.</span>
+<span class="sd">                 This could be used, for example, if one wants to log to</span>
+<span class="sd">                 one file per rank.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">level</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">logger_registry</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal logging level </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">level</span><span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span></div>
+
+    <span class="k">if</span> <span class="n">comm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">comm</span><span class="o">.</span><span class="n">rank</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">stream_handler</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">NullHandler</span><span class="p">())</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stream_handler</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="set_log_noperf"><a class="viewcode-back" href="../../devito.html#devito.logger.set_log_noperf">[docs]</a><span class="k">def</span> <span class="nf">set_log_noperf</span><span class="p">():</span>
@@ -275,12 +287,9 @@
 <span class="sd">    the severity &#39;level&#39;.</span>
 
 <span class="sd">    :param msg: the message to be printed.</span>
-<span class="sd">    :param level: accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,</span>
-<span class="sd">                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL</span>
+<span class="sd">    :param level: accepted values are: DEBUG, YASK, YASK_WARN, PERF, INFO, DSE,</span>
+<span class="sd">                  DSE_WARN, DLE, DLE_WARN, WARNING, ERROR, CRITICAL.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">assert</span> <span class="n">level</span> <span class="ow">in</span> <span class="p">[</span><span class="n">DEBUG</span><span class="p">,</span> <span class="n">PERF</span><span class="p">,</span> <span class="n">INFO</span><span class="p">,</span> <span class="n">DSE</span><span class="p">,</span> <span class="n">DSE_WARN</span><span class="p">,</span> <span class="n">DLE</span><span class="p">,</span> <span class="n">DLE_WARN</span><span class="p">,</span>
-                     <span class="n">WARNING</span><span class="p">,</span> <span class="n">ERROR</span><span class="p">,</span> <span class="n">CRITICAL</span><span class="p">]</span>
-
     <span class="n">color</span> <span class="o">=</span> <span class="n">COLORS</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="ow">and</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">color</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
@@ -290,7 +299,7 @@
 
 
 <div class="viewcode-block" id="perf"><a class="viewcode-back" href="../../devito.html#devito.logger.perf">[docs]</a><span class="k">def</span> <span class="nf">perf</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Performance: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="n">PERF</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+    <span class="n">log</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">PERF</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="perf_adv"><a class="viewcode-back" href="../../devito.html#devito.logger.perf_adv">[docs]</a><span class="k">def</span> <span class="nf">perf_adv</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>

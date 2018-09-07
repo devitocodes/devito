@@ -2411,6 +2411,28 @@ entry that should be staggered, and <code class="docutils literal notranslate"><
 <code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
 <code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
 </div>
+<dl class="method">
+<dt id="devito.function.Function.avg">
+<code class="descname">avg</code><span class="sig-paren">(</span><em>p=None</em>, <em>dims=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Function.avg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Function.avg" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate a symbolic expression computing the average of <code class="docutils literal notranslate"><span class="pre">p</span></code> points
+along the spatial dimensions <code class="docutils literal notranslate"><span class="pre">dims</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>p</strong> – (Optional) the number of summands. Defaults to the
+halo extent.</li>
+<li><strong>dims</strong> – (Optional) the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">along</span> <span class="pre">which</span> <span class="pre">the</span>
+<span class="pre">sum</span> <span class="pre">is</span> <span class="pre">computed.</span> <span class="pre">Defaults</span> <span class="pre">to</span> <span class="pre">``self`</span></code>’s spatial
+dimensions.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="attribute">
 <dt id="devito.function.Function.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.function.Function.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -2433,6 +2455,28 @@ derivative wrt. all spatial dimensions.</p>
 <code class="descname">laplace2</code><span class="sig-paren">(</span><em>weight=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Function.laplace2"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Function.laplace2" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generates a symbolic expression for the double Laplacian
 wrt. all spatial dimensions.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.function.Function.sum">
+<code class="descname">sum</code><span class="sig-paren">(</span><em>p=None</em>, <em>dims=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Function.sum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Function.sum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate a symbolic expression computing the sum of <code class="docutils literal notranslate"><span class="pre">p</span></code> points
+along the spatial dimensions <code class="docutils literal notranslate"><span class="pre">dims</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>p</strong> – (Optional) the number of summands. Defaults to the
+halo extent.</li>
+<li><strong>dims</strong> – (Optional) the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">along</span> <span class="pre">which</span> <span class="pre">the</span>
+<span class="pre">sum</span> <span class="pre">is</span> <span class="pre">computed.</span> <span class="pre">Defaults</span> <span class="pre">to</span> <span class="pre">``self`</span></code>’s spatial
+dimensions.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -3127,14 +3171,24 @@ False otherwise.</p>
 <p>The Devito logger.</p>
 <dl class="function">
 <dt id="devito.logger.set_log_level">
-<code class="descclassname">devito.logger.</code><code class="descname">set_log_level</code><span class="sig-paren">(</span><em>level</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#set_log_level"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.set_log_level" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.logger.</code><code class="descname">set_log_level</code><span class="sig-paren">(</span><em>level</em>, <em>comm=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#set_log_level"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.set_log_level" title="Permalink to this definition">¶</a></dt>
 <dd><p>Set the log level of the Devito logger.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>level</strong> – accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
-DLE, DLE_WARN, WARNING, ERROR, CRITICAL</td>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>level</strong> – Accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
+DLE, DLE_WARN, WARNING, ERROR, CRITICAL.</li>
+<li><strong>comm</strong> – An MPI communicator the logger should be collective
+over. If provided, only rank-0 on that communicator will
+write to the registered handlers, other ranks will use a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">logging.NullHandler</span></code>.  By default, <code class="docutils literal notranslate"><span class="pre">comm</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">None</span></code>, so all ranks will use the default handlers.
+This could be used, for example, if one wants to log to
+one file per rank.</li>
+</ul>
+</td>
 </tr>
 </tbody>
 </table>
@@ -3164,28 +3218,8 @@ the severity ‘level’.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>msg</strong> – the message to be printed.</li>
-<li><strong>level</strong> – accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
-DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt>
-<code class="descclassname">devito.logger.</code><code class="descname">log</code><span class="sig-paren">(</span><em>msg</em>, <em>level=20</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#log"><span class="viewcode-link">[source]</span></a></dt>
-<dd><p>Wrapper of the main Python’s logging function. Print ‘msg % args’ with
-the severity ‘level’.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>msg</strong> – the message to be printed.</li>
-<li><strong>level</strong> – accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
-DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
+<li><strong>level</strong> – accepted values are: DEBUG, YASK, YASK_WARN, PERF, INFO, DSE,
+DSE_WARN, DLE, DLE_WARN, WARNING, ERROR, CRITICAL.</li>
 </ul>
 </td>
 </tr>
