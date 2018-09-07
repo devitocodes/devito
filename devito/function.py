@@ -1155,11 +1155,11 @@ class AbstractSparseFunction(TensorFunction):
         dmap = self._dist_datamap
         comm = self.grid.distributor.comm
 
-        sendsparse = np.array([len(dmap.get(i, [])) for i in range(comm.size)], dtype=int)
-        recvsparse = np.empty(comm.size, dtype=int)
-        comm.Alltoall(sendsparse, recvsparse)
+        ssparse = np.array([len(dmap.get(i, [])) for i in range(comm.size)], dtype=int)
+        rsparse = np.empty(comm.size, dtype=int)
+        comm.Alltoall(ssparse, rsparse)
 
-        return sendsparse, recvsparse
+        return ssparse, rsparse
 
     @property
     def _dist_alltoall(self):
@@ -1167,36 +1167,36 @@ class AbstractSparseFunction(TensorFunction):
         Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing
         the sparse data values across the MPI ranks needing them.
         """
-        sendsparse, recvsparse = self._dist_count
+        ssparse, rsparse = self._dist_count
 
         # Per-rank shape of send/recv data
-        sendshape = []
-        recvshape = []
-        for s, r in zip(sendsparse, recvsparse):
+        sshape = []
+        rshape = []
+        for s, r in zip(ssparse, rsparse):
             handle = list(self.shape)
             handle[self._sparse_position] = s
-            sendshape.append(tuple(handle))
+            sshape.append(tuple(handle))
 
             handle = list(self.shape)
             handle[self._sparse_position] = r
-            recvshape.append(tuple(handle))
+            rshape.append(tuple(handle))
 
         # Per-rank count of send/recv data
-        sendcount = [prod(i) for i in sendshape]
-        recvcount = [prod(i) for i in recvshape]
+        scount = [prod(i) for i in sshape]
+        rcount = [prod(i) for i in rshape]
 
         # Per-rank displacement of send/recv data (it's actually all contiguous,
         # but the Alltoallv needs this information anyway)
-        senddisp = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
-        recvdisp = np.concatenate([[0], tuple(np.cumsum(recvcount))[:-1]])
+        sdisp = np.concatenate([[0], np.cumsum(scount)[:-1]])
+        rdisp = np.concatenate([[0], tuple(np.cumsum(rcount))[:-1]])
 
         # Total shape of send/recv data
-        sendshape = list(self.shape)
-        sendshape[self._sparse_position] = sum(sendsparse)
-        recvshape = list(self.shape)
-        recvshape[self._sparse_position] = sum(recvsparse)
+        sshape = list(self.shape)
+        sshape[self._sparse_position] = sum(ssparse)
+        rshape = list(self.shape)
+        rshape[self._sparse_position] = sum(rsparse)
 
-        return sendshape, sendcount, senddisp, recvshape, recvcount, recvdisp
+        return sshape, scount, sdisp, rshape, rcount, rdisp
 
     @property
     def _dist_subfunc_alltoall(self):
@@ -1366,10 +1366,10 @@ class SparseFunction(AbstractSparseFunction):
             super(SparseFunction, self).__init__(*args, **kwargs)
 
             # Set up sparse point coordinates
-            coordinates = kwargs.get('coordinates')
+            coordinates = kwargs.get('coordinates', kwargs.get('coordinate_data'))
             if isinstance(coordinates, Function):
                 self._coordinates = coordinates
-            elif coordinates is not None:
+            else:
                 dimensions = (self.indices[-1], Dimension(name='d'))
                 self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
                                                 dtype=self.dtype, dimensions=dimensions,
@@ -1379,6 +1379,10 @@ class SparseFunction(AbstractSparseFunction):
     @property
     def coordinates(self):
         return self._coordinates
+
+    @property
+    def coordinate_data(self):
+        return self.coordinates.data
 
     @property
     def _coefficients(self):
@@ -1530,28 +1534,28 @@ class SparseFunction(AbstractSparseFunction):
 
     @property
     def _dist_subfunc_alltoall(self):
-        sendsparse, recvsparse = self._dist_count
+        ssparse, rsparse = self._dist_count
 
         # Per-rank shape of send/recv `coordinates`
-        sendshape = [(i, self.grid.dim) for i in sendsparse]
-        recvshape = [(i, self.grid.dim) for i in recvsparse]
+        sshape = [(i, self.grid.dim) for i in ssparse]
+        rshape = [(i, self.grid.dim) for i in rsparse]
 
         # Per-rank count of send/recv `coordinates`
-        sendcount = [prod(i) for i in sendshape]
-        recvcount = [prod(i) for i in recvshape]
+        scount = [prod(i) for i in sshape]
+        rcount = [prod(i) for i in rshape]
 
         # Per-rank displacement of send/recv `coordinates` (it's actually all
         # contiguous, but the Alltoallv needs this information anyway)
-        senddisp = np.concatenate([[0], np.cumsum(sendcount)[:-1]])
-        recvdisp = np.concatenate([[0], tuple(np.cumsum(recvcount))[:-1]])
+        sdisp = np.concatenate([[0], np.cumsum(scount)[:-1]])
+        rdisp = np.concatenate([[0], tuple(np.cumsum(rcount))[:-1]])
 
         # Total shape of send/recv `coordinates`
-        sendshape = list(self.coordinates.shape)
-        sendshape[0] = sum(sendsparse)
-        recvshape = list(self.coordinates.shape)
-        recvshape[0] = sum(recvsparse)
+        sshape = list(self.coordinates.shape)
+        sshape[0] = sum(ssparse)
+        rshape = list(self.coordinates.shape)
+        rshape[0] = sum(rsparse)
 
-        return sendshape, sendcount, senddisp, recvshape, recvcount, recvdisp
+        return sshape, scount, sdisp, rshape, rcount, rdisp
 
     def _dist_scatter(self, data=None):
         data = data if data is not None else self.data
@@ -1566,19 +1570,19 @@ class SparseFunction(AbstractSparseFunction):
         # Pack (reordered) data values so that they can be sent out via an Alltoallv
         data = data[self._dist_mask]
         # Send out the sparse point values
-        _, sendcount, senddisp, recvshape, recvcount, recvdisp = self._dist_alltoall
-        scattered = np.empty(shape=recvshape, dtype=self.dtype)
-        comm.Alltoallv([data, sendcount, senddisp, mpitype],
-                       [scattered, recvcount, recvdisp, mpitype])
+        _, scount, sdisp, rshape, rcount, rdisp = self._dist_alltoall
+        scattered = np.empty(shape=rshape, dtype=self.dtype)
+        comm.Alltoallv([data, scount, sdisp, mpitype],
+                       [scattered, rcount, rdisp, mpitype])
         data = scattered
 
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
         coords = self.coordinates.data[self._dist_subfunc_mask]
         # Send out the sparse point coordinates
-        _, sendcount, senddisp, recvshape, recvcount, recvdisp = self._dist_subfunc_alltoall
-        scattered = np.empty(shape=recvshape, dtype=self.coordinates.dtype)
-        comm.Alltoallv([coords, sendcount, senddisp, mpitype],
-                       [scattered, recvcount, recvdisp, mpitype])
+        _, scount, sdisp, rshape, rcount, rdisp = self._dist_subfunc_alltoall
+        scattered = np.empty(shape=rshape, dtype=self.coordinates.dtype)
+        comm.Alltoallv([coords, scount, sdisp, mpitype],
+                       [scattered, rcount, rdisp, mpitype])
         coords = scattered
 
         # Translate global coordinates into local coordinates
@@ -1594,11 +1598,11 @@ class SparseFunction(AbstractSparseFunction):
             return
 
         # Send back the sparse point values
-        sendshape, sendcount, senddisp, _, recvcount, recvdisp = self._dist_alltoall
-        gathered = np.empty(shape=sendshape, dtype=self.dtype)
+        sshape, scount, sdisp, _, rcount, rdisp = self._dist_alltoall
+        gathered = np.empty(shape=sshape, dtype=self.dtype)
         mpitype = MPI._typedict[np.dtype(self.dtype).char]
-        comm.Alltoallv([data, recvcount, recvdisp, mpitype],
-                       [gathered, sendcount, senddisp, mpitype])
+        comm.Alltoallv([data, rcount, rdisp, mpitype],
+                       [gathered, scount, sdisp, mpitype])
         data = gathered
 
         # Insert back into `self.data` based on the original (expected) data layout
@@ -1609,7 +1613,7 @@ class SparseFunction(AbstractSparseFunction):
         # should never be written to
 
     # Pickling support
-    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinate_data']
 
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
