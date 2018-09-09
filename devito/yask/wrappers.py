@@ -46,7 +46,7 @@ class YaskKernel(object):
         if os.path.exists(os.path.join(namespace['yask-pylib'], '%s.py' % name)):
             # Nothing to do -- the YASK solution was compiled in a previous session
             yk = import_module(name)
-            log("cache hit, `%s` imported w/o jitting" % name)
+            debug("cache hit, `%s` imported w/o jitting" % name)
         else:
             # We create and JIT compile a fresh YASK solution
 
