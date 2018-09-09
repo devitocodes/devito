@@ -395,5 +395,4 @@ def initialize_derivatives(function):
     """
     Dynamically create notational shortcuts for space derivatives.
     """
-    fd_derivatives = generate_fd_functions(function)
-    function.fd = fd_derivatives
+    function._fd = generate_fd_functions(function)

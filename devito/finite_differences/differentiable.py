@@ -27,20 +27,47 @@ class Differentiable(sympy.Expr):
 
     def __init__(self, expr, **kwargs):
         # Recover the list of possible FD shortcuts
-        self.dtype = kwargs.get('dtype')
-        self.space_order = kwargs.get('space_order')
-        self.time_order = kwargs.get('time_order', 0)
-        self.indices = kwargs.get('indices', ())
-        self.staggered = kwargs.get('staggered')
-        self.grid = kwargs.get('grid')
+        self._dtype = kwargs.get('dtype')
+        self._space_order = kwargs.get('space_order')
+        self._time_order = kwargs.get('time_order', 0)
+        self._indices = kwargs.get('indices', ())
+        self._staggered = kwargs.get('staggered')
+        self._grid = kwargs.get('grid')
         # Generate FD shortcuts for expression or copy from input
-        self.fd = kwargs.get('fd', [])
+        self._fd = kwargs.get('fd', {})
         # Save kwargs
-        self._kwargs = kwargs
         self._expr = expr
 
+    @property
+    def space_order(self):
+        return self._space_order
+
+    @property
+    def time_order(self):
+        return self._time_order
+
+    @property
+    def staggered(self):
+        return self._staggered
+
+    @property
+    def indices(self):
+        return self._indices
+
+    @property
+    def fd(self):
+        return self._fd
+
+    @property
+    def grid(self):
+        return self._grid
+
+    @property
+    def dtype(self):
+        return self._dtype
+
     def __getattr__(self, name):
-        if name == 'fd':
+        if name == 'fd' or name == '_fd':
             raise AttributeError()
         if name in self.fd.keys():
             return self.fd[name][0](self)
@@ -62,8 +89,8 @@ class Differentiable(sympy.Expr):
                 return out.func(*args)
         return out
 
-    def merge_fd_properties(self, other):
-        merged = getattr(self, '_kwargs', dict())
+    def _merge_fd_properties(self, other):
+        merged = {}
         merged["space_order"] = np.min([getattr(self, 'space_order', 100) or 100,
                                         getattr(other, 'space_order', 100)])
         merged["time_order"] = np.min([getattr(self, 'time_order', 100) or 100,
@@ -77,7 +104,7 @@ class Differentiable(sympy.Expr):
     def __add__(self, other):
         return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
-                              **self.merge_fd_properties(other))
+                              **self._merge_fd_properties(other))
 
     __iadd__ = __add__
     __radd__ = __add__
@@ -85,30 +112,30 @@ class Differentiable(sympy.Expr):
     def __sub__(self, other):
         return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
                                           -getattr(other, '_expr', other)]),
-                              **self.merge_fd_properties(other))
+                              **self._merge_fd_properties(other))
 
     def __rsub__(self, other):
         return Differentiable(sympy.Add(*[-getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
-                              **self.merge_fd_properties(other))
+                              **self._merge_fd_properties(other))
 
     __isub__ = __sub__
 
     def __mul__(self, other):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
-                              **self.merge_fd_properties(other))
+                              **self._merge_fd_properties(other))
 
     __imul__ = __mul__
     __rmul__ = __mul__
 
     def __truediv__(self, other):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), other**(-1)]),
-                              **self.merge_fd_properties(other))
+                              **self._merge_fd_properties(other))
 
     def __rtruediv__(self, other):
         return Differentiable(sympy.Mul(*[other, getattr(self, '_expr', self)**(-1)]),
-                              **self.merge_fd_properties(other))
+                              **self._merge_fd_properties(other))
 
     def __pow__(self, exponent):
         if exponent > 0:
@@ -120,13 +147,13 @@ class Differentiable(sympy.Expr):
                                           sympy.Mul(*[getattr(self, '_expr',
                                                       self)]*(-exponent),
                                                     evaluate=False)),
-                                  **self._kwargs)
+                                  **self._merge_fd_properties(None))
         else:
             return sympy.Number(0)
 
     def __neg__(self):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), -1]),
-                              **self._kwargs)
+                              **self._merge_fd_properties(None))
 
     def __str__(self):
         if self.is_Function:

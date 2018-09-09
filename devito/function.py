@@ -609,21 +609,14 @@ class Function(TensorFunction, Differentiable):
             # Space order
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
-                self.space_order = space_order
+                self._space_order = space_order
             elif isinstance(space_order, tuple) and len(space_order) == 3:
-                self.space_order, _, _ = space_order
+                self._space_order, _, _ = space_order
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
 
             # Dynamically add derivative short-cuts
             initialize_derivatives(self)
-            # Add fd property to _kwargs for Differentiable constructor
-            self._kwargs["space_order"] = self.space_order
-            self._kwargs["time_order"] = 0
-            self._kwargs["dtype"] = self.dtype
-            self._kwargs["indices"] = self.indices
-            self._kwargs["fd"] = self.fd
-            self._kwargs["grid"] = self.grid
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -830,7 +823,7 @@ class TimeFunction(Function):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
-            self.time_order = kwargs.get('time_order', 1)
+            self._time_order = kwargs.get('time_order', 1)
             super(TimeFunction, self).__init__(*args, **kwargs)
 
             # Check we won't allocate too much memory for the system
@@ -842,7 +835,6 @@ class TimeFunction(Function):
                 raise TypeError("`time_order` must be int")
 
             self.save = kwargs.get('save')
-            self._kwargs["time_order"] = self.time_order
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
