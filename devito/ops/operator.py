@@ -4,18 +4,12 @@ from devito.operator import OperatorRunnable
 __all__ = ['Operator']
 
 
-class OperatorOPS(OperatorRunnable):
+class Operator(OperatorRunnable):
+    """
+    A special :class:`OperatorCore` to JIT-compile and run operators through OPS.
+    """
 
-    def _specialize_exprs(self, expressions):
-        # Align data accesses to the computational domain
-        key = lambda i: i.is_TensorFunction
-        expressions = [align_accesses(e, key=key) for e in expressions]
-        return super(OperatorOPS, self)._specialize_exprs(expressions)
+    def _specialize_iet(self, iet, **kwargs):
+        raise NotImplementedError
 
-class Operator(object):
 
-    def __new__(cls, *args, **kwargs):
-        cls = OperatorOPS
-        obj = cls.__new__(cls, *args, **kwargs)
-        obj.__init__(*args, **kwargs)
-        return obj

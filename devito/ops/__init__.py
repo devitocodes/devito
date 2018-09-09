@@ -1,7 +1,6 @@
 """
-The ``core`` Devito backend is simply a "shadow" of the ``base`` backend,
-common to all other backends. The ``core`` backend (and therefore the ``base``
-backend as well) are used to run Devito on standard CPU architectures.
+The ``ops`` Devito backend uses the OPS library to generate,
+JIT-compile, and run kernels on multiple architectures.
 """
 
 from devito.dle import (BasicRewriter, AdvancedRewriter, AdvancedRewriterSafeMath,
