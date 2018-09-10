@@ -95,7 +95,7 @@ def guard(clusters):
 
         # Then we add in all guarded clusters
         for k, v in mapper.items():
-            guards = {d.parent: CondEq(d.parent % d.factor, 0) for d in k}
+            guards = {d.parent: d.condition or CondEq(d.parent % d.factor, 0) for d in k}
             processed.append(PartialCluster(v, c.ispace, c.dspace, c.atomics, guards))
 
     return ClusterGroup(processed)
