@@ -12,7 +12,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
 from devito.exceptions import CompilationError
-from devito.logger import log, warning
+from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.tools import (as_tuple, change_directory, filter_ordered,
                           memoized_func, make_tempdir)
@@ -308,13 +308,13 @@ def save(soname, binary, compiler):
     """
     sofile = get_jit_dir().joinpath(soname).with_suffix(compiler.so_ext)
     if sofile.is_file():
-        log("%s: `%s` was not saved in `%s` as it already exists"
-            % (compiler, sofile.name, get_jit_dir()))
+        debug("%s: `%s` was not saved in `%s` as it already exists"
+              % (compiler, sofile.name, get_jit_dir()))
     else:
         with open(str(path), 'wb') as f:
             f.write(binary)
-        log("%s: `%s` successfully saved in `%s`"
-            % (compiler, sofile.name, get_jit_dir()))
+        debug("%s: `%s` successfully saved in `%s`"
+              % (compiler, sofile.name, get_jit_dir()))
 
 
 def jit_compile(soname, code, compiler):
@@ -345,9 +345,9 @@ def jit_compile(soname, code, compiler):
         toc = time()
 
     if recompiled:
-        log("%s: compiled `%s` [%.2f s]" % (compiler, src_file, toc-tic))
+        debug("%s: compiled `%s` [%.2f s]" % (compiler, src_file, toc-tic))
     else:
-        log("%s: cache hit `%s` [%.2f s]" % (compiler, src_file, toc-tic))
+        debug("%s: cache hit `%s` [%.2f s]" % (compiler, src_file, toc-tic))
 
 
 def make(loc, args):
@@ -376,7 +376,7 @@ def make(loc, args):
                                            'Compile errors in %s\n' %
                                            (e.cmd, e.returncode, logfile, errfile))
     toc = time()
-    log("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
+    debug("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
 
 
 # Registry dict for deriving Compiler classes according to the environment variable
