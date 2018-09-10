@@ -81,6 +81,23 @@ pipeline {
                          buildDocs()
                      }
                 }
+                stage('Build and test gcc-7 container') {
+                     agent { dockerfile { label 'azure-linux'
+                                          filename 'Dockerfile.jenkins'
+                                          additionalBuildArgs "--build-arg gccvers=7" } }
+                     environment {
+                         HOME="${WORKSPACE}"
+                         DEVITO_BACKEND="ops"
+                         DEVITO_OPENMP="0"
+                         YC_CXX="g++-7"
+                     }
+                     steps {
+                         cleanWorkspace()
+                         condaInstallDevito()
+                         runCondaTests()
+                         runCodecov()
+                     }
+                }
                 stage('Build and test gcc-8 container') {
                      agent { dockerfile { label 'azure-linux-8core'
                                           filename 'Dockerfile.jenkins'
