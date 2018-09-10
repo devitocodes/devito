@@ -474,7 +474,7 @@ class ConditionalDimension(DerivedDimension):
         * ``factor``: an integer indicating the size of the increment.
         * ``condition``: an arbitrary SymPy expression depending on ``parent``.
                          All iterations for which the expression evaluates to
-                         True are part of the ``SubDimension`` region.
+                         True are part of the ``ConditionalDimension`` region.
 
     ConditionalDimension needs runtime arguments. The generated C code will require
     the size of the dimension to initialize the arrays as e.g:
@@ -505,7 +505,7 @@ class ConditionalDimension(DerivedDimension):
 
     @property
     def factor(self):
-        return self._factor
+        return self._factor if self._factor is not None else 1
 
     @property
     def condition(self):
