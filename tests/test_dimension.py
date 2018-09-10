@@ -1,10 +1,11 @@
 import numpy as np
+from sympy import And
 
 import pytest
 from conftest import skipif_yask, configuration_override
 
-from devito import (ConditionalDimension, Grid, Function, TimeFunction, Eq, Operator,  # noqa
-                    Constant, SubDimension, DOMAIN, INTERIOR)
+from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
+                    Eq, Operator, Constant, SubDimension, DOMAIN, INTERIOR)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
@@ -570,3 +571,62 @@ class TestConditionalDimension(object):
         # with u[t] = t
         # v = 16 * 1 + 64 * 2 + 144 * 3 + 256 * 4 = 1600
         assert np.all(np.allclose(v.data, 1600))
+
+    def test_no_index_sparse(self):
+        """Test behaviour when the ConditionalDimension is used as a symbol in
+        an expression over sparse data objects."""
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        x, y = grid.dimensions
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, save=1)
+        f.data[:] = 0.
+
+        coordinates = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        sf = SparseFunction(name='sf', grid=grid, npoint=4, coordinates=coordinates)
+        sf.data[:] = 1.
+        sd = sf.dimensions[sf._sparse_position]
+
+        # We want to write to `f` through `sf` so that we obtain the
+        # following 4x4 grid (the '*' show the position of the sparse points)
+        # We do that by emulating an injection
+        #
+        # 0 --- 0 --- 0 --- 0
+        # |  *  |     |  *  |
+        # 0 --- 1 --- 1 --- 0
+        # |     |     |     |
+        # 0 --- 1 --- 1 --- 0
+        # |  *  |     |  *  |
+        # 0 --- 0 --- 0 --- 0
+
+        ix, iy = sf._coordinate_indices
+
+        xb = x.symbolic_size - 1
+        yb = y.symbolic_size - 1
+
+        # Four eqns, one for each cell corner
+        # Like injection, but no weights for simplicity
+        condition = And(ix > 0, ix < xb, iy > 0, iy < yb, evaluate=False)
+        cd = ConditionalDimension('sfc0', parent=sd, condition=condition)
+        eq0 = Eq(f[time, ix, iy], f[time, ix, iy] + sf[cd])
+
+        condition = And(ix > 0, ix < xb, iy+1 > 0, iy+1 < yb, evaluate=False)
+        cd = ConditionalDimension('sfc1', parent=sd, condition=condition)
+        eq1 = Eq(f[time, ix, iy+1], f[time, ix, iy+1] + sf[cd])
+
+        condition = And(ix+1 > 0, ix+1 < xb, iy > 0, iy < yb, evaluate=False)
+        cd = ConditionalDimension('sfc2', parent=sd, condition=condition)
+        eq2 = Eq(f[time, ix+1, iy], f[time, ix+1, iy] + sf[cd])
+
+        condition = And(ix+1 > 0, ix+1 < xb, iy+1 > 0, iy+1 < yb, evaluate=False)
+        cd = ConditionalDimension('sfc3', parent=sd, condition=condition)
+        eq3 = Eq(f[time, ix+1, iy+1], f[time, ix+1, iy+1] + sf[cd])
+
+        op = Operator([eq0, eq1, eq2, eq3])
+        op.apply(time=0)
+
+        assert np.all(f.data_interior == 1.)
+        assert np.all(f.data[0, 0] == 0.)
+        assert np.all(f.data[0, -1] == 0.)
+        assert np.all(f.data[0, :, 0] == 0.)
+        assert np.all(f.data[0, :, -1] == 0.)
