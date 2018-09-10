@@ -163,8 +163,8 @@ def pow_to_mul(expr):
         return expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
-        if exp > 10 or exp < -10 or int(exp) != exp or exp == 0:
-            # Large and non-integer powers remain untouched
+        if exp > 10 or exp < -10 or int(exp) != exp or exp == 0 or exp == -1:
+            # Large and non-integer powers remain untouched, as do reciprocals
             return expr
         elif exp > 0:
             return sympy.Mul(*[base]*exp, evaluate=False)
