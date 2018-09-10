@@ -1,3 +1,5 @@
+from itertools import product
+
 import numpy as np
 from sympy import And
 
@@ -576,7 +578,6 @@ class TestConditionalDimension(object):
         """Test behaviour when the ConditionalDimension is used as a symbol in
         an expression over sparse data objects."""
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
-        x, y = grid.dimensions
         time = grid.time_dim
 
         f = TimeFunction(name='f', grid=grid, save=1)
@@ -599,30 +600,20 @@ class TestConditionalDimension(object):
         # |  *  |     |  *  |
         # 0 --- 0 --- 0 --- 0
 
-        ix, iy = sf._coordinate_indices
+        radius = 1
+        indices = [(i, i+radius) for i in sf._coordinate_indices]
+        bounds = [i.symbolic_size - radius for i in grid.dimensions]
 
-        xb = x.symbolic_size - 1
-        yb = y.symbolic_size - 1
+        eqs = []
+        for e, i in enumerate(product(*indices)):
+            args = [j > 0 for j in i]
+            args.extend([j < k for j, k in zip(i, bounds)])
+            condition = And(*args, evaluate=False)
+            cd = ConditionalDimension('sfc%d' % e, parent=sd, condition=condition)
+            index = [time] + list(i)
+            eqs.append(Eq(f[index], f[index] + sf[cd]))
 
-        # Four eqns, one for each cell corner
-        # Like injection, but no weights for simplicity
-        condition = And(ix > 0, ix < xb, iy > 0, iy < yb, evaluate=False)
-        cd = ConditionalDimension('sfc0', parent=sd, condition=condition)
-        eq0 = Eq(f[time, ix, iy], f[time, ix, iy] + sf[cd])
-
-        condition = And(ix > 0, ix < xb, iy+1 > 0, iy+1 < yb, evaluate=False)
-        cd = ConditionalDimension('sfc1', parent=sd, condition=condition)
-        eq1 = Eq(f[time, ix, iy+1], f[time, ix, iy+1] + sf[cd])
-
-        condition = And(ix+1 > 0, ix+1 < xb, iy > 0, iy < yb, evaluate=False)
-        cd = ConditionalDimension('sfc2', parent=sd, condition=condition)
-        eq2 = Eq(f[time, ix+1, iy], f[time, ix+1, iy] + sf[cd])
-
-        condition = And(ix+1 > 0, ix+1 < xb, iy+1 > 0, iy+1 < yb, evaluate=False)
-        cd = ConditionalDimension('sfc3', parent=sd, condition=condition)
-        eq3 = Eq(f[time, ix+1, iy+1], f[time, ix+1, iy+1] + sf[cd])
-
-        op = Operator([eq0, eq1, eq2, eq3])
+        op = Operator(eqs)
         op.apply(time=0)
 
         assert np.all(f.data_interior == 1.)
