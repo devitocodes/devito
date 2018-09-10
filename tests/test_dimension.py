@@ -1,7 +1,7 @@
 import numpy as np
 
 import pytest
-from conftest import skipif_yask, configuration_override
+from conftest import skipif_yask, skipif_ops, configuration_override
 
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, Eq, Operator,  # noqa
                     Constant, SubDimension, DOMAIN, INTERIOR)
@@ -31,6 +31,7 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, :, -1] == 0.)
 
     @skipif_yask
+    @skipif_ops
     def test_domain_vs_interior(self):
         """
         Tests application of an Operator consisting of two equations, one
@@ -120,6 +121,7 @@ class TestSubDimension(object):
         assert np.all(u.data[0, thickness:-thickness, thickness:-thickness] == 1.)
 
     @skipif_yask
+    @skipif_ops
     def test_flow_detection_interior(self):
         """
         Test detection of flow directions when :class:`SubDimension`s are used
@@ -167,6 +169,7 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, 6:] == 0)
 
     @skipif_yask
+    @skipif_ops
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
         (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], region=DOMAIN)'], 'y'),
@@ -197,6 +200,7 @@ class TestSubDimension(object):
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
 
     @skipif_yask
+    @skipif_ops
     @pytest.mark.parametrize('exprs,expected,', [
         (['Eq(u[t, x, yleft], u[t, x, yleft] + 1.)'], ['yleft']),
         # All outers are parallel, carried dependence in `yleft`, so no SIMD in `yleft`
@@ -378,6 +382,7 @@ class TestSubDimension(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestConditionalDimension(object):
 
     """A collection of tests to check the correct functioning of

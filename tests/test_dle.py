@@ -4,7 +4,7 @@ from functools import reduce
 from operator import mul
 import numpy as np
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, skipif_ops
 from sympy import solve
 
 from conftest import EVAL
@@ -129,6 +129,7 @@ def _new_operator3(shape, **kwargs):
 
 
 @skipif_yask
+@skipif_ops
 def test_create_elemental_functions_simple(simple_function):
     roots = [i[-1] for i in retrieve_iteration_tree(simple_function)]
     retagged = [i._rebuild(properties=tagger(0)) for i in roots]
@@ -172,6 +173,7 @@ void f_0(float *restrict a_vec, float *restrict b_vec,"""
 
 
 @skipif_yask
+@skipif_ops
 def test_create_elemental_functions_complex(complex_function):
     roots = [i[-1] for i in retrieve_iteration_tree(complex_function)]
     retagged = [j._rebuild(properties=tagger(i)) for i, j in enumerate(roots)]
@@ -237,6 +239,7 @@ void f_2(float *restrict a_vec, float *restrict b_vec,"""
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize("blockinner,expected", [
     (False, 4),
     (True, 8)
@@ -268,6 +271,7 @@ def test_cache_blocking_structure(blockinner, expected):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
 @pytest.mark.parametrize("blockshape", [2, 7, (3, 3), (2, 9, 1)])
 @pytest.mark.parametrize("blockinner", [False, True])
@@ -281,6 +285,7 @@ def test_cache_blocking_no_time_loop(shape, blockshape, blockinner):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize("shape", [(20, 33), (45, 31, 45)])
 @pytest.mark.parametrize("time_order", [2])
 @pytest.mark.parametrize("blockshape", [2, (13, 20), (11, 15, 23)])
@@ -295,6 +300,7 @@ def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize("shape,blockshape", [
     ((25, 25, 46), (None, None, None)),
     ((25, 25, 46), (7, None, None)),
@@ -318,6 +324,7 @@ def test_cache_blocking_edge_cases(shape, blockshape):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize("shape,blockshape", [
     ((3, 3), (3, 4)),
     ((4, 4), (3, 4)),
@@ -342,6 +349,7 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('exprs,expected', [
     # trivial 1D
     (['Eq(fa[x], fa[x] + fb[x])'],
@@ -403,6 +411,7 @@ def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
 def test_composite_transformation(shape):
     wo_blocking, _ = _new_operator1(shape, dle='noop')
@@ -412,6 +421,7 @@ def test_composite_transformation(shape):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('exprs,expected', [
     # trivial 1D
     (['Eq(fe[x,y,z], fe[x,y,z] + fe[x,y,z])'],

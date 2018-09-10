@@ -1,6 +1,6 @@
 import pytest
 
-from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
+from conftest import EVAL, time, x, y, z, skipif_yask, skipif_ops  # noqa
 
 import numpy as np
 
@@ -17,6 +17,7 @@ from devito.symbolics import indexify
 
 
 @skipif_yask
+@skipif_ops
 class TestVectorDistanceArithmetic(object):
 
     @pytest.fixture
@@ -179,6 +180,7 @@ class TestVectorDistanceArithmetic(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestSpace(object):
 
     def test_intervals_intersection(self):
@@ -305,6 +307,7 @@ class TestSpace(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestDependenceAnalysis(object):
 
     @pytest.mark.parametrize('expr,expected', [
@@ -463,6 +466,7 @@ class TestDependenceAnalysis(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestIET(object):
 
     def test_nodes_conditional(self, fc):
@@ -632,6 +636,7 @@ else
 
 
 @skipif_yask
+@skipif_ops
 class TestEquationAlgorithms(object):
 
     @pytest.mark.parametrize('expr,expected', [

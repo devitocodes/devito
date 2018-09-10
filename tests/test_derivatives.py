@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, skipif_ops
 from sympy import Derivative, simplify, diff
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
@@ -40,7 +40,8 @@ def t(grid):
     return grid.stepping_dim
 
 
-@skipif_yask
+@skipif_yask 
+@skipif_ops
 @pytest.mark.parametrize('SymbolType, dim', [
     (Function, x), (Function, y),
     (TimeFunction, x), (TimeFunction, y), (TimeFunction, t),
@@ -67,7 +68,8 @@ def test_stencil_derivative(grid, shape, SymbolType, dim):
     assert(np.allclose(u_dii.data, 66.6))
 
 
-@skipif_yask
+@skipif_yask 
+@skipif_ops
 @pytest.mark.parametrize('SymbolType, derivative, dim', [
     (Function, 'dx2', 3), (Function, 'dy2', 3),
     (TimeFunction, 'dx2', 3), (TimeFunction, 'dy2', 3), (TimeFunction, 'dt', 2)
@@ -79,7 +81,8 @@ def test_preformed_derivatives(grid, SymbolType, derivative, dim):
     assert(len(expr.args) == dim)
 
 
-@skipif_yask
+@skipif_yask 
+@skipif_ops
 @pytest.mark.parametrize('derivative, dim', [
     ('dx', x), ('dy', y), ('dz', z)
 ])
@@ -100,7 +103,8 @@ def test_derivatives_space(grid, derivative, dim, order):
     assert(expr == s_expr)  # Exact equailty
 
 
-@skipif_yask
+@skipif_yask 
+@skipif_ops
 @pytest.mark.parametrize('derivative, dim', [
     ('dx2', x), ('dy2', y), ('dz2', z)
 ])
@@ -118,7 +122,8 @@ def test_second_derivatives_space(grid, derivative, dim, order):
     assert(expr == s_expr)  # Exact equailty
 
 
-@skipif_yask
+@skipif_yask 
+@skipif_ops
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
 # Only test x and t as y and z are the same as x
 @pytest.mark.parametrize('derivative', ['dx', 'dxl', 'dxr', 'dx2'])
@@ -163,7 +168,8 @@ def test_fd_space(derivative, space_order):
     assert np.isclose(np.mean(error), 0., atol=1e-3)
 
 
-@skipif_yask
+@skipif_yask 
+@skipif_ops
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
 @pytest.mark.parametrize('stagger', [centered, right, left])
 # Only test x and t as y and z are the same as x
@@ -217,7 +223,8 @@ def test_fd_space_staggered(space_order, stagger):
     assert np.isclose(np.mean(error), 0., atol=1e-3)
 
 
-@skipif_yask
+@skipif_yask 
+@skipif_ops
 def test_subsampled_fd():
     """
     Test that the symbolic interface is working for space subsampled

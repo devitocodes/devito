@@ -3,7 +3,7 @@ from conftest import EVAL
 from sympy import sin  # noqa
 import numpy as np
 import pytest
-from conftest import x, y, z, skipif_yask  # noqa
+from conftest import x, y, z, skipif_yask, skipif_ops  # noqa
 
 from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator  # noqa
 from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
@@ -52,6 +52,7 @@ def run_acoustic_forward(dse=None):
 
 
 @skipif_yask
+@skipif_ops
 def test_acoustic_rewrite_basic():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse='basic')
@@ -101,6 +102,7 @@ def tti_nodse():
 
 
 @skipif_yask
+@skipif_ops
 def test_tti_rewrite_basic(tti_nodse):
     operator = tti_operator(dse='basic')
     rec, u, v, _ = operator.forward()
@@ -110,6 +112,7 @@ def test_tti_rewrite_basic(tti_nodse):
 
 
 @skipif_yask
+@skipif_ops
 def test_tti_rewrite_advanced(tti_nodse):
     operator = tti_operator(dse='advanced')
     rec, u, v, _ = operator.forward()
@@ -119,6 +122,7 @@ def test_tti_rewrite_advanced(tti_nodse):
 
 
 @skipif_yask
+@skipif_ops
 def test_tti_rewrite_speculative(tti_nodse):
     operator = tti_operator(dse='speculative')
     rec, u, v, _ = operator.forward()
@@ -128,6 +132,7 @@ def test_tti_rewrite_speculative(tti_nodse):
 
 
 @skipif_yask
+@skipif_ops
 def test_tti_rewrite_aggressive(tti_nodse):
     operator = tti_operator(dse='aggressive')
     rec, u, v, _ = operator.forward()
@@ -137,6 +142,7 @@ def test_tti_rewrite_aggressive(tti_nodse):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('shifted', 8, 355), ('shifted', 16, 622),
     ('centered', 8, 168), ('centered', 16, 300)
@@ -151,6 +157,7 @@ def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
 
 
 @skipif_yask
+@skipif_ops
 def test_scheduling_after_rewrite():
     """Tests loop scheduling after DSE-induced expression hoisting."""
     grid = Grid((10, 10))
@@ -174,6 +181,7 @@ def test_scheduling_after_rewrite():
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
@@ -200,6 +208,7 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti0, 3.)', 'Eq(tv, 2.4)', 'Eq(tu, tv + 5. + ti0)'],
@@ -227,6 +236,7 @@ def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
@@ -250,6 +260,7 @@ def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expect
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('exprs,expected', [
     (['Eq(t0, 3.)', 'Eq(t1, 7.)', 'Eq(ti0, t0*3. + 2.)', 'Eq(ti1, t1 + t0 + 1.5)',
       'Eq(tv, (ti0 + ti1)*t0)', 'Eq(tw, (ti0 + ti1)*t1)',
@@ -265,6 +276,7 @@ def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('exprs,expected', [
     # trivial
     (['Eq(t0, 1.)', 'Eq(t1, fa[x] + fb[x])'],
@@ -291,6 +303,7 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('expr,expected', [
     ('2*fa[x] + fb[x]', '2*fa[x] + fb[x]'),
     ('fa[x]**2', 'fa[x]*fa[x]'),
@@ -306,6 +319,7 @@ def test_pow_to_mul(fa, fb, expr, expected):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('exprs,expected', [
     # none (different distance)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
@@ -341,6 +355,7 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('expr,expected', [
     ('Eq(t0, t1)', 0),
     ('Eq(t0, fa[x] + fb[x])', 1),

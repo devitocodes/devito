@@ -3,6 +3,8 @@ import numpy as np
 
 import pytest  # noqa
 
+from conftest import skipif_ops
+
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from devito import (Eq, Grid, Dimension, ConditionalDimension, Operator, Constant,
@@ -16,7 +18,7 @@ from examples.seismic import demo_model, TimeAxis, PointSource, RickerSource, Re
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
 
-
+@skipif_ops
 def setup_module(module):
     """Get rid of any YASK modules generated and JIT-compiled in previous runs.
     This is not strictly necessary for the tests, but it helps in keeping the
@@ -24,14 +26,14 @@ def setup_module(module):
     from devito.yask.wrappers import contexts  # noqa
     contexts.dump()
 
-
+@skipif_ops
 @pytest.fixture(autouse=True)
 def reset_isa():
     """Force back to NO-SIMD after each test, as some tests may optionally
     switch on SIMD."""
     configuration['develop-mode'] = True
 
-
+@skipif_ops
 class TestOperatorSimple(object):
 
     """
@@ -429,7 +431,7 @@ class TestOperatorAdvanced(object):
         assert len(solns) == 2
         assert all('run_solution' in str(i) for i in solns)
 
-
+@skipif_ops
 class TestIsotropicAcoustic(object):
 
     """

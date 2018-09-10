@@ -2,7 +2,7 @@ import weakref
 
 import numpy as np
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, skipif_ops
 
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     Constant, Operator, Eq, Dimension, clear_cache)
@@ -10,6 +10,7 @@ from devito.types import _SymbolCache, Scalar
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_new(FunctionType):
     """Test that new u[x, y] instances don't cache"""
@@ -23,6 +24,7 @@ def test_cache_function_new(FunctionType):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_same_indices(FunctionType):
     """Test caching of derived u[x, y] instance from derivative"""
@@ -37,6 +39,7 @@ def test_cache_function_same_indices(FunctionType):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_different_indices(FunctionType):
     """Test caching of u[x + h, y] instance from derivative"""
@@ -49,6 +52,7 @@ def test_cache_function_different_indices(FunctionType):
 
 
 @skipif_yask
+@skipif_ops
 def test_cache_constant_new():
     """Test that new u[x, y] instances don't cache"""
     u0 = Constant(name='u')
@@ -60,6 +64,7 @@ def test_cache_constant_new():
 
 
 @skipif_yask
+@skipif_ops
 def test_symbol_cache_aliasing():
     """Test to assert that our aliasing cache isn't defeated by sympys
     non-aliasing symbol cache.
@@ -101,6 +106,7 @@ def test_symbol_cache_aliasing():
 
 
 @skipif_yask
+@skipif_ops
 def test_symbol_cache_aliasing_reverse():
     """Test to assert that removing he original u[x, y] instance does
     not impede our alisaing cache or leaks memory.
@@ -136,6 +142,7 @@ def test_symbol_cache_aliasing_reverse():
 
 
 @skipif_yask
+@skipif_ops
 def test_clear_cache(nx=1000, ny=1000):
     grid = Grid(shape=(nx, ny), dtype=np.float64)
     clear_cache()
@@ -152,6 +159,7 @@ def test_clear_cache(nx=1000, ny=1000):
 
 
 @skipif_yask
+@skipif_ops
 def test_cache_after_indexification():
     """Test to assert that the SymPy cache retrieves the right Devito data object
     after indexification.
@@ -167,6 +175,7 @@ def test_cache_after_indexification():
 
 
 @skipif_yask
+@skipif_ops
 def test_constant_hash():
     """Test that different Constants have different hash value."""
     c0 = Constant(name='c')
@@ -176,6 +185,7 @@ def test_constant_hash():
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_function_hash(FunctionType):
     """Test that different Functions have different hash value."""
@@ -192,6 +202,7 @@ def test_function_hash(FunctionType):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('FunctionType', [SparseFunction, SparseTimeFunction])
 def test_sparse_function_hash(FunctionType):
     """Test that different Functions have different hash value."""
@@ -208,6 +219,7 @@ def test_sparse_function_hash(FunctionType):
 
 
 @skipif_yask
+@skipif_ops
 def test_dimension_cache():
     """
     Test that :class:`Dimension`s with same name but different attributes do not
@@ -232,6 +244,7 @@ def test_dimension_cache():
 
 
 @skipif_yask
+@skipif_ops
 def test_operator_leakage_function():
     """
     Test to ensure that :class:`Operator` creation does not cause
@@ -260,6 +273,7 @@ def test_operator_leakage_function():
 
 
 @skipif_yask
+@skipif_ops
 def test_operator_leakage_sparse():
     """
     Test to ensure that :class:`Operator` creation does not cause

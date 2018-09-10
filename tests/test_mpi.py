@@ -2,7 +2,7 @@ import numpy as np
 from mpi4py import MPI
 
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, skipif_ops
 
 from devito import (Grid, Function, TimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator)
@@ -21,6 +21,7 @@ def teardown_module(module):
 
 
 @skipif_yask
+@skipif_ops
 class TestPythonMPI(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
@@ -248,6 +249,7 @@ class TestPythonMPI(object):
             assert f.data_ro_with_halo[0, 0] == 1.
 
     @skipif_yask
+    @skipif_ops
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_ctypes_neighbours(self):
         grid = Grid(shape=(4, 4))
@@ -266,6 +268,7 @@ class TestPythonMPI(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestCodeGeneration(object):
 
     def test_iet_copy(self):
@@ -352,6 +355,7 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 
 
 @skipif_yask
+@skipif_ops
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
@@ -531,6 +535,7 @@ class TestOperatorSimple(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(nprocs=2)

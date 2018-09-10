@@ -1,6 +1,6 @@
 import cgen as c
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, skipif_ops
 
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
@@ -65,6 +65,7 @@ def block4(exprs, iters, dims):
 
 
 @skipif_yask
+@skipif_ops
 def test_printAST(block1, block2, block3, block4):
     str1 = printAST(block1)
     assert str1 in """
@@ -106,6 +107,7 @@ def test_printAST(block1, block2, block3, block4):
 
 
 @skipif_yask
+@skipif_ops
 def test_create_cgen_tree(block1, block2, block3):
     assert str(Callable('foo', block1, 'void', ()).ccode) == """\
 void foo()
@@ -162,6 +164,7 @@ void foo()
 
 
 @skipif_yask
+@skipif_ops
 def test_find_sections(exprs, block1, block2, block3):
     finder = FindSections()
 
@@ -183,6 +186,7 @@ def test_find_sections(exprs, block1, block2, block3):
 
 
 @skipif_yask
+@skipif_ops
 def test_is_perfect_iteration(block1, block2, block3, block4):
     checker = IsPerfectIteration()
 
@@ -205,6 +209,7 @@ def test_is_perfect_iteration(block1, block2, block3, block4):
 
 
 @skipif_yask
+@skipif_ops
 def test_transformer_wrap(exprs, block1, block2, block3):
     """Basic transformer test that wraps an expression in comments"""
     line1 = '// This is the opening comment'
@@ -224,6 +229,7 @@ def test_transformer_wrap(exprs, block1, block2, block3):
 
 
 @skipif_yask
+@skipif_ops
 def test_transformer_replace(exprs, block1, block2, block3):
     """Basic transformer test that replaces an expression"""
     line1 = '// Replaced expression'
@@ -241,6 +247,7 @@ def test_transformer_replace(exprs, block1, block2, block3):
 
 
 @skipif_yask
+@skipif_ops
 def test_transformer_replace_function_body(block1, block2):
     """Create a Function and replace its body with another."""
     args = FindSymbols().visit(block1)
@@ -279,6 +286,7 @@ const int i_size)
 
 
 @skipif_yask
+@skipif_ops
 def test_transformer_add_replace(exprs, block2, block3):
     """Basic transformer test that adds one expression and replaces another"""
     line1 = '// Replaced expression'
@@ -300,6 +308,7 @@ def test_transformer_add_replace(exprs, block2, block3):
 
 
 @skipif_yask
+@skipif_ops
 def test_nested_transformer(exprs, iters, block2):
     """When created with the kwarg ``nested=True``, a Transformer performs
     nested replacements. This test simultaneously replace an inner expression

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from conftest import skipif_yask, unit_box, points, unit_box_time, time_points
+from conftest import skipif_yask, skipif_ops, unit_box, points, unit_box_time, time_points
 from math import sin, floor
 
 from devito.cgen_utils import FLOAT
@@ -63,6 +63,7 @@ def precompute_linear_interpolation(points, grid, origin):
 
 
 @skipif_yask
+@skipif_ops
 def test_precomputed_interpolation():
     """ Test interpolation with PrecomputedSparseFunction which accepts
         precomputed values for coefficients
@@ -95,6 +96,7 @@ def test_precomputed_interpolation():
 
 
 @skipif_yask
+@skipif_ops
 def test_precomputed_interpolation_time():
     """ Test interpolation with PrecomputedSparseFunction which accepts
         precomputed values for coefficients, but this time with a TimeFunction
@@ -128,6 +130,7 @@ def test_precomputed_interpolation_time():
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -147,6 +150,7 @@ def test_interpolate(shape, coords, npoints=20):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -167,6 +171,7 @@ def test_interpolate_cumm(shape, coords, npoints=20):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -201,6 +206,7 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -220,6 +226,7 @@ def test_interpolate_array(shape, coords, npoints=20):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -242,6 +249,7 @@ def test_interpolate_custom(shape, coords, npoints=20):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -264,6 +272,7 @@ def test_inject(shape, coords, result, npoints=19):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -305,6 +314,7 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -328,6 +338,7 @@ def test_inject_array(shape, coords, result, npoints=19):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -351,6 +362,7 @@ def test_inject_from_field(shape, coords, result, npoints=19):
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('shape', [(50, 50, 50)])
 def test_position(shape):
     t0 = 0.0  # Start time

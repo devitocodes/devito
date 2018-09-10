@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from conftest import EVAL, dims, time, x, y, z, skipif_yask
+from conftest import EVAL, dims, time, x, y, z, skipif_yask, skipif_ops
 
 import numpy as np
 import pytest
