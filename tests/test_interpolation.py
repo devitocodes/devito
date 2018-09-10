@@ -160,7 +160,7 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     xcoords = p.coordinates.data[:, 0]
 
     p.data[:] = 1.
-    expr = p.interpolate(a, cummulative=True)
+    expr = p.interpolate(a, increment=True)
     Operator(expr)(a=a)
 
     assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)

@@ -1495,15 +1495,15 @@ class SparseFunction(AbstractSparseFunction):
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return ret
 
-    def interpolate(self, expr, offset=0, cummulative=False, self_subs={}):
+    def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
         :param expr: The expression to interpolate.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param cummulative: (Optional) If True, perform an increment rather
-                            than an assignment. Defaults to False.
+        :param increment: (Optional) if True, perform an increment rather
+                          than an assignment. Defaults to False.
         """
         expr = indexify(expr)
 
@@ -1515,7 +1515,7 @@ class SparseFunction(AbstractSparseFunction):
                    for b, vsub in zip(self._coefficients, idx_subs)])
         lhs = self.subs(self_subs)
 
-        return [Inc(lhs, rhs) if cummulative else Eq(lhs, rhs)]
+        return [Inc(lhs, rhs) if increment else Eq(lhs, rhs)]
 
     def inject(self, field, expr, offset=0):
         """Symbol for injection of an expression onto a grid
@@ -1655,7 +1655,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
     is_SparseTimeFunction = True
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
@@ -1666,8 +1666,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
                     field data in `expr`.
         :param p_t: (Optional) time index to use for indexing into
                     the sparse point data.
-        :param cummulative: (Optional) If True, perform an increment rather
-                            than an assignment. Defaults to False.
+        :param increment: (Optional) if True, perform an increment rather
+                          than an assignment. Defaults to False.
         """
         # Apply optional time symbol substitutions to expr
         subs = {}
@@ -1680,7 +1680,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             subs = {self.time_dim: p_t}
 
         return super(SparseTimeFunction, self).interpolate(expr, offset=offset,
-                                                           cummulative=cummulative,
+                                                           increment=increment,
                                                            self_subs=subs)
 
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
@@ -1788,7 +1788,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                     "computed on the final grid that will be used for other " +
                     "computations.")
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
@@ -1799,8 +1799,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                     field data in `expr`.
         :param p_t: (Optional) time index to use for indexing into
                     the sparse point data.
-        :param cummulative: (Optional) If True, perform an increment rather
-                            than an assignment. Defaults to False.
+        :param increment: (Optional) if True, perform an increment rather
+                          than an assignment. Defaults to False.
         """
         expr = indexify(expr)
 
