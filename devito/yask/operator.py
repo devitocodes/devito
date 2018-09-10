@@ -153,14 +153,12 @@ class Operator(OperatorRunnable):
             elif i.from_YASK and (i.is_Constant or i.is_Function):
                 toshare[v] = v.data
 
-        log("Running YASK Operator through Devito...")
         for i in self.yk_solns.values():
             i.pre_apply(toshare)
         arg_values = [args[p.name] for p in self.parameters]
         self.cfunction(*arg_values)
         for i in self.yk_solns.values():
             i.post_apply()
-        log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
         return self._profile_output(args)
