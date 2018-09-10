@@ -155,7 +155,14 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 # Allocate memory and initialize it. Note that we do *not* hold
                 # a reference to the user-provided buffer
                 self._initializer = None
-                self.data_allocated[:] = initializer
+                if len(initializer) > 0:
+                    self.data_allocated[:] = initializer
+                else:
+                    # This is a corner case -- we might get here, for example, when
+                    # running with MPI and some processes get 0-size arrays after
+                    # domain decomposition. We touch the data anyway to avoid the
+                    # case ``self._data is None``
+                    self.data
             else:
                 raise ValueError("`initializer` must be callable or buffer, not %s"
                                  % type(initializer))
@@ -1375,9 +1382,6 @@ class SparseFunction(AbstractSparseFunction):
                                                 dtype=self.dtype, dimensions=dimensions,
                                                 shape=(self.npoint, self.grid.dim),
                                                 space_order=0, initializer=coordinates)
-                if self.npoint == 0:
-                    # Make sure self._data is not None
-                    self._coordinates.data
 
     @property
     def coordinates(self):
