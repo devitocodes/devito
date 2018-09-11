@@ -32,7 +32,7 @@ class EnrichedTuple(tuple):
         return obj
 
     def __getitem__(self, key):
-        if isinstance(key, int):
+        if isinstance(key, (int, slice)):
             return super(EnrichedTuple, self).__getitem__(key)
         else:
             return self._getters[key]
