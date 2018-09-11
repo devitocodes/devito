@@ -5,18 +5,7 @@ from devito.logger import info
 from devito import Constant, Eq, Function, Operator
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-
-
-def smooth(dest, f):
-    """
-    Run an n-point moving average kernel over ``f`` and store the result
-    into ``dest``. The average is computed along the innermost ``f`` dimension.
-    """
-    if f.is_Constant:
-        # Return a scaled version of the input if it's a Constant
-        dest.data[:] = .9 * f.data
-    else:
-        Operator(Eq(dest, f.avg(dims=f.dimensions[-1])), name='smoother').apply()
+from examples.seismic.utils import smooth
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),

@@ -64,12 +64,13 @@ class AnisotropicWaveSolver(object):
         self.space_order = self.space_order // 2 if kernel == 'shifted' \
             else self.space_order
 
-        time_order = 1 if kernel == 'staggered' else 2
         if kernel == 'staggered':
+            time_order = 1
             dims = self.model.space_dimensions
             stagg_u = (-dims[-1])
             stagg_v = (-dims[0], -dims[1]) if self.model.grid.dim == 3 else (-dims[0])
         else:
+            time_order = 2
             stagg_u = stagg_v = None
         # Source term is read-only, so re-use the default
         src = src or self.source

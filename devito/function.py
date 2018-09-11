@@ -15,7 +15,7 @@ from devito.grid import staggered
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
-from devito.finite_differences import Differentiable, initialize_derivatives
+from devito.finite_differences import Differentiable, initialize_derivatives, to_expr
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import Tag, ReducerMap, as_tuple, prod, powerset, is_integer
@@ -134,7 +134,7 @@ class TensorFunction(AbstractCachedFunction):
             self._grid = kwargs.get('grid')
 
             # Staggered mask
-            self._staggered = kwargs.get('staggered', None)
+            self._staggered = kwargs.get('staggered')
 
             # Data-related properties and data initialization
             self._data = None
@@ -590,12 +590,13 @@ class Function(TensorFunction, Differentiable):
 
     .. note::
 
-       The dimension or String :param staggered: defines the dimension in which the
-       function is staggerd or if on the node. For example,
+       The :class:Dimension or String :param staggered:
+       defines the dimension in which the
+       function is staggered or if on the node. For example,
        ``staggered=x`` entails discretization on x edges,
        ``staggered=y`` entails discretization on y edges,
-       ``staggered=(x, y)`` entails discretization xy facets and
-       ``staggered='node'`` entails discretization on node
+       ``staggered=(x, y)`` entails discretization on xy facets,
+       ``staggered='node'`` entails discretization on node,
        ``staggerd='cell'`` entails discretization on cell.
     """
 
@@ -603,7 +604,6 @@ class Function(TensorFunction, Differentiable):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self._kwargs = kwargs
             super(Function, self).__init__(*args, **kwargs)
 
             # Space order
@@ -1197,7 +1197,7 @@ class SparseFunction(AbstractSparseFunction):
         :param cummulative: (Optional) If True, perform an increment rather
                             than an assignment. Defaults to False.
         """
-        expr = indexify(expr)
+        expr = indexify(to_expr(expr))
 
         variables = list(retrieve_indexed(expr))
         # List of indirection indices for all adjacent grid points
@@ -1221,8 +1221,8 @@ class SparseFunction(AbstractSparseFunction):
         :param u_t: (Optional) time index to use for indexing into `field`.
         :param p_t: (Optional) time index to use for indexing into `expr`.
         """
-        expr = indexify(expr)
-        field = indexify(field)
+        expr = indexify(to_expr(expr))
+        field = indexify(to_expr(field))
         variables = list(retrieve_indexed(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points

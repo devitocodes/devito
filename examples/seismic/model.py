@@ -3,7 +3,7 @@ import os
 
 from devito import Grid, Function, Constant
 from devito.logger import warning
-from examples.seismic.utils import smooth10
+from examples.seismic.utils import scipy_smooth
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
@@ -158,12 +158,12 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        epsilon = smooth10(.3*(v - 1.5), shape)
-        delta = smooth10(.2*(v - 1.5), shape)
-        theta = smooth10(.5*(v - 1.5), shape)
+        epsilon = scipy_smooth(.3*(v - 1.5))
+        delta = scipy_smooth(.2*(v - 1.5))
+        theta = scipy_smooth(.5*(v - 1.5))
         phi = None
         if len(shape) > 2:
-            phi = smooth10(.25*(v - 1.5), shape)
+            phi = scipy_smooth(.25*(v - 1.5), shape)
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,

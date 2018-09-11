@@ -3,6 +3,7 @@ from sympy.core.basic import _aresame
 import numpy as np
 
 from devito.symbolics.extended_sympy import ExprDiv
+from devito.tools import filter_ordered
 
 __all__ = ['Differentiable']
 
@@ -13,6 +14,8 @@ class Differentiable(sympy.Expr):
     sum of functions, product of function or FD approximation and
     provides FD shortcuts for such expressions
     """
+    # Set the operator priority higher than Sympy (10.0) to force the overloaded
+    # operators to be used
     _op_priority = 100.0
 
     def __new__(cls, *args, **kwargs):
@@ -26,7 +29,7 @@ class Differentiable(sympy.Expr):
         return sympy.Expr.__new__(cls, *args)
 
     def __init__(self, expr, **kwargs):
-        # Recover the list of possible FD shortcuts
+        # Set FD properties from input
         self._dtype = kwargs.get('dtype')
         self._space_order = kwargs.get('space_order')
         self._time_order = kwargs.get('time_order', 0)
@@ -35,7 +38,7 @@ class Differentiable(sympy.Expr):
         self._grid = kwargs.get('grid')
         # Generate FD shortcuts for expression or copy from input
         self._fd = kwargs.get('fd', {})
-        # Save kwargs
+        # Associated Sympy expression
         self._expr = expr
 
     @property
@@ -69,7 +72,8 @@ class Differentiable(sympy.Expr):
     def __getattr__(self, name):
         if name == 'fd' or name == '_fd':
             raise AttributeError()
-        if name in self.fd.keys():
+        if name in self.fd:
+            # self.fd[name] = (property, description), calls self.fd[name][0]
             return self.fd[name][0](self)
         return self.__getattribute__(name)
 
@@ -95,7 +99,8 @@ class Differentiable(sympy.Expr):
                                         getattr(other, 'space_order', 100)])
         merged["time_order"] = np.min([getattr(self, 'time_order', 100) or 100,
                                        getattr(other, 'time_order', 100)])
-        merged["indices"] = tuple(set(self.indices + getattr(other, 'indices', ())))
+        merged["indices"] = tuple(filter_ordered(self.indices +
+                                                 getattr(other, 'indices', ())))
         merged["fd"] = dict(getattr(self, 'fd', {}), **getattr(other, 'fd', {}))
         merged["staggered"] = self.staggered
         merged["dtype"] = self.dtype
@@ -138,18 +143,9 @@ class Differentiable(sympy.Expr):
                               **self._merge_fd_properties(other))
 
     def __pow__(self, exponent):
-        if exponent > 0:
-            return Differentiable(sympy.Mul(*[getattr(self, '_expr', self)]*exponent,
-                                            evaluate=False),
-                                  **self._kwargs)
-        elif exponent < 0:
-            return Differentiable(ExprDiv(sympy.Number(1),
-                                          sympy.Mul(*[getattr(self, '_expr',
-                                                      self)]*(-exponent),
-                                                    evaluate=False)),
-                                  **self._merge_fd_properties(None))
-        else:
-            return sympy.Number(0)
+        return Differentiable(sympy.Pow(*[getattr(self, '_expr', self), exponent]),
+                              **self._merge_fd_properties(other))
+
 
     def __neg__(self):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), -1]),

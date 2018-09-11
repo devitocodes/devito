@@ -203,4 +203,5 @@ class TestGradient(object):
 
 
 if __name__ == "__main__":
-    TestGradient().test_gradientFWI(shape=(70, 80), kernel='OT2', space_order=4)
+    TestGradient().test_gradientFWI(shape=(70, 80), kernel='OT2', space_order=4,
+                                    checkpointing=False)
