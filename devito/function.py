@@ -1513,11 +1513,9 @@ class SparseFunction(AbstractSparseFunction):
         # Substitute coordinate base symbols into the coefficients
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self._coefficients, idx_subs)])
-
         lhs = self.subs(self_subs)
-        rhs = rhs + lhs if cummulative else rhs
 
-        return [Inc(lhs, rhs)] if cummulative else [Eq(lhs, rhs)]
+        return [Inc(lhs, rhs) if cummulative else Eq(lhs, rhs)]
 
     def inject(self, field, expr, offset=0):
         """Symbol for injection of an expression onto a grid
@@ -1535,8 +1533,7 @@ class SparseFunction(AbstractSparseFunction):
         subs, idx_subs = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the coefficients
-        return [Inc(field.subs(vsub),
-                    field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
+        return [Inc(field.subs(vsub), expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self._coefficients, idx_subs)]
 
     @property

@@ -44,9 +44,9 @@ def make_grid_accesses(node, yk_grid_objs):
         if e.write.from_YASK:
             args = [rhs]
             args += [ListInitializer([INT(make_grid_gets(i)) for i in lhs.indices])]
-            handle = make_sharedptr_funcall(namespace['code-grid-put'], args,
-                                            yk_grid_objs[e.write.name])
-            processed = ForeignExpression(handle, e.dtype, is_Increment=e.is_increment)
+            call = namespace['code-grid-add' if e.is_Increment else 'code-grid-put']
+            handle = make_sharedptr_funcall(call, args, yk_grid_objs[e.write.name])
+            processed = ForeignExpression(handle, e.dtype, is_Increment=e.is_Increment)
         else:
             # Writing to a scalar temporary
             processed = Expression(e.expr.func(lhs, rhs))

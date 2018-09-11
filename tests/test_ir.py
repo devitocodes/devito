@@ -480,12 +480,12 @@ else
 }"""
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
-        (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], u[gp[p, 0]+rx, gp[p, 1]+ry] + cx*cy*src)'],
+        (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],
          ['p', 'rx', 'ry'], []),
-        (['Eq(rcv, 0)', 'Inc(rcv, rcv + cx*cy)'],
+        (['Eq(rcv, 0)', 'Inc(rcv, cx*cy)'],
          ['rx', 'ry'], ['time', 'p']),
         (['Eq(v.forward, u+1)', 'Eq(rcv, 0)',
-          'Inc(rcv, rcv + v[t, gp[p, 0]+rx, gp[p, 1]+ry]*cx*cy)'],
+          'Inc(rcv, v[t, gp[p, 0]+rx, gp[p, 1]+ry]*cx*cy)'],
          ['rx', 'ry'], ['x', 'y', 'p']),
         (['Eq(v.forward, v[t+1, x+1, y]+v[t, x, y]+v[t, x+1, y])'],
          [], ['y']),
@@ -495,7 +495,7 @@ else
          [], ['x']),
         (['Eq(v.forward, v[t+1, x, y-1]+v[t, x, y]+v[t, x, y-1])'],
          [], ['x']),
-        (['Eq(v.forward, v+1)', 'Inc(u, u+v)'],
+        (['Eq(v.forward, v+1)', 'Inc(u, v)'],
          [], ['x', 'y'])
     ])
     def test_iteration_parallelism_2d(self, exprs, atomic, parallel):
@@ -533,13 +533,12 @@ else
         assert all(not i.is_Parallel for i in iters if i.dim.name not in parallel)
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
-        (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz],'
-          ' u[gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz] + cx*cy*cz*src)'],
+        (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz], cx*cy*cz*src)'],
          ['p', 'rx', 'ry', 'rz'], []),
-        (['Eq(rcv, 0)', 'Inc(rcv, rcv + cx*cy*cz)'],
+        (['Eq(rcv, 0)', 'Inc(rcv, cx*cy*cz)'],
          ['rx', 'ry', 'rz'], ['time', 'p']),
         (['Eq(v.forward, u+1)', 'Eq(rcv, 0)',
-          'Inc(rcv, rcv + v[t, gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz]*cx*cy*cz)'],
+          'Inc(rcv, v[t, gp[p, 0]+rx, gp[p, 1]+ry, gp[p, 2]+rz]*cx*cy*cz)'],
          ['rx', 'ry', 'rz'], ['x', 'y', 'z', 'p']),
         (['Eq(v.forward, v[t+1, x+1, y, z]+v[t, x, y, z]+v[t, x+1, y, z])'],
          [], ['y', 'z']),

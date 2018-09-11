@@ -571,7 +571,7 @@ class TestOperatorSimple(object):
         g = Function(name='g', grid=grid)
 
         op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
-                       Inc(f[t+1, i], f[t+1, i] + 1.),  # no halo update as it's an Inc
+                       Inc(f[t+1, i], 1.),  # no halo update as it's an Inc
                        Eq(g, f[t, j] + 1)])  # access `f` at `t`, not `t+1`!
 
         calls = FindNodes(Call).visit(op)

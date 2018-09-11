@@ -36,6 +36,11 @@ class Inc(Eq):
 
     is_Increment = True
 
+    def __str__(self):
+        return "Inc(%s, %s)" % (self.lhs, self.rhs)
+
+    __repr__ = __str__
+
 
 class Region(object):
 

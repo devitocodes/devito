@@ -149,10 +149,9 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
     eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
 
     if kernel == 'OT2':
-        gradient_update = Inc(grad, grad - u.dt2 * v)
+        gradient_update = Inc(grad, - u.dt2 * v)
     elif kernel == 'OT4':
-        gradient_update = Inc(grad, grad - (u.dt2 +
-                                            s**2 / 12.0 * u.laplace2(m**(-2))) * v)
+        gradient_update = Inc(grad, - (u.dt2 + s**2 / 12.0 * u.laplace2(m**(-2))) * v)
     # Add expression for receiver injection
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
                            offset=model.nbpml)
