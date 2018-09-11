@@ -10,7 +10,7 @@ from devito.tools import as_tuple, flatten, filter_sorted
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'detect_flow_directions', 'force_directions', 'group_expressions',
-           'align_accesses', 'detect_io']
+           'align_accesses', 'detect_io', 'compute_minshape']
 
 
 def detect_accesses(expr):
@@ -291,3 +291,21 @@ def detect_io(exprs, relax=False):
             writes.append(f)
 
     return filter_sorted(reads), filter_sorted(writes)
+
+
+def compute_minshape(functions, dimensions):
+    """
+    Given a set of :class:`TensorFunction`s and a set of N :class:`Dimension`s,
+    return an N-tuple telling the minimum size attained by any of the provided
+    ``functions`` in the given ``dimensions``.
+    """
+    ret = []
+    for d in as_tuple(dimensions):
+        current = []
+        for f in functions:
+            try:
+                current.append(f.symbolic_shape[d])
+            except KeyError:
+                pass
+        ret.append(min(current, key=lambda i: i-d.symbolic_size))
+    return tuple(ret)
