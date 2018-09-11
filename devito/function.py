@@ -1338,7 +1338,7 @@ class SparseFunction(AbstractSparseFunction):
 
     A :class:`SparseFunction` provides symbolic interpolation routines
     to convert between grid-aligned :class:`Function` objects and sparse
-    data points.
+    data points. These are based upon standard [bi,tri]linear interpolation.
 
     :param name: Name of the function.
     :param npoint: Number of points to sample.
@@ -1432,24 +1432,24 @@ class SparseFunction(AbstractSparseFunction):
 
     @property
     def _point_symbols(self):
-        """Symbol for coordinate value in each dimension of the point"""
+        """Symbol for coordinate value in each dimension of the point."""
         return tuple(sympy.symbols('p%s' % d) for d in self.grid.dimensions)
 
     @property
     def _point_increments(self):
-        """Index increments in each dimension for each point symbol"""
+        """Index increments in each dimension for each point symbol."""
         return tuple(product(range(2), repeat=self.grid.dim))
 
     @property
     def _coordinate_symbols(self):
-        """Symbol representing the coordinate values in each dimension"""
+        """Symbol representing the coordinate values in each dimension."""
         p_dim = self.indices[-1]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
     @property
     def _coordinate_indices(self):
-        """Symbol for each grid index according to the coordinates"""
+        """Symbol for each grid index according to the coordinates."""
         indices = self.grid.dimensions
         return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
                       for c, o, i in zip(self._coordinate_symbols, self.grid.origin,
@@ -1457,7 +1457,7 @@ class SparseFunction(AbstractSparseFunction):
 
     @property
     def _coordinate_bases(self):
-        """Symbol for the base coordinates of the reference grid point"""
+        """Symbol for the base coordinates of the reference grid point."""
         indices = self.grid.dimensions
         return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
                       for c, o, idx, i in zip(self._coordinate_symbols,
