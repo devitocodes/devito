@@ -658,9 +658,9 @@ class TestArguments(object):
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension(name='p_src')
-        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim], nt=10,
+        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=(time, p_dim), nt=10,
                                   npoint=1, coordinates=original_coords, time_order=2)
-        src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=[time, p_dim],
+        src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=(time, p_dim),
                                   npoint=1, nt=10, coordinates=new_coords, time_order=2)
         op = Operator(src1.inject(u, src1))
 

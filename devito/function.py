@@ -1014,6 +1014,10 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
 
+    @property
+    def time_order(self):
+        return self._time_order
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """
@@ -1181,7 +1185,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         for i, idx in enumerate(index_matrix):
             ind_subs = dict([(dim, ind) for dim, ind in zip(self.grid.dimensions, idx)])
             v_subs = [(v, v.subs(ind_subs))
-                      for v in variables if not v.is_SparseFunction]
+                      for v in variables if not isinstance(v, SparseFunction)]
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
