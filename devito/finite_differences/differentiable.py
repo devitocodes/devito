@@ -1,9 +1,9 @@
 import sympy
-from sympy.core.basic import _aresame
 import numpy as np
 
 from devito.symbolics.extended_sympy import ExprDiv
 from devito.tools import filter_ordered
+from devito.finite_differences.utils import to_expr
 
 __all__ = ['Differentiable']
 
@@ -32,12 +32,12 @@ class Differentiable(sympy.Expr):
         # Set FD properties from input
         self._dtype = kwargs.get('dtype')
         self._space_order = kwargs.get('space_order')
-        self._time_order = kwargs.get('time_order', 0)
-        self._indices = kwargs.get('indices', ())
+        self._time_order = kwargs.get('time_order')
+        self._indices = kwargs.get('indices')
         self._staggered = kwargs.get('staggered')
         self._grid = kwargs.get('grid')
         # Generate FD shortcuts for expression or copy from input
-        self._fd = kwargs.get('fd', {})
+        self._fd = kwargs.get('fd')
         # Associated Sympy expression
         self._expr = expr
 
@@ -78,20 +78,10 @@ class Differentiable(sympy.Expr):
         return self.__getattribute__(name)
 
     def xreplace(self, rule):
-        out = getattr(self, '_expr', self)
-        if out in rule:
-            return rule[out]
-        elif rule:
-            args = []
-            for a in out.args:
-                try:
-                    args.append(a.xreplace(rule))
-                except AttributeError:
-                    args.append(a)
-            args = tuple(args)
-            if not _aresame(args, out.args):
-                return out.func(*args)
-        return out
+        if self.is_Function:
+            return super(Differentiable, self).xreplace(rule)
+        else:
+            return self._expr.xreplace(rule)
 
     def _merge_fd_properties(self, other):
         merged = {}
@@ -135,17 +125,33 @@ class Differentiable(sympy.Expr):
     __rmul__ = __mul__
 
     def __truediv__(self, other):
-        return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), other**(-1)]),
+        return Differentiable(sympy.Mul(*[getattr(self, '_expr', self),
+                                          getattr(other, '_expr', other)**(-1)]),
                               **self._merge_fd_properties(other))
 
     def __rtruediv__(self, other):
-        return Differentiable(sympy.Mul(*[other, getattr(self, '_expr', self)**(-1)]),
+        return Differentiable(sympy.Mul(*[getattr(other, '_expr', other),
+                                          getattr(self, '_expr', self)**(-1)]),
                               **self._merge_fd_properties(other))
+
+    __floordiv__ = __truediv__
+    __rdiv__ = __rtruediv__
+    __div__ = __truediv__
+    __rfloordiv__ = __rtruediv__
 
     def __pow__(self, exponent):
-        return Differentiable(sympy.Pow(*[getattr(self, '_expr', self), exponent]),
-                              **self._merge_fd_properties(other))
-
+        if exponent > 0:
+            return Differentiable(sympy.Mul(*[getattr(self, '_expr', self)]*exponent,
+                                            evaluate=False),
+                                  **self._kwargs)
+        elif exponent < 0:
+            return Differentiable(ExprDiv(sympy.Number(1),
+                                          sympy.Mul(*[getattr(self, '_expr',
+                                                      self)]*(-exponent),
+                                                    evaluate=False)),
+                                  **self._merge_fd_properties(None))
+        else:
+            return sympy.Number(1)
 
     def __neg__(self):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), -1]),
@@ -153,10 +159,15 @@ class Differentiable(sympy.Expr):
 
     def __str__(self):
         if self.is_Function:
-            return super(sympy.Expr, self).__str__()
-        return self._expr.__str__()
+            return super(Differentiable, self).__str__()
+        return to_expr(self._expr).__str__()
 
     __repr__ = __str__
+
+    def subs(self, *subs):
+        if self.is_Function:
+            return super(Differentiable, self).subs(*subs)
+        return self._expr.subs(*subs)
 
     @property
     def laplace(self):

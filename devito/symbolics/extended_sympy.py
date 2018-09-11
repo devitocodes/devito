@@ -131,6 +131,9 @@ class ExprDiv(sympy.Expr):
 
     __repr__ = __str__
 
+    def subs(self, subs):
+        return ExprDiv(self.rhs.subs(subs), self.rhs.subs(subs))
+
 
 class FunctionFromPointer(sympy.Expr, Pickable):
 

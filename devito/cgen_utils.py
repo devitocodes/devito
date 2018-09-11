@@ -150,6 +150,7 @@ class CodePrinter(C99CodePrinter):
 
         if self.dtype == np.float32:
             rv = rv + 'F'
+
         return rv
 
     def _print_Differentiable(self, expr):

@@ -14,8 +14,8 @@ from devito.exceptions import InvalidArgument
 from devito.grid import staggered
 from devito.logger import debug, warning
 from devito.parameters import configuration
-from devito.symbolics import indexify, retrieve_indexed
-from devito.finite_differences import Differentiable, initialize_derivatives, to_expr
+from devito.symbolics import indexify, retrieve_functions
+from devito.finite_differences import Differentiable, initialize_derivatives
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import Tag, ReducerMap, as_tuple, prod, powerset, is_integer
@@ -43,7 +43,7 @@ class Constant(AbstractCachedSymbol):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.dtype = kwargs.get('dtype', np.float32)
+            self._dtype = kwargs.get('dtype', np.float32)
             self._value = kwargs.get('value')
 
     @property
@@ -54,6 +54,10 @@ class Constant(AbstractCachedSymbol):
     @data.setter
     def data(self, val):
         self._value = val
+
+    @property
+    def dtype(self):
+        return self._dtype
 
     @property
     def base(self):
@@ -1177,7 +1181,7 @@ class SparseFunction(AbstractSparseFunction):
         for i, idx in enumerate(index_matrix):
             ind_subs = dict([(dim, ind) for dim, ind in zip(self.grid.dimensions, idx)])
             v_subs = [(v, v.subs(ind_subs))
-                      for v in variables if not v.base.function.is_SparseFunction]
+                      for v in variables if not v.is_SparseFunction]
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
@@ -1197,9 +1201,8 @@ class SparseFunction(AbstractSparseFunction):
         :param cummulative: (Optional) If True, perform an increment rather
                             than an assignment. Defaults to False.
         """
-        expr = indexify(to_expr(expr))
 
-        variables = list(retrieve_indexed(expr))
+        variables = list(retrieve_functions(expr))
         # List of indirection indices for all adjacent grid points
         subs, idx_subs = self._interpolation_indices(variables, offset)
         # Substitute coordinate base symbols into the coefficients
@@ -1221,9 +1224,8 @@ class SparseFunction(AbstractSparseFunction):
         :param u_t: (Optional) time index to use for indexing into `field`.
         :param p_t: (Optional) time index to use for indexing into `expr`.
         """
-        expr = indexify(to_expr(expr))
-        field = indexify(to_expr(field))
-        variables = list(retrieve_indexed(expr)) + [field]
+
+        variables = list(retrieve_functions(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points
         subs, idx_subs = self._interpolation_indices(variables, offset)
