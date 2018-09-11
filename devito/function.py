@@ -21,8 +21,8 @@ from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
-from devito.tools import (Tag, ReducerMap, ArgProvider, as_mapper, as_tuple,
-                          flatten, is_integer, prod, powerset)
+from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_mapper,
+                          as_tuple, flatten, is_integer, prod, powerset)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -405,8 +405,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             * the shifting induced by the ``staggered`` mask
         """
         symbolic_shape = super(TensorFunction, self).symbolic_shape
-        return tuple(sympy.Add(i, -j, evaluate=False)
-                     for i, j in zip(symbolic_shape, self.staggered))
+        ret = tuple(sympy.Add(i, -j, evaluate=False)
+                    for i, j in zip(symbolic_shape, self.staggered))
+        return EnrichedTuple(*ret, getters=self.dimensions)
 
     @property
     def _mask_interior(self):
