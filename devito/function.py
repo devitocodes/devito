@@ -948,7 +948,7 @@ class AbstractSparseFunction(TensorFunction):
             if self.grid is None:
                 raise TypeError('SparseFunction needs `grid` argument')
 
-            self.space_order = kwargs.get('space_order', 0)
+            self._space_order = kwargs.get('space_order', 0)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1010,7 +1010,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
             self.nt = nt
 
             self.time_dim = self.indices[self._time_position]
-            self.time_order = kwargs.get('time_order', 1)
+            self._time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
 
@@ -1037,7 +1037,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['nt', 'time_order']
 
 
-class SparseFunction(AbstractSparseFunction):
+class SparseFunction(AbstractSparseFunction, Differentiable):
     """
     A special :class:`TensorFunction` representing a set of sparse point
     objects that are not aligned with the computational grid.
@@ -1273,6 +1273,10 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
 
     is_SparseTimeFunction = True
+
+    @property
+    def fd_indices(self):
+        return (self.grid.time_dim,) + self.grid.dimensions
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation

@@ -33,11 +33,11 @@ class Differentiable(sympy.Expr):
         self._dtype = kwargs.get('dtype')
         self._space_order = kwargs.get('space_order')
         self._time_order = kwargs.get('time_order')
-        self._indices = kwargs.get('indices')
+        self._indices = kwargs.get('indices', ())
         self._staggered = kwargs.get('staggered')
         self._grid = kwargs.get('grid')
         # Generate FD shortcuts for expression or copy from input
-        self._fd = kwargs.get('fd')
+        self._fd = kwargs.get('fd', {})
         # Associated Sympy expression
         self._expr = expr
 

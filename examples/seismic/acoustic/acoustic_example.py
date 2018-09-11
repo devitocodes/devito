@@ -2,7 +2,7 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
-from devito import Constant, Eq, Function, Operator
+from devito import Constant, Function
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.utils import smooth
