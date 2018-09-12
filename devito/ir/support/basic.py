@@ -446,7 +446,10 @@ class TimedAccess(Access):
         assert is_integer(timestamp)
         obj = super(TimedAccess, cls).__new__(cls, indexed, mode)
         obj.timestamp = timestamp
-        obj.directions = [directions.get(i, Any) for i in obj.findices]
+        # We use `.root` as if a DerivedDimension is in `directions`, then so is
+        # its parent, and the parent (root) direction cannot differ from that
+        # of its child
+        obj.directions = [directions.get(i.root, Any) for i in obj.findices]
         return obj
 
     def __eq__(self, other):
