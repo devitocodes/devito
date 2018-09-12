@@ -35,7 +35,7 @@ def groupby(clusters):
 
             # Collect anti-dependences preventing grouping
             anti = scope.d_anti.carried() - scope.d_anti.increment
-            funcs = [i.function for i in anti]
+            funcs = {i.function for i in anti}
 
             # Collect flow-dependences breaking the search
             flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
@@ -48,8 +48,8 @@ def groupby(clusters):
 
                 # Optimization: we also bump-and-contract the Arrays inducing
                 # non-carried dependences, to avoid useless memory accesses
-                funcs += [i.function for i in scope.d_flow.independent()
-                          if is_local(i.function, candidate, c, clusters)]
+                funcs.update({i.function for i in scope.d_flow.independent()
+                              if is_local(i.function, candidate, c, clusters)})
 
                 bump_and_contract(funcs, candidate, c)
                 candidate.squash(c)
