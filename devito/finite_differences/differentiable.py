@@ -103,7 +103,11 @@ class Differentiable(sympy.Expr):
                                           getattr(other, '_expr', other)]),
                               **self._merge_fd_properties(other))
 
-    __iadd__ = __add__
+    def __iadd__(self, other):
+        self._expr = sympy.Add(*[getattr(self, '_expr', self),
+                                 getattr(other, '_expr', other)])
+        return self
+
     __radd__ = __add__
 
     def __sub__(self, other):
@@ -116,25 +120,29 @@ class Differentiable(sympy.Expr):
                                           getattr(other, '_expr', other)]),
                               **self._merge_fd_properties(other))
 
-    __isub__ = __sub__
+    def __isub__(self, other):
+        self._expr = sympy.Add(*[getattr(self, '_expr', self),
+                                 -getattr(other, '_expr', other)])
+        return self
 
     def __mul__(self, other):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
                               **self._merge_fd_properties(other))
 
-    __imul__ = __mul__
+    def __imul__(self, other):
+        self._expr = sympy.Mul(*[getattr(self, '_expr', self),
+                                 getattr(other, '_expr', other)])
+        return self
+
     __rmul__ = __mul__
 
     def __truediv__(self, other):
-        return Differentiable(sympy.Mul(*[getattr(self, '_expr', self),
-                                          getattr(other, '_expr', other)**(-1)]),
-                              **self._merge_fd_properties(other))
+        return self * (other.__pow__(-1))
 
     def __rtruediv__(self, other):
-        return Differentiable(sympy.Mul(*[getattr(other, '_expr', other),
-                                          getattr(self, '_expr', self)**(-1)]),
-                              **self._merge_fd_properties(other))
+        return other * (self.__pow__(-1))
+
 
     __floordiv__ = __truediv__
     __rdiv__ = __rtruediv__
@@ -147,10 +155,7 @@ class Differentiable(sympy.Expr):
                                             evaluate=False),
                                   **self._kwargs)
         elif exponent < 0:
-            return Differentiable(ExprDiv(sympy.Number(1),
-                                          sympy.Mul(*[getattr(self, '_expr',
-                                                      self)]*(-exponent),
-                                                    evaluate=False)),
+            return Differentiable(sympy.Pow(*[getattr(self, '_expr', self), exponent]),
                                   **self._merge_fd_properties(None))
         else:
             return sympy.Number(1)
@@ -162,14 +167,56 @@ class Differentiable(sympy.Expr):
     def __str__(self):
         if self.is_Function:
             return super(Differentiable, self).__str__()
-        return to_expr(self._expr).__str__()
+        return self._expr.__str__()
 
     __repr__ = __str__
+
+
+    def __eq__(self, other):
+        expr = getattr(self, '_expr', self)
+        oth = getattr(other, '_expr', other)
+        if expr.is_Function:
+            return super(Differentiable, self).__eq__(oth)
+        return expr.__eq__(oth)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+    def __int__(self):
+        if self.is_Function:
+            return super(Differentiable, self).__int__()
+        return Differentiable(self._expr.__int__(), **self._merge_fd_properties(None))
+
+
+    def __float__(self):
+        if self.is_Function:
+            return super(Differentiable, self).__float__()
+        return Differentiable(self._expr.__float__(), **self._merge_fd_properties(None))
+
+
+    def __mod__(self, other):
+        if self.is_Function:
+            return super(Differentiable, self).__fmode__(other)
+        return Differentiable(self._expr.__mod__(getattr(other, '_expr', other)),
+                              **self._merge_fd_properties(None))
+
+    def __rmod__(self, other):
+        return other.__mod__(self)
 
     def subs(self, *subs):
         if self.is_Function:
             return super(Differentiable, self).subs(*subs)
-        return self._expr.subs(*subs)
+        expr_sub = to_expr(self._expr.subs(*subs))
+        return Differentiable(expr_sub, **self._merge_fd_properties(None))
+
+    def __hash__(self):
+        return hash(self._expr)
+
+    def _hashable_content(self):
+        if self.is_Function:
+            return super(Differentiable, self)._hashable_content()
+        return self._expr._hashable_content()
 
     @property
     def laplace(self):

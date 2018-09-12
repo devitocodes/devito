@@ -284,6 +284,7 @@ class TestArithmetic(object):
         a.data[:] = 2.
         eqn = Eq(a, a + 2.*const)
         op = Operator(eqn)
+
         op.apply(a=a, truc=const)
         assert(np.allclose(a.data, 6.))
 

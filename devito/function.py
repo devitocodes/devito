@@ -42,21 +42,21 @@ class Constant(AbstractCachedSymbol):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self._dtype = kwargs.get('dtype', np.float32)
             self._value = kwargs.get('value')
+            self._dtype = kwargs.get("dtype", np.float32)
 
     @property
     def data(self):
         """The value of the data object, as a scalar (int, float, ...)."""
-        return self._value
-
-    @data.setter
-    def data(self, val):
-        self._value = val
+        return self.dtype(self._value)
 
     @property
     def dtype(self):
         return self._dtype
+
+    @data.setter
+    def data(self, val):
+        self._value = val
 
     @property
     def base(self):
@@ -1263,7 +1263,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         # Substitute coordinate base symbols into the coefficients
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
-                for b, vsub in zip(self.coefficients, idx_subs)]
+                    for b, vsub in zip(self.coefficients, idx_subs)]
 
     # Pickling support
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']
