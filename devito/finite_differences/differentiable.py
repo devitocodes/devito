@@ -22,6 +22,8 @@ class Differentiable(sympy.Expr):
         if cls == Differentiable:
             assert len(args) == 1
             expr = args[0]
+            if expr.is_Function:
+                return expr
             new_obj = sympy.Expr.__new__(cls, expr)
             # Initialization
             new_obj.__init__(expr, **kwargs)

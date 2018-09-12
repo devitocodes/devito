@@ -5,7 +5,6 @@ from functools import partial
 from sympy import finite_diff_weights
 
 from devito.logger import error
-from devito.grid import staggered
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative', 'generate_fd_functions',
@@ -313,14 +312,18 @@ def generate_fd_functions(function):
     space_order (and time_order if time dependant)
     """
     dimensions = function.indices
+
     space_fd_order = function.space_order
     time_fd_order = function.time_order if function.is_TimeFunction else 0
-    is_staggered = function.staggered is not None
-    deriv_function = staggered_diff if is_staggered else generic_derivative
-    c_deriv_function = staggered_cross_diff if is_staggered else generic_cross_derivative
+
+    deriv_function = generic_derivative
+    c_deriv_function = generic_cross_derivative
+    if function.is_Staggered:
+        deriv_function = staggered_diff
+        c_deriv_function = staggered_cross_diff
 
     side = dict()
-    for (d, s) in zip(dimensions, staggered(function)):
+    for (d, s) in zip(dimensions, function.staggered):
         if s == 0:
             side[d] = left
         elif s == 1:
@@ -362,7 +365,7 @@ def generate_fd_functions(function):
                     derivatives[name_fd2] = (deriv, desciption)
 
     # add non-conventional, non-centered first-order FDs
-    if not is_staggered:
+    if not function.is_Staggered:
         for d in dimensions:
             name = 't' if d.is_Time else d.root.name
             # left

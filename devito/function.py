@@ -11,7 +11,6 @@ from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.grid import staggered
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_functions
@@ -137,9 +136,6 @@ class TensorFunction(AbstractCachedFunction):
             # There may or may not be a `Grid` attached to the TensorFunction
             self._grid = kwargs.get('grid')
 
-            # Staggered mask
-            self._staggered = kwargs.get('staggered')
-
             # Data-related properties and data initialization
             self._data = None
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
@@ -191,6 +187,40 @@ class TensorFunction(AbstractCachedFunction):
         else:
             return np.float32
 
+    @classmethod
+    def __staggered_setup__(cls, func, **kwargs):
+        """
+        For a given function and it's staggered property `staggered`
+        returns a tuple of 0 or 1 for each dimension:
+        0 if not staggered in the dimension
+        1 if staggered in the dimension
+        """
+        stagger = kwargs.get('staggered')
+        s = (lambda x: x if type(x) is tuple else (x,))(stagger)
+        if stagger is None:
+            func.is_Staggered = False
+            return tuple(0 for _ in func.indices)
+        func.is_Staggered = True
+        if stagger == 'node':
+            return tuple(0 for _ in func.indices)
+        if stagger == 'cell':
+            return tuple(1 for _ in func.indices)
+        staggered = []
+        s_neg = tuple([-ss for ss in s])
+        for d in func.indices:
+            if d in s:
+                staggered += [1]
+            elif d in s_neg:
+                staggered += [-1]
+            else:
+                staggered += [0]
+
+        return tuple(staggered)
+
+    @property
+    def staggered(self):
+        return self._staggered
+
     @property
     def _data_buffer(self):
         """Reference to the data. Unlike ``data, data_with_halo, data_allocated``,
@@ -225,7 +255,7 @@ class TensorFunction(AbstractCachedFunction):
 
             Alias to ``self.shape``.
         """
-        return tuple(i - j for i, j in zip(self._shape, staggered(self)))
+        return tuple(i - j for i, j in zip(self._shape, self.staggered))
 
     @property
     def shape_with_halo(self):
@@ -375,10 +405,6 @@ class TensorFunction(AbstractCachedFunction):
         return tuple(d for d in self.indices if d.is_Space)
 
     @property
-    def staggered(self):
-        return self._staggered
-
-    @property
     def initializer(self):
         if self._data is not None:
             return self._data.view(np.ndarray)
@@ -396,7 +422,7 @@ class TensorFunction(AbstractCachedFunction):
         """
         symbolic_shape = super(TensorFunction, self).symbolic_shape
         return tuple(sympy.Add(i, -j, evaluate=False)
-                     for i, j in zip(symbolic_shape, staggered(self)))
+                     for i, j in zip(symbolic_shape, self.staggered))
 
     @property
     def _mask_interior(self):
@@ -475,7 +501,7 @@ class TensorFunction(AbstractCachedFunction):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, staggered(self), key.indices):
+        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
             args.update(i._arg_defaults(start=0, size=s+o, alias=k))
 
         # Add MPI-related data structures
@@ -502,7 +528,7 @@ class TensorFunction(AbstractCachedFunction):
                 # We've been provided a pure-data replacement (array)
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
-                for i, s, o in zip(self.indices, new.shape, staggered(self)):
+                for i, s, o in zip(self.indices, new.shape, self.staggered):
                     values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
                 # Add MPI-related data structures
                 if self.grid is not None:

@@ -348,6 +348,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             newobj._indices = indices
             newobj._shape = cls.__shape_setup__(**kwargs)
             newobj._dtype = cls.__dtype_setup__(**kwargs)
+            newobj._staggered = cls.__staggered_setup__(newobj, **kwargs)
             newobj.__init__(*args, **kwargs)
 
             # All objects cached on the AbstractFunction /newobj/ keep a reference
@@ -368,6 +369,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             self._padding = self.__padding_setup__(**kwargs)
 
     __hash__ = Cached.__hash__
+
+    @classmethod
+    def __staggered_setup__(cls, obj, **kwargs):
+        """Extract the object indices from ``kwargs``."""
+        return ()
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

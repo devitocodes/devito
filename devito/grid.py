@@ -9,7 +9,7 @@ from devito.tools import ArgProvider, ReducerMap
 from sympy import prod
 import numpy as np
 
-__all__ = ['Grid', 'staggered']
+__all__ = ['Grid']
 
 
 class Grid(ArgProvider):
@@ -201,28 +201,3 @@ class Grid(ArgProvider):
         for k, v in state.items():
             setattr(self, k, v)
         self._distributor = Distributor(self.shape, self.dimensions)
-
-
-def staggered(function):
-    """
-    For a given function and it's staggered property `staggered`
-    returns a tuple of 0 or 1 for each dimension:
-    0 if not staggered in the dimension
-    1 if staggered in the dimension
-    """
-    s = (lambda x: x if type(x) is tuple else (x,))(function.staggered)
-    if function.staggered in ['node', None]:
-        return tuple(0 for _ in function.indices)
-    if function.staggered == 'cell':
-        return tuple(1 for _ in function.indices)
-    staggered = ()
-    s_neg = tuple([-ss for ss in s])
-    for d in function.indices:
-        if d in s:
-            staggered += (1,)
-        elif d in s_neg:
-            staggered += (-1,)
-        else:
-            staggered += (0,)
-
-    return staggered
