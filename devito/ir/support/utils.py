@@ -109,7 +109,7 @@ def align_accesses(expr, key=lambda i: False):
     """
     mapper = {}
     for indexed in retrieve_indexed(expr):
-        f = indexed.base.function
+        f = indexed.function
         if not key(f):
             continue
         subs = {i: i + j.left for i, j in zip(indexed.indices, f._offset_domain)}

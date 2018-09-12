@@ -9,7 +9,7 @@ from mpi4py import MPI
 
 from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, default_allocator, first_touch
-from devito.dimension import Dimension, DefaultDimension
+from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.finite_difference import (centered, cross_derivative,
@@ -19,7 +19,7 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
+from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_mapper,
                           as_tuple, flatten, is_integer, prod, powerset)
@@ -1113,6 +1113,10 @@ class AbstractSparseFunction(TensorFunction):
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('npoint'),))
 
+    @property
+    def _sparse_dim(self):
+        return self.dimensions[self._sparse_position]
+
     def _is_owned(self, point):
         """Return True if ``point`` is in self's local domain, False otherwise."""
         point = as_tuple(point)
@@ -1367,6 +1371,9 @@ class SparseFunction(AbstractSparseFunction):
 
     is_SparseFunction = True
 
+    _radius = 1
+    """The radius of the stencil operators provided by the SparseFunction."""
+
     _sub_functions = ('coordinates',)
 
     def __init__(self, *args, **kwargs):
@@ -1466,25 +1473,40 @@ class SparseFunction(AbstractSparseFunction):
                                               indices[:self.grid.dim])])
 
     def _interpolation_indices(self, variables, offset=0):
-        """
-        Get interpolation indices for the variables
-        """
+        """Generate interpolation indices for the :class:`TensorFunction`s
+        in ``variables``."""
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
                               in zip(inc, self._coordinate_indices))
                         for inc in self._point_increments]
 
-        # Generate index substitutions for all grid variables except
-        # the `SparseFunction` types
+        eqns = []
         idx_subs = []
         for i, idx in enumerate(index_matrix):
-            ind_subs = dict([(dim, ind) for dim, ind in zip(self.grid.dimensions, idx)])
-            v_subs = [(v, v.subs(ind_subs))
-                      for v in variables if not v.base.function.is_SparseFunction]
-            idx_subs += [OrderedDict(v_subs)]
+            # Use a ConditionalDimension so that we don't go OOB
+            points = [Symbol(name='ii%d%d' % (i, j)) for j, _ in enumerate(idx)]
+            lb = [sympy.And(p > d.symbolic_start - self._radius, evaluate=False)
+                  for p, d in zip(points, self.grid.dimensions)]
+            ub = [sympy.And(p < d.symbolic_end + self._radius, evaluate=False)
+                  for p, d in zip(points, self.grid.dimensions)]
+            cd = ConditionalDimension('%s_c%d' % (self._sparse_dim, i), self._sparse_dim,
+                                      condition=sympy.And(*(lb + ub), evaluate=False))
+            v_subs = [(self._sparse_dim, cd)]
+
+            # Generate index substitutions for all nonsparse Functions
+            mapper = dict([(d, p) for d, p in zip(self.grid.dimensions, points)])
+            v_subs.extend([(v, v.subs(mapper)) for v in variables if v.function != self])
+
+            # Track index temporaries
+            eqns.extend([Eq(p, r) for p, r in zip(points, idx)])
+
+            # Track Indexed substitutions
+            idx_subs.extend([OrderedDict(v_subs)])
 
         # Substitute coordinate base symbols into the coefficients
-        return OrderedDict(zip(self._point_symbols, self._coordinate_bases)), idx_subs
+        subs = OrderedDict(zip(self._point_symbols, self._coordinate_bases))
+
+        return subs, idx_subs, eqns
 
     @property
     def gridpoints(self):
@@ -1507,16 +1529,24 @@ class SparseFunction(AbstractSparseFunction):
                           than an assignment. Defaults to False.
         """
         expr = indexify(expr)
-
         variables = list(retrieve_indexed(expr))
-        # List of indirection indices for all adjacent grid points
-        subs, idx_subs = self._interpolation_indices(variables, offset)
-        # Substitute coordinate base symbols into the coefficients
-        rhs = sum([expr.subs(vsub) * b.subs(subs)
-                   for b, vsub in zip(self._coefficients, idx_subs)])
-        lhs = self.subs(self_subs)
 
-        return [Inc(lhs, rhs) if increment else Eq(lhs, rhs)]
+        # List of indirection indices for all adjacent grid points
+        subs, idx_subs, eqns = self._interpolation_indices(variables, offset)
+
+        # Substitute coordinate base symbols into the coefficients
+        args = [expr.subs(vsub) * b.subs(subs).subs(vsub)
+                for b, vsub in zip(self._coefficients, idx_subs)]
+
+        # Accumulate point-wise contributions into a temporary
+        rhs = Scalar(name='sum', dtype=self.dtype)
+        summands = [Eq(rhs, 0.)] + [Inc(rhs, rhs + i) for i in args]
+
+        # Write/Incr `self`
+        lhs = self.subs(self_subs)
+        last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
+
+        return eqns + summands + last
 
     def inject(self, field, expr, offset=0):
         """Symbol for injection of an expression onto a grid
@@ -1531,11 +1561,13 @@ class SparseFunction(AbstractSparseFunction):
         variables = list(retrieve_indexed(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points
-        subs, idx_subs = self._interpolation_indices(variables, offset)
+        subs, idx_subs, eqns = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the coefficients
-        return [Inc(field.subs(vsub), expr.subs(subs).subs(vsub) * b.subs(subs))
-                for b, vsub in zip(self._coefficients, idx_subs)]
+        eqns.extend([Inc(field.subs(vsub), expr.subs(subs).subs(vsub) * b.subs(subs))
+                     for b, vsub in zip(self._coefficients, idx_subs)])
+
+        return eqns
 
     @property
     def _dist_subfunc_alltoall(self):
