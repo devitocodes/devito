@@ -7,7 +7,6 @@ from devito.finite_differences.utils import to_expr
 
 __all__ = ['Differentiable']
 
-
 class Differentiable(sympy.Expr):
     """
     This class represents Devito differentiable objects such as
@@ -138,10 +137,10 @@ class Differentiable(sympy.Expr):
     __rmul__ = __mul__
 
     def __truediv__(self, other):
-        return self * (other.__pow__(-1))
+        return getattr(self, '_expr', self) * (getattr(other, '_expr', other) ** (-1))
 
     def __rtruediv__(self, other):
-        return other * (self.__pow__(-1))
+        return getattr(other, '_expr', other) * (getattr(self, '_expr', self) ** (-1))
 
 
     __floordiv__ = __truediv__

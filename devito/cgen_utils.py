@@ -176,7 +176,7 @@ class CodePrinter(C99CodePrinter):
         return str(expr)
 
     def _print_ExprDiv(self, expr):
-        return "%s / %s" % (self._print(expr.lhs), self._print(expr.rhs))
+        return "(%s) / (%s)" % (self._print(expr.lhs), self._print(expr.rhs))
 
     def _print_Byref(self, expr):
         return "&%s" % expr.name

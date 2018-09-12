@@ -113,7 +113,7 @@ class ExprDiv(sympy.Expr):
     """
     A support type for :class:Differential division. Should only be used by the compiler
     for code generation purposes (i.e., not for symbolic manipulation).
-    This works around the annoying way SymPy represents integer division,
+    This works around the annoying way SymPy represents division,
     namely as a ``Mul`` between the numerator and the reciprocal of the
     denominator (e.g., ``a*3.args -> (a, 1/3)), which ends up generating
     "weird" C code.

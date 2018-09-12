@@ -86,4 +86,4 @@ def solve(eq, target, **kwargs):
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
     # Lower Differentiable expressions to sympy.Expr for solve
-    return sympy.solve(to_expr(eq), to_expr(target), **kwargs)[0]
+    return sympy.solve(eq, target, **kwargs)[0]
