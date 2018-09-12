@@ -21,7 +21,6 @@ from devito.ir.stree import st_build
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
-from devito.finite_differences import to_expr
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, numpy_to_ctypes, split)
 
@@ -72,7 +71,7 @@ class Operator(Callable):
         self._func_table = OrderedDict()
 
         # Expression lowering: indexification, substitution rules, specialization
-        expressions = [indexify(to_expr(i)) for i in expressions]
+        expressions = [indexify(i) for i in expressions]
         expressions = [i.xreplace(subs) for i in expressions]
         expressions = self._specialize_exprs(expressions)
 

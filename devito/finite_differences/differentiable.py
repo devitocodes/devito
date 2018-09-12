@@ -1,11 +1,11 @@
 import sympy
 import numpy as np
 
-from devito.symbolics.extended_sympy import ExprDiv
 from devito.tools import filter_ordered
 from devito.finite_differences.utils import to_expr
 
 __all__ = ['Differentiable']
+
 
 class Differentiable(sympy.Expr):
     """
@@ -40,7 +40,7 @@ class Differentiable(sympy.Expr):
         # Generate FD shortcuts for expression or copy from input
         self._fd = kwargs.get('fd', {})
         # Associated Sympy expression
-        self._expr = expr
+        self._expr = to_expr(expr)
 
     @property
     def space_order(self):
@@ -137,27 +137,33 @@ class Differentiable(sympy.Expr):
     __rmul__ = __mul__
 
     def __truediv__(self, other):
-        return getattr(self, '_expr', self) * (getattr(other, '_expr', other) ** (-1))
+        return Differentiable(getattr(self, '_expr', self) *
+                              (getattr(other, '_expr', other) ** (-1)),
+                              **self._merge_fd_properties(other))
 
     def __rtruediv__(self, other):
-        return getattr(other, '_expr', other) * (getattr(self, '_expr', self) ** (-1))
-
+        return Differentiable(getattr(other, '_expr', other) *
+                              (getattr(self, '_expr', self) ** (-1)),
+                              **self._merge_fd_properties(other))
 
     __floordiv__ = __truediv__
     __rdiv__ = __rtruediv__
     __div__ = __truediv__
     __rfloordiv__ = __rtruediv__
 
-    def __pow__(self, exponent):
-        if exponent > 0:
-            return Differentiable(sympy.Mul(*[getattr(self, '_expr', self)]*exponent,
+    def __pow__(self, other):
+        if other > 0:
+            return Differentiable(sympy.Mul(*[getattr(self, '_expr', self)]*other,
                                             evaluate=False),
-                                  **self._kwargs)
-        elif exponent < 0:
-            return Differentiable(sympy.Pow(*[getattr(self, '_expr', self), exponent]),
+                                  **self._merge_fd_properties(None))
+        elif other < 0:
+            return Differentiable(sympy.Pow(*[getattr(self, '_expr', self), other]),
                                   **self._merge_fd_properties(None))
         else:
             return sympy.Number(1)
+
+    def __rpow__(self, other):
+        return other.__pow__(self)
 
     def __neg__(self):
         return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), -1]),
@@ -170,7 +176,6 @@ class Differentiable(sympy.Expr):
 
     __repr__ = __str__
 
-
     def __eq__(self, other):
         expr = getattr(self, '_expr', self)
         oth = getattr(other, '_expr', other)
@@ -181,18 +186,15 @@ class Differentiable(sympy.Expr):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-
     def __int__(self):
         if self.is_Function:
             return super(Differentiable, self).__int__()
         return Differentiable(self._expr.__int__(), **self._merge_fd_properties(None))
 
-
     def __float__(self):
         if self.is_Function:
             return super(Differentiable, self).__float__()
         return Differentiable(self._expr.__float__(), **self._merge_fd_properties(None))
-
 
     def __mod__(self, other):
         if self.is_Function:
@@ -206,7 +208,7 @@ class Differentiable(sympy.Expr):
     def subs(self, *subs):
         if self.is_Function:
             return super(Differentiable, self).subs(*subs)
-        expr_sub = to_expr(self._expr.subs(*subs))
+        expr_sub = to_expr(self._expr).subs(*subs)
         return Differentiable(expr_sub, **self._merge_fd_properties(None))
 
     def __hash__(self):

@@ -187,8 +187,7 @@ class TensorFunction(AbstractCachedFunction):
         else:
             return np.float32
 
-    @classmethod
-    def __staggered_setup__(cls, func, **kwargs):
+    def __staggered_setup__(self, **kwargs):
         """
         For a given function and it's staggered property `staggered`
         returns a tuple of 0 or 1 for each dimension:
@@ -198,16 +197,16 @@ class TensorFunction(AbstractCachedFunction):
         stagger = kwargs.get('staggered')
         s = (lambda x: x if type(x) is tuple else (x,))(stagger)
         if stagger is None:
-            func.is_Staggered = False
-            return tuple(0 for _ in func.indices)
-        func.is_Staggered = True
+            self.is_Staggered = False
+            return tuple(0 for _ in self.indices)
+        self.is_Staggered = True
         if stagger == 'node':
-            return tuple(0 for _ in func.indices)
+            return tuple(0 for _ in self.indices)
         if stagger == 'cell':
-            return tuple(1 for _ in func.indices)
+            return tuple(1 for _ in self.indices)
         staggered = []
         s_neg = tuple([-ss for ss in s])
-        for d in func.indices:
+        for d in self.indices:
             if d in s:
                 staggered += [1]
             elif d in s_neg:
@@ -1263,7 +1262,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         # Substitute coordinate base symbols into the coefficients
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
-                    for b, vsub in zip(self.coefficients, idx_subs)]
+                for b, vsub in zip(self.coefficients, idx_subs)]
 
     # Pickling support
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']

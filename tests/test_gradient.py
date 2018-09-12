@@ -114,6 +114,7 @@ class TestGradient(object):
 
         gradient, _ = wave.gradient(residual, u0, m=m0, checkpointing=checkpointing)
         G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
+
         # FWI Gradient test
         H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
         error1 = np.zeros(7)

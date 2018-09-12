@@ -154,7 +154,7 @@ class CodePrinter(C99CodePrinter):
         return rv
 
     def _print_Differentiable(self, expr):
-        return self._print(expr._expr)
+        return "(" + self._print(expr._expr) + ")"
 
     def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
@@ -173,10 +173,7 @@ class CodePrinter(C99CodePrinter):
         return "{%s}" % ', '.join([self._print(i) for i in expr.params])
 
     def _print_IntDiv(self, expr):
-        return str(expr)
-
-    def _print_ExprDiv(self, expr):
-        return "(%s) / (%s)" % (self._print(expr.lhs), self._print(expr.rhs))
+        return expr.__str__()
 
     def _print_Byref(self, expr):
         return "&%s" % expr.name
