@@ -101,7 +101,7 @@ class Differentiable(sympy.Expr):
     def args(self):
         if self.is_Function:
             return super (Differentiable, self).args
-        return self._expr.args
+        return (self._expr,)
 
     def __add__(self, other):
         return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
