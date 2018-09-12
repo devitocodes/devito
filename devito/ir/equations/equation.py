@@ -8,7 +8,7 @@ from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGrou
                                force_directions, detect_flow_directions, build_intervals,
                                build_iterators)
 from devito.symbolics import FrozenExpr
-from devito.tools import Pickable
+from devito.tools import Pickable, as_tuple, split
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
@@ -19,7 +19,7 @@ class IREq(object):
     A mixin providing operations common to all :mod:`ir` equation types.
     """
 
-    _state = ('is_Increment', 'ispace', 'dspace')
+    _state = ('is_Increment', 'ispace', 'dspace', 'conditionals')
 
     @property
     def is_Scalar(self):
@@ -48,6 +48,10 @@ class IREq(object):
         # be in the data space but not in the iteration space (e.g., when a
         # function is indexed with integers only)
         return set(self.dspace.dimensions) | set(self.ispace.dimensions)
+
+    @property
+    def conditionals(self):
+        return as_tuple(self._conditionals)
 
     @property
     def directions(self):
@@ -110,7 +114,8 @@ class LoweredEq(Eq, IREq):
                              "and kwargs=%s" % (str(args), str(kwargs)))
 
         # Well-defined dimension ordering
-        ordering = dimension_sort(expr, key=lambda i: not i.is_Time)
+        dimensions = dimension_sort(expr, key=lambda d: not d.is_Time)
+        conditionals, ordering = split(dimensions, lambda d: d.is_Conditional)
 
         # Introduce space sub-dimensions if need to
         region = getattr(input_expr, '_region', DOMAIN)
@@ -144,6 +149,7 @@ class LoweredEq(Eq, IREq):
         expr._is_Increment = getattr(input_expr, 'is_Increment', False)
         expr._dspace = dspace
         expr._ispace = ispace
+        expr._conditionals = conditionals
         expr._reads, expr._writes = detect_io(expr)
 
         return expr
@@ -191,9 +197,8 @@ class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
             input_expr = args[0]
             expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
             for i in cls._state:
-                setattr(expr, '_%s' % i, kwargs.get(i) or getattr(input_expr, i))
-            assert isinstance(expr.ispace, IterationSpace)
-            assert isinstance(expr.dspace, DataSpace)
+                v = kwargs[i] if i in kwargs else getattr(input_expr, i, None)
+                setattr(expr, '_%s' % i, v)
         elif len(args) == 2:
             # origin: ClusterizedEq(lhs, rhs, **kwargs)
             expr = Eq.__new__(cls, *args, evaluate=False)

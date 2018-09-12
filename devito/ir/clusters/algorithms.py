@@ -82,14 +82,13 @@ def guard(clusters):
         mapper = OrderedDict()
         free = []
         for e in c.exprs:
-            found = [d for d in e.dimensions if d.is_Conditional]
-            if found:
-                mapper.setdefault(tuple(filter_sorted(found)), []).append(e)
+            if e.conditionals:
+                mapper.setdefault(tuple(filter_sorted(e.conditionals)), []).append(e)
             else:
                 free.append(e)
 
         # Some expressions may not require guards at all. We put them in their
-        # own cluster straigh away
+        # own cluster straight away
         if free:
             processed.append(PartialCluster(free, c.ispace, c.dspace, c.atomics))
 
