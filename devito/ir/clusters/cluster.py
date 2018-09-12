@@ -6,6 +6,7 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.clusters.graph import FlowGraph
 from devito.ir.support import DataSpace, IterationSpace, detect_io
 from devito.symbolics import estimate_cost
+from devito.tools import as_tuple
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -29,7 +30,8 @@ class PartialCluster(object):
     """
 
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
-        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace) for i in exprs)
+        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
+                           for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = set(atomics or [])
