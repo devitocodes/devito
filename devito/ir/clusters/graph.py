@@ -4,39 +4,28 @@ from itertools import islice
 from cached_property import cached_property
 
 from devito.dimension import Dimension
-from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminals,
-                              convert_to_SSA, q_inc, q_indirect, q_timedimension)
+from devito.ir.equations import ClusterizedEq
+from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
+                              convert_to_SSA, q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
 
 __all__ = ['FlowGraph']
 
 
-class Node(Eq):
+class Node(ClusterizedEq):
 
     """
-    A special :class:`sympy.Eq` which keeps track of: ::
+    A special :class:`ClusterizedEq` which keeps track of: ::
 
         - :class:`sympy.Eq` writing to ``self``
         - :class:`sympy.Eq` reading from ``self``
     """
 
-    def __new__(cls, lhs, rhs, **kwargs):
-        reads = kwargs.pop('reads', [])
-        readby = kwargs.pop('readby', [])
-        inc = kwargs.pop('inc', False)
-        obj = super(Node, cls).__new__(cls, lhs, rhs, **kwargs)
-        obj._is_Increment = inc
-        obj._reads = set(reads)
-        obj._readby = set(readby)
-        return obj
+    _state = ClusterizedEq._state + ('reads', 'readby')
 
     @property
     def function(self):
         return self.lhs.function
-
-    @property
-    def is_Increment(self):
-        return self._is_Increment
 
     @property
     def reads(self):
@@ -47,16 +36,8 @@ class Node(Eq):
         return self._readby
 
     @property
-    def is_tensor(self):
-        return self.lhs.is_Indexed and self.lhs.rank > 0
-
-    @property
     def is_unbound_temporary(self):
         return self.function.is_Array and not self.reads and not self.readby
-
-    @property
-    def is_scalar(self):
-        return not self.is_tensor
 
     def __repr__(self):
         reads = '[%s%s]' % (', '.join([str(i) for i in self.reads][:2]), '%s')
@@ -64,9 +45,6 @@ class Node(Eq):
         readby = '[%s%s]' % (', '.join([str(i) for i in self.readby][:2]), '%s')
         readby = readby % ('' if len(self.readby) <= 2 else ', ...')
         return "Node(key=%s, reads=%s, readby=%s)" % (self.lhs, reads, readby)
-
-    def func(self, *args, **kwargs):
-        return super(Node, self).func(*args, inc=self.is_Increment, **kwargs)
 
 
 class FlowGraph(OrderedDict):
@@ -133,13 +111,12 @@ class FlowGraph(OrderedDict):
                 queue.append(k)
 
         # Build up the FlowGraph
-        nodes = [(i, Node(*mapper[i].args, inc=q_inc(mapper[i]),
-                          reads=reads[i], readby=readby[i]))
+        nodes = [(i, Node(mapper[i], reads=reads[i], readby=readby[i]))
                  for i in processed]
         super(FlowGraph, self).__init__(nodes, **kwargs)
 
         # Determine indices along the space and time dimensions
-        terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
+        terms = [v for k, v in self.items() if v.is_Tensor and not q_indirect(k)]
         indices = filter_ordered(flatten([i.function.indices for i in terms]))
         self.space_indices = tuple(i for i in indices if i.is_Space)
         self.time_indices = tuple(i for i in indices if i.is_Time)
@@ -166,10 +143,10 @@ class FlowGraph(OrderedDict):
                 found[k] = v
             else:
                 # Tensors belong to other traces, so they can be scheduled straight away
-                tensors = [i for i in reads if i.is_tensor]
+                tensors = [i for i in reads if i.is_Tensor]
                 found = OrderedDict(list(found.items()) + [(i.lhs, i) for i in tensors])
                 # Postpone the rest until all dependening nodes got scheduled
-                scalars = [i for i in reads if i.is_scalar]
+                scalars = [i for i in reads if i.is_Scalar]
                 queue = OrderedDict([(i.lhs, i) for i in scalars] +
                                     [(k, v)] + list(queue.items()))
         if strict is True:
@@ -222,7 +199,7 @@ class FlowGraph(OrderedDict):
         """
         if key not in self:
             return False
-        match = key.base.label if self[key].is_tensor else key
+        match = key.base.label if self[key].is_Tensor else key
         for i in self.extract(key, readby=True):
             for e in retrieve_indexed(i):
                 if any(match in idx.free_symbols for idx in e.indices):
