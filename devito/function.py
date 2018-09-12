@@ -6,6 +6,7 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 from mpi4py import MPI
+from cached_property import cached_property
 
 from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, default_allocator, first_touch
@@ -22,7 +23,7 @@ from devito.symbolics import indexify, retrieve_indexed
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_mapper,
-                          as_tuple, flatten, is_integer, prod, powerset)
+                          as_tuple, flatten, is_integer, prod, powerset, filter_ordered)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -1437,24 +1438,24 @@ class SparseFunction(AbstractSparseFunction):
         A = A.subs(reference_cell)
         return A.inv().T * p
 
-    @property
+    @cached_property
     def _point_symbols(self):
         """Symbol for coordinate value in each dimension of the point."""
         return tuple(sympy.symbols('p%s' % d) for d in self.grid.dimensions)
 
-    @property
+    @cached_property
     def _point_increments(self):
         """Index increments in each dimension for each point symbol."""
         return tuple(product(range(2), repeat=self.grid.dim))
 
-    @property
+    @cached_property
     def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension."""
         p_dim = self.indices[-1]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
-    @property
+    @cached_property
     def _coordinate_indices(self):
         """Symbol for each grid index according to the coordinates."""
         indices = self.grid.dimensions
@@ -1462,7 +1463,7 @@ class SparseFunction(AbstractSparseFunction):
                       for c, o, i in zip(self._coordinate_symbols, self.grid.origin,
                                          indices[:self.grid.dim])])
 
-    @property
+    @cached_property
     def _coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point."""
         indices = self.grid.dimensions
@@ -1480,11 +1481,15 @@ class SparseFunction(AbstractSparseFunction):
                               in zip(inc, self._coordinate_indices))
                         for inc in self._point_increments]
 
-        eqns = []
+        # A symbol for each unique indirect index
+        all_points = OrderedDict([(idx, Symbol(name='ii%d' % i)) for i, idx in
+                                  enumerate(filter_ordered(flatten(index_matrix)))])
+        eqns = [Eq(v, k) for k, v in all_points.items()]
+
         idx_subs = []
         for i, idx in enumerate(index_matrix):
             # Use a ConditionalDimension so that we don't go OOB
-            points = [Symbol(name='ii%d%d' % (i, j)) for j, _ in enumerate(idx)]
+            points = [all_points[j] for j in idx]
             lb = [sympy.And(p > d.symbolic_start - self._radius, evaluate=False)
                   for p, d in zip(points, self.grid.dimensions)]
             ub = [sympy.And(p < d.symbolic_end + self._radius, evaluate=False)
@@ -1496,9 +1501,6 @@ class SparseFunction(AbstractSparseFunction):
             # Generate index substitutions for all nonsparse Functions
             mapper = dict([(d, p) for d, p in zip(self.grid.dimensions, points)])
             v_subs.extend([(v, v.subs(mapper)) for v in variables if v.function != self])
-
-            # Track index temporaries
-            eqns.extend([Eq(p, r) for p, r in zip(points, idx)])
 
             # Track Indexed substitutions
             idx_subs.extend([OrderedDict(v_subs)])
