@@ -387,7 +387,7 @@ def generate_fd_functions(function):
             deriv = partial(deriv_function, deriv_order=1, dim=d,
                             fd_order=dim_order, stagger=centered)
             name_fd = 'd%sc' % name
-            desciption = 'derivative of order %d w.r.t dimension %s' % (o, d)
+            desciption = 'centered derivative staggered w.r.t dimension %s' % d
 
             derivatives[name_fd] = (deriv, desciption)
 

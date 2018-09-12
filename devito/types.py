@@ -610,11 +610,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """Create a :class:`sympy.Indexed` object from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
-
         # Only replace spacing -> 1 if used as index
         subs = dict([(i.spacing, 1) for i in self.indices if
                      any(i in a.args for a in self.args)])
         indices = [a.subs(subs) for a in self.args]
+
         return Indexed(self.indexed, *indices)
 
     def __getitem__(self, index):

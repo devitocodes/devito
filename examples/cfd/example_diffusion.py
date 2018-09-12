@@ -99,7 +99,7 @@ def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
         dx2 = p(x, y, t).diff(x, x).as_finite_difference([x - h, x, x + h])
         dy2 = p(x, y, t).diff(y, y).as_finite_difference([y - h, y, y + h])
         dt = p(x, y, t).diff(t).as_finite_difference([t, t + s])
-        eqn = sympy.Eq(dt, a * (dx2 + dy2))
+        eqn = Eq(dt, a * (dx2 + dy2))
         stencil = solve(eqn, p(x, y, t + s))
         return stencil, (p(x, y, t), p(x + h, y, t), p(x - h, y, t),
                          p(x, y + h, t), p(x, y - h, t), s, h)

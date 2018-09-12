@@ -97,6 +97,12 @@ class Differentiable(sympy.Expr):
         merged["dtype"] = self.dtype
         return merged
 
+    @property
+    def args(self):
+        if self.is_Function:
+            return super (Differentiable, self).args
+        return self._expr.args
+
     def __add__(self, other):
         return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
@@ -105,6 +111,7 @@ class Differentiable(sympy.Expr):
     def __iadd__(self, other):
         self._expr = sympy.Add(*[getattr(self, '_expr', self),
                                  getattr(other, '_expr', other)])
+
         return self
 
     __radd__ = __add__
@@ -237,3 +244,4 @@ class Differentiable(sympy.Expr):
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return sum([getattr(self.laplace * weight, d) for d in derivs])
+
