@@ -102,7 +102,7 @@ class FlowGraph(OrderedDict):
         queue = [i for i in mapper if i not in processed]
         while queue:
             k = queue.pop(0)
-            if not readby[k]:
+            if not readby[k] or k in readby[k]:
                 processed.insert(0, k)
             elif all(i in processed for i in readby[k]):
                 index = min(processed.index(i) for i in readby[k])
