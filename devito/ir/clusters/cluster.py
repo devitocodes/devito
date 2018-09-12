@@ -178,13 +178,17 @@ class Cluster(PartialCluster):
     def trace(self):
         return FlowGraph(self.exprs)
 
-    @property
-    def is_dense(self):
-        return self.trace.space_indices and not self.trace.time_invariant()
+    @cached_property
+    def functions(self):
+        return set.union(*[set(i.dspace.parts) for i in self.exprs])
 
-    @property
+    @cached_property
     def is_sparse(self):
-        return not self.is_dense
+        return any(f.is_SparseFunction for f in self.functions)
+
+    @cached_property
+    def is_dense(self):
+        return not self.is_sparse
 
     def rebuild(self, exprs):
         """
