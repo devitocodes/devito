@@ -78,24 +78,21 @@ def guard(clusters):
     """
     processed = ClusterGroup()
     for c in clusters:
-        # Separate the expressions that should be guarded from the free ones
-        mapper = OrderedDict()
         free = []
         for e in c.exprs:
             if e.conditionals:
-                mapper.setdefault(tuple(filter_sorted(e.conditionals)), []).append(e)
+                # Expressions that need no guarding are kept in a separate Cluster
+                if free:
+                    processed.append(PartialCluster(free, c.ispace, c.dspace, c.atomics))
+                    free = []
+                guards = {d.parent: d.condition or CondEq(d.parent % d.factor, 0)
+                          for d in e.conditionals}
+                processed.append(PartialCluster(e, c.ispace, c.dspace, c.atomics, guards))
             else:
                 free.append(e)
-
-        # Some expressions may not require guards at all. We put them in their
-        # own cluster straight away
+        # Leftover
         if free:
             processed.append(PartialCluster(free, c.ispace, c.dspace, c.atomics))
-
-        # Then we add in all guarded clusters
-        for k, v in mapper.items():
-            guards = {d.parent: d.condition or CondEq(d.parent % d.factor, 0) for d in k}
-            processed.append(PartialCluster(v, c.ispace, c.dspace, c.atomics, guards))
 
     return ClusterGroup(processed)
 
