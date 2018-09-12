@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, SparseTimeFunction, Dimension, error, staggered)
+                    SparseFunction, SparseTimeFunction, Dimension, error)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -332,12 +332,12 @@ class TestAllocation(object):
         """
         grid = Grid(shape=tuple([11]*ndim))
         f = Function(name='f', grid=grid, staggered=stagg)
-        assert f.data.shape == tuple(11-i for i in staggered(f))
+        assert f.data.shape == tuple(11-i for i in f.staggered)
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple(5 for _ in staggered(f))
+        index = tuple(5 for _ in f.staggered)
         set_f = Eq(f.indexed[index], 2.)
         set_g = Eq(g.indexed[index], 3.)
         Operator([set_f, set_g])()
@@ -354,12 +354,12 @@ class TestAllocation(object):
         """
         grid = Grid(shape=tuple([11]*ndim))
         f = TimeFunction(name='f', grid=grid, staggered=stagg)
-        assert f.data.shape[1:] == tuple(11-i for i in staggered(f)[1:])
+        assert f.data.shape[1:] == tuple(11-i for i in f.staggered[1:])
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple([0] + [5 for _ in staggered(f)[1:]])
+        index = tuple([0] + [5 for _ in f.staggered[1:]])
         set_f = Eq(f.indexed[index], 2.)
         set_g = Eq(g.indexed[index], 3.)
         Operator([set_f, set_g])()

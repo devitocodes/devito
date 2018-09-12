@@ -2,6 +2,7 @@ from collections import namedtuple
 
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
+from devito.function import Constant
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap
@@ -164,7 +165,6 @@ class Grid(ArgProvider):
     @property
     def _const(self):
         """Return the type to create constant symbols."""
-        from devito.function import Constant
         return Constant
 
     def is_distributed(self, dim):
