@@ -24,12 +24,12 @@ def groupby(clusters):
 
     processed = ClusterGroup()
     for c in clusters:
-        if c.guards:
-            # Guarded clusters cannot be grouped together
-            processed.append(c)
-            continue
         fused = False
         for candidate in reversed(list(processed)):
+            # Guarded clusters cannot be grouped together
+            if c.guards or candidate.guards:
+                break
+
             # Collect all relevant data dependences
             scope = Scope(exprs=candidate.exprs + c.exprs)
 
