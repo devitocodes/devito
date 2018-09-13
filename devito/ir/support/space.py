@@ -486,6 +486,8 @@ class IterationSpace(Space):
     def merge(cls, *others):
         if not others:
             return IterationSpace(IntervalGroup())
+        elif len(others) == 1:
+            return others[0]
         intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
         directions = {}
         for i in others:
