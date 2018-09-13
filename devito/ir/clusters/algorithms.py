@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
+from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_directions,
                                force_directions, group_expressions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
@@ -236,18 +236,20 @@ def clusterize(exprs):
                 mapper[k] = directions
                 queue.extend([i for i in g if i not in queue])
 
-        # Now build the PartialClusters
+        # Now build the PartialCluster
         prev = None
         for k, v in mapper.items():
             if k.is_Tensor:
                 scalars = [i for i in g[prev:g.index(k)] if i.is_Scalar]
+                # Iteration space, applying the enforced directions
                 ispace = IterationSpace.merge(k.ispace, *[i.ispace for i in scalars])
-                # Apply the enforced directions
                 ispace = IterationSpace(ispace.intervals, ispace.sub_iterators, v)
+                # Data space
+                dspace = DataSpace.merge(k.dspace, *[i.dspace for i in scalars])
                 # Prepare for next range
                 prev = g.index(k)
 
-                clusters.append(PartialCluster(scalars + [k], ispace, k.dspace))
+                clusters.append(PartialCluster(scalars + [k], ispace, dspace))
 
     # Group PartialClusters together where possible
     clusters = groupby(clusters)
