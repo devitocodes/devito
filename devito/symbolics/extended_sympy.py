@@ -9,7 +9,7 @@ from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
 from devito.tools import Pickable, as_tuple
 
-__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'IntDiv',
+__all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'Macro', 'taylor_sin', 'taylor_cos',
            'bhaskara_sin', 'bhaskara_cos']
@@ -81,6 +81,10 @@ class Mul(sympy.Mul, FrozenExpr):
 
 
 class Add(sympy.Add, FrozenExpr):
+    pass
+
+
+class Pow(sympy.Pow, FrozenExpr):
     pass
 
 
