@@ -11,7 +11,7 @@ from devito.base import *  # noqa
 from devito.data import *  # noqa
 from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
-from devito.finite_difference import *  # noqa
+from devito.finite_differences import *  # noqa
 from devito.function import Buffer # noqa
 from devito.logger import error, warning, info, set_log_level, silencio  # noqa
 from devito.parameters import *  # noqa
