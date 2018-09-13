@@ -218,17 +218,15 @@ def bump_and_contract(targets, source, sink):
 
 
 def clusterize(exprs):
-    """Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s."""
-    # Group expressions based on data dependences
-    groups = group_expressions(exprs)
-
+    """
+    Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s.
+    """
     clusters = ClusterGroup()
-
-    # Coerce iteration direction of each expression in each group
-    for g in groups:
+    for g in group_expressions(exprs):
         mapper = OrderedDict([(e, e.directions) for e in g])
         flowmap = detect_flow_directions(g)
         queue = list(g)
+        # Coerce iteration direction of each expression in each group
         while queue:
             k = queue.pop(0)
             directions, _ = force_directions(flowmap, lambda i: mapper[k].get(i))
@@ -238,12 +236,17 @@ def clusterize(exprs):
                 mapper[k] = directions
                 queue.extend([i for i in g if i not in queue])
 
-        # Wrap each tensor expression in a PartialCluster
+        # Now build the PartialClusters
+        prev = None
         for k, v in mapper.items():
             if k.is_Tensor:
-                scalars = [i for i in g[:g.index(k)] if i.is_Scalar]
-                intervals, sub_iterators, _ = k.ispace.args
-                ispace = IterationSpace(intervals, sub_iterators, v)
+                scalars = [i for i in g[prev:g.index(k)] if i.is_Scalar]
+                ispace = IterationSpace.merge(k.ispace, *[i.ispace for i in scalars])
+                # Apply the enforced directions
+                ispace = IterationSpace(ispace.intervals, ispace.sub_iterators, v)
+                # Prepare for next range
+                prev = g.index(k)
+
                 clusters.append(PartialCluster(scalars + [k], ispace, k.dspace))
 
     # Group PartialClusters together where possible
