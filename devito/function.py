@@ -1441,7 +1441,8 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _point_symbols(self):
         """Symbol for coordinate value in each dimension of the point."""
-        return tuple(sympy.symbols('p%s' % d) for d in self.grid.dimensions)
+        return tuple(Scalar(name='p%s' % d, dtype=self.dtype)
+                     for d in self.grid.dimensions)
 
     @cached_property
     def _point_increments(self):
@@ -1481,34 +1482,32 @@ class SparseFunction(AbstractSparseFunction):
                               in zip(inc, self._coordinate_indices))
                         for inc in self._point_increments]
 
-        # A symbol for each unique indirect index
-        all_points = OrderedDict([(idx, Symbol(name='ii%d' % i)) for i, idx in
-                                  enumerate(filter_ordered(flatten(index_matrix)))])
-        eqns = [Eq(v, k) for k, v in all_points.items()]
-
         idx_subs = []
+        points = OrderedDict()
         for i, idx in enumerate(index_matrix):
-            # Use a ConditionalDimension so that we don't go OOB
-            points = [all_points[j] for j in idx]
-            lb = [sympy.And(p > d.symbolic_start - self._radius, evaluate=False)
-                  for p, d in zip(points, self.grid.dimensions)]
-            ub = [sympy.And(p < d.symbolic_end + self._radius, evaluate=False)
-                  for p, d in zip(points, self.grid.dimensions)]
-            cd = ConditionalDimension('%s_c%d' % (self._sparse_dim, i), self._sparse_dim,
-                                      condition=sympy.And(*(lb + ub), evaluate=False))
-            v_subs = [(self._sparse_dim, cd)]
+            mapper = {}
+            for j, d in zip(idx, self.grid.dimensions):
+                # A Dimension for each unique indirect index
+                p = points.setdefault(j, Symbol(name='ii%d' % len(points)))
 
-            # Generate index substitutions for all nonsparse Functions
-            mapper = dict([(d, p) for d, p in zip(self.grid.dimensions, points)])
-            v_subs.extend([(v, v.subs(mapper)) for v in variables if v.function != self])
+                # Use ConditionalDimension so that we don't go OOB
+                lb = sympy.And(p > d.symbolic_start - self._radius, evaluate=False)
+                ub = sympy.And(p < d.symbolic_end + self._radius, evaluate=False)
+                condition = sympy.And(lb, ub, evaluate=False)
+                mapper[d] = ConditionalDimension(p.name, self._sparse_dim,
+                                                 condition=condition, indirect=True)
 
             # Track Indexed substitutions
-            idx_subs.extend([OrderedDict(v_subs)])
+            idx_subs.append(OrderedDict([(v, v.subs(mapper)) for v in variables
+                                         if v.function is not self]))
 
-        # Substitute coordinate base symbols into the coefficients
-        subs = OrderedDict(zip(self._point_symbols, self._coordinate_bases))
+        # Equations for the indirection dimensions
+        eqns = [Eq(v, k) for k, v in points.items()]
+        # Equations (temporaries) for the coefficients
+        eqns.extend([Eq(p, c) for p, c in
+                     zip(self._point_symbols, self._coordinate_bases)])
 
-        return subs, idx_subs, eqns
+        return idx_subs, eqns
 
     @property
     def gridpoints(self):
@@ -1534,11 +1533,11 @@ class SparseFunction(AbstractSparseFunction):
         variables = list(retrieve_indexed(expr))
 
         # List of indirection indices for all adjacent grid points
-        subs, idx_subs, eqns = self._interpolation_indices(variables, offset)
+        idx_subs, eqns = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the coefficients
-        args = [expr.subs(vsub) * b.subs(subs).subs(vsub)
-                for b, vsub in zip(self._coefficients, idx_subs)]
+        args = [expr.subs(v_sub) * b.subs(v_sub)
+                for b, v_sub in zip(self._coefficients, idx_subs)]
 
         # Accumulate point-wise contributions into a temporary
         rhs = Scalar(name='sum', dtype=self.dtype)
@@ -1563,10 +1562,10 @@ class SparseFunction(AbstractSparseFunction):
         variables = list(retrieve_indexed(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points
-        subs, idx_subs, eqns = self._interpolation_indices(variables, offset)
+        idx_subs, eqns = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the coefficients
-        eqns.extend([Inc(field.subs(vsub), expr.subs(subs).subs(vsub) * b.subs(subs))
+        eqns.extend([Inc(field.subs(vsub), expr.subs(vsub) * b)
                      for b, vsub in zip(self._coefficients, idx_subs)])
 
         return eqns
