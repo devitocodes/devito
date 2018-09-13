@@ -162,7 +162,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">as_tuple</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FrozenExpr&#39;</span><span class="p">,</span> <span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;CondEq&#39;</span><span class="p">,</span> <span class="s1">&#39;CondNe&#39;</span><span class="p">,</span> <span class="s1">&#39;Mul&#39;</span><span class="p">,</span> <span class="s1">&#39;Add&#39;</span><span class="p">,</span> <span class="s1">&#39;IntDiv&#39;</span><span class="p">,</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FrozenExpr&#39;</span><span class="p">,</span> <span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;CondEq&#39;</span><span class="p">,</span> <span class="s1">&#39;CondNe&#39;</span><span class="p">,</span> <span class="s1">&#39;Mul&#39;</span><span class="p">,</span> <span class="s1">&#39;Add&#39;</span><span class="p">,</span> <span class="s1">&#39;Pow&#39;</span><span class="p">,</span> <span class="s1">&#39;IntDiv&#39;</span><span class="p">,</span>
            <span class="s1">&#39;FunctionFromPointer&#39;</span><span class="p">,</span> <span class="s1">&#39;FieldFromPointer&#39;</span><span class="p">,</span> <span class="s1">&#39;FieldFromComposite&#39;</span><span class="p">,</span>
            <span class="s1">&#39;ListInitializer&#39;</span><span class="p">,</span> <span class="s1">&#39;Byref&#39;</span><span class="p">,</span> <span class="s1">&#39;Macro&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_cos&#39;</span><span class="p">,</span>
            <span class="s1">&#39;bhaskara_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;bhaskara_cos&#39;</span><span class="p">]</span>
@@ -234,6 +234,10 @@
 
 
 <div class="viewcode-block" id="Add"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Add">[docs]</a><span class="k">class</span> <span class="nc">Add</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="Pow"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.extended_sympy.Pow">[docs]</a><span class="k">class</span> <span class="nc">Pow</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Pow</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
     <span class="k">pass</span></div>
 
 

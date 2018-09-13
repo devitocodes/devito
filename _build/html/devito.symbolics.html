@@ -300,18 +300,20 @@ equality. It suppresses evaluation.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.CondEq.canonical">
 <code class="descname">canonical</code><a class="headerlink" href="#devito.symbolics.extended_sympy.CondEq.canonical" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a canonical form of the relational.</p>
-<dl class="docutils">
-<dt>The rules for the canonical form, in order of decreasing priority are:</dt>
-<dd><ol class="first last arabic simple">
-<li>Number on right if left is not a Number;</li>
-<li>Symbol on the left;</li>
-<li>Gt/Ge changed to Lt/Le;</li>
-<li>Lt/Le are unchanged;</li>
-<li>Eq and Ne get ordered args.</li>
-</ol>
-</dd>
-</dl>
+<dd><p>Return a canonical form of the relational by putting a
+Number on the rhs else ordering the args. No other
+simplification is attempted.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">&lt;</span> <span class="mi">2</span>
+<span class="go">x &lt; 2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_</span><span class="o">.</span><span class="n">reversed</span><span class="o">.</span><span class="n">canonical</span>
+<span class="go">x &lt; 2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="o">-</span><span class="n">y</span> <span class="o">&lt;</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">canonical</span>
+<span class="go">x &gt; -y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="o">-</span><span class="n">y</span> <span class="o">&gt;</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">canonical</span>
+<span class="go">x &lt; -y</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="attribute">
@@ -330,18 +332,20 @@ inequality. It suppresses evaluation.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.CondNe.canonical">
 <code class="descname">canonical</code><a class="headerlink" href="#devito.symbolics.extended_sympy.CondNe.canonical" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a canonical form of the relational.</p>
-<dl class="docutils">
-<dt>The rules for the canonical form, in order of decreasing priority are:</dt>
-<dd><ol class="first last arabic simple">
-<li>Number on right if left is not a Number;</li>
-<li>Symbol on the left;</li>
-<li>Gt/Ge changed to Lt/Le;</li>
-<li>Lt/Le are unchanged;</li>
-<li>Eq and Ne get ordered args.</li>
-</ol>
-</dd>
-</dl>
+<dd><p>Return a canonical form of the relational by putting a
+Number on the rhs else ordering the args. No other
+simplification is attempted.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">&lt;</span> <span class="mi">2</span>
+<span class="go">x &lt; 2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_</span><span class="o">.</span><span class="n">reversed</span><span class="o">.</span><span class="n">canonical</span>
+<span class="go">x &lt; 2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="o">-</span><span class="n">y</span> <span class="o">&lt;</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">canonical</span>
+<span class="go">x &gt; -y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="o">-</span><span class="n">y</span> <span class="o">&gt;</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">canonical</span>
+<span class="go">x &lt; -y</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="attribute">
@@ -369,6 +373,17 @@ inequality. It suppresses evaluation.</p>
 <dl class="attribute">
 <dt id="devito.symbolics.extended_sympy.Add.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Add.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.symbolics.extended_sympy.Pow">
+<em class="property">class </em><code class="descclassname">devito.symbolics.extended_sympy.</code><code class="descname">Pow</code><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#Pow"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.Pow" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.power.Pow</span></code>, <a class="reference internal" href="#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.symbolics.extended_sympy.Pow.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.symbolics.extended_sympy.Pow.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -506,24 +521,19 @@ where <code class="docutils literal notranslate"><span class="pre">composite</sp
 instantiated and it should return either some simplified instance
 (possible of some other class), or if the class cls should be
 unmodified, return None.</p>
-<p>&#64;classmethod
-def eval(cls, arg):</p>
-<blockquote>
-<div><dl class="docutils">
-<dt>if arg is S.NaN:</dt>
-<dd>return S.NaN</dd>
-</dl>
-<p>if arg is S.Zero: return S.Zero
-if arg.is_positive: return S.One
-if arg.is_negative: return S.NegativeOne
-if isinstance(arg, Mul):</p>
-<blockquote>
-<div><p>coeff, terms = arg.as_coeff_Mul(rational=True)
-if coeff is not S.One:</p>
-<blockquote>
-<div>return cls(coeff) * cls(terms)</div></blockquote>
-</div></blockquote>
-</div></blockquote>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@classmethod</span>
+<span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span>
+    <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+    <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_positive</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+    <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">(</span><span class="n">rational</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">coeff</span><span class="p">)</span> <span class="o">*</span> <span class="bp">cls</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span>
+</pre></div>
+</div>
 </dd></dl>
 
 </dd></dl>
@@ -546,24 +556,19 @@ if coeff is not S.One:</p>
 instantiated and it should return either some simplified instance
 (possible of some other class), or if the class cls should be
 unmodified, return None.</p>
-<p>&#64;classmethod
-def eval(cls, arg):</p>
-<blockquote>
-<div><dl class="docutils">
-<dt>if arg is S.NaN:</dt>
-<dd>return S.NaN</dd>
-</dl>
-<p>if arg is S.Zero: return S.Zero
-if arg.is_positive: return S.One
-if arg.is_negative: return S.NegativeOne
-if isinstance(arg, Mul):</p>
-<blockquote>
-<div><p>coeff, terms = arg.as_coeff_Mul(rational=True)
-if coeff is not S.One:</p>
-<blockquote>
-<div>return cls(coeff) * cls(terms)</div></blockquote>
-</div></blockquote>
-</div></blockquote>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@classmethod</span>
+<span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span>
+    <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+    <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_positive</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+    <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">(</span><span class="n">rational</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">coeff</span><span class="p">)</span> <span class="o">*</span> <span class="bp">cls</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span>
+</pre></div>
+</div>
 </dd></dl>
 
 </dd></dl>
@@ -586,24 +591,19 @@ if coeff is not S.One:</p>
 instantiated and it should return either some simplified instance
 (possible of some other class), or if the class cls should be
 unmodified, return None.</p>
-<p>&#64;classmethod
-def eval(cls, arg):</p>
-<blockquote>
-<div><dl class="docutils">
-<dt>if arg is S.NaN:</dt>
-<dd>return S.NaN</dd>
-</dl>
-<p>if arg is S.Zero: return S.Zero
-if arg.is_positive: return S.One
-if arg.is_negative: return S.NegativeOne
-if isinstance(arg, Mul):</p>
-<blockquote>
-<div><p>coeff, terms = arg.as_coeff_Mul(rational=True)
-if coeff is not S.One:</p>
-<blockquote>
-<div>return cls(coeff) * cls(terms)</div></blockquote>
-</div></blockquote>
-</div></blockquote>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@classmethod</span>
+<span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span>
+    <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+    <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_positive</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+    <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">(</span><span class="n">rational</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">coeff</span><span class="p">)</span> <span class="o">*</span> <span class="bp">cls</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span>
+</pre></div>
+</div>
 </dd></dl>
 
 </dd></dl>
@@ -626,24 +626,19 @@ if coeff is not S.One:</p>
 instantiated and it should return either some simplified instance
 (possible of some other class), or if the class cls should be
 unmodified, return None.</p>
-<p>&#64;classmethod
-def eval(cls, arg):</p>
-<blockquote>
-<div><dl class="docutils">
-<dt>if arg is S.NaN:</dt>
-<dd>return S.NaN</dd>
-</dl>
-<p>if arg is S.Zero: return S.Zero
-if arg.is_positive: return S.One
-if arg.is_negative: return S.NegativeOne
-if isinstance(arg, Mul):</p>
-<blockquote>
-<div><p>coeff, terms = arg.as_coeff_Mul(rational=True)
-if coeff is not S.One:</p>
-<blockquote>
-<div>return cls(coeff) * cls(terms)</div></blockquote>
-</div></blockquote>
-</div></blockquote>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@classmethod</span>
+<span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span>
+    <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+    <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_positive</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+    <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span> <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">(</span><span class="n">rational</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">coeff</span><span class="p">)</span> <span class="o">*</span> <span class="bp">cls</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span>
+</pre></div>
+</div>
 </dd></dl>
 
 </dd></dl>
