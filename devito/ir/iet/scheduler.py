@@ -99,7 +99,7 @@ def iet_lower_dimensions(iet):
     # Lower ConditionalDimensions
     cdims = [d for d in FindSymbols('free-symbols').visit(iet)
              if isinstance(d, ConditionalDimension)]
-    mapper = {d: IntDiv(d.parent, d.factor) for d in cdims}
+    mapper = {d: IntDiv(d.index, d.factor) for d in cdims}
     iet = XSubs(mapper).visit(iet)
 
     return iet

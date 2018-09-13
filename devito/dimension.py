@@ -486,15 +486,24 @@ class ConditionalDimension(DerivedDimension):
            # The generated code will look like
            float (*restrict u1)[x1_size + 1] =
 
+    .. note::
+
+        Sometimes the ConditionalDimension itself, rather than its parent, needs
+        to be used to index into an array. For example, this may happen when an
+        array is indirectly addressed and the ConditionalDimension's parent
+        doesn't define an affine iteration space. In such a case, one should
+        create the ConditionalDimension with the flag ``indirect=True``.
     """
 
-    def __new__(cls, name, parent, factor=None, condition=None):
-        return ConditionalDimension.__xnew_cached_(cls, name, parent, factor, condition)
+    def __new__(cls, name, parent, factor=None, condition=None, indirect=False):
+        return ConditionalDimension.__xnew_cached_(cls, name, parent, factor,
+                                                   condition, indirect)
 
-    def __new_stage2__(cls, name, parent, factor, condition):
+    def __new_stage2__(cls, name, parent, factor, condition, indirect):
         newobj = DerivedDimension.__xnew__(cls, name, parent)
         newobj._factor = factor
         newobj._condition = condition
+        newobj._indirect = indirect
         return newobj
 
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
@@ -512,11 +521,19 @@ class ConditionalDimension(DerivedDimension):
         return self._condition
 
     @property
+    def indirect(self):
+        return self._indirect
+
+    @property
+    def index(self):
+        return self if self.indirect is True else self.parent
+
+    @property
     def _properties(self):
-        return (self._factor, self._condition)
+        return (self._factor, self._condition, self._indirect)
 
     # Pickling support
-    _pickle_kwargs = DerivedDimension._pickle_kwargs + ['factor', 'condition']
+    _pickle_kwargs = DerivedDimension._pickle_kwargs + ['factor', 'condition', 'indirect']
 
 
 class SteppingDimension(DerivedDimension):
