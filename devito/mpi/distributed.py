@@ -81,11 +81,22 @@ class Distributor(object):
         return self._topology
 
     @property
+    def glb_shape(self):
+        return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
+
+    @property
     def glb_numb(self):
-        """Return the global numbering of this process' domain."""
+        """Return the global numbering of this process' domain section."""
         assert len(self._comm.coords) == len(self._glb_numbs)
         glb_numb = [i[j] for i, j in zip(self._glb_numbs, self._comm.coords)]
         return EnrichedTuple(*glb_numb, getters=self.dimensions)
+
+    @property
+    def glb_ranges(self):
+        """Return the global ranges of this process' domain section."""
+        Range = namedtuple('Range', 'left right')
+        return EnrichedTuple(*[Range(min(i), max(i) + 1) for i in self.glb_numb],
+                             getters=self.dimensions)
 
     @property
     def glb_pos_map(self):

@@ -42,7 +42,7 @@ RUN if [ -f /usr/bin/gcov-tool-$gccvers ] ; then \
 # Install MPI
 RUN apt-get install -y -q mpich libmpich-dev
 # Set up conda
-RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh
+RUN wget https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O /tmp/miniconda.sh
 RUN bash /tmp/miniconda.sh -b -p /usr/local/miniconda
 ENV PATH=/usr/local/miniconda/bin:$PATH
 RUN conda config --set always_yes yes --set changeps1 no

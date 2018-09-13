@@ -7,7 +7,7 @@ from operator import mul
 import resource
 
 from devito.ir.iet import Iteration, FindNodes, FindSymbols
-from devito.logger import info, perf, warning
+from devito.logger import perf, warning
 from devito.parameters import configuration
 
 __all__ = ['autotune']
@@ -42,14 +42,14 @@ def autotune(operator, arguments, parameters, tunable):
         timesteps = stepper.extent(start=start, finish=options['at_squeezer']) - 1
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps
-            perf("AT: Number of timesteps adjusted to %d" % timesteps)
+            perf("AutoTuner: Number of timesteps adjusted to %d" % timesteps)
         at_arguments[stepper.dim.min_name] = start
         at_arguments[stepper.dim.max_name] = timesteps
         if stepper.dim.is_Stepping:
             at_arguments[stepper.dim.parent.min_name] = start
             at_arguments[stepper.dim.parent.max_name] = timesteps
     else:
-        warning("AT: Couldn't understand loop structure; giving up")
+        warning("AutoTuner: Couldn't understand loop structure; giving up")
         return arguments
 
     # Attempted block sizes ...
@@ -107,24 +107,25 @@ def autotune(operator, arguments, parameters, tunable):
                 continue
         except TypeError:
             # We should never get here
-            warning("AT: Couldn't determine stack size; skipping block size %s" % str(bs))
+            warning("AutoTuner: Couldn't determine stack size; skipping block shape %s"
+                    % str(bs))
             continue
 
-        # Use AT-specific profiler structs
+        # Use AutoTuner-specific profiler structs
         timer = operator.profiler.timer.reset()
         at_arguments[operator.profiler.name] = timer
 
         operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(getattr(timer._obj, i) for i, _ in timer._obj._fields_)
         timings[tuple(bs.items())] = elapsed
-        perf("AT: Block shape <%s> took %f (s) in %d timesteps" %
+        perf("AutoTuner: Block shape <%s> took %f (s) in %d timesteps" %
              (','.join('%d' % i for i in bs.values()), elapsed, timesteps))
 
     try:
         best = dict(min(timings, key=timings.get))
-        info("Auto-tuned block shape: %s" % best)
+        perf("AutoTuner: Selected block shape %s" % best)
     except ValueError:
-        info("Auto-tuning request, but couldn't find legal block sizes")
+        warning("AutoTuner: Couldn't find legal block shapes")
         return arguments
 
     # Build the new argument list

@@ -236,8 +236,9 @@ def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
     (['Eq(tu, tv*4 + tw*5 + tw*5*t0)', 'Eq(tv, tw*5)'],
      ['5*tw[t, x, y, z]', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]', 'r0']),
     # intersecting
-    pytest.mark.xfail((['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
-                       ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'])),
+    pytest.param(['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
+                 ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'],
+                 marks=pytest.mark.xfail),
 ])
 def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
     counter = generator()
@@ -278,8 +279,9 @@ def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
     (['Eq(t0, 1.)', 'Eq(t1, t0 + 4)', 'Eq(t2, fa[t1*4 + 1] + fb[x])'],
      '{t0: False, t1: True, t2: False}'),
     # indirect
-    pytest.mark.xfail((['Eq(t0, 1)', 'Eq(t1, fa[fb[t0]] + fb[x])'],
-                      '{t0: True, t1: False}')),
+    pytest.param(['Eq(t0, 1)', 'Eq(t1, fa[fb[t0]] + fb[x])'],
+                 '{t0: True, t1: False}',
+                 marks=pytest.mark.xfail),
 ])
 def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
     g = FlowGraph(EVAL(exprs, fa, fb, fc, t0, t1, t2))
@@ -295,7 +297,7 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
     ('fa[x]**2 + fb[x]**3', 'fa[x]*fa[x] + fb[x]*fb[x]*fb[x]'),
     ('3*fa[x]**4', '3*(fa[x]*fa[x]*fa[x]*fa[x])'),
     ('fa[x]**2', 'fa[x]*fa[x]'),
-    ('1/(fa[x]**2)', 'fa[x]**(-2)'),
+    ('1/(fa[x]**2)', '1/(fa[x]*fa[x])'),
     ('1/(fa[x] + fb[x])', '1/(fa[x] + fb[x])'),
     ('3*sin(fa[x])**2', '3*(sin(fa[x])*sin(fa[x]))'),
 ])
