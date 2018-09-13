@@ -32,7 +32,7 @@ class Node(Eq):
 
     @property
     def function(self):
-        return self.lhs.base.function
+        return self.lhs.function
 
     @property
     def is_Increment(self):
@@ -49,6 +49,10 @@ class Node(Eq):
     @property
     def is_tensor(self):
         return self.lhs.is_Indexed and self.lhs.rank > 0
+
+    @property
+    def is_unbound_temporary(self):
+        return self.function.is_Array and not self.reads and not self.readby
 
     @property
     def is_scalar(self):
@@ -115,7 +119,7 @@ class FlowGraph(OrderedDict):
             for i in reads[k]:
                 readby[i].add(k)
 
-        # Make sure read-after-writes are honored for scalar temporaries
+        # Make sure read-after-writes are honored for scalar nodes
         processed = [i for i in mapper if i.is_Indexed]
         queue = [i for i in mapper if i not in processed]
         while queue:
@@ -129,10 +133,10 @@ class FlowGraph(OrderedDict):
                 queue.append(k)
 
         # Build up the FlowGraph
-        temporaries = [(i, Node(*mapper[i].args, inc=q_inc(mapper[i]),
-                                reads=reads[i], readby=readby[i]))
-                       for i in processed]
-        super(FlowGraph, self).__init__(temporaries, **kwargs)
+        nodes = [(i, Node(*mapper[i].args, inc=q_inc(mapper[i]),
+                          reads=reads[i], readby=readby[i]))
+                 for i in processed]
+        super(FlowGraph, self).__init__(nodes, **kwargs)
 
         # Determine indices along the space and time dimensions
         terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
@@ -142,7 +146,7 @@ class FlowGraph(OrderedDict):
 
     def trace(self, key, readby=False, strict=False):
         """
-        Return the sequence of operations required to compute the temporary ``key``.
+        Return the sequence of operations required to compute the node ``key``.
         If ``readby = True``, then return the sequence of operations that will
         depend on ``key``, instead. With ``strict = True``, drop ``key`` from the
         result.
@@ -151,7 +155,7 @@ class FlowGraph(OrderedDict):
             return []
 
         # OrderedDicts, besides preserving the scheduling order, also prevent
-        # scheduling the same temporary more than once
+        # scheduling the same node more than once
         found = OrderedDict()
         queue = OrderedDict([(key, self[key])])
         while queue:
@@ -164,7 +168,7 @@ class FlowGraph(OrderedDict):
                 # Tensors belong to other traces, so they can be scheduled straight away
                 tensors = [i for i in reads if i.is_tensor]
                 found = OrderedDict(list(found.items()) + [(i.lhs, i) for i in tensors])
-                # Postpone the rest until all dependening temporaries got scheduled
+                # Postpone the rest until all dependening nodes got scheduled
                 scalars = [i for i in reads if i.is_scalar]
                 queue = OrderedDict([(i.lhs, i) for i in scalars] +
                                     [(k, v)] + list(queue.items()))
@@ -189,7 +193,7 @@ class FlowGraph(OrderedDict):
         seen = set()
         while queue:
             item = queue.pop()
-            temporaries = set()
+            nodes = set()
             for i in retrieve_terminals(item):
                 if i in seen:
                     # Already inspected, nothing more can be inferred
@@ -199,7 +203,7 @@ class FlowGraph(OrderedDict):
                     return False
                 elif i in self:
                     # Go on with the search
-                    temporaries.add(i)
+                    nodes.add(i)
                 elif isinstance(i, Dimension):
                     # Go on with the search, as /i/ is not a time dimension
                     pass
@@ -208,7 +212,7 @@ class FlowGraph(OrderedDict):
                     # cannot determine if time-invariant; assume time-varying
                     return False
                 seen.add(i)
-            queue.extend([self[i].rhs for i in temporaries])
+            queue.extend([self[i].rhs for i in nodes])
         return True
 
     def is_index(self, key):
@@ -228,7 +232,7 @@ class FlowGraph(OrderedDict):
     def extract(self, key, readby=False):
         """
         Return the list of nodes appearing in ``key.reads``, in program order
-        (ie, based on the order in which the temporaries appear in ``self``). If
+        (ie, based on the order in which the nodes appear in ``self``). If
         ``readby is True``, then return instead the list of nodes appearing
         ``key.readby``, in program order.
 
@@ -278,7 +282,7 @@ class FlowGraph(OrderedDict):
     @cached_property
     def unknown(self):
         """
-        Return all symbols appearing in self for which a temporary is not available.
+        Return all symbols appearing in self for which a node is not available.
         """
         known = {v.function for v in self.values()}
         reads = set([i.base.function for i in

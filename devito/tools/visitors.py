@@ -41,7 +41,7 @@ class GenericVisitor(object):
             # Check the argument specification
             # Valid options are:
             #    visit_Foo(self, o, [*args, **kwargs])
-            argspec = inspect.getargspec(meth)
+            argspec = inspect.getfullargspec(meth)
             if len(argspec.args) < 2:
                 raise RuntimeError("Visit method signature must be "
                                    "visit_Foo(self, o, [*args, **kwargs])")
@@ -97,8 +97,18 @@ class GenericVisitor(object):
             :param args: Optional arguments to pass to the visit methods.
             :param kwargs: Optional keyword arguments to pass to the visit methods.
         """
+        ret = self._visit(o, *args, **kwargs)
+        ret = self._post_visit(ret)
+        return ret
+
+    def _visit(self, o, *args, **kwargs):
+        """Visit ``o``."""
         meth = self.lookup_method(o)
         return meth(o, *args, **kwargs)
+
+    def _post_visit(self, ret):
+        """Postprocess the visitor output before returning it to the caller."""
+        return ret
 
     def visit_object(self, o, **kwargs):
         return self.default_retval()

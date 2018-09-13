@@ -1,4 +1,3 @@
-import os
 import ctypes
 from collections import Iterable, OrderedDict
 from functools import reduce
@@ -10,8 +9,8 @@ import sympy
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
-           'filter_sorted', 'numpy_to_ctypes', 'ctypes_to_C', 'ctypes_pointer',
-           'pprint', 'change_directory', 'sweep', 'as_mapper']
+           'filter_sorted', 'numpy_to_ctypes', 'numpy_to_mpitypes', 'ctypes_to_C',
+           'ctypes_pointer', 'pprint', 'sweep', 'as_mapper']
 
 
 def prod(iterable):
@@ -43,11 +42,13 @@ def as_tuple(item, type=None, length=None):
     return t
 
 
-def as_mapper(iterable, key):
+def as_mapper(iterable, key=None):
     """
     Rearrange an iterable into a dictionary of lists in which keys are
     produced by the function ``key``.
     """
+    if key is None:
+        key = lambda i: i
     mapper = {}
     for i in iterable:
         mapper.setdefault(key(i), []).append(i)
@@ -157,19 +158,31 @@ def numpy_to_ctypes(dtype):
             np.float64: ctypes.c_double}[dtype]
 
 
+def numpy_to_mpitypes(dtype):
+    """Map numpy types to MPI datatypes."""
+    return {np.int32: 'MPI_INT',
+            np.float32: 'MPI_FLOAT',
+            np.int64: 'MPI_LONG',
+            np.float64: 'MPI_DOUBLE'}[dtype]
+
+
 def ctypes_to_C(ctype):
     """Map ctypes types to C types."""
     if issubclass(ctype, ctypes.Structure):
         return 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):
         return 'union %s' % ctype.__name__
+    elif issubclass(ctype, ctypes._Pointer):
+        return '%s*' % ctypes_to_C(ctype._type_)
     elif ctype.__name__.startswith('c_'):
+        # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
         # the format c_X_p, where X is the C typename, for instance `int` or `float`.
         return ctype.__name__[2:-2]
     else:
-        raise TypeError('Unrecognised %s during converstion to C type' % str(ctype))
+        # A custom datatype (e.g., a typedef-ed pointer to struct)
+        return ctype.__name__
 
 
 def ctypes_pointer(name):
@@ -183,25 +196,6 @@ def pprint(node, verbose=True):
     """
     from devito.ir.iet import printAST
     print(printAST(node, verbose))
-
-
-class change_directory(object):
-    """
-    Context manager for changing the current working directory.
-
-    Adapted from: ::
-
-        https://stackoverflow.com/questions/431684/how-do-i-cd-in-python/
-    """
-    def __init__(self, newPath):
-        self.newPath = os.path.expanduser(newPath)
-
-    def __enter__(self):
-        self.savedPath = os.getcwd()
-        os.chdir(self.newPath)
-
-    def __exit__(self, etype, value, traceback):
-        os.chdir(self.savedPath)
 
 
 def sweep(parameters, keys=None):

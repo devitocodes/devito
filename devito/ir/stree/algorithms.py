@@ -3,13 +3,32 @@ from collections import OrderedDict
 from anytree import findall
 
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeExprs, NodeSection)
+                                  NodeExprs, NodeSection, NodeHalo, insert)
+from devito.ir.support import IterationSpace
+from devito.mpi import HaloScheme, HaloSchemeException
+from devito.parameters import configuration
 from devito.tools import flatten
 
-__all__ = ['schedule', 'section']
+__all__ = ['st_build']
 
 
-def schedule(clusters):
+def st_build(clusters):
+    """
+    Create a :class:`ScheduleTree` from a :class:`ClusterGroup`.
+    """
+    # ClusterGroup -> Schedule tree
+    stree = st_schedule(clusters)
+
+    # Add in section nodes
+    stree = st_section(stree)
+
+    # Add in halo update nodes
+    stree = st_make_halo(stree)
+
+    return stree
+
+
+def st_schedule(clusters):
     """
     Arrange an iterable of :class:`Cluster`s into a :class:`ScheduleTree`.
     """
@@ -32,7 +51,8 @@ def schedule(clusters):
 
         # The reused sub-trees might acquire some new sub-iterators
         for i in pointers[:index]:
-            mapper[i].ispace.merge(c.ispace)
+            mapper[i].ispace = IterationSpace.merge(mapper[i].ispace,
+                                                    c.ispace.project([i.dim]))
         # Later sub-trees, instead, will not be used anymore
         for i in pointers[index:]:
             mapper.pop(i)
@@ -43,7 +63,7 @@ def schedule(clusters):
             mapper[i] = root
 
         # Add in Expressions
-        NodeExprs(c.exprs, c.shape, c.ops, c.traffic, root)
+        NodeExprs(c.exprs, c.ispace, c.dspace, c.shape, c.ops, c.traffic, root)
 
         # Add in Conditionals
         for k, v in mapper.items():
@@ -55,10 +75,44 @@ def schedule(clusters):
     return stree
 
 
-def section(stree):
+def st_make_halo(stree):
     """
-    Create sections in a :class:`ScheduleTree`. A section is a sub-tree with
-    the following properties: ::
+    Add :class:`NodeHalo`s to a :class:`ScheduleTree`. A HaloNode captures
+    the halo exchanges that should take place before executing the sub-tree;
+    these are described by means of a :class:`HaloScheme`.
+    """
+    # Build a HaloScheme for each expression bundle
+    halo_schemes = {}
+    for n in findall(stree, lambda i: i.is_Exprs):
+        try:
+            halo_schemes[n] = HaloScheme(n.exprs, n.ispace, n.dspace)
+        except HaloSchemeException as e:
+            if configuration['mpi']:
+                raise RuntimeError(str(e))
+
+    # Insert the HaloScheme at a suitable level in the ScheduleTree
+    mapper = {}
+    for k, hs in halo_schemes.items():
+        for f, v in hs.fmapper.items():
+            spot = k
+            ancestors = [n for n in k.ancestors if n.is_Iteration]
+            for n in ancestors:
+                test0 = any(n.dim is i.dim for i in v.halos)
+                test1 = n.dim not in [i.root for i in v.loc_indices]
+                if test0 or test1:
+                    spot = n
+                    break
+            mapper.setdefault(spot, []).append((f, v))
+    for spot, entries in mapper.items():
+        insert(NodeHalo(HaloScheme(fmapper=dict(entries))), spot.parent, [spot])
+
+    return stree
+
+
+def st_section(stree):
+    """
+    Add :class:`NodeSection` to a :class:`ScheduleTree`. A section defines a
+    sub-tree with the following properties: ::
 
         * The root is a node of type :class:`NodeSection`;
         * The immediate children of the root are nodes of type :class:`NodeIteration`
@@ -99,15 +153,6 @@ def section(stree):
 
     # Transform the schedule tree by adding in sections
     for i in sections:
-        node = NodeSection()
-        processed = []
-        for n in list(i.parent.children):
-            if n in i.nodes:
-                n.parent = node
-                if node not in processed:
-                    processed.append(node)
-            else:
-                processed.append(n)
-        i.parent.children = processed
+        insert(NodeSection(), i.parent, i.nodes)
 
     return stree

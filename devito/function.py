@@ -1,9 +1,11 @@
 from collections import OrderedDict
 from functools import partial
 from itertools import product
+
 import sympy
 import numpy as np
 from psutil import virtual_memory
+from mpi4py import MPI
 
 from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, default_allocator, first_touch
@@ -17,11 +19,13 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import AbstractCachedFunction, AbstractCachedSymbol
-from devito.tools import Tag, ReducerMap, prod, powerset
+from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
+                          OWNED, HALO, LEFT, RIGHT)
+from devito.tools import Tag, ReducerMap, as_tuple, prod, powerset, is_integer
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
-           'SparseTimeFunction', 'PrecomputedSparseFunction', 'Buffer']
+           'SparseTimeFunction', 'PrecomputedSparseFunction',
+           'PrecomputedSparseTimeFunction', 'Buffer']
 
 
 class Constant(AbstractCachedSymbol):
@@ -101,6 +105,8 @@ class Constant(AbstractCachedSymbol):
         except AttributeError:
             pass
 
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
+
 
 class TensorFunction(AbstractCachedFunction):
 
@@ -125,23 +131,33 @@ class TensorFunction(AbstractCachedFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            super(TensorFunction, self).__init__(*args, **kwargs)
+
+            # There may or may not be a `Grid` attached to the TensorFunction
+            self._grid = kwargs.get('grid')
+
             # Staggered mask
             self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
             if len(self.staggered) != len(self.indices):
-                raise ValueError("'staggered' needs %s entries for indices %s"
+                raise ValueError("`staggered` needs %s entries for indices %s"
                                  % (len(self.indices), self.indices))
 
-            # Data-related properties
-            self.initializer = kwargs.get('initializer')
-            if self.initializer is not None:
-                assert(callable(self.initializer))
-            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
+            # Data-related properties and data initialization
             self._data = None
+            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._allocator = kwargs.get('allocator', default_allocator())
-
-    def __getitem__(self, index):
-        """Shortcut for ``self.indexed[index]``."""
-        return self.indexed[index]
+            initializer = kwargs.get('initializer')
+            if initializer is None or callable(initializer):
+                # Initialization postponed until the first access to .data
+                self._initializer = initializer
+            elif isinstance(initializer, (np.ndarray, list, tuple)):
+                # Allocate memory and initialize it. Note that we do *not* hold
+                # a reference to the user-provided buffer
+                self._initializer = None
+                self.data_allocated[:] = initializer
+            else:
+                raise ValueError("`initializer` must be callable or buffer, not %s"
+                                 % type(initializer))
 
     def _allocate_memory(func):
         """Allocate memory as a :class:`Data`."""
@@ -152,19 +168,30 @@ class TensorFunction(AbstractCachedFunction):
                                   allocator=self._allocator)
                 if self._first_touch:
                     first_touch(self)
-                if self.initializer is not None:
+                if callable(self._initializer):
                     if self._first_touch:
                         warning("`first touch` together with `initializer` causing "
                                 "redundant data initialization")
                     try:
-                        self.initializer(self._data)
+                        self._initializer(self._data)
                     except ValueError:
                         # Perhaps user only wants to initialise the physical domain
-                        self.initializer(self._data[self._mask_domain])
+                        self._initializer(self._data[self._mask_domain])
                 else:
                     self._data.fill(0)
             return func(self)
         return wrapper
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        grid = kwargs.get('grid')
+        dtype = kwargs.get('dtype')
+        if dtype is not None:
+            return dtype
+        elif grid is not None:
+            return grid.dtype
+        else:
+            return np.float32
 
     @property
     def _data_buffer(self):
@@ -175,6 +202,10 @@ class TensorFunction(AbstractCachedFunction):
     @property
     def _mem_external(self):
         return True
+
+    @property
+    def grid(self):
+        return self._grid
 
     @property
     def shape(self):
@@ -218,9 +249,15 @@ class TensorFunction(AbstractCachedFunction):
     @property
     def data(self):
         """
-        The function data values, as a :class:`numpy.ndarray`.
+        The domain data values, as a :class:`numpy.ndarray`.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro` instead.
         """
         return self.data_domain
 
@@ -234,9 +271,33 @@ class TensorFunction(AbstractCachedFunction):
 
         .. note::
 
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_domain` instead.
+
+        .. note::
+
             Alias to ``self.data``.
         """
+        self._is_halo_dirty = True
         return self._data[self._mask_domain]
+
+    @property
+    @_allocate_memory
+    def data_interior(self):
+        """
+        The interior data values.
+
+        Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_interior` instead.
+        """
+        self._is_halo_dirty = True
+        return self._data[self._mask_interior]
 
     @property
     @_allocate_memory
@@ -245,7 +306,15 @@ class TensorFunction(AbstractCachedFunction):
         The domain+halo data values.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_with_halo` instead.
         """
+        self._is_halo_dirty = True
+        self._halo_exchange()
         return self._data[self._mask_with_halo]
 
     @property
@@ -255,8 +324,52 @@ class TensorFunction(AbstractCachedFunction):
         The allocated data values, that is domain+halo+padding.
 
         Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_allocated` instead.
         """
+        self._is_halo_dirty = True
+        self._halo_exchange()
         return self._data
+
+    @property
+    @_allocate_memory
+    def data_ro_domain(self):
+        """
+        A read-only view of the domain data values.
+        """
+        view = self._data[self._mask_domain]
+        view.setflags(write=False)
+        return view
+
+    @property
+    @_allocate_memory
+    def data_ro_interior(self):
+        """
+        A read-only view of the interior data values.
+        """
+        view = self._data[self._mask_interior]
+        view.setflags(write=False)
+        return view
+
+    @property
+    @_allocate_memory
+    def data_ro_with_halo(self):
+        """A read-only view of the domain+halo data values."""
+        view = self._data[self._mask_with_halo]
+        view.setflags(write=False)
+        return view
+
+    @property
+    @_allocate_memory
+    def data_ro_allocated(self):
+        """A read-only view of the domain+halo+padding data values."""
+        view = self._data.view()
+        view.setflags(write=False)
+        return view
 
     @property
     def space_dimensions(self):
@@ -266,6 +379,13 @@ class TensorFunction(AbstractCachedFunction):
     @property
     def staggered(self):
         return self._staggered
+
+    @property
+    def initializer(self):
+        if self._data is not None:
+            return self._data.view(np.ndarray)
+        else:
+            return self._initializer
 
     @property
     def symbolic_shape(self):
@@ -279,6 +399,68 @@ class TensorFunction(AbstractCachedFunction):
         symbolic_shape = super(TensorFunction, self).symbolic_shape
         return tuple(sympy.Add(i, -j, evaluate=False)
                      for i, j in zip(symbolic_shape, self.staggered))
+
+    @property
+    def _mask_interior(self):
+        """A mask to access the interior region of the allocated data."""
+        if self.grid is None:
+            glb_pos_map = {d: [LEFT, RIGHT] for d in self.dimensions}
+        else:
+            glb_pos_map = self.grid.distributor.glb_pos_map
+        ret = []
+        for d, i in zip(self.dimensions, self._mask_domain):
+            if d.is_Space:
+                lshift = int(LEFT in glb_pos_map.get(d, []))
+                rshift = int(RIGHT in glb_pos_map.get(d, []))
+                if i.stop is None:
+                    ret.append(slice(i.start + lshift, -rshift or None))
+                else:
+                    ret.append(slice(i.start + lshift, i.stop - rshift))
+            else:
+                ret.append(i)
+        return tuple(ret)
+
+    def _halo_exchange(self):
+        """Perform the halo exchange with the neighboring processes."""
+        if MPI.COMM_WORLD.size == 1 or not self._is_halo_dirty:
+            return
+        if MPI.COMM_WORLD.size > 1 and self.grid is None:
+            raise RuntimeError("`%s` cannot perfom a halo exchange as it has "
+                               "no Grid attached" % self.name)
+        if self._in_flight:
+            raise RuntimeError("`%s` cannot initiate a halo exchange as previous "
+                               "exchanges are still in flight" % self.name)
+        for i in self.space_dimensions:
+            self.__halo_begin_exchange(i)
+            self.__halo_end_exchange(i)
+        self._is_halo_dirty = False
+        assert not self._in_flight
+
+    def __halo_begin_exchange(self, dim):
+        """Begin a halo exchange along a given :class:`Dimension`."""
+        distributor = self.grid.distributor
+        neighbours = distributor.neighbours
+        comm = distributor.comm
+        for i in [LEFT, RIGHT]:
+            neighbour = neighbours[dim][i]
+            owned_region = self._get_view(OWNED, dim, i)
+            halo_region = self._get_view(HALO, dim, i)
+            sendbuf = np.ascontiguousarray(owned_region)
+            recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
+            self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
+            self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
+
+    def __halo_end_exchange(self, dim):
+        """End a halo exchange along a given :class:`Dimension`."""
+        for d, i, payload, req in list(self._in_flight):
+            if d == dim:
+                status = MPI.Status()
+                req.Wait(status=status)
+                if payload is not None and status.source != MPI.PROC_NULL:
+                    # The MPI.Request `req` originated from a `comm.Irecv`
+                    # Now need to scatter the data to the right place
+                    self._get_view(HALO, d, i)[:] = payload
+            self._in_flight.remove((d, i, payload, req))
 
     @property
     def _arg_names(self):
@@ -297,6 +479,11 @@ class TensorFunction(AbstractCachedFunction):
         # Collect default dimension arguments from all indices
         for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
             args.update(i._arg_defaults(start=0, size=s+o, alias=k))
+
+        # Add MPI-related data structures
+        if self.grid is not None:
+            args.update(self.grid._arg_defaults())
+
         return args
 
     def _arg_values(self, **kwargs):
@@ -319,6 +506,9 @@ class TensorFunction(AbstractCachedFunction):
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
                     values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
+                # Add MPI-related data structures
+                if self.grid is not None:
+                    values.update(self.grid._arg_defaults())
         else:
             values = self._arg_defaults(alias=self).reduce_all()
 
@@ -342,6 +532,10 @@ class TensorFunction(AbstractCachedFunction):
                     "Function data type %s" % (key.dtype, self.name, self.dtype))
         for i, s in zip(self.indices, key.shape):
             i._arg_check(args, s, intervals[i])
+
+    # Pickling support
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
+        ['dtype', 'grid', 'staggered', 'initializer']
 
 
 class Function(TensorFunction):
@@ -374,8 +568,11 @@ class Function(TensorFunction):
                     in each dimension, may be passed; in this case, an error is
                     raised if such tuple has fewer entries then the number of space
                     dimensions.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -413,37 +610,14 @@ class Function(TensorFunction):
         if not self._cached():
             super(Function, self).__init__(*args, **kwargs)
 
-            # Grid
-            self.grid = kwargs.get('grid')
-
-            # Data type (provided or inferred)
-            if self.grid is None:
-                self.dtype = kwargs.get('dtype', np.float32)
-            else:
-                self.dtype = kwargs.get('dtype', self.grid.dtype)
-
-            # Halo region
+            # Space order
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 self.space_order = space_order
-                halo = (space_order, space_order)
             elif isinstance(space_order, tuple) and len(space_order) == 3:
-                self.space_order, left_points, right_points = space_order
-                halo = (left_points, right_points)
+                self.space_order, _, _ = space_order
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
-            self._halo = tuple(halo if i in self._halo_indices else (0, 0)
-                               for i in self.indices)
-
-            # Padding region
-            padding = kwargs.get('padding', 0)
-            if isinstance(padding, int):
-                padding = tuple((padding,)*2 for i in range(self.ndim))
-            elif isinstance(padding, tuple) and len(padding) == self.ndim:
-                padding = tuple((i,)*2 if isinstance(i, int) else i for i in padding)
-            else:
-                raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
-            self._padding = padding
 
             # Dynamically add derivative short-cuts
             self._initialize_derivatives()
@@ -520,29 +694,69 @@ class Function(TensorFunction):
         dimensions = kwargs.get('dimensions')
         if grid is None:
             if dimensions is None:
-                raise TypeError("Function needs either `grid` or `dimensions` argument")
-        else:
-            if dimensions is not None:
-                warning("Creating Function with `grid` and `dimensions` "
-                        "argument; ignoring the `dimensions` and using `grid`.")
+                raise TypeError("Need either `grid` or `dimensions`")
+        elif dimensions is None:
             dimensions = grid.dimensions
         return dimensions
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
+        dimensions = kwargs.get('dimensions')
+        shape = kwargs.get('shape')
         if grid is None:
-            shape = kwargs.get('shape')
             if shape is None:
-                raise TypeError("Function needs either 'grid' or 'shape' argument")
-        else:
+                raise TypeError("Need either `grid` or `shape`")
+        elif shape is None:
             shape = grid.shape_domain
+        elif dimensions is None:
+            raise TypeError("`dimensions` required if both `grid` and "
+                            "`shape` are provided")
+        else:
+            # Got `grid`, `dimensions`, and `shape`. We sanity-check that the
+            # Dimensions in `dimensions` which also appear in `grid` have
+            # size (given by `shape`) matching the one in `grid`
+            if len(shape) != len(dimensions):
+                raise TypeError("`shape` and `dimensions` must have the "
+                                "same number of entries")
+            loc_shape = []
+            for d, s in zip(dimensions, shape):
+                if d in grid.dimensions:
+                    size = grid.dimension_map[d]
+                    if size.glb != s:
+                        raise TypeError("Dimension `%s` is given size `%d`, "
+                                        "while `grid` says `%s` has size `%d` "
+                                        % (d, s, d, size.glb))
+                    else:
+                        loc_shape.append(size.loc)
+                else:
+                    loc_shape.append(s)
+            shape = tuple(loc_shape)
         return shape
 
-    @property
-    def _halo_indices(self):
-        """Return the function indices for which a halo region is defined."""
-        return tuple(i for i in self.indices if i.is_Space)
+    def __halo_setup__(self, **kwargs):
+        halo = kwargs.get('halo')
+        if halo is not None:
+            return halo
+        else:
+            space_order = kwargs.get('space_order', 1)
+            if isinstance(space_order, int):
+                halo = (space_order, space_order)
+            elif isinstance(space_order, tuple) and len(space_order) == 3:
+                _, left_points, right_points = space_order
+                halo = (left_points, right_points)
+            else:
+                raise TypeError("`space_order` must be int or 3-tuple of ints")
+            return tuple(halo if i.is_Space else (0, 0) for i in self.indices)
+
+    def __padding_setup__(self, **kwargs):
+        padding = kwargs.get('padding', 0)
+        if isinstance(padding, int):
+            return tuple((padding,)*2 for i in range(self.ndim))
+        elif isinstance(padding, tuple) and len(padding) == self.ndim:
+            return tuple((i,)*2 if isinstance(i, int) else i for i in padding)
+        else:
+            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
 
     @property
     def laplace(self):
@@ -565,9 +779,47 @@ class Function(TensorFunction):
         return sum([second_derivative(first * weight, dim=d, order=order)
                     for d in self.space_dimensions])
 
+    def sum(self, p=None, dims=None):
+        """
+        Generate a symbolic expression computing the sum of ``p`` points
+        along the spatial dimensions ``dims``.
+
+        :param p: (Optional) the number of summands. Defaults to the
+                  halo extent.
+        :param dims: (Optional) the :class:`Dimension`s along which the
+                     sum is computed. Defaults to ``self``'s spatial
+                     dimensions.
+        """
+        points = []
+        for d in (as_tuple(dims) or self.space_dimensions):
+            if p is None:
+                lp = self._extent_halo[d].left
+                rp = self._extent_halo[d].right
+            else:
+                lp = p // 2 + p % 2
+                rp = p // 2
+            indices = [d - i for i in range(lp, 0, -1)]
+            indices.extend([d + i for i in range(rp)])
+            points.extend([self.subs(d, i) for i in indices])
+        return sum(points)
+
+    def avg(self, p=None, dims=None):
+        """
+        Generate a symbolic expression computing the average of ``p`` points
+        along the spatial dimensions ``dims``.
+
+        :param p: (Optional) the number of summands. Defaults to the
+                  halo extent.
+        :param dims: (Optional) the :class:`Dimension`s along which the
+                     sum is computed. Defaults to ``self``'s spatial
+                     dimensions.
+        """
+        tot = self.sum(p, dims)
+        return tot / len(tot.args)
+
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['dtype', 'grid', 'shape', 'dimensions', 'space_order']
+        ['space_order', 'shape', 'dimensions']
 
 
 class TimeFunction(Function):
@@ -592,8 +844,8 @@ class TimeFunction(Function):
     :param shape: (Optional) shape of the domain region in grid points.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param dtype: (Optional) data type of the buffered data
-    :param save: (Optional) Defaults to `None`, which indicates the use of
+    :param dtype: (Optional) data type of the buffered data.
+    :param save: (Optional) defaults to `None`, which indicates the use of
                  alternating buffers. This enables cyclic writes to the
                  TimeFunction. For example, if the TimeFunction ``u(t, x)`` has
                  shape (3, 100), then, in an :class:`Operator`, ``t`` will
@@ -606,7 +858,7 @@ class TimeFunction(Function):
                  intermediate results are required (or, simply, to forbid the
                  usage of an alternating buffer), an explicit value for ``save``
                  (i.e., an integer) must be provided.
-    :param time_dim: (Optional) The :class:`Dimension` object to use to represent
+    :param time_dim: (Optional) the :class:`Dimension` object to use to represent
                      time in this symbol. Defaults to the time dimension provided
                      by the :class:`Grid`.
     :param staggered: (Optional) tuple containing staggering offsets.
@@ -616,8 +868,11 @@ class TimeFunction(Function):
                     in each dimension, may be passed; in this case, an error is
                     raised if such tuple has fewer entries then the number of
                     space dimensions.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -671,23 +926,25 @@ class TimeFunction(Function):
             if not isinstance(self.time_order, int):
                 raise TypeError("`time_order` must be int")
 
-            self.save = type(kwargs.get('save', None) or None)
+            self.save = kwargs.get('save')
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        save = kwargs.get('save')
-        grid = kwargs.get('grid')
-        time_dim = kwargs.get('time_dim')
+        dimensions = kwargs.get('dimensions')
+        if dimensions is None:
+            save = kwargs.get('save')
+            grid = kwargs.get('grid')
+            time_dim = kwargs.get('time_dim')
 
-        if time_dim is None:
-            time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
-        elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
-            raise TypeError("`time_dim` must be a time dimension")
+            if time_dim is None:
+                time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
+            elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
+                raise TypeError("`time_dim` must be a time dimension")
 
-        indices = list(Function.__indices_setup__(**kwargs))
-        indices.insert(cls._time_position, time_dim)
+            dimensions = list(Function.__indices_setup__(**kwargs))
+            dimensions.insert(cls._time_position, time_dim)
 
-        return tuple(indices)
+        return tuple(dimensions)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -698,20 +955,21 @@ class TimeFunction(Function):
 
         if grid is None:
             if shape is None:
-                raise TypeError("TimeFunction needs either `shape` or `grid` argument")
+                raise TypeError("Need either `grid` or `shape`")
             if save is not None:
                 raise TypeError("Ambiguity detected: provide either `grid` and `save` "
                                 "or just `shape` ")
-        else:
+        elif shape is None:
+            shape = list(grid.shape_domain)
             if save is None:
-                shape = (time_order + 1,) + grid.shape_domain
+                shape.insert(cls._time_position, time_order + 1)
             elif isinstance(save, Buffer):
-                shape = (save.val,) + grid.shape_domain
+                shape.insert(cls._time_position, save.val)
             elif isinstance(save, int):
-                shape = (save,) + grid.shape_domain
+                shape.insert(cls._time_position, save)
             else:
                 raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
-        return shape
+        return tuple(shape)
 
     @property
     def forward(self):
@@ -757,11 +1015,11 @@ class TimeFunction(Function):
 
     @property
     def _time_buffering(self):
-        return self.save is not int
+        return not is_integer(self.save)
 
     @property
     def _time_buffering_default(self):
-        return self._time_buffering and self.save != Buffer
+        return self._time_buffering and not isinstance(self.save, Buffer)
 
     def _arg_check(self, args, intervals):
         super(TimeFunction, self)._arg_check(args, intervals)
@@ -772,7 +1030,7 @@ class TimeFunction(Function):
                                   % (self._time_size, self.name, key_time_size))
 
     # Pickling support
-    _pickle_kwargs = Function._pickle_kwargs + ['time_order']
+    _pickle_kwargs = Function._pickle_kwargs + ['time_order', 'save']
 
 
 class AbstractSparseFunction(TensorFunction):
@@ -796,20 +1054,11 @@ class AbstractSparseFunction(TensorFunction):
                 raise ValueError('`npoint` must be > 0')
             self.npoint = npoint
 
-            # Grid must be provided
-            grid = kwargs.get('grid')
-            if kwargs.get('grid') is None:
+            # A Grid must have been provided
+            if self.grid is None:
                 raise TypeError('SparseFunction needs `grid` argument')
-            self.grid = grid
 
-            self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.space_order = kwargs.get('space_order', 0)
-
-            # Halo region
-            self._halo = tuple((0, 0) for i in range(self.ndim))
-
-            # Padding region
-            self._padding = tuple((0, 0) for i in range(self.ndim))
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -844,6 +1093,59 @@ class AbstractSparseFunction(TensorFunction):
         """Return a tuple of argument names introduced by this function."""
         return tuple([self.name] + [x for x in self._child_functions])
 
+    # Pickling support
+    _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
+
+
+class AbstractSparseTimeFunction(AbstractSparseFunction):
+    """
+    An abstract class to define behaviours common to any kind of sparse
+    time functions, whether using precomputed coefficients or computing them
+    on the fly. This is an internal class only and should never be
+    instantiated.
+    """
+
+    _time_position = 0
+    """Position of time index among the function indices."""
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
+
+            nt = kwargs.get('nt')
+            if not isinstance(nt, int):
+                raise TypeError('Sparse TimeFunction needs `nt` int argument')
+            if nt <= 0:
+                raise ValueError('`nt` must be > 0')
+            self.nt = nt
+
+            self.time_dim = self.indices[self._time_position]
+            self.time_order = kwargs.get('time_order', 1)
+            if not isinstance(self.time_order, int):
+                raise ValueError("`time_order` must be int")
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        """
+        Return the default dimension indices for a given data shape.
+        """
+        dimensions = kwargs.get('dimensions')
+        if dimensions is not None:
+            return dimensions
+        else:
+            return (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+    @property
+    def _time_size(self):
+        return self.shape_allocated[self._time_position]
+
+    # Pickling support
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['nt', 'time_order']
+
 
 class SparseFunction(AbstractSparseFunction):
     """
@@ -857,14 +1159,17 @@ class SparseFunction(AbstractSparseFunction):
     :param name: Name of the function.
     :param npoint: Number of points to sample.
     :param grid: :class:`Grid` object defining the computational domain.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: (Optional) discretisation order for space derivatives.
     :param shape: (Optional) shape of the function. Defaults to ``(npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: Discretisation order for space derivatives.
-    :param dtype: Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -884,13 +1189,19 @@ class SparseFunction(AbstractSparseFunction):
             super(SparseFunction, self).__init__(*args, **kwargs)
 
             # Set up coordinates of sparse points
-            coordinates = Function(name='%s_coords' % self.name, dtype=self.dtype,
-                                   dimensions=(self.indices[-1], Dimension(name='d')),
-                                   shape=(self.npoint, self.grid.dim), space_order=0)
-            coordinate_data = kwargs.get('coordinates')
-            if coordinate_data is not None:
-                coordinates.data[:] = coordinate_data[:]
-            self.coordinates = coordinates
+            coordinates = kwargs.get('coordinates')
+            if isinstance(coordinates, Function):
+                self._coordinates = coordinates
+            else:
+                dimensions = (self.indices[-1], Dimension(name='d'))
+                self._coordinates = Function(name='%s_coords' % self.name,
+                                             dtype=self.dtype, dimensions=dimensions,
+                                             shape=(self.npoint, self.grid.dim),
+                                             space_order=0, initializer=coordinates)
+
+    @property
+    def coordinates(self):
+        return self._coordinates
 
     @property
     def coefficients(self):
@@ -928,7 +1239,7 @@ class SparseFunction(AbstractSparseFunction):
         reference_cell = {**left, **right}
         # Substitute in interpolation matrix
         A = A.subs(reference_cell)
-        return A.inv().T.dot(p)
+        return A.inv().T * p
 
     @property
     def point_symbols(self):
@@ -1036,8 +1347,11 @@ class SparseFunction(AbstractSparseFunction):
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
+    # Pickling support
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']
 
-class SparseTimeFunction(SparseFunction):
+
+class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
     A time-dependent :class:`SparseFunction`.
 
@@ -1045,17 +1359,20 @@ class SparseTimeFunction(SparseFunction):
     :param nt: Size of the time dimension for point data.
     :param npoint: Number of points to sample.
     :param grid: :class:`Grid` object defining the computational domain.
+    :param coordinates: (Optional) coordinate data for the sparse points.
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
     :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: (Optional) Discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) Discretisation order for time derivatives.
-                       Default to 1.
     :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
-    :param allocator: (Optional) An object of type :class:`MemoryAllocator` to
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
                       specify where to allocate the function data when running
                       on a NUMA architecture. Refer to ``default_allocator()``'s
                       __doc__ for more information about possible allocators.
@@ -1068,40 +1385,6 @@ class SparseTimeFunction(SparseFunction):
     """
 
     is_SparseTimeFunction = True
-
-    _time_position = 0
-    """Position of time index among the function indices."""
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(SparseTimeFunction, self).__init__(*args, **kwargs)
-
-            nt = kwargs.get('nt')
-            if not isinstance(nt, int):
-                raise TypeError('SparseTimeFunction needs `nt` int argument')
-            if nt <= 0:
-                raise ValueError('`nt` must be > 0')
-            self.nt = nt
-
-            self.time_dim = self.indices[self._time_position]
-            self.time_order = kwargs.get('time_order', 1)
-            if not isinstance(self.time_order, int):
-                raise ValueError("`time_order` must be int")
-
-    @classmethod
-    def __indices_setup__(cls, **kwargs):
-        """
-        Return the default dimension indices for a given data shape.
-        """
-        dimensions = kwargs.get('dimensions')
-        if dimensions is not None:
-            return dimensions
-        else:
-            return (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
-
-    @classmethod
-    def __shape_setup__(cls, **kwargs):
-        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
@@ -1149,9 +1432,9 @@ class SparseTimeFunction(SparseFunction):
 
         return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
 
-    @property
-    def _time_size(self):
-        return self.shape_allocated[self._time_position]
+    # Pickling support
+    _pickle_kwargs = AbstractSparseTimeFunction._pickle_kwargs +\
+        SparseFunction._pickle_kwargs
 
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
@@ -1161,7 +1444,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     sparse point is precomputed at the time this object is being created.
 
     :param name: Name of the function.
-    :param nt: Size of the time dimension for point data.
     :param npoint: Number of points to sample.
     :param grid: :class:`Grid` object defining the computational domain.
     :param r: The number of gridpoints in each dimension to interpolate a single sparse
@@ -1178,15 +1460,18 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                          coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
                          for r=6, we will store 18 coefficients per sparse point (instead
                          of potentially 216). Shape must be [npoint][grid.ndim][r].
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
     :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
-    :param space_order: (Optional) Discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) Discretisation order for time derivatives.
-                       Default to 1.
-    :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) A callable to initialize the data
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
 
     .. note::
 
@@ -1300,6 +1585,52 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
+
+
+class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
+                                    PrecomputedSparseFunction):
+    """
+    A specialised type of SparseFunction where the interpolation is externally defined.
+    Currently, this means that the grid points and associated coefficients for each
+    sparse point is precomputed at the time this object is being created.
+
+    :param name: Name of the function.
+    :param npoint: Number of points to sample.
+    :param grid: :class:`Grid` object defining the computational domain.
+    :param r: The number of gridpoints in each dimension to interpolate a single sparse
+              point to. e.g. 2 for linear interpolation.
+    :param gridpoints: The *reference* grid point corresponding to each sparse point.
+                       Of all the gridpoints that one sparse point would be interpolated
+                       to, this is the grid point closest to the origin, i.e. the one
+                       with the lowest value of each coordinate dimension. Must be a
+                       two-dimensional array of shape [npoint][grid.ndim].
+    :param coefficients: An array containing the coefficient for each of the r^2 (2D) or
+                         r^3 (3D) gridpoints that each sparsefunction will be interpolated
+                         to. The coefficient is split across the n dimensions such that
+                         the contribution of the point (i, j, k) will be multiplied by
+                         coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
+                         for r=6, we will store 18 coefficients per sparse point (instead
+                         of potentially 216). Shape must be [npoint][grid.ndim][r].
+    :param space_order: (Optional) discretisation order for space derivatives.
+                        Default to 0.
+    :param time_order: (Optional) discretisation order for time derivatives.
+                       Default to 1.
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param dtype: (Optional) data type of the buffered data.
+    :param initializer: (Optional) a callable or an object exposing buffer interface
+                        used to initialize the data. If a callable is provided,
+                        initialization is deferred until the first access to
+                        ``data``.
+
+    .. note::
+
+        The parameters must always be given as keyword arguments, since
+        SymPy uses `*args` to (re-)create the dimension arguments of the
+        symbolic function.
+    """
+    is_PrecomputedSparseTimeFunction = True
 
 
 # Additional Function-related APIs

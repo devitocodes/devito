@@ -5,9 +5,9 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
-from devito import (Eq, Grid, Dimension, Operator, Constant, Function, TimeFunction,
-                    SparseTimeFunction, configuration, clear_cache)  # noqa
-from devito.ir.iet import retrieve_iteration_tree  # noqa
+from devito import (Eq, Grid, Dimension, ConditionalDimension, Operator, Constant,
+                    Function, TimeFunction,  SparseTimeFunction, configuration, clear_cache)  # noqa
+from devito.ir.iet import FindNodes, ForeignExpression, retrieve_iteration_tree  # noqa
 
 # For the acoustic wave test
 from examples.seismic.acoustic import AcousticWaveSolver, iso_stencil  # noqa
@@ -262,10 +262,10 @@ class TestOperatorSimple(object):
         assert 'posix_memalign' not in str(op)
         assert 'run_solution' in str(op)
         # No data has been allocated for the temporaries yet
-        assert op.yk_soln.grids['r1'].is_storage_allocated() is False
+        assert list(op.yk_solns.values())[0].grids['r1'].is_storage_allocated() is False
         op.apply(yu4D=u, yv3D=v, time=0)
         # Temporary data has already been released after execution
-        assert op.yk_soln.grids['r1'].is_storage_allocated() is False
+        assert list(op.yk_solns.values())[0].grids['r1'].is_storage_allocated() is False
         assert np.all(v.data == 0.)
         assert np.all(u.data[1] == 5.)
 
@@ -395,6 +395,39 @@ class TestOperatorAdvanced(object):
         assert(np.all(u.data[1, 3, :] == 8.0))
         assert(np.all(u.data[1, 4, :] == 10.0))
         assert(np.all(u.data[1, 5:10, :] == 0.0))
+
+    def test_subsampling(self):
+        """
+        Tests (time) subsampling support. This stresses the compiler as two
+        different YASK kernels need to be generated.
+        """
+        grid = Grid(shape=(8, 8))
+        time = grid.time_dim
+
+        nt = 9
+
+        u = TimeFunction(name='u', grid=grid)
+        u.data_with_halo[:] = 0.
+
+        # Setup subsampled function
+        factor = 4
+        nsamples = (nt+factor-1)//factor
+        times = ConditionalDimension('t_sub', parent=time, factor=factor)
+        usave = TimeFunction(name='usave', grid=grid, save=nsamples, time_dim=times)
+
+        eqns = [Eq(u.forward, u + 1.), Eq(usave, u)]
+        op = Operator(eqns)
+        op.apply(time=nt-1)
+
+        # Check numerical correctness
+        assert np.all(usave.data[0] == 0.)
+        assert np.all(usave.data[1] == 4.)
+        assert np.all(usave.data[2] == 8.)
+
+        # Check code generation
+        solns = FindNodes(ForeignExpression).visit(op)
+        assert len(solns) == 2
+        assert all('run_solution' in str(i) for i in solns)
 
 
 class TestIsotropicAcoustic(object):

@@ -42,15 +42,15 @@ def test_at_is_actually_working(shape, expected):
 
     # Expected 3 AT attempts for the given shape
     op(infield=infield, outfield=outfield, autotune=True)
-    out = [i for i in buffer.getvalue().split('\n') if 'AT:' in i]
+    out = [i for i in buffer.getvalue().split('\n') if 'took' in i]
     assert len(out) == 4
 
     # Now try the same with aggressive autotuning, which tries 9 more cases
-    configuration.core['autotuning'] = 'aggressive'
+    configuration['autotuning'] = 'aggressive'
     op(infield=infield, outfield=outfield, autotune=True)
-    out = [i for i in buffer.getvalue().split('\n') if 'AT:' in i]
+    out = [i for i in buffer.getvalue().split('\n') if 'took' in i]
     assert len(out) == expected
-    configuration.core['autotuning'] = configuration.core._defaults['autotuning']
+    configuration['autotuning'] = configuration._defaults['autotuning']
 
     logger.removeHandler(temporary_handler)
 
@@ -86,7 +86,7 @@ def test_timesteps_per_at_run():
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
     op = Operator(stencil, dle=('blocking', {'blockalways': True}))
     op(infield=infield, outfield=outfield, autotune=True)
-    out = [i for i in buffer.getvalue().split('\n') if 'AT:' in i]
+    out = [i for i in buffer.getvalue().split('\n') if 'took' in i]
     assert len(out) == 4
     assert all('in 1 timesteps' in i for i in out)
     buffer.truncate(0)
@@ -102,7 +102,7 @@ def test_timesteps_per_at_run():
                      outfield.indexify() + infield.indexify()*3.0)
         op = Operator(stencil, dle=('blocking', {'blockalways': True}))
         op(infield=infield, outfield=outfield, t=2, autotune=True)
-        out = [i for i in buffer.getvalue().split('\n') if 'AT:' in i]
+        out = [i for i in buffer.getvalue().split('\n') if 'took' in i]
         assert len(out) == 4
         assert all('in %d timesteps' % options['at_squeezer'] in i for i in out)
         buffer.truncate(0)

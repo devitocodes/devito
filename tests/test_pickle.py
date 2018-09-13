@@ -1,13 +1,17 @@
 import numpy as np
+from sympy import Symbol
+
 from examples.seismic import demo_model
 from examples.seismic.source import TimeAxis, RickerSource
-from devito.dimension import TimeDimension, SteppingDimension
-from devito.base import Constant
+
+from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
+                    TimeDimension, SteppingDimension, Operator)
+from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
 
 
-def test_pickle():
+def test_full_model():
 
     shape = (50, 50, 50)
     spacing = [10. for _ in shape]
@@ -67,9 +71,101 @@ def test_pickle():
 
     pkl_ricker = pickle.dumps(ricker)
     new_ricker = pickle.loads(pkl_ricker)
-    assert np.isclose(np.linalg.norm(ricker.data.flatten()),
-                      np.linalg.norm(new_ricker.data.flatten()))
+    assert np.isclose(np.linalg.norm(ricker.data), np.linalg.norm(new_ricker.data))
+    # FIXME: fails randomly when using data.flatten() AND numpy is using MKL
 
 
-if __name__ == "__main__":
-    test_pickle()
+def test_function():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    f.data[0] = 1.
+
+    pkl_f = pickle.dumps(f)
+    new_f = pickle.loads(pkl_f)
+
+    # .data is initialized, so it should have been pickled too
+    assert np.all(f.data[0] == 1.)
+    assert np.all(new_f.data[0] == 1.)
+
+    assert f.space_order == new_f.space_order
+    assert f.dtype == new_f.dtype
+    assert f.shape == new_f.shape
+
+
+def test_sparse_function():
+    grid = Grid(shape=(3,))
+    sf = SparseFunction(name='sf', grid=grid, npoint=3, space_order=2,
+                        coordinates=[(0.,), (1.,), (2.,)])
+    sf.data[0] = 1.
+
+    pkl_sf = pickle.dumps(sf)
+    new_sf = pickle.loads(pkl_sf)
+
+    # .data is initialized, so it should have been pickled too
+    assert np.all(sf.data[0] == 1.)
+    assert np.all(new_sf.data[0] == 1.)
+
+    # coordinates should also have been pickled
+    assert np.all(sf.coordinates.data == new_sf.coordinates.data)
+
+    assert sf.space_order == new_sf.space_order
+    assert sf.dtype == new_sf.dtype
+    assert sf.npoint == new_sf.npoint
+
+
+def test_symbolics():
+    a = Symbol('a')
+
+    id = IntDiv(a, 3)
+    pkl_id = pickle.dumps(id)
+    new_id = pickle.loads(pkl_id)
+    assert id == new_id
+
+    ffp = FunctionFromPointer('foo', a, ['b', 'c'])
+    pkl_ffp = pickle.dumps(ffp)
+    new_ffp = pickle.loads(pkl_ffp)
+    assert ffp == new_ffp
+
+    li = ListInitializer(['a', 'b'])
+    pkl_li = pickle.dumps(li)
+    new_li = pickle.loads(pkl_li)
+    assert li == new_li
+
+
+def test_operator_parameters():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    g = TimeFunction(name='g', grid=grid)
+    h = TimeFunction(name='h', grid=grid, save=10)
+    op = Operator(Eq(h.forward, h + g + f + 1))
+    for i in op.parameters:
+        pkl_i = pickle.dumps(i)
+        pickle.loads(pkl_i)
+
+
+def test_operator_function():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    op = Operator(Eq(f, f + 1))
+    op.apply()
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    new_op.apply(f=f)
+    assert np.all(f.data == 2)
+
+
+def test_operator_timefunction():
+    grid = Grid(shape=(3, 3, 3))
+    f = TimeFunction(name='f', grid=grid, save=3)
+
+    op = Operator(Eq(f.forward, f + 1))
+    op.apply(time=0)
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    new_op.apply(time_m=1, time_M=1, f=f)
+    assert np.all(f.data[2] == 2)

@@ -4,10 +4,11 @@ channels:
   - conda-forge
 dependencies:
   - python>=3.6
-  - numpy>=1.11
-  - sympy>=1.1
+  - numpy==1.14
+  - sympy==1.2
   - cgen
   - scipy
+  - mpi4py
   - matplotlib
   - pytest
   - flake8>=2.1.0

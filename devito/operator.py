@@ -7,23 +7,22 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.compiler import jit_compile, load
+from devito.compiler import jit_compile, load, save
 from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.logger import bar, info
+from devito.logger import info, perf
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
-                           ArrayCast, PointerCast, derive_parameters)
-from devito.ir.stree import schedule, section
+                           ArrayCast, derive_parameters)
+from devito.ir.stree import st_build
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
-from devito.tools import (ReducerMap, as_tuple, flatten, filter_sorted, numpy_to_ctypes,
-                          split)
-from devito.types import Object
+from devito.tools import (Signer, ReducerMap, as_tuple, flatten,
+                          filter_sorted, numpy_to_ctypes, split)
 
 
 class Operator(Callable):
@@ -69,7 +68,7 @@ class Operator(Callable):
         self._cfunction = None
 
         # References to local or external routines
-        self.func_table = OrderedDict()
+        self._func_table = OrderedDict()
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
@@ -88,10 +87,9 @@ class Operator(Callable):
         self._dtype, self._dspace = clusters.meta
 
         # Lower Clusters to a Schedule tree
-        stree = schedule(clusters)
-        stree = section(stree)
+        stree = st_build(clusters)
 
-        # Lower Sections to an Iteration/Expression tree (IET)
+        # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
 
         # Insert code for C-level performance profiling
@@ -101,9 +99,12 @@ class Operator(Callable):
         iet = self._specialize_iet(iet, **kwargs)
 
         # Insert the required symbol declarations
-        iet = iet_insert_C_decls(iet, self.func_table)
+        iet = iet_insert_C_decls(iet, self._func_table)
 
-        # Insert data and pointer casts for array parameters and profiling structs
+        # Insert code for MPI support
+        iet = self._generate_mpi(iet, **kwargs)
+
+        # Insert data and pointer casts for array parameters
         iet = self._build_casts(iet)
 
         # Derive parameters as symbols not defined in the kernel itself
@@ -123,12 +124,22 @@ class Operator(Callable):
         args.update([p._arg_values() for p in self.input if p.name not in args])
         args = args.reduce_all()
 
+        # All TensorFunctions should be defined on the same Grid
+        functions = [kwargs.get(p, p) for p in self.input if p.is_TensorFunction]
+        mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
+        try:
+            grid = mapper.unique('grid')
+        except (KeyError, ValueError):
+            if mapper and configuration['mpi']:
+                raise RuntimeError("Multiple `Grid`s found before `apply`")
+            grid = None
+
         # Process dimensions (derived go after as they might need/affect their parents)
         derived, main = split(self.dimensions, lambda i: i.is_Derived)
         for p in main:
-            args.update(p._arg_values(args, self._dspace[p], **kwargs))
+            args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
         for p in derived:
-            args.update(p._arg_values(args, self._dspace[p], **kwargs))
+            args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
 
         # Sanity check
         for p in self.input:
@@ -142,23 +153,21 @@ class Operator(Callable):
             dim = arg.argument
             osize = (1 + arg.original_dim.symbolic_end
                      - arg.original_dim.symbolic_start).subs(args)
-
-            if dim.symbolic_size in self.parameters:
-                if arg.value is None:
-                    args[dim.symbolic_size.name] = osize
-                elif isinstance(arg.value, int):
-                    args[dim.symbolic_size.name] = arg.value
-                else:
-                    args[dim.symbolic_size.name] = arg.value(osize)
+            if arg.value is None:
+                args[dim.symbolic_size.name] = osize
+            elif isinstance(arg.value, int):
+                args[dim.symbolic_size.name] = arg.value
+            else:
+                args[dim.symbolic_size.name] = arg.value(osize)
 
         # Add in the profiler argument
-        args[self.profiler.name] = self.profiler.new()
+        args[self.profiler.name] = self.profiler.timer.reset()
 
         # Add in any backend-specific argument
         args.update(kwargs.pop('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        if kwargs.pop('autotune', False):
+        if kwargs.pop('autotune', configuration['autotuning'].level):
             args = self._autotune(args)
 
         # Check all user-provided keywords are known to the Operator
@@ -179,16 +188,23 @@ class Operator(Callable):
         args = self.prepare_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
-            if p.name not in args:
+            if args.get(p.name) is None:
                 raise ValueError("No value found for parameter %s" % p.name)
         return args
 
     @property
     def elemental_functions(self):
-        return tuple(i.root for i in self.func_table.values())
+        return tuple(i.root for i in self._func_table.values())
 
-    @property
-    def compile(self):
+    @cached_property
+    def _soname(self):
+        """
+        A unique name for the shared object resulting from the jit-compilation
+        of this Operator.
+        """
+        return Signer._digest(self, configuration)
+
+    def _compile(self):
         """
         JIT-compile the C code generated by the Operator.
 
@@ -198,18 +214,15 @@ class Operator(Callable):
         :returns: The file name of the JIT-compiled function.
         """
         if self._lib is None:
-            # No need to recompile if a shared object has already been loaded.
-            return jit_compile(self.ccode, self._compiler)
-        else:
-            return self._lib.name
+            jit_compile(self._soname, str(self.ccode), self._compiler)
 
     @property
     def cfunction(self):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
-            basename = self.compile
-            self._lib = load(basename, self._compiler)
-            self._lib.name = basename
+            self._compile()
+            self._lib = load(self._soname)
+            self._lib.name = self._soname
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
@@ -217,7 +230,7 @@ class Operator(Callable):
             argtypes = []
             for i in self.parameters:
                 if i.is_Object:
-                    argtypes.append(ctypes.c_void_p)
+                    argtypes.append(i.dtype)
                 elif i.is_Scalar:
                     argtypes.append(numpy_to_ctypes(i.dtype))
                 elif i.is_Tensor:
@@ -252,13 +265,19 @@ class Operator(Callable):
 
         self._dle_args = dle_state.arguments
         self._dle_flags = dle_state.flags
-        self.func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                            for i in dle_state.elemental_functions]))
+        self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
+                                             for i in dle_state.elemental_functions]))
         self.dimensions.extend([i.argument for i in self._dle_args
                                 if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
 
         return dle_state.nodes
+
+    def _generate_mpi(self, iet, **kwargs):
+        """Transform the Iteration/Expression tree adding nodes performing halo
+        exchanges right before :class:`Iteration`s accessing distributed
+        :class:`TensorFunction`s."""
+        return iet
 
     def _build_parameters(self, iet):
         """Determine the Operator parameters based on the Iteration/Expression
@@ -269,9 +288,28 @@ class Operator(Callable):
         """Introduce array and pointer casts at the top of the Iteration/Expression
         tree ``iet``."""
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
-        profiler = Object(self.profiler.name, self.profiler.dtype, self.profiler.new)
-        casts.append(PointerCast(profiler))
         return List(body=casts + [iet])
+
+    def __getstate__(self):
+        if self._lib:
+            state = dict(self.__dict__)
+            # The compiled shared-object will be pickled; upon unpickling, it
+            # will be restored into a potentially different temporary directory,
+            # so the entire process during which the shared-object is loaded and
+            # given to ctypes must be performed again
+            state['_lib'] = None
+            state['_cfunction'] = None
+            with open(self._lib._name, 'rb') as f:
+                state['binary'] = f.read()
+            return state
+        else:
+            return self.__dict__
+
+    def __setstate__(self, state):
+        binary = state.pop('binary')
+        for k, v in state.items():
+            setattr(self, k, v)
+        save(self._soname, binary, self._compiler)
 
 
 class OperatorRunnable(Operator):
@@ -364,22 +402,25 @@ class OperatorRunnable(Operator):
     def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
         summary = self.profiler.summary(args, self._dtype)
-        with bar():
-            for k, v in summary.items():
-                itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
-                if len(itershapes) > 1:
-                    name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
-                else:
-                    name = "%s<%s>" % (k, itershapes[0])
-                gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
-                info("%s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
-                     (name, v.oi, v.time, v.gflopss, gpointss))
+        info("Operator `%s` run in %.2f s" % (self.name, sum(summary.timings.values())))
+        for k, v in summary.items():
+            itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
+            if len(itershapes) > 1:
+                name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
+            else:
+                name = "%s<%s>" % (k, itershapes[0])
+            gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
+            perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
+                 (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
-    def _profile_sections(self, iet,):
-        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        iet, profiler = create_profile('timers', iet)
+    def _profile_sections(self, iet):
+        """Instrument the Iteration/Expression tree for C-level profiling."""
+        profiler = create_profile('timers')
+        iet = profiler.instrument(iet)
         self._globals.append(profiler.cdef)
+        self._includes.extend(profiler._default_includes)
+        self._func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
         return iet, profiler
 
 

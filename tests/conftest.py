@@ -2,6 +2,9 @@ from __future__ import absolute_import
 
 import pytest
 
+from subprocess import check_call
+from mpi4py import MPI
+
 import numpy as np
 
 from sympy import cos, Symbol  # noqa
@@ -29,9 +32,8 @@ def scalar(name):
     return Scalar(name=name)
 
 
-def array(name, shape, dimensions, onstack=False):
-    return Array(name=name, shape=shape, dimensions=dimensions,
-                 onstack=onstack, onheap=(not onstack))
+def array(name, shape, dimensions, scope='heap'):
+    return Array(name=name, shape=shape, dimensions=dimensions, scope=scope)
 
 
 def constant(name):
@@ -47,9 +49,9 @@ def timefunction(name, space_order=1):
 
 
 @pytest.fixture(scope="session")
-def unit_box(name='a', shape=(11, 11)):
+def unit_box(name='a', shape=(11, 11), grid=None):
     """Create a field with value 0. to 1. in each dimension"""
-    grid = Grid(shape=shape)
+    grid = grid or Grid(shape=shape)
     a = Function(name=name, grid=grid)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
     a.data[:] = np.meshgrid(*dims)[1]
@@ -164,7 +166,7 @@ def c(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def c_stack(dims):
-    return array('c_stack', (3, 5), (dims['i'], dims['j']), True).indexify()
+    return array('c_stack', (3, 5), (dims['i'], dims['j']), 'stack').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -274,3 +276,55 @@ def configuration_override(key, value):
         return wrapper
 
     return dec
+
+
+# Support to run MPI tests
+# This is partly extracted from:
+# `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
+
+def parallel(item):
+    """Run a test in parallel.
+
+    :parameter item: The test item to run.
+    """
+    marker = item.get_marker("parallel")
+    nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
+    for i in nprocs:
+        if i < 2:
+            raise RuntimeError("Need at least two processes to run parallel test")
+
+        # Only spew tracebacks on rank 0.
+        # Run xfailing tests to ensure that errors are reported to calling process
+        if item.cls is not None:
+            testname = "%s::%s::%s" % (item.fspath, item.cls.__name__, item.name)
+        else:
+            testname = "%s::%s" % (item.fspath, item.name)
+        call = ["mpiexec", "-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
+                "-q", testname]
+        call.extend([":", "-n", "%d" % (i - 1), "python", "-m", "pytest",
+                     "--runxfail", "--tb=no", "-q", testname])
+        check_call(call)
+
+
+def pytest_configure(config):
+    """Register an additional marker."""
+    config.addinivalue_line(
+        "markers",
+        "parallel(nprocs): mark test to run in parallel on nprocs processors")
+
+
+def pytest_runtest_setup(item):
+    if item.get_marker("parallel") and MPI.COMM_WORLD.size == 1:
+        # Blow away function arg in "master" process, to ensure
+        # this test isn't run on only one process
+        dummy_test = lambda *args, **kwargs: True
+        if item.cls is not None:
+            setattr(item.cls, item.name, dummy_test)
+        else:
+            item.obj = dummy_test
+
+
+def pytest_runtest_call(item):
+    if item.get_marker("parallel") and MPI.COMM_WORLD.size == 1:
+        # Spawn parallel processes to run test
+        parallel(item)

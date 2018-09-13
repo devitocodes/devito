@@ -1,8 +1,9 @@
 from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
-from devito.tools import as_tuple, flatten
-from devito.types import Array
+from devito.symbolics import Macro
+from devito.tools import flatten
+from devito.types import Array, LocalObject
 
-__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'is_foldable',
+__all__ = ['filter_iterations', 'retrieve_iteration_tree',
            'compose_nodes', 'derive_parameters']
 
 
@@ -84,19 +85,6 @@ def filter_iterations(tree, key=lambda i: i, stop=lambda: False):
     return filtered
 
 
-def is_foldable(nodes):
-    """
-    Return True if the iterable ``nodes`` consists of foldable :class:`Iteration`
-    objects, False otherwise.
-    """
-    nodes = as_tuple(nodes)
-    if len(nodes) <= 1 or any(not i.is_Iteration for i in nodes):
-        return False
-    main = nodes[0]
-    return all(i.dim == main.dim and i.limits == main.limits and i.index == main.index
-               and i.properties == main.properties for i in nodes)
-
-
 def compose_nodes(nodes, retrieve=False):
     """
     Build an Iteration/Expression tree by nesting the nodes in ``nodes``.
@@ -139,9 +127,13 @@ def derive_parameters(nodes, drop_locals=False):
     defines = [s.name for s in FindSymbols('defines').visit(nodes)]
     parameters = tuple(s for s in symbols if s.name not in defines)
 
-    # Filter out internally-allocated temporary `Array` types
+    # Drop globally-visible objects
+    parameters = [p for p in parameters if not isinstance(p, Macro)]
+
+    # Filter out locally-allocated Arrays and Objects
     if drop_locals:
         parameters = [p for p in parameters
                       if not (isinstance(p, Array) and (p._mem_heap or p._mem_stack))]
+        parameters = [p for p in parameters if not isinstance(p, LocalObject)]
 
     return parameters

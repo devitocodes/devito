@@ -69,7 +69,7 @@ class Function(function.Function, Signer):
                 log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
 
                 # Fetch the appropriate context
-                context = contexts.fetch(self.grid, self.dtype, self.dimensions)
+                context = contexts.fetch(self.dimensions, self.dtype)
 
                 # Create a YASK grid; this allocates memory
                 grid = context.make_grid(self)
@@ -84,7 +84,7 @@ class Function(function.Function, Signer):
                     else:
                         # time and misc dimensions
                         padding.append((0, 0))
-                self._padding = padding
+                self._padding = tuple(padding)
 
                 self._data = Data(grid, self.shape_allocated, self.indices, self.dtype)
                 self._data.reset()
@@ -153,9 +153,6 @@ class Function(function.Function, Signer):
     def data_allocated(self):
         return Data(self._data.grid, self.shape_allocated, self.indices, self.dtype)
 
-    def initialize(self):
-        raise NotImplementedError
-
     def _arg_defaults(self, alias=None):
         args = super(Function, self)._arg_defaults(alias=alias)
 
@@ -178,7 +175,8 @@ class TimeFunction(function.TimeFunction, Function):
         # Never use a SteppingDimension in the yask backend: it is simply
         # unnecessary and would only complicate things when creating dummy
         # grids
-        indices[cls._time_position] = kwargs['grid'].time_dim
+        if indices[cls._time_position].is_Stepping:
+            indices[cls._time_position] = indices[cls._time_position].root
         return tuple(indices)
 
     def _arg_defaults(self, alias=None):

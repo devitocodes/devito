@@ -5,7 +5,7 @@ from conftest import skipif_yask
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
-                           Conditional, NestedTransformer, printAST)
+                           Conditional, printAST)
 from sympy import Mod, Eq
 
 
@@ -245,7 +245,8 @@ def test_transformer_replace_function_body(block1, block2):
     """Create a Function and replace its body with another."""
     args = FindSymbols().visit(block1)
     f = Callable('foo', block1, 'void', args)
-    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
+    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec, \
+const int i_size)
 {
   for (int i = 0; i <= 3; i += 1)
   {
@@ -260,7 +261,8 @@ def test_transformer_replace_function_body(block1, block2):
 }"""
 
     f = Transformer({block1: block2}).visit(f)
-    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
+    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec, \
+const int i_size)
 {
   for (int i = 0; i <= 3; i += 1)
   {
@@ -299,14 +301,14 @@ def test_transformer_add_replace(exprs, block2, block3):
 
 @skipif_yask
 def test_nested_transformer(exprs, iters, block2):
-    """Unlike Transformer, based on BFS, a NestedTransformer applies transformations
-    performing a DFS. This test simultaneously replace an inner expression and an
-    Iteration sorrounding it."""
+    """When created with the kwarg ``nested=True``, a Transformer performs
+    nested replacements. This test simultaneously replace an inner expression
+    and an Iteration sorrounding it."""
     target_loop = block2.nodes[1]
     target_expr = target_loop.nodes[0].nodes[0]
     mapper = {target_loop: iters[3](target_loop.nodes[0]),
               target_expr: exprs[3]}
-    processed = NestedTransformer(mapper).visit(block2)
+    processed = Transformer(mapper, nested=True).visit(block2)
     assert printAST(processed) == """<Iteration i::i::(0, 3, 1)::(0, 0)>
   <Expression a[i] = a[i] + b[i] + 5.0>
   <Iteration s::s::(0, 4, 1)::(0, 0)>

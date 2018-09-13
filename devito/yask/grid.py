@@ -22,3 +22,8 @@ class Grid(grid.Grid):
         # In the `yask` backend, the stepping dimension is an alias of the
         # time dimension
         return time_dim
+
+    def __setstate__(self, state):
+        super(Grid, self).__setstate__(state)
+        # A new context is created, as the unpickled Dimensions are new objects
+        contexts.putdefault(self)
