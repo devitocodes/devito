@@ -524,7 +524,7 @@ else
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='advanced')
+        op = Operator(exprs, dle='openmp')
 
         iters = FindNodes(Iteration).visit(op)
         assert all(i.is_ParallelAtomic for i in iters if i.dim.name in atomic)
@@ -583,12 +583,13 @@ else
             exprs[i] = eval(e)
 
         # Use 'openmp' here instead of 'advanced' to disable loop blocking
-        op = Operator(exprs, dle='advanced')
+        op = Operator(exprs, dle='openmp')
 
         iters = FindNodes(Iteration).visit(op)
         assert all([i.is_ParallelAtomic for i in iters if i.dim.name in atomic])
         assert all([not i.is_ParallelAtomic for i in iters if i.dim.name not in atomic])
         assert all([i.is_Parallel for i in iters if i.dim.name in parallel])
+        print([(i, not i.is_Parallel) for i in iters if i.dim.name not in parallel])
         assert all([not i.is_Parallel for i in iters if i.dim.name not in parallel])
 
     @pytest.mark.parametrize('exprs,wrappable', [

@@ -100,7 +100,7 @@ class Differentiable(sympy.Expr):
     @property
     def args(self):
         if self.is_Function:
-            return super (Differentiable, self).args
+            return super(Differentiable, self).args
         return (self._expr,)
 
     def __add__(self, other):
@@ -244,4 +244,3 @@ class Differentiable(sympy.Expr):
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return sum([getattr(self.laplace * weight, d) for d in derivs])
-
