@@ -297,6 +297,13 @@ class Expression(Node):
         return not self.is_scalar
 
     @property
+    def is_scalar_assign(self):
+        """
+        Return True if a scalar, non-increment expression
+        """
+        return self.is_scalar and not self.is_increment
+
+    @property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Expression`."""
         return tuple(self.expr.free_symbols)
