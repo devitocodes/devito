@@ -203,7 +203,8 @@ def test_fd_space_staggered(space_order, stagger):
     Dpolynome = diff(polynome)
     Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx2], np.float32)
     # FD derivative, symbolic
-    u_deriv = staggered_diff(u, order=space_order, dim=x, stagger=stagger)
+    u_deriv = staggered_diff(u, deriv_order=1, fd_order=space_order,
+                             dim=x, stagger=stagger)
     # Compute numerical FD
     stencil = Eq(du, u_deriv)
     op = Operator(stencil, subs={x.spacing: dx})
