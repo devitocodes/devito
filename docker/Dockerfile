@@ -1,7 +1,8 @@
 FROM python:3.6
 
-RUN apt-get update && apt-get install -y \ 
-    mpich
+RUN apt-get update && apt-get install -y -q \ 
+    mpich \ 
+    libmpich-dev 
 
 ADD ./requirements.txt /app/requirements.txt
 
