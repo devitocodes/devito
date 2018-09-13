@@ -132,7 +132,7 @@ def iet_insert_C_decls(iet, func_table=None):
     # Classify, and then schedule declarations to stack/heap
     for k, v in scopes:
         if k.is_Expression:
-            if k.is_scalar:
+            if k.is_scalar_assign:
                 # Inline declaration
                 mapper[k] = LocalExpression(**k.args)
                 continue
