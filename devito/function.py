@@ -17,14 +17,15 @@ from devito.symbolics import indexify, retrieve_functions
 from devito.finite_differences import Differentiable, initialize_derivatives
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
-from devito.tools import Tag, ReducerMap, as_tuple, prod, powerset, is_integer
+from devito.tools import (Tag, ReducerMap, ArgProvider, as_mapper, as_tuple,
+                          flatten, is_integer, prod, powerset)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction', 'Buffer']
 
 
-class Constant(AbstractCachedSymbol):
+class Constant(AbstractCachedSymbol, ArgProvider):
 
     """
     Symbol representing constant values in symbolic equations.
@@ -108,7 +109,7 @@ class Constant(AbstractCachedSymbol):
     _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
 
 
-class TensorFunction(AbstractCachedFunction):
+class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     """
     Utility class to encapsulate all symbolic types that represent
@@ -148,7 +149,14 @@ class TensorFunction(AbstractCachedFunction):
                 # Allocate memory and initialize it. Note that we do *not* hold
                 # a reference to the user-provided buffer
                 self._initializer = None
-                self.data_allocated[:] = initializer
+                if len(initializer) > 0:
+                    self.data_allocated[:] = initializer
+                else:
+                    # This is a corner case -- we might get here, for example, when
+                    # running with MPI and some processes get 0-size arrays after
+                    # domain decomposition. We touch the data anyway to avoid the
+                    # case ``self._data is None``
+                    self.data
             else:
                 raise ValueError("`initializer` must be callable or buffer, not %s"
                                  % type(initializer))
@@ -445,7 +453,8 @@ class TensorFunction(AbstractCachedFunction):
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
-        if MPI.COMM_WORLD.size == 1 or not self._is_halo_dirty:
+        if MPI.COMM_WORLD.size == 1:
+            # Nothing to do
             return
         if MPI.COMM_WORLD.size > 1 and self.grid is None:
             raise RuntimeError("`%s` cannot perfom a halo exchange as it has "
@@ -500,8 +509,8 @@ class TensorFunction(AbstractCachedFunction):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
-            args.update(i._arg_defaults(start=0, size=s+o, alias=k))
+        for i, s, o in zip(key.indices, self.shape, self.staggered):
+            args.update(i._arg_defaults(start=0, size=s+o))
 
         # Add MPI-related data structures
         if self.grid is not None:
@@ -948,6 +957,30 @@ class TimeFunction(Function):
     _pickle_kwargs = Function._pickle_kwargs + ['time_order', 'save']
 
 
+class SubFunction(Function):
+    """
+    A :class:`Function` that is bound to another "parent" TensorFunction.
+
+    A SubFunction hands control of argument binding and halo exchange to its
+    parent TensorFunction.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            super(SubFunction, self).__init__(*args, **kwargs)
+            self._parent = kwargs['parent']
+
+    def _halo_exchange(self):
+        return
+
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
+                               "a value dynamically" % self.name)
+        else:
+            return self._parent._arg_defaults(alias=self._parent).reduce_all()
+
+
 class AbstractSparseFunction(TensorFunction):
     """
     An abstract class to define behaviours common to any kind of sparse
@@ -955,8 +988,12 @@ class AbstractSparseFunction(TensorFunction):
     on the fly. This is an internal class only and should never be
     instantiated.
     """
-    # Symbols that are encapsulated within this symbol (e.g. coordinates)
-    _child_functions = []
+
+    _sparse_position = -1
+    """Position of sparse index among the function indices."""
+
+    _sub_functions = ()
+    """:class:`SubFunction`s encapsulated within this AbstractSparseFunction."""
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -965,8 +1002,8 @@ class AbstractSparseFunction(TensorFunction):
             npoint = kwargs.get('npoint')
             if not isinstance(npoint, int):
                 raise TypeError('SparseFunction needs `npoint` int argument')
-            if npoint <= 0:
-                raise ValueError('`npoint` must be > 0')
+            if npoint < 0:
+                raise ValueError('`npoint` must be >= 0')
             self.npoint = npoint
 
             # A Grid must have been provided
@@ -990,23 +1027,169 @@ class AbstractSparseFunction(TensorFunction):
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('npoint'),))
 
-    def _arg_defaults(self, alias=None):
-        """
-        Returns a map of default argument values defined by this symbol.
-
-        :param alias: (Optional) name under which to store values.
-        """
-        key = alias or self
-        args = super(AbstractSparseFunction, self)._arg_defaults(alias=alias)
-        for child_name in self._child_functions:
-            child = getattr(self, child_name)
-            args.update(child._arg_defaults(alias=getattr(key, child_name)))
-        return args
+    def _is_owned(self, point):
+        """Return True if ``point`` is in self's local domain, False otherwise."""
+        point = as_tuple(point)
+        if len(point) != self.grid.dim:
+            raise ValueError("`%s` is an %dD point (expected %dD)"
+                             % (point, len(point), self.grid.dim))
+        distributor = self.grid.distributor
+        return all(distributor.glb_to_loc(d, p) is not None
+                   for d, p in zip(self.grid.dimensions, point))
 
     @property
-    def _arg_names(self):
-        """Return a tuple of argument names introduced by this function."""
-        return tuple([self.name] + [x for x in self._child_functions])
+    def _dist_datamap(self):
+        """
+        Return a mapper ``M : MPI rank -> logically owned sparse data``.
+        """
+        targets = self.grid.distributor.glb_to_rank(self.gridpoints)
+        return as_mapper(range(self.npoint), lambda i: targets[i])
+
+    @property
+    def _dist_mask(self):
+        """
+        Return a mask, suitable to index into ``self.data``, usable to
+        reorder the sparse data values so that adjacent values logically
+        belong to the same MPI rank.
+        """
+        dmap = self._dist_datamap
+        mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
+        ret = [slice(None) for i in range(self.ndim)]
+        ret[self._sparse_position] = mask
+        return ret
+
+    @property
+    def _dist_subfunc_mask(self):
+        """
+        Return a mask, suitable to index into any of self's SubFunctions,
+        usable to reorder a SubFunction values so that adjacent values
+        logically belong to the same MPI rank.
+        """
+        return self._dist_mask[self._sparse_position]
+
+    @property
+    def _dist_count(self):
+        """
+        Return a 2-tuple of comm-sized iterables, which tells how many sparse
+        points is this MPI rank expected to send/receive to/from each other
+        MPI rank.
+        """
+        dmap = self._dist_datamap
+        comm = self.grid.distributor.comm
+
+        ssparse = np.array([len(dmap.get(i, [])) for i in range(comm.size)], dtype=int)
+        rsparse = np.empty(comm.size, dtype=int)
+        comm.Alltoall(ssparse, rsparse)
+
+        return ssparse, rsparse
+
+    @property
+    def _dist_alltoall(self):
+        """
+        Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing
+        the sparse data values across the MPI ranks needing them.
+        """
+        ssparse, rsparse = self._dist_count
+
+        # Per-rank shape of send/recv data
+        sshape = []
+        rshape = []
+        for s, r in zip(ssparse, rsparse):
+            handle = list(self.shape)
+            handle[self._sparse_position] = s
+            sshape.append(tuple(handle))
+
+            handle = list(self.shape)
+            handle[self._sparse_position] = r
+            rshape.append(tuple(handle))
+
+        # Per-rank count of send/recv data
+        scount = [prod(i) for i in sshape]
+        rcount = [prod(i) for i in rshape]
+
+        # Per-rank displacement of send/recv data (it's actually all contiguous,
+        # but the Alltoallv needs this information anyway)
+        sdisp = np.concatenate([[0], np.cumsum(scount)[:-1]])
+        rdisp = np.concatenate([[0], tuple(np.cumsum(rcount))[:-1]])
+
+        # Total shape of send/recv data
+        sshape = list(self.shape)
+        sshape[self._sparse_position] = sum(ssparse)
+        rshape = list(self.shape)
+        rshape[self._sparse_position] = sum(rsparse)
+
+        return sshape, scount, sdisp, rshape, rcount, rdisp
+
+    @property
+    def _dist_subfunc_alltoall(self):
+        """
+        Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing
+        self's SubFunction values across the MPI ranks needing them.
+        """
+        raise NotImplementedError
+
+    def _dist_scatter(self):
+        """
+        Return a ``numpy.ndarray`` containing up-to-date data values belonging
+        to the calling MPI rank. A data value belongs to a given MPI rank R
+        if its coordinates fall within R's local domain.
+        """
+        raise NotImplementedError
+
+    def _dist_gather(self, data):
+        """
+        Return a ``numpy.ndarray`` containing up-to-date data and coordinate values
+        suitable for insertion into ``self.data``.
+        """
+        raise NotImplementedError
+
+    @property
+    def gridpoints(self):
+        """The *reference* grid point corresponding to each sparse point."""
+        raise NotImplementedError
+
+    def _arg_defaults(self, alias=None):
+        key = alias or self
+        mapper = {self: key}
+        mapper.update({getattr(self, i): getattr(key, i) for i in self._sub_functions})
+        args = ReducerMap()
+
+        # Add in the sparse data (as well as any SubFunction data) belonging to
+        # self's local domain only
+        for k, v in self._dist_scatter().items():
+            args[mapper[k].name] = v
+            for i, s, o in zip(mapper[k].indices, v.shape, k.staggered):
+                args.update(i._arg_defaults(start=0, size=s+o))
+
+        # Add MPI-related data structures
+        args.update(self.grid._arg_defaults())
+
+        return args
+
+    def _arg_values(self, **kwargs):
+        # Add value override for own data if it is provided, otherwise
+        # use defaults
+        if self.name in kwargs:
+            new = kwargs.pop(self.name)
+            if isinstance(new, AbstractSparseFunction):
+                # Set new values and re-derive defaults
+                values = new._arg_defaults(alias=self).reduce_all()
+            else:
+                # We've been provided a pure-data replacement (array)
+                values = {}
+                for k, v in self._dist_scatter(new).items():
+                    values[k.name] = v
+                    for i, s, o in zip(k.indices, v.shape, k.staggered):
+                        values.update(i._arg_defaults(size=s+o-sum(k._offset_domain[i])))
+                # Add MPI-related data structures
+                values.update(self.grid._arg_defaults())
+        else:
+            values = self._arg_defaults(alias=self).reduce_all()
+
+        return values
+
+    def _arg_apply(self, data):
+        self._dist_gather(data)
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
@@ -1080,7 +1263,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     :param grid: :class:`Grid` object defining the computational domain.
     :param coordinates: (Optional) coordinate data for the sparse points.
     :param space_order: (Optional) discretisation order for space derivatives.
-    :param shape: (Optional) shape of the function. Defaults to ``(npoints,)``.
+    :param shape: (Optional) shape of the function. Defaults to ``(npoint,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data.
@@ -1101,29 +1284,34 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     """
 
     is_SparseFunction = True
-    _child_functions = ['coordinates']
+
+    _sub_functions = ('coordinates',)
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(SparseFunction, self).__init__(*args, **kwargs)
 
-            # Set up coordinates of sparse points
-            coordinates = kwargs.get('coordinates')
+            # Set up sparse point coordinates
+            coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
             if isinstance(coordinates, Function):
                 self._coordinates = coordinates
             else:
                 dimensions = (self.indices[-1], Dimension(name='d'))
-                self._coordinates = Function(name='%s_coords' % self.name,
-                                             dtype=self.dtype, dimensions=dimensions,
-                                             shape=(self.npoint, self.grid.dim),
-                                             space_order=0, initializer=coordinates)
+                self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
+                                                dtype=self.dtype, dimensions=dimensions,
+                                                shape=(self.npoint, self.grid.dim),
+                                                space_order=0, initializer=coordinates)
 
     @property
     def coordinates(self):
         return self._coordinates
 
     @property
-    def coefficients(self):
+    def coordinates_data(self):
+        return self.coordinates.data
+
+    @property
+    def _coefficients(self):
         """Symbolic expression for the coefficients for sparse point
         interpolation according to:
         https://en.wikipedia.org/wiki/Bilinear_interpolation.
@@ -1136,7 +1324,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         # 1, x1, y1, z1, x1*y1, ...
         indices = list(powerset(indices1))
         indices[0] = (1,)
-        point_sym = list(powerset(self.point_symbols))
+        point_sym = list(powerset(self._point_symbols))
         point_sym[0] = (1,)
         # 1, px. py, pz, px*py, ...
         A = []
@@ -1161,7 +1349,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return A.inv().T * p
 
     @property
-    def point_symbols(self):
+    def _point_symbols(self):
         """Symbol for coordinate value in each dimension of the point"""
         return tuple(sympy.symbols('p%s' % d) for d in self.grid.dimensions)
 
@@ -1171,28 +1359,28 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return tuple(product(range(2), repeat=self.grid.dim))
 
     @property
-    def coordinate_symbols(self):
+    def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension"""
         p_dim = self.indices[-1]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
     @property
-    def coordinate_indices(self):
+    def _coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
         indices = self.grid.dimensions
         return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
-                      for c, o, i in zip(self.coordinate_symbols, self.grid.origin,
+                      for c, o, i in zip(self._coordinate_symbols, self.grid.origin,
                                          indices[:self.grid.dim])])
 
     @property
-    def coordinate_bases(self):
+    def _coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
         indices = self.grid.dimensions
         return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
-                      for c, o, idx, i in zip(self.coordinate_symbols,
+                      for c, o, idx, i in zip(self._coordinate_symbols,
                                               self.grid.origin,
-                                              self.coordinate_indices,
+                                              self._coordinate_indices,
                                               indices[:self.grid.dim])])
 
     def _interpolation_indices(self, variables, offset=0):
@@ -1201,7 +1389,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         """
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
-                              in zip(inc, self.coordinate_indices))
+                              in zip(inc, self._coordinate_indices))
                         for inc in self._point_increments]
 
         # Generate index substitutions for all grid variables except
@@ -1214,7 +1402,17 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
-        return OrderedDict(zip(self.point_symbols, self.coordinate_bases)), idx_subs
+        return OrderedDict(zip(self._point_symbols, self._coordinate_bases)), idx_subs
+
+    @property
+    def gridpoints(self):
+        if self.coordinates._data is None:
+            raise ValueError("No coordinates attached to this SparseFunction")
+        ret = []
+        for coords in self.coordinates.data:
+            ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
+                             zip(coords, self.grid.origin, self.grid.dimensions)))
+        return ret
 
     def interpolate(self, expr, offset=0, cummulative=False, self_subs={}):
         """Creates a :class:`sympy.Eq` equation for the interpolation
@@ -1223,10 +1421,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         :param expr: The expression to interpolate.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into
-                    field data in `expr`.
-        :param p_t: (Optional) time index to use for indexing into
-                    the sparse point data.
         :param cummulative: (Optional) If True, perform an increment rather
                             than an assignment. Defaults to False.
         """
@@ -1236,12 +1430,10 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         subs, idx_subs = self._interpolation_indices(variables, offset)
         # Substitute coordinate base symbols into the coefficients
         rhs = sum([expr.subs(vsub) * b.subs(subs)
-                   for b, vsub in zip(self.coefficients, idx_subs)])
-
+                   for b, vsub in zip(self._coefficients, idx_subs)])
         lhs = self.subs(self_subs)
-        rhs = rhs + lhs if cummulative else rhs
 
-        return [Inc(lhs, rhs)] if cummulative else [Eq(lhs, rhs)]
+        return [Inc(lhs, rhs) if cummulative else Eq(lhs, rhs)]
 
     def inject(self, field, expr, offset=0):
         """Symbol for injection of an expression onto a grid
@@ -1250,8 +1442,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         :param expr: The expression to inject.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into `field`.
-        :param p_t: (Optional) time index to use for indexing into `expr`.
         """
 
         variables = list(retrieve_functions(expr)) + [field]
@@ -1260,12 +1450,91 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         subs, idx_subs = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the coefficients
-        return [Inc(field.subs(vsub),
-                    field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
-                for b, vsub in zip(self.coefficients, idx_subs)]
+        return [Inc(field.subs(vsub), expr.subs(subs).subs(vsub) * b.subs(subs))
+                for b, vsub in zip(self._coefficients, idx_subs)]
+
+    @property
+    def _dist_subfunc_alltoall(self):
+        ssparse, rsparse = self._dist_count
+
+        # Per-rank shape of send/recv `coordinates`
+        sshape = [(i, self.grid.dim) for i in ssparse]
+        rshape = [(i, self.grid.dim) for i in rsparse]
+
+        # Per-rank count of send/recv `coordinates`
+        scount = [prod(i) for i in sshape]
+        rcount = [prod(i) for i in rshape]
+
+        # Per-rank displacement of send/recv `coordinates` (it's actually all
+        # contiguous, but the Alltoallv needs this information anyway)
+        sdisp = np.concatenate([[0], np.cumsum(scount)[:-1]])
+        rdisp = np.concatenate([[0], tuple(np.cumsum(rcount))[:-1]])
+
+        # Total shape of send/recv `coordinates`
+        sshape = list(self.coordinates.shape)
+        sshape[0] = sum(ssparse)
+        rshape = list(self.coordinates.shape)
+        rshape[0] = sum(rsparse)
+
+        return sshape, scount, sdisp, rshape, rcount, rdisp
+
+    def _dist_scatter(self, data=None):
+        data = data if data is not None else self.data
+        comm = self.grid.distributor.comm
+
+        # If not using MPI, don't waste time
+        if comm.size == 1:
+            return {self: data, self.coordinates: self.coordinates.data}
+
+        mpitype = MPI._typedict[np.dtype(self.dtype).char]
+
+        # Pack (reordered) data values so that they can be sent out via an Alltoallv
+        data = data[self._dist_mask]
+        # Send out the sparse point values
+        _, scount, sdisp, rshape, rcount, rdisp = self._dist_alltoall
+        scattered = np.empty(shape=rshape, dtype=self.dtype)
+        comm.Alltoallv([data, scount, sdisp, mpitype],
+                       [scattered, rcount, rdisp, mpitype])
+        data = scattered
+
+        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
+        coords = self.coordinates.data[self._dist_subfunc_mask]
+        # Send out the sparse point coordinates
+        _, scount, sdisp, rshape, rcount, rdisp = self._dist_subfunc_alltoall
+        scattered = np.empty(shape=rshape, dtype=self.coordinates.dtype)
+        comm.Alltoallv([coords, scount, sdisp, mpitype],
+                       [scattered, rcount, rdisp, mpitype])
+        coords = scattered
+
+        # Translate global coordinates into local coordinates
+        coords = coords - np.array(self.grid.origin_domain, dtype=self.dtype)
+
+        return {self: data, self.coordinates: coords}
+
+    def _dist_gather(self, data):
+        comm = self.grid.distributor.comm
+
+        # If not using MPI, don't waste time
+        if comm.size == 1:
+            return
+
+        # Send back the sparse point values
+        sshape, scount, sdisp, _, rcount, rdisp = self._dist_alltoall
+        gathered = np.empty(shape=sshape, dtype=self.dtype)
+        mpitype = MPI._typedict[np.dtype(self.dtype).char]
+        comm.Alltoallv([data, rcount, rdisp, mpitype],
+                       [gathered, scount, sdisp, mpitype])
+        data = gathered
+
+        # Insert back into `self.data` based on the original (expected) data layout
+        self.data[:] = data[self._dist_mask]
+
+        # Note: this method is almost the dual of `_dist_scatter`, except for the
+        # fact that `coordinates` are not sent back. This is because `coordinates`
+        # should never be written to
 
     # Pickling support
-    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates']
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates_data']
 
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
@@ -1281,7 +1550,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
                         Default to 0.
     :param time_order: (Optional) discretisation order for time derivatives.
                        Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) Data type of the buffered data.
@@ -1385,7 +1654,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                         Default to 0.
     :param time_order: (Optional) discretisation order for time derivatives.
                        Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data.
@@ -1400,8 +1669,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         SymPy uses `*args` to (re-)create the dimension arguments of the
         symbolic function.
     """
+
     is_PrecomputedSparseFunction = True
-    _child_functions = ['gridpoints', 'coefficients']
+
+    _sub_functions = ('gridpoints', 'coefficients')
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1415,24 +1686,25 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                 raise ValueError('`r` must be > 0')
             self.r = r
 
-            gridpoints = Function(name="%s_gridpoints" % self.name, dtype=np.int32,
-                                  dimensions=(self.indices[-1], Dimension(name='d')),
-                                  shape=(self.npoint, self.grid.dim), space_order=0)
+            gridpoints = SubFunction(name="%s_gridpoints" % self.name, dtype=np.int32,
+                                     dimensions=(self.indices[-1], Dimension(name='d')),
+                                     shape=(self.npoint, self.grid.dim), space_order=0,
+                                     parent=self)
 
             gridpoints_data = kwargs.get('gridpoints', None)
             assert(gridpoints_data is not None)
             gridpoints.data[:] = gridpoints_data[:]
-            self.gridpoints = gridpoints
+            self._gridpoints = gridpoints
 
-            coefficients = Function(name="%s_coefficients" % self.name, dtype=self.dtype,
-                                    dimensions=(self.indices[-1], Dimension(name='d'),
-                                                Dimension(name='i')),
-                                    shape=(self.npoint, self.grid.dim, self.r),
-                                    space_order=0)
+            coefficients = SubFunction(name="%s_coefficients" % self.name,
+                                       dimensions=(self.indices[-1], Dimension(name='d'),
+                                                   Dimension(name='i')),
+                                       shape=(self.npoint, self.grid.dim, self.r),
+                                       dtype=self.dtype, space_order=0, parent=self)
             coefficients_data = kwargs.get('coefficients', None)
             assert(coefficients_data is not None)
             coefficients.data[:] = coefficients_data[:]
-            self.coefficients = coefficients
+            self._coefficients = coefficients
             warning("Ensure that the provided coefficient and grid point values are " +
                     "computed on the final grid that will be used for other " +
                     "computations.")
@@ -1459,15 +1731,13 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             t = self.grid.stepping_dim
             expr = expr.subs(t, u_t).subs(time, u_t)
 
-        coefficients = self.coefficients.indexed
-        gridpoints = self.gridpoints.indexed
         p, _, _ = self.coefficients.indices
         dim_subs = []
         coeffs = []
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-            dim_subs.append((d, INT(rd + gridpoints[p, i])))
-            coeffs.append(coefficients[p, i, rd])
+            dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
+            coeffs.append(self.coefficients[p, i, rd])
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
         rhs = prod(coeffs) * expr.subs(dim_subs)
@@ -1493,19 +1763,44 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         if p_t is not None:
             expr = expr.subs(self.indices[0], p_t)
 
-        gridpoints = self.gridpoints.indexed
-        coefficients = self.coefficients.indexed
-
         p, _ = self.gridpoints.indices
         dim_subs = []
         coeffs = []
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-            dim_subs.append((d, INT(rd + gridpoints[p, i])))
-            coeffs.append(coefficients[p, i, rd])
+            dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
+            coeffs.append(self.coefficients[p, i, rd])
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
+
+    @property
+    def gridpoints(self):
+        return self._gridpoints
+
+    @property
+    def coefficients(self):
+        return self._coefficients
+
+    def _dist_scatter(self, data=None):
+        data = data if data is not None else self.data
+        comm = self.grid.distributor.comm
+
+        # If not using MPI, don't waste time
+        if comm.size == 1:
+            return {self: data, self.gridpoints: self.gridpoints.data,
+                    self.coefficients: self.coefficients.data}
+
+        raise NotImplementedError
+
+    def _dist_gather(self, data):
+        comm = self.grid.distributor.comm
+
+        # If not using MPI, don't waste time
+        if comm.size == 1:
+            return
+
+        raise NotImplementedError
 
 
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
@@ -1536,7 +1831,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
                         Default to 0.
     :param time_order: (Optional) discretisation order for time derivatives.
                        Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.
+    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data.
@@ -1551,6 +1846,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         SymPy uses `*args` to (re-)create the dimension arguments of the
         symbolic function.
     """
+
     is_PrecomputedSparseTimeFunction = True
 
 

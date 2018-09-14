@@ -600,7 +600,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
                 if side is LEFT:
                     end = offset + extent
                 else:
-                    end = (offset + extent) or None  # The end point won't be 0
+                    if extent == 0:
+                        # The region is empty
+                        assert offset == 0
+                        end = 0
+                    else:
+                        # The region is non-empty (e.g., offset=-1, extent=1), so
+                        # to reach the end point we must use None, not 0
+                        end = (offset + extent) or None
                 index_array.append(slice(offset, end))
             else:
                 index_array.append(slice(None))

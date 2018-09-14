@@ -319,7 +319,8 @@ def pytest_runtest_setup(item):
         # this test isn't run on only one process
         dummy_test = lambda *args, **kwargs: True
         if item.cls is not None:
-            setattr(item.cls, item.name, dummy_test)
+            attr = item.originalname or item.name
+            setattr(item.cls, attr, dummy_test)
         else:
             item.obj = dummy_test
 

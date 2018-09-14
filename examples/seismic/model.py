@@ -410,11 +410,11 @@ def initialize_function(function, data, nbpml):
         try:
             glb_range = glb_ranges[d]
 
-            lslice = min(glb_range.left, max(glb_range.left - o.left, 0))
-            rslice = max(glb_range.right, min(glb_range.right + o.right, glb_shape[d]))
+            lslice = min(glb_range.start, max(glb_range.start - o.left, 0))
+            rslice = max(glb_range.stop, min(glb_range.stop + o.right, glb_shape[d]))
 
-            lpad = o.left - glb_range.left if lslice == 0 else 0
-            rpad = o.right - (rslice - glb_range.right) if rslice == glb_shape[d] else 0
+            lpad = o.left - glb_range.start if lslice == 0 else 0
+            rpad = o.right - (rslice - glb_range.stop) if rslice == glb_shape[d] else 0
 
             data_slices.append((lslice, rslice))
             pad_widths.append((lpad, rpad))

@@ -24,8 +24,8 @@ from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression',
-           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression',
-           'Section', 'HaloSpot', 'IterationTree', 'ExpressionBundle']
+           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'Section',
+           'HaloSpot', 'IterationTree', 'ExpressionBundle', 'Increment']
 
 # First-class IET nodes
 
@@ -39,6 +39,7 @@ class Node(Signer):
     is_Iteration = False
     is_IterationFold = False
     is_Expression = False
+    is_Increment = False
     is_ForeignExpression = False
     is_Callable = False
     is_Call = False
@@ -296,16 +297,16 @@ class Expression(Node):
         return not self.is_scalar
 
     @property
-    def is_increment(self):
-        """
-        Return True if the write is actually an associative and commutative increment.
-        """
-        return self.expr.is_Increment
-
-    @property
     def free_symbols(self):
         """Return all :class:`Symbol` objects used by this :class:`Expression`."""
         return tuple(self.expr.free_symbols)
+
+
+class Increment(Expression):
+
+    """A node representing a += increment."""
+
+    is_Increment = True
 
 
 class Iteration(Node):
@@ -750,7 +751,7 @@ class ForeignExpression(Expression):
             return None
 
     @property
-    def is_increment(self):
+    def is_Increment(self):
         return self._is_increment
 
     @property

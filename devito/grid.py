@@ -139,6 +139,15 @@ class Grid(ArgProvider):
         return dict(zip(self.spacing_symbols, self.spacing))
 
     @property
+    def origin_domain(self):
+        """
+        Origin of the local (per-process) physical domain.
+        """
+        grid_origin = [min(i) for i in self.distributor.glb_numb]
+        assert len(grid_origin) == len(self.spacing)
+        return tuple(i*h for i, h in zip(grid_origin, self.spacing))
+
+    @property
     def shape(self):
         """Shape of the physical domain."""
         return self._shape
