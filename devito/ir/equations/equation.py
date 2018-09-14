@@ -8,7 +8,7 @@ from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGrou
                                force_directions, detect_flow_directions, build_intervals,
                                build_iterators)
 from devito.symbolics import FrozenExpr
-from devito.tools import Pickable, as_tuple, split
+from devito.tools import Pickable, as_tuple
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
 
@@ -114,8 +114,7 @@ class LoweredEq(Eq, IREq):
                              "and kwargs=%s" % (str(args), str(kwargs)))
 
         # Well-defined dimension ordering
-        dimensions = dimension_sort(expr, key=lambda d: not d.is_Time)
-        conditionals, ordering = split(dimensions, lambda d: d.is_Conditional)
+        ordering = dimension_sort(expr)
 
         # Introduce space sub-dimensions if need to
         region = getattr(input_expr, '_region', DOMAIN)
@@ -129,18 +128,22 @@ class LoweredEq(Eq, IREq):
         # Analyze the expression
         mapper = detect_accesses(expr)
         oobs = detect_oobs(mapper)
+        conditionals = [i for i in ordering if i.is_Conditional]
 
         # The iteration space is constructed so that information always flows
         # from an iteration to another (i.e., no anti-dependences are created)
         directions, _ = force_directions(detect_flow_directions(expr), lambda i: Any)
         iterators = build_iterators(mapper)
         intervals = build_intervals(Stencil.union(*mapper.values()))
-        intervals = sorted(intervals, key=lambda i: ordering.index(i.dim))
-        ispace = IterationSpace([i.zero() for i in intervals], iterators, directions)
+        intervals = IntervalGroup(intervals, relations=ordering.relations)
+        ispace = IterationSpace(intervals.zero(), iterators, directions)
 
-        # The data space is relative to the computational domain
+        # The data space is relative to the computational domain. Note that we
+        # are deliberately dropping the intervals ordering (by turning `intervals`
+        # into a list), as this is irrelevant (even more: dangerous) for data spaces
         intervals = [i if i.dim in oobs else i.zero() for i in intervals]
-        intervals += [Interval(i, 0, 0) for i in ordering if i not in ispace.dimensions]
+        intervals += [Interval(i, 0, 0) for i in ordering
+                      if i not in ispace.dimensions + conditionals]
         parts = {k: IntervalGroup(build_intervals(v)) for k, v in mapper.items() if k}
         dspace = DataSpace(intervals, parts)
 
@@ -149,7 +152,7 @@ class LoweredEq(Eq, IREq):
         expr._is_Increment = getattr(input_expr, 'is_Increment', False)
         expr._dspace = dspace
         expr._ispace = ispace
-        expr._conditionals = conditionals
+        expr._conditionals = tuple(conditionals)
         expr._reads, expr._writes = detect_io(expr)
 
         return expr
