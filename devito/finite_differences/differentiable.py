@@ -173,8 +173,10 @@ class Differentiable(sympy.Expr):
         return other.__pow__(self)
 
     def __neg__(self):
-        return Differentiable(sympy.Mul(*[getattr(self, '_expr', self), -1]),
-                              **self._merge_fd_properties(None))
+        if self.is_Function:
+            return super(Differentiable, self).__neg__()
+        self._expr = -getattr(self, '_expr', self)
+        return self
 
     def __str__(self):
         if self.is_Function:

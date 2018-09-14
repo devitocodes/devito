@@ -1,12 +1,12 @@
 from __future__ import absolute_import
 
-from conftest import EVAL, dims, time, x, y, z, skipif_yask
+from conftest import EVAL, time, x, y, z, skipif_yask
 
 import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, SparseTimeFunction, Dimension, error)
+                    SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -16,7 +16,7 @@ from devito.tools import flatten
 
 def dimify(dimensions):
     assert isinstance(dimensions, str)
-    return tuple(dims()[i] for i in dimensions.split())
+    return tuple(SpaceDimension(name=i) for i in dimensions.split())
 
 
 def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
