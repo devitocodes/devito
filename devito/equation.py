@@ -27,6 +27,8 @@ class Eq(sympy.Eq):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
                          region=self._region)
 
+    def __str__(self):
+        return "Eq(%s, %s)" % (self.lhs.__str__(), self.rhs.__str__())
 
 class Inc(Eq):
 
