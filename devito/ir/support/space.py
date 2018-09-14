@@ -5,7 +5,7 @@ from operator import mul
 
 from frozendict import frozendict
 
-from devito.tools import as_tuple, filter_ordered, toposort
+from devito.tools import PartialOrderTuple, as_tuple, filter_ordered, toposort
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
            'Forward', 'Backward', 'Any']
@@ -190,20 +190,22 @@ class Interval(AbstractInterval):
             self.lower == o.lower and self.upper == o.upper
 
 
-class IntervalGroup(tuple):
+class IntervalGroup(PartialOrderTuple):
 
     """
-    A sequence of :class:`Interval`s with set-like operations exposed.
+    A partially-ordered sequence of :class:`Interval`s with set-like
+    operations exposed.
     """
 
-    def __eq__(self, o):
-        return set(self) == set(o)
+    @classmethod
+    def reorder(cls, items, relations):
+        # The relations are between dimensions, not intervals. So we take
+        # care of that here
+        ordering = filter_ordered(toposort(relations) + [i.dim for i in items])
+        return sorted(items, key=lambda i: ordering.index(i.dim))
 
     def __repr__(self):
         return "IntervalGroup[%s]" % (', '.join([repr(i) for i in self]))
-
-    def __hash__(self):
-        return hash(i for i in self)
 
     @property
     def dimensions(self):
@@ -226,7 +228,7 @@ class IntervalGroup(tuple):
         return len(self.dimensions) == len(set(self.dimensions))
 
     @classmethod
-    def generate(self, op, *interval_groups, ordered=False):
+    def generate(self, op, *interval_groups):
         """
         generate(op, *interval_groups)
 
@@ -236,9 +238,6 @@ class IntervalGroup(tuple):
         :param op: Any legal :class:`Interval` operation, such as ``intersection``
                    or ``union``. This should be provided as a string.
         :param interval_groups: An iterable of :class:`IntervalGroup`s.
-        :param ordered: (Optional) if True, topological sorting is used to reorder
-                        the merged intervals based on how their dimensions pop up
-                        in ``interval_groups``. Defaults to False.
 
         Example
         -------
@@ -254,35 +253,35 @@ class IntervalGroup(tuple):
             for i in ig:
                 mapper.setdefault(i.dim, []).append(i)
         intervals = [Interval._apply_op(v, op) for v in mapper.values()]
-        if ordered is True:
-            ordering = toposort([ig.dimensions for ig in interval_groups])
-            intervals.sort(key=lambda i: ordering.index(i.dim))
-        return IntervalGroup(intervals)
+        relations = set().union(*[ig.relations for ig in interval_groups])
+        return IntervalGroup(intervals, relations=relations)
 
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.intersection(mapper.get(i.dim, i)) for i in self]
-        return IntervalGroup(intervals)
+        return IntervalGroup(intervals, relations=(self.relations | o.relations))
 
     def add(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.add(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
-        return IntervalGroup(intervals)
+        return IntervalGroup(intervals, relations=(self.relations | o.relations))
 
     def subtract(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.subtract(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
-        return IntervalGroup(intervals)
+        return IntervalGroup(intervals, relations=(self.relations | o.relations))
 
     def drop(self, d):
-        return IntervalGroup([i._rebuild() for i in self if i.dim not in as_tuple(d)])
+        return IntervalGroup([i._rebuild() for i in self if i.dim not in as_tuple(d)],
+                             relations=self.relations)
 
     def negate(self):
-        return IntervalGroup([i.negate() for i in self])
+        return IntervalGroup([i.negate() for i in self], relations=self.relations)
 
     def zero(self, d=None):
         d = self.dimensions if d is None else as_tuple(d)
-        return IntervalGroup([i.zero() if i.dim in d else i for i in self])
+        return IntervalGroup([i.zero() if i.dim in d else i for i in self],
+                             relations=self.relations)
 
     def __getitem__(self, key):
         if isinstance(key, (slice, int)):
@@ -363,7 +362,10 @@ class Space(object):
     """
 
     def __init__(self, intervals):
-        self._intervals = IntervalGroup(as_tuple(intervals))
+        if isinstance(intervals, IntervalGroup):
+            self._intervals = intervals
+        else:
+            self._intervals = IntervalGroup(as_tuple(intervals))
 
     def __repr__(self):
         return "%s[%s]" % (self.__class__.__name__,
@@ -495,8 +497,7 @@ class IterationSpace(Space):
             return IterationSpace(IntervalGroup())
         elif len(others) == 1:
             return others[0]
-        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others],
-                                           ordered=True)
+        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
         directions = {}
         for i in others:
             for k, v in i.directions.items():
